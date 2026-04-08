@@ -1,719 +1,550 @@
 import { useEffect, useMemo, useState } from "react";
-import { clearTokens, getJson, getRefreshToken, postForm, postJson, setAuthToken, setRefreshToken } from "./lib/api";
+import { getJson } from "./lib/api";
 
-type Metric = { key: string; label: string; value: string | number };
-type AnyRow = Record<string, any>;
-
-type LoginResult = {
-  access_token: string;
-  refresh_token: string;
-  role: string;
-  user_id: number;
-  two_factor_required: boolean;
-  challenge_token?: string;
+type FeedItem = {
+  id: number;
+  type: "image" | "video";
+  category: string;
+  title: string;
+  caption: string;
+  author: string;
+  likes: number;
+  comments: number;
+  accent: string;
 };
 
-const tabs = ["홈", "쇼핑", "주문", "운영", "보안", "앱심사"] as const;
-
-const gradeLabelMap: Record<string, string> = {
-  "1": "관리자",
-  "2": "부관리자",
-  "3": "중간관리자",
-  "4": "사업자",
-  "5": "소비자",
-  "6": "일반회원",
-  "7": "기타",
+type ShopCategory = {
+  group: string;
+  icon: string;
+  items: { name: string; count: number }[];
 };
 
-const roleAccountMap: Record<string, { email: string; password: string; device_name: string }> = {
-  "1": { email: "admin@example.com", password: "admin1234", device_name: "Admin Console" },
-  "4": { email: "seller@example.com", password: "seller1234", device_name: "Seller Center" },
-  "5": { email: "customer@example.com", password: "customer1234", device_name: "Customer Web" },
-  "6": { email: "general@example.com", password: "general1234", device_name: "General Web" },
+type ProductCard = {
+  id: number;
+  category: string;
+  name: string;
+  subtitle: string;
+  price: string;
+  badge: string;
 };
 
-const roleUsageMap: Record<string, { summary: string; tabs: string[]; buttons: string[] }> = {
-  "1": { summary: "전체 운영 통제, 제재, 앱심사, 감사로그, 승인큐, 커뮤니티/DM 모더레이션", tabs: ["홈", "쇼핑", "주문", "운영", "보안", "앱심사"], buttons: ["상품 승인/삭제", "신고 처리", "승인큐 승인", "2FA 관리", "감사로그 확인", "커뮤니티 모니터링"] },
-  "4": { summary: "상품 등록, SKU 관리, 주문 확인, 환불 처리, 정산 확인, 정보성 커뮤니티 응답", tabs: ["홈", "쇼핑", "주문", "보안"], buttons: ["상품 저장", "미디어 업로드", "주문 확인", "환불 승인/반려", "피드 작성", "DM 답변"] },
-  "5": { summary: "상품 탐색, 주문 생성, 환불 요청 상태 조회, 신고 접수, 정보 교류 커뮤니티 사용", tabs: ["홈", "쇼핑", "주문", "보안"], buttons: ["주문 생성", "환불 진행상태 확인", "신고 등록", "피드 작성", "DM 시작", "비밀번호 변경"] },
-  "6": { summary: "안전 노출 콘텐츠 탐색, 성인인증 전 안내 확인, 제한적 정보 교류", tabs: ["홈", "쇼핑", "보안"], buttons: ["공개 상품 탐색", "가이드 열람", "안전 피드 열람", "운영/상품 문의 DM", "로그인/비밀번호 초기화"] },
+type CommunityPost = {
+  id: number;
+  category: string;
+  title: string;
+  summary: string;
+  meta: string;
 };
 
-function Card({ title, children, actions }: { title: string; children: React.ReactNode; actions?: React.ReactNode }) {
+type ThreadItem = {
+  id: number;
+  name: string;
+  purpose: string;
+  preview: string;
+  time: string;
+  unread: number;
+};
+
+type CartItem = {
+  id: number;
+  name: string;
+  qty: number;
+  price: string;
+  option: string;
+};
+
+type ProfileItem = {
+  label: string;
+  value: string;
+};
+
+type ProgressItem = {
+  category: string;
+  percent: number;
+  status: string;
+  gaps: string[];
+};
+
+type ProjectStatus = {
+  overall?: { percent: number; status: string; gaps: string[] };
+  items?: ProgressItem[];
+  recommended_updates?: string[];
+};
+
+type DeployGuide = {
+  project_name?: string;
+  build_command?: string;
+  output_directory?: string;
+  windows_script?: string;
+  pages_cli?: string;
+  notes?: string[];
+};
+
+const mobileTabs = ["홈", "쇼핑", "채팅", "소통", "장바구니", "프로필"] as const;
+const legacyMenu = ["운영현황", "주문관리", "보안", "앱심사", "배포가이드"] as const;
+
+const feedSeed: FeedItem[] = Array.from({ length: 30 }, (_, idx) => ({
+  id: idx + 1,
+  type: idx % 3 === 0 ? "video" : "image",
+  category: idx % 2 === 0 ? "브랜드 피드" : idx % 3 === 0 ? "숏클립" : "안전 가이드",
+  title: `추천 피드 ${idx + 1}`,
+  caption:
+    idx % 3 === 0
+      ? "세로형 짧은 영상으로 위생·보관·브랜드 스토리를 연속 스크롤로 확인하는 예시입니다."
+      : "사진과 카드형 설명을 함께 제공해 홈에서 연속 탐색이 가능한 예시입니다.",
+  author: idx % 2 === 0 ? "adult official" : "seller studio",
+  likes: 160 + idx * 7,
+  comments: 12 + (idx % 9),
+  accent: ["sunrise", "violet", "teal", "rose"][idx % 4],
+}));
+
+const shopCategories: ShopCategory[] = [
+  { group: "입문/기본", icon: "◎", items: [{ name: "입문 액세서리", count: 18 }, { name: "위생·보관", count: 24 }, { name: "케어/세정", count: 14 }] },
+  { group: "브랜드관", icon: "◇", items: [{ name: "국내 브랜드", count: 12 }, { name: "수입 브랜드", count: 21 }, { name: "안전 기획전", count: 9 }] },
+  { group: "판매자센터", icon: "▣", items: [{ name: "신규 등록 상품", count: 8 }, { name: "승인 대기", count: 5 }, { name: "재고/상태", count: 11 }] },
+];
+
+const productsSeed: ProductCard[] = [
+  { id: 1, category: "위생·보관", name: "뉴트럴 케어 파우치", subtitle: "익명 포장/보관 가이드 포함", price: "₩18,000", badge: "안전노출" },
+  { id: 2, category: "입문 액세서리", name: "스타터 바디 케어 세트", subtitle: "입문자용 설명 카드 제공", price: "₩29,000", badge: "베스트" },
+  { id: 3, category: "브랜드관", name: "브랜드관 샘플 패키지", subtitle: "카드/계좌 이체 허용 SKU", price: "₩43,000", badge: "PG 친화" },
+  { id: 4, category: "기획전", name: "정기 재구매 추천 팩", subtitle: "재구매/장바구니 연동 예시", price: "₩36,500", badge: "추천" },
+  { id: 5, category: "위생·보관", name: "실링 보관 키트", subtitle: "보관/관리 콘텐츠 연결", price: "₩12,900", badge: "신규" },
+  { id: 6, category: "입문 액세서리", name: "안전 가이드 번들", subtitle: "콘텐츠+상품 동시 노출 예시", price: "₩24,000", badge: "콘텐츠 연동" },
+];
+
+const communityCategories = ["공지", "정보공유", "후기", "판매자소식", "이벤트"] as const;
+
+const communitySeed: CommunityPost[] = [
+  { id: 1, category: "공지", title: "안전모드 기준 및 커뮤니티 운영 원칙", summary: "앱 공개영역에서 허용되는 표현과 금지되는 표현을 한 번에 정리합니다.", meta: "관리자 · 오늘" },
+  { id: 2, category: "정보공유", title: "익명포장 SOP와 반품 회수 체크포인트", summary: "판매자/고객 모두 확인할 수 있는 실무형 요약 카드입니다.", meta: "운영팀 · 2시간 전" },
+  { id: 3, category: "후기", title: "사진 피드형 상품 리뷰 구성 예시", summary: "사진/짧은 영상/요약문이 결합된 소통 공간 예시입니다.", meta: "brand_note · 4시간 전" },
+  { id: 4, category: "판매자소식", title: "신규 카테고리 승인 대기 상품 현황", summary: "판매자센터에서 확인 중인 상품들을 카테고리별로 묶어서 보여줍니다.", meta: "seller_studio · 어제" },
+  { id: 5, category: "이벤트", title: "앱 심사 safe UI 점검 이벤트", summary: "모바일 노출 점검과 신고 흐름 확인용 공지입니다.", meta: "프로덕트팀 · 어제" },
+];
+
+const threadSeed: ThreadItem[] = [
+  { id: 101, name: "운영 문의", purpose: "상품/운영 문의", preview: "결제 허용 SKU 범위를 다시 확인 부탁드립니다.", time: "방금", unread: 2 },
+  { id: 102, name: "seller_studio", purpose: "판매자 1:1", preview: "승인 대기 상품 이미지 규격을 수정했습니다.", time: "12분 전", unread: 0 },
+  { id: 103, name: "brand_note", purpose: "콘텐츠 응답", preview: "피드형 홈 카드 노출 순서 제안 드립니다.", time: "1시간 전", unread: 1 },
+  { id: 104, name: "customer demo", purpose: "구매자 지원", preview: "장바구니와 프로필 연동 상태를 확인하고 싶어요.", time: "어제", unread: 0 },
+];
+
+const cartSeed: CartItem[] = [
+  { id: 1, name: "뉴트럴 케어 파우치", qty: 1, price: "₩18,000", option: "위생/보관" },
+  { id: 2, name: "스타터 바디 케어 세트", qty: 2, price: "₩58,000", option: "입문 액세서리" },
+  { id: 3, name: "정기 재구매 추천 팩", qty: 1, price: "₩36,500", option: "기획전" },
+];
+
+const profileStats: ProfileItem[] = [
+  { label: "팔로워", value: "2,184" },
+  { label: "팔로잉", value: "318" },
+  { label: "피드", value: "94" },
+  { label: "상품", value: "26" },
+];
+
+function FeedPoster({ item }: { item: FeedItem }) {
   return (
-    <section className="card">
-      <div className="card-head">
-        <h3>{title}</h3>
-        {actions ? <div className="card-actions">{actions}</div> : null}
+    <article className={`feed-card ${item.accent}`}>
+      <div className="feed-media">
+        <div className="feed-badge">{item.type === "video" ? "VIDEO" : "PHOTO"}</div>
+        <div className="feed-category">{item.category}</div>
+        <div className="feed-visual-copy">{item.title}</div>
       </div>
-      {children}
+      <div className="feed-copy">
+        <div>
+          <strong>{item.title}</strong>
+          <p>{item.caption}</p>
+        </div>
+        <div className="feed-meta">
+          <span>@{item.author}</span>
+          <span>좋아요 {item.likes}</span>
+          <span>댓글 {item.comments}</span>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function LegacyPanel({
+  section,
+  projectStatus,
+  deployGuide,
+}: {
+  section: (typeof legacyMenu)[number];
+  projectStatus: ProjectStatus | null;
+  deployGuide: DeployGuide | null;
+}) {
+  if (section === "운영현황") {
+    return (
+      <section className="legacy-panel">
+        <div className="legacy-grid two">
+          <div className="legacy-box">
+            <h3>전체 진행도</h3>
+            <div className="big-progress">{projectStatus?.overall?.percent ?? 90}%</div>
+            <p>{projectStatus?.overall?.status ?? "모바일 IA/상단 메뉴 재배치, Cloudflare 수동 배포 흐름까지 반영된 상태"}</p>
+          </div>
+          <div className="legacy-box">
+            <h3>현재 부족 항목</h3>
+            <ul>
+              {(projectStatus?.overall?.gaps ?? ["실 PG/실세무 발급 연동", "실기기 앱 제출 자산", "운영 DB 마이그레이션"]).map((gap) => (
+                <li key={gap}>{gap}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+        <div className="legacy-box">
+          <h3>세부 항목 진행도</h3>
+          <div className="progress-list">
+            {(projectStatus?.items ?? []).map((item) => (
+              <div key={item.category} className="progress-row">
+                <div>
+                  <strong>{item.category}</strong>
+                  <span>{item.status}</span>
+                </div>
+                <div className="progress-bar"><i style={{ width: `${item.percent}%` }} /></div>
+                <b>{item.percent}%</b>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (section === "주문관리") {
+    return (
+      <section className="legacy-panel">
+        <div className="legacy-grid three">
+          <div className="legacy-box"><h3>주문 상태</h3><p>신규 주문 18건 · 결제대기 4건 · 출고대기 7건</p></div>
+          <div className="legacy-box"><h3>환불/분쟁</h3><p>요청 3건 · 검수중 2건 · SLA 경고 1건</p></div>
+          <div className="legacy-box"><h3>정산 미리보기</h3><p>이번 주 플랫폼 수수료 예상 ₩1,420,000</p></div>
+        </div>
+      </section>
+    );
+  }
+
+  if (section === "보안") {
+    return (
+      <section className="legacy-panel">
+        <div className="legacy-grid three">
+          <div className="legacy-box"><h3>관리자 2FA</h3><p>OTP + 백업코드 준비, 실발송/실기기 정책만 남음</p></div>
+          <div className="legacy-box"><h3>권한체계</h3><p>상단 메뉴에서 기존 운영/보안 기능 접근 가능하도록 유지</p></div>
+          <div className="legacy-box"><h3>감사로그</h3><p>중요 액션 이중승인/해시체인 고도화 필요</p></div>
+        </div>
+      </section>
+    );
+  }
+
+  if (section === "앱심사") {
+    return (
+      <section className="legacy-panel">
+        <div className="legacy-grid two">
+          <div className="legacy-box"><h3>Safe 노출 체크</h3><p>하단 6버튼 구조 + 공개영역 정보성 피드 + 민감 상세 분리</p></div>
+          <div className="legacy-box"><h3>남은 자산</h3><p>실기기 캡처 · App Preview · 스토어 메타데이터 최종본</p></div>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="legacy-panel">
+      <div className="legacy-box">
+        <h3>Cloudflare 수동 배포 가이드</h3>
+        <ul>
+          <li>Pages project: {deployGuide?.project_name ?? "adultapp"}</li>
+          <li>Build command: {deployGuide?.build_command ?? "npm run cf:build"}</li>
+          <li>Output: {deployGuide?.output_directory ?? "dist"}</li>
+          <li>Windows script: {deployGuide?.windows_script ?? "scripts/cloudflare_manual_deploy.ps1"}</li>
+        </ul>
+        <pre>{deployGuide?.pages_cli ?? "npx wrangler pages deploy dist --project-name adultapp --branch main --commit-dirty=true"}</pre>
+      </div>
     </section>
   );
 }
 
-function Table({ rows }: { rows: AnyRow[] }) {
-  if (!rows.length) return <p className="muted">데이터 없음</p>;
-  const headers = Object.keys(rows[0]);
-  return (
-    <div className="table-wrap">
-      <table className="data-table">
-        <thead>
-          <tr>{headers.map((h) => <th key={h}>{h}</th>)}</tr>
-        </thead>
-        <tbody>
-          {rows.map((row, idx) => (
-            <tr key={idx}>{headers.map((h) => <td key={h}>{String(row[h] ?? "-")}</td>)}</tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 export default function App() {
-  const [activeTab, setActiveTab] = useState("홈");
-  const [metrics, setMetrics] = useState<Metric[]>([]);
-  const [launchGates, setLaunchGates] = useState<AnyRow[]>([]);
-  const [refunds, setRefunds] = useState<AnyRow[]>([]);
-  const [reviewMode, setReviewMode] = useState<any>(null);
-  const [sellerChecklist, setSellerChecklist] = useState<any>(null);
-  const [skuPolicy, setSkuPolicy] = useState<any>({});
-  const [penalties, setPenalties] = useState<AnyRow[]>([]);
-  const [assets, setAssets] = useState<AnyRow[]>([]);
-  const [pgProviders, setPgProviders] = useState<AnyRow[]>([]);
-  const [adultProviders, setAdultProviders] = useState<AnyRow[]>([]);
-  const [taxDashboard, setTaxDashboard] = useState<any>({});
-  const [security, setSecurity] = useState<any>(null);
-  const [approvalQueue, setApprovalQueue] = useState<AnyRow[]>([]);
-  const [screenshots, setScreenshots] = useState<AnyRow[]>([]);
-  const [integrationOverview, setIntegrationOverview] = useState<any>(null);
-  const [cloudflareManual, setCloudflareManual] = useState<any>(null);
-  const [authMe, setAuthMe] = useState<any>(null);
-  const [currentGrade, setCurrentGrade] = useState<string>("1");
-  const [rbacMap, setRbacMap] = useState<any>(null);
-  const [twoFASetup, setTwoFASetup] = useState<any>(null);
-  const [backupCodes, setBackupCodes] = useState<string[]>([]);
-  const [challengeToken, setChallengeToken] = useState("");
-  const [lastAction, setLastAction] = useState("대기 중");
-  const [sessions, setSessions] = useState<AnyRow[]>([]);
-  const [products, setProducts] = useState<AnyRow[]>([]);
-  const [contents, setContents] = useState<AnyRow[]>([]);
-  const [categories, setCategories] = useState<AnyRow[]>([]);
-  const [projectStatus, setProjectStatus] = useState<any>(null);
-  const [updateNeeds, setUpdateNeeds] = useState<string[]>([]);
-  const [uploadResult, setUploadResult] = useState<any>(null);
-  const [orders, setOrders] = useState<AnyRow[]>([]);
-  const [settlements, setSettlements] = useState<any>({ items: [], summary: {} });
-  const [reports, setReports] = useState<AnyRow[]>([]);
-  const [actionLogs, setActionLogs] = useState<AnyRow[]>([]);
-  const [communityPosts, setCommunityPosts] = useState<AnyRow[]>([]);
-  const [dmThreads, setDmThreads] = useState<AnyRow[]>([]);
-  const [dmMessages, setDmMessages] = useState<AnyRow[]>([]);
-  const [selectedThreadId, setSelectedThreadId] = useState<number | null>(null);
-  const [smoke, setSmoke] = useState<any>(null);
-  const [loginForm, setLoginForm] = useState({ email: "admin@example.com", password: "admin1234", otp_code: "", backup_code: "", device_name: "Chrome on Windows" });
-  const [passwordForm, setPasswordForm] = useState({ current_password: "admin1234", new_password: "admin12345!" });
-  const [resetRequestEmail, setResetRequestEmail] = useState("admin@example.com");
-  const [resetToken, setResetToken] = useState("");
-  const [resetNewPassword, setResetNewPassword] = useState("adminReset123!");
-  const [productForm, setProductForm] = useState<any>({ seller_id: 2, name: "", sku_code: "", category: "위생/보관", description: "", price: 0, stock_qty: 0, risk_grade: "A", display_scope: "app_web", payment_scope: "card_transfer", status: "draft", thumbnail_url: "" });
-  const [contentForm, setContentForm] = useState<any>({ author_id: 1, category: "가이드", title: "", body: "", visibility: "safe", thumbnail_url: "", video_url: "", status: "draft" });
-  const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [orderForm, setOrderForm] = useState<any>({ product_id: 1, qty: 1, payment_method: "card", payment_pg: "demo-pg", fee_rate: 0.1, coupon_burden_owner: "platform" });
-  const [reportForm, setReportForm] = useState<any>({ reporter_id: 3, target_type: "product", target_id: 1, reason_code: "manual_review", priority: "normal" });
-  const [postForm, setPostForm] = useState<any>({ category: "정보공유", title: "", body: "", visibility: "safe", purpose: "정보교류", allow_dm: true });
-  const [threadForm, setThreadForm] = useState<any>({ participant_b_id: 2, subject: "상품/운영 문의", purpose_code: "PRODUCT_QA", thread_type: "product_inquiry", related_post_id: null, related_product_id: 1 });
-  const [messageForm, setMessageForm] = useState<any>({ thread_id: 0, message: "", purpose_code: "PRODUCT_QA" });
-
-  async function loadPublicData() {
-    const [dashboard, review, seller, policy, refundList, penaltyList, assetList, pg, adult, tax, securityResp, queue, screenshotResp, overview, cloudflareDeploy, roles, productList, contentList, categoryList, progress, orderList, settlementPreview, reportList, logList, communityList, threadList, smokeResp] = await Promise.all([
-      getJson<any>("/dashboard"),
-      getJson<any>("/review-mode"),
-      getJson<any>("/seller/2/activation-checklist"),
-      getJson<any>("/sku-policy"),
-      getJson<any>("/refunds"),
-      getJson<any>("/seller-penalties"),
-      getJson<any>("/assets"),
-      getJson<any>("/pg/providers"),
-      getJson<any>("/adult-verification/providers"),
-      getJson<any>("/tax/dashboard"),
-      getJson<any>("/security/admin-controls"),
-      getJson<any>("/security/approval-queue"),
-      getJson<any>("/assets/screenshots"),
-      getJson<any>("/integrations/overview"),
-      getJson<any>("/deploy/cloudflare-pages-manual"),
-      getJson<any>("/auth/rbac-map"),
-      getJson<any>("/products"),
-      getJson<any>("/contents"),
-      getJson<any>("/ui/category-groups"),
-      getJson<any>("/project-status"),
-      getJson<any>("/orders"),
-      getJson<any>("/settlements/preview"),
-      getJson<any>("/reports"),
-      getJson<any>("/admin-action-logs"),
-      getJson<any>("/community/posts"),
-      getJson<any>("/community/threads").catch(() => []),
-      getJson<any>("/qa/smoke"),
-    ]);
-    setMetrics(dashboard.metrics ?? []);
-    setLaunchGates(dashboard.launch_gates ?? []);
-    setReviewMode(review);
-    setSellerChecklist(seller);
-    setSkuPolicy(policy);
-    setRefunds(refundList);
-    setPenalties(penaltyList);
-    setAssets(assetList);
-    setPgProviders(pg.providers ?? []);
-    setAdultProviders(adult.providers ?? []);
-    setTaxDashboard(tax);
-    setSecurity(securityResp);
-    setApprovalQueue(queue.items ?? []);
-    setScreenshots(screenshotResp.items ?? []);
-    setIntegrationOverview(overview);
-    setCloudflareManual(cloudflareDeploy);
-    setRbacMap(roles);
-    setProducts(productList);
-    setContents(contentList);
-    setCategories(categoryList.items ?? []);
-    setProjectStatus(progress);
-    setUpdateNeeds(progress.recommended_updates ?? []);
-    setOrders(orderList);
-    setSettlements(settlementPreview);
-    setReports(reportList);
-    setActionLogs(logList);
-    setCommunityPosts(communityList);
-    setDmThreads(threadList);
-    setSmoke(smokeResp);
-  }
-
-  async function loadMeSafe() {
-    try {
-      const [me, sessionRows] = await Promise.all([getJson<any>("/auth/me"), getJson<any>("/auth/sessions")]);
-      setAuthMe(me);
-      setCurrentGrade(String(me.grade ?? "1"));
-      setSessions(sessionRows.items ?? []);
-    } catch {
-      setAuthMe(null);
-      setCurrentGrade("1");
-      setSessions([]);
-    }
-  }
+  const [activeTab, setActiveTab] = useState<(typeof mobileTabs)[number]>("홈");
+  const [legacySection, setLegacySection] = useState<(typeof legacyMenu)[number]>("운영현황");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [feedLimit, setFeedLimit] = useState(10);
+  const [shopOpen, setShopOpen] = useState(true);
+  const [communityOpen, setCommunityOpen] = useState(true);
+  const [selectedShopCategory, setSelectedShopCategory] = useState("전체");
+  const [selectedCommunityCategory, setSelectedCommunityCategory] = useState<string>("전체");
+  const [shopKeyword, setShopKeyword] = useState("");
+  const [communityKeyword, setCommunityKeyword] = useState("");
+  const [projectStatus, setProjectStatus] = useState<ProjectStatus | null>(null);
+  const [deployGuide, setDeployGuide] = useState<DeployGuide | null>(null);
 
   useEffect(() => {
-    loadPublicData().catch(console.error);
-    loadMeSafe().catch(console.error);
+    getJson<ProjectStatus>("/project-status").then(setProjectStatus).catch(() => null);
+    getJson<DeployGuide>("/deploy/cloudflare-pages-manual").then(setDeployGuide).catch(() => null);
   }, []);
 
-  async function login() {
-    try {
-      const result = await postJson<LoginResult>("/auth/login", loginForm);
-      if (result.two_factor_required) {
-        setChallengeToken(result.challenge_token ?? "");
-        setLastAction("관리자 2FA 필요");
-        return;
-      }
-      setAuthToken(result.access_token);
-      setRefreshToken(result.refresh_token);
-      setChallengeToken("");
-      await loadMeSafe();
-      setLastAction(`로그인 완료: ${loginForm.email}`);
-    } catch (e) { alert(String(e)); }
-  }
+  const visibleFeed = useMemo(() => feedSeed.slice(0, feedLimit), [feedLimit]);
 
-  async function completeTwoFactor(useBackup = false) {
-    try {
-      const result = await postJson<LoginResult>("/auth/2fa/complete", { challenge_token: challengeToken, otp_code: useBackup ? undefined : loginForm.otp_code, backup_code: useBackup ? loginForm.backup_code : undefined });
-      setAuthToken(result.access_token);
-      setRefreshToken(result.refresh_token);
-      setChallengeToken("");
-      await loadMeSafe();
-      setLastAction(useBackup ? "백업코드 2FA 완료" : "OTP 2FA 완료");
-    } catch (e) { alert(String(e)); }
-  }
+  const allShopItems = useMemo(() => {
+    const mapped = productsSeed.filter((product) => {
+      const matchCategory = selectedShopCategory === "전체" || product.category === selectedShopCategory;
+      const keyword = shopKeyword.trim().toLowerCase();
+      const matchKeyword = !keyword || `${product.name} ${product.subtitle} ${product.category}`.toLowerCase().includes(keyword);
+      return matchCategory && matchKeyword;
+    });
+    return mapped;
+  }, [selectedShopCategory, shopKeyword]);
 
-  async function refreshAccess() {
-    try {
-      const token = getRefreshToken();
-      if (!token) throw new Error("refresh token 없음");
-      const result = await postJson<LoginResult>("/auth/refresh", { refresh_token: token });
-      setAuthToken(result.access_token);
-      setRefreshToken(result.refresh_token);
-      await loadMeSafe();
-      setLastAction("토큰 재발급 완료");
-    } catch (e) { alert(String(e)); }
-  }
+  const filteredCommunity = useMemo(() => {
+    return communitySeed.filter((post) => {
+      const matchCategory = selectedCommunityCategory === "전체" || post.category === selectedCommunityCategory;
+      const keyword = communityKeyword.trim().toLowerCase();
+      const matchKeyword = !keyword || `${post.title} ${post.summary}`.toLowerCase().includes(keyword);
+      return matchCategory && matchKeyword;
+    });
+  }, [selectedCommunityCategory, communityKeyword]);
 
-  async function logout() {
-    try {
-      const token = getRefreshToken();
-      if (token) await postJson("/auth/logout", { refresh_token: token });
-    } catch {}
-    clearTokens();
-    setChallengeToken("");
-    setAuthMe(null);
-    setSessions([]);
-    setLastAction("로그아웃 완료");
-  }
-
-  async function changePassword() {
-    try {
-      await postJson("/auth/password/change", passwordForm);
-      setLastAction("비밀번호 변경 완료");
-      await loadMeSafe();
-    } catch (e) { alert(String(e)); }
-  }
-
-  async function requestReset() {
-    try {
-      const result = await postJson<any>("/auth/password/reset/request", { email: resetRequestEmail });
-      setResetToken(result.reset_token ?? "");
-      setLastAction("비밀번호 초기화 토큰 발급 완료");
-    } catch (e) { alert(String(e)); }
-  }
-
-  async function confirmReset() {
-    try {
-      await postJson("/auth/password/reset/confirm", { reset_token: resetToken, new_password: resetNewPassword });
-      setLastAction("비밀번호 초기화 완료");
-    } catch (e) { alert(String(e)); }
-  }
-
-  async function setupTwoFA() {
-    try {
-      setTwoFASetup(await getJson("/security/2fa/setup"));
-      setLastAction("2FA 시크릿 발급 완료");
-    } catch (e) { alert(String(e)); }
-  }
-
-  async function verifyTwoFA() {
-    try {
-      await postJson("/security/2fa/verify", { otp_code: loginForm.otp_code });
-      setLastAction("2FA 등록 검증 완료");
-      await loadMeSafe();
-    } catch (e) { alert(String(e)); }
-  }
-
-  async function regenerateBackupCodes() {
-    try {
-      const result = await postJson<any>("/security/2fa/backup-codes/regenerate", {});
-      setBackupCodes(result.codes ?? []);
-      setLastAction("백업코드 재생성 완료");
-      await loadMeSafe();
-    } catch (e) { alert(String(e)); }
-  }
-
-  async function revokeSession(id: number) {
-    try {
-      await postJson("/auth/sessions/revoke", { session_id: id });
-      setLastAction(`세션 ${id} 종료 완료`);
-      await loadMeSafe();
-    } catch (e) { alert(String(e)); }
-  }
-
-  async function moveRefund(id: number, status: string) {
-    try {
-      const payload = status === "rejected" ? { status, reject_reason_code: "RJ01", reject_reason_detail: "UI 반려 샘플", evidence_photo_set_id: "PHOTO-001" } : { status };
-      await postJson(`/refunds/${id}/transition`, payload);
-      setLastAction(`환불 ${id} 상태변경: ${status}`);
-      await loadPublicData();
-    } catch (e) { alert(String(e)); }
-  }
-
-  async function approveQueue(id: number) {
-    try {
-      await postJson(`/security/approval-queue/${id}/approve`, {});
-      setLastAction(`승인큐 ${id} 승인 완료`);
-      await loadPublicData();
-    } catch (e) { alert(String(e)); }
-  }
-
-  async function saveProduct() {
-    try {
-      await postJson("/products", productForm);
-      setLastAction("상품 저장 완료");
-      setProductForm({ seller_id: 2, name: "", sku_code: "", category: "위생/보관", description: "", price: 0, stock_qty: 0, risk_grade: "A", display_scope: "app_web", payment_scope: "card_transfer", status: "draft", thumbnail_url: uploadResult?.file_url ?? "" });
-      await loadPublicData();
-    } catch (e) { alert(String(e)); }
-  }
-
-  function editProduct(item: AnyRow) {
-    setProductForm(item);
-    setSelectedProductId(item.id);
-    setLastAction(`상품 ${item.id} 편집모드`);
-  }
-
-  async function deleteProduct(id: number) {
-    try {
-      await postJson(`/products/${id}/delete`, {});
-      setLastAction(`상품 ${id} 삭제 완료`);
-      await loadPublicData();
-    } catch (e) { alert(String(e)); }
-  }
-
-  async function saveContent() {
-    try {
-      await postJson("/contents", contentForm);
-      setLastAction("콘텐츠 저장 완료");
-      setContentForm({ author_id: 1, category: "가이드", title: "", body: "", visibility: "safe", thumbnail_url: "", video_url: "", status: "draft" });
-      await loadPublicData();
-    } catch (e) { alert(String(e)); }
-  }
-
-  function editContent(item: AnyRow) {
-    setContentForm(item);
-    setLastAction(`콘텐츠 ${item.id} 편집모드`);
-  }
-
-  async function deleteContent(id: number) {
-    try {
-      await postJson(`/contents/${id}/delete`, {});
-      setLastAction(`콘텐츠 ${id} 삭제 완료`);
-      await loadPublicData();
-    } catch (e) { alert(String(e)); }
-  }
-
-  async function uploadMedia() {
-    try {
-      if (!selectedFile) throw new Error("파일을 선택하세요");
-      const form = new FormData();
-      form.append("file", selectedFile);
-      const uploaded: any = await postForm("/upload", form);
-      setUploadResult(uploaded);
-      setLastAction(`업로드 완료: ${uploaded.saved_name}`);
-      if (selectedProductId) {
-        await postJson("/products/media", { product_id: selectedProductId, file_name: uploaded.saved_name, file_url: uploaded.file_url, media_type: uploaded.media_type, sort_order: 0 });
-        await loadPublicData();
-      }
-    } catch (e) { alert(String(e)); }
-  }
-
-  async function createOrder() {
-    try {
-      await postJson("/orders", orderForm);
-      setLastAction("주문 생성 완료");
-      await loadPublicData();
-    } catch (e) { alert(String(e)); }
-  }
-
-  async function createReport() {
-    try {
-      await postJson("/reports", reportForm);
-      setLastAction("신고 생성 완료");
-      await loadPublicData();
-    } catch (e) { alert(String(e)); }
-  }
-
-  async function resolveReport(id: number, status: string) {
-    try {
-      await postJson(`/reports/${id}/resolve`, { status, action_taken: status === "resolved" ? "검토 후 해제" : "임시조치" });
-      setLastAction(`신고 ${id} 처리 완료`);
-      await loadPublicData();
-    } catch (e) { alert(String(e)); }
-  }
-
-  async function createCommunityPost() {
-    try {
-      await postJson("/community/posts", postForm);
-      setLastAction("커뮤니티 피드 작성 완료");
-      setPostForm({ ...postForm, title: "", body: "" });
-      await loadPublicData();
-    } catch (e) { alert(String(e)); }
-  }
-
-  async function createThread(targetId?: number, relatedPostId?: number) {
-    try {
-      const payload = { ...threadForm, participant_b_id: targetId ?? threadForm.participant_b_id, related_post_id: relatedPostId ?? threadForm.related_post_id };
-      const thread = await postJson<any>("/community/threads", payload);
-      setSelectedThreadId(thread.id);
-      setMessageForm({ ...messageForm, thread_id: thread.id, purpose_code: payload.purpose_code });
-      setLastAction(`DM 스레드 ${thread.id} 생성 완료`);
-      await loadPublicData();
-      await loadMessages(thread.id);
-    } catch (e) { alert(String(e)); }
-  }
-
-  async function loadMessages(threadId: number) {
-    try {
-      const rows = await getJson<any>(`/community/threads/${threadId}/messages`);
-      setSelectedThreadId(threadId);
-      setDmMessages(rows);
-      setMessageForm({ ...messageForm, thread_id: threadId });
-    } catch (e) { alert(String(e)); }
-  }
-
-  async function sendMessage() {
-    try {
-      await postJson("/community/messages", messageForm);
-      setLastAction("DM 전송 완료");
-      if (messageForm.thread_id) await loadMessages(messageForm.thread_id);
-      setMessageForm({ ...messageForm, message: "" });
-      await loadPublicData();
-    } catch (e) { alert(String(e)); }
-  }
-
-  const metricCards = useMemo(() => metrics.slice(0, 8), [metrics]);
-  const roleInfo = useMemo(() => roleUsageMap[currentGrade] ?? roleUsageMap["1"], [currentGrade]);
-  const visibleTabs = useMemo(() => roleInfo.tabs, [roleInfo]);
-  const isAdmin = currentGrade === "1";
-  const isSeller = currentGrade === "4";
-  const isCustomer = currentGrade === "5";
-  const isGeneral = currentGrade === "6";
-
-  function switchDemoRole(grade: string) {
-    const preset = roleAccountMap[grade];
-    if (!preset) return;
-    setLoginForm({ ...loginForm, ...preset, otp_code: "", backup_code: "" });
-    setCurrentGrade(grade);
-    setLastAction(`${gradeLabelMap[grade]} 데모 계정 준비 완료`);
-  }
-
-  const progressRows = useMemo(() => (projectStatus?.items ?? []).map((item: AnyRow) => ({
-    항목: item.category,
-    진행도: `${item.percent}%`,
-    상태: item.status,
-    부족항목: (item.gaps ?? []).join(", "),
-  })), [projectStatus]);
-
-  const HomeTab = (
-    <>
-      <section className="hero">
-        <div>
-          <div className="eyebrow">Adult platform starter · React(Vite) + FastAPI</div>
-          <h1>보안 · 운영 · 상품 · 주문 기본 뼈대</h1>
-          <p>현재 진행도를 반영해 주문/정산 미리보기, 신고/운영 로그, 업로드 검증, 기본 QA 스모크 체크까지 프로젝트 앱 범위에서 즉시 확장 가능한 부분을 추가 반영했습니다.</p>
-        </div>
-        <div className="hero-status">{lastAction}</div>
-      </section>
-      <div className="status-band">
-        <div className="status-pill"><span className="muted">현재 역할</span><strong>{gradeLabelMap[currentGrade]}</strong></div>
-        <div className="status-pill"><span className="muted">즉시 사용 범위</span><strong>{roleInfo.summary}</strong></div>
-        <div className="status-pill"><span className="muted">현재 상태</span><strong>{lastAction}</strong></div>
-      </div>
-      <div className="metric-grid">{metricCards.map((m) => <div className="metric-card" key={m.key}><span>{m.label}</span><strong>{m.value}</strong></div>)}</div>
-      <div className="grid-2">
-        <Card title="Launch Gate"><Table rows={launchGates} /></Card>
-        <Card title="판매자 활성화 체크리스트"><pre>{JSON.stringify(sellerChecklist, null, 2)}</pre></Card>
-      </div>
-      <div className="grid-2">
-        <Card title="카테고리 그룹 기본 뼈대"><Table rows={categories} /></Card>
-        <Card title="실연동 개요"><pre>{JSON.stringify(integrationOverview, null, 2)}</pre></Card>
-      </div>
-      <div className="grid-2">
-        <Card title="현재 진행상태 퍼센트"><Table rows={progressRows} /></Card>
-        <Card title="Cloudflare Pages 수동 배포">
-          {cloudflareManual ? <pre>{JSON.stringify(cloudflareManual, null, 2)}</pre> : <p className="muted">로드 중</p>}
-        </Card>
-      </div>
-      <div className="grid-2">
-        <Card title="추가 보완 필요 항목">
-          {projectStatus?.overall ? <pre>{JSON.stringify(projectStatus.overall, null, 2)}</pre> : null}
-          <ul className="bullet-list">{updateNeeds.map((item, idx) => <li key={idx}>{item}</li>)}</ul>
-        </Card>
-        <Card title="배포 후 확인 포인트">
-          <ul className="bullet-list">
-            <li>Railway backend의 CORS_ORIGINS에 pages.dev와 커스텀 도메인을 모두 추가</li>
-            <li>Cloudflare Pages 배포 전에 VITE_API_BASE_URL에 Railway /api URL을 주입</li>
-            <li>SPA 새로고침 404 방지를 위해 frontend/public/_redirects 유지</li>
-            <li>대기열 이슈 시 Git 재배포보다 wrangler pages deploy 수동 배포를 우선 사용</li>
-          </ul>
-        </Card>
-      </div>
-      <div className="grid-2">
-        <Card title="계정등급별 즉시 사용 모드">
-          <div className="actions">
-            <button onClick={() => switchDemoRole("1")}>관리자 모드</button>
-            <button onClick={() => switchDemoRole("4")}>사업자 모드</button>
-            <button onClick={() => switchDemoRole("5")}>소비자 모드</button>
-            <button onClick={() => switchDemoRole("6")}>일반회원 모드</button>
-          </div>
-          <div className="role-board">
-            <div className="role-chip">현재 선택 등급: {gradeLabelMap[currentGrade]}</div>
-            <p className="muted">{roleInfo.summary}</p>
-            <ul className="bullet-list">{roleInfo.buttons.map((item) => <li key={item}>{item}</li>)}</ul>
-          </div>
-        </Card>
-        <Card title="계정별 사용 목적 안내">
-          <Table rows={Object.entries(roleUsageMap).map(([grade, info]) => ({ 등급: `${grade} - ${gradeLabelMap[grade]}`, 사용목적: info.summary, 노출탭: info.tabs.join(', '), 주요버튼: info.buttons.join(', ') }))} />
-        </Card>
-      </div>
-      <div className="grid-2">
-        <Card title="커뮤니티 피드 · 정보 교류">
-          <div className="notice-box">정보 교류 목적의 피드/DM은 가능하지만, 연락처 공유·오프라인 만남 유도·성매매 연상 표현은 금지하고 즉시 차단되도록 설계했습니다.</div>
-          <div className="form-grid two-col" style={{marginTop:12}}>
-            <input value={postForm.category} onChange={(e) => setPostForm({ ...postForm, category: e.target.value })} placeholder="카테고리" />
-            <input value={postForm.title} onChange={(e) => setPostForm({ ...postForm, title: e.target.value })} placeholder="피드 제목" />
-            <select value={postForm.visibility} onChange={(e) => setPostForm({ ...postForm, visibility: e.target.value })}><option value="safe">safe</option><option value="auth_only">auth_only</option></select>
-            <select value={postForm.allow_dm ? "yes" : "no"} onChange={(e) => setPostForm({ ...postForm, allow_dm: e.target.value === "yes" })}><option value="yes">DM 허용</option><option value="no">DM 차단</option></select>
-            <textarea value={postForm.body} onChange={(e) => setPostForm({ ...postForm, body: e.target.value })} placeholder="제품 사용 팁, 보관 방법, 익명포장 경험, 정책/환불 경험 등 안전한 정보 교류만 작성" />
-          </div>
-          <div className="actions"><button onClick={createCommunityPost}>피드 작성</button></div>
-          <Table rows={communityPosts} />
-          <div className="action-list">{communityPosts.filter((row) => row.allow_dm).slice(0, 6).map((row) => (<div key={row.id} className="inline-actions"><button onClick={() => createThread(row.author_id, row.id)}>작성자에게 정보 DM</button></div>))}</div>
-        </Card>
-        <Card title="정보 DM · 상품/운영 문의">
-          <div className="form-grid two-col">
-            <input type="number" value={threadForm.participant_b_id} onChange={(e) => setThreadForm({ ...threadForm, participant_b_id: Number(e.target.value) })} placeholder="상대 user_id" />
-            <input value={threadForm.subject} onChange={(e) => setThreadForm({ ...threadForm, subject: e.target.value })} placeholder="DM 제목" />
-            <select value={threadForm.purpose_code} onChange={(e) => setThreadForm({ ...threadForm, purpose_code: e.target.value, thread_type: e.target.value === "PRODUCT_QA" ? "product_inquiry" : "feed_reply" })}><option value="PRODUCT_QA">PRODUCT_QA</option><option value="FEED_REPLY">FEED_REPLY</option><option value="SUPPORT">SUPPORT</option><option value="INFO_EXCHANGE">INFO_EXCHANGE</option></select>
-            <input type="number" value={threadForm.related_product_id ?? 1} onChange={(e) => setThreadForm({ ...threadForm, related_product_id: Number(e.target.value) })} placeholder="related_product_id" />
-          </div>
-          <div className="actions"><button onClick={() => createThread()}>DM 스레드 시작</button></div>
-          <Table rows={dmThreads} />
-          <div className="action-list">{dmThreads.map((thread) => <button key={thread.id} onClick={() => loadMessages(thread.id)}>대화 {thread.id} 열기</button>)}</div>
-          <hr className="soft" />
-          <div className="form-grid">
-            <input type="number" value={messageForm.thread_id} onChange={(e) => setMessageForm({ ...messageForm, thread_id: Number(e.target.value) })} placeholder="thread_id" />
-            <textarea value={messageForm.message} onChange={(e) => setMessageForm({ ...messageForm, message: e.target.value })} placeholder="상품 문의, 보관 방법, 배송 문의, 운영 문의 등 안전한 내용만 전송" />
-          </div>
-          <div className="actions"><button onClick={sendMessage}>DM 전송</button></div>
-          <Table rows={dmMessages} />
-        </Card>
-      </div>
-      <div className="grid-2">
-        <Card title="QA 스모크 체크"><pre>{JSON.stringify(smoke, null, 2)}</pre></Card>
-        <Card title="정산 미리보기 요약"><pre>{JSON.stringify(settlements?.summary ?? {}, null, 2)}</pre></Card>
-      </div>
-    </>
-  );
-
-  const ShopTab = (
-    <div className="grid-2">
-      {(isAdmin || isSeller) ? <Card title="상품 등록 / 수정">
-        <div className="form-grid two-col">
-          <input value={productForm.name} onChange={(e) => setProductForm({ ...productForm, name: e.target.value })} placeholder="상품명" />
-          <input value={productForm.sku_code} onChange={(e) => setProductForm({ ...productForm, sku_code: e.target.value })} placeholder="SKU 코드" />
-          <input value={productForm.category} onChange={(e) => setProductForm({ ...productForm, category: e.target.value })} placeholder="카테고리" />
-          <input type="number" value={productForm.price} onChange={(e) => setProductForm({ ...productForm, price: Number(e.target.value) })} placeholder="가격" />
-          <input type="number" value={productForm.stock_qty} onChange={(e) => setProductForm({ ...productForm, stock_qty: Number(e.target.value) })} placeholder="재고수량" />
-          <select value={productForm.status} onChange={(e) => setProductForm({ ...productForm, status: e.target.value })}><option value="draft">draft</option><option value="published">published</option></select>
-          <textarea value={productForm.description} onChange={(e) => setProductForm({ ...productForm, description: e.target.value })} placeholder="상품 설명" />
-          <input value={productForm.thumbnail_url} onChange={(e) => setProductForm({ ...productForm, thumbnail_url: e.target.value })} placeholder="썸네일 URL" />
-        </div>
-        <div className="actions"><button onClick={saveProduct}>상품 저장</button></div>
-      </Card> : <Card title="상품 등록 / 수정"><p className="muted">관리자/사업자 계정에서만 상품 등록/수정이 가능합니다.</p></Card>}
-      {(isAdmin || isSeller) ? <Card title="사진 / 영상 첨부">
-        <div className="form-grid">
-          <input type="number" value={selectedProductId ?? ""} onChange={(e) => setSelectedProductId(Number(e.target.value))} placeholder="product_id" />
-          <input type="file" onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)} />
-          <div className="actions"><button onClick={uploadMedia}>업로드</button></div>
-        </div>
-        <pre>{JSON.stringify(uploadResult, null, 2)}</pre>
-      </Card> : <Card title="사진 / 영상 첨부"><p className="muted">관리자/사업자 계정에서만 미디어 업로드가 가능합니다.</p></Card>}
-      <Card title="상품 목록"><Table rows={products} /><div className="action-list">{(isAdmin || isSeller) ? products.map((item) => <div key={item.id} className="inline-actions"><button onClick={() => editProduct(item)}>편집</button><button className="danger" onClick={() => deleteProduct(item.id)}>삭제</button></div>) : <p className="muted">일반 조회 전용</p>}</div></Card>
-      <Card title="SKU / 결제 / 노출 규칙"><Table rows={skuPolicy.payment_method_mapping ?? []} /></Card>
-      <Card title="PG Provider"><Table rows={pgProviders} /></Card>
-      <Card title="성인인증 Provider"><Table rows={adultProviders} /></Card>
+  const topActions = (
+    <div className="top-actions">
+      <button className="ghost-btn" onClick={() => setMenuOpen((prev) => !prev)}>
+        ☰ 메뉴
+      </button>
+      <button className="ghost-btn small-btn">기존 운영 기능</button>
     </div>
   );
-
-  const OrderTab = (
-    <div className="grid-2">
-      {(isAdmin || isCustomer || isSeller) ? <Card title="주문 생성 기본 뼈대">
-        <div className="form-grid two-col">
-          <input type="number" value={orderForm.product_id} onChange={(e) => setOrderForm({ ...orderForm, product_id: Number(e.target.value) })} placeholder="product_id" />
-          <input type="number" value={orderForm.qty} onChange={(e) => setOrderForm({ ...orderForm, qty: Number(e.target.value) })} placeholder="수량" />
-          <select value={orderForm.payment_method} onChange={(e) => setOrderForm({ ...orderForm, payment_method: e.target.value })}><option value="card">card</option><option value="transfer">transfer</option><option value="virtual_account">virtual_account</option></select>
-          <input value={orderForm.payment_pg} onChange={(e) => setOrderForm({ ...orderForm, payment_pg: e.target.value })} placeholder="payment pg" />
-          <input type="number" step="0.01" value={orderForm.fee_rate} onChange={(e) => setOrderForm({ ...orderForm, fee_rate: Number(e.target.value) })} placeholder="fee_rate" />
-          <select value={orderForm.coupon_burden_owner} onChange={(e) => setOrderForm({ ...orderForm, coupon_burden_owner: e.target.value })}><option value="platform">platform</option><option value="seller">seller</option></select>
-        </div>
-        <div className="actions"><button onClick={createOrder}>주문 생성</button></div>
-      </Card> : <Card title="주문 생성 기본 뼈대"><p className="muted">일반회원은 주문 생성 대신 공개 상품/가이드 열람만 가능합니다.</p></Card>}
-      <Card title="정산 미리보기"><Table rows={settlements?.items ?? []} /></Card>
-      <Card title="주문 목록"><Table rows={orders} /></Card>
-      {(isAdmin || isSeller || isCustomer) ? <Card title="환불 상태머신"><Table rows={refunds} /><div className="action-list">{(isAdmin || isSeller) ? refunds.map((r) => <div key={r.id} className="inline-actions"><button onClick={() => moveRefund(r.id, "seller_notified")}>통지</button><button onClick={() => moveRefund(r.id, "pickup_requested")}>회수</button><button onClick={() => moveRefund(r.id, "inspecting")}>검수</button><button onClick={() => moveRefund(r.id, "approved")}>승인</button><button className="danger" onClick={() => moveRefund(r.id, "rejected")}>반려</button></div>) : <p className="muted">소비자는 상태 조회 중심, 사업자/관리자는 처리 버튼 사용 가능</p>}</div></Card> : <Card title="환불 상태머신"><p className="muted">환불 상태는 로그인 계정 등급에 따라 제한적으로 확인됩니다.</p></Card>}
-      <Card title="세무/정산 준비"><pre>{JSON.stringify(taxDashboard, null, 2)}</pre></Card>
-    </div>
-  );
-
-  const OpsTab = (
-    <div className="grid-2">
-      {(isAdmin || currentGrade === "2" || currentGrade === "3") ? <Card title="콘텐츠 등록 / 수정">
-        <div className="form-grid two-col">
-          <input value={contentForm.title} onChange={(e) => setContentForm({ ...contentForm, title: e.target.value })} placeholder="제목" />
-          <input value={contentForm.category} onChange={(e) => setContentForm({ ...contentForm, category: e.target.value })} placeholder="카테고리" />
-          <input value={contentForm.thumbnail_url} onChange={(e) => setContentForm({ ...contentForm, thumbnail_url: e.target.value })} placeholder="썸네일 URL" />
-          <input value={contentForm.video_url} onChange={(e) => setContentForm({ ...contentForm, video_url: e.target.value })} placeholder="영상 URL" />
-          <select value={contentForm.visibility} onChange={(e) => setContentForm({ ...contentForm, visibility: e.target.value })}><option value="safe">safe</option><option value="auth_only">auth_only</option><option value="web_only">web_only</option></select>
-          <select value={contentForm.status} onChange={(e) => setContentForm({ ...contentForm, status: e.target.value })}><option value="draft">draft</option><option value="published">published</option></select>
-          <textarea value={contentForm.body} onChange={(e) => setContentForm({ ...contentForm, body: e.target.value })} placeholder="본문" />
-        </div>
-        <div className="actions"><button onClick={saveContent}>콘텐츠 저장</button></div>
-      </Card> : <Card title="콘텐츠 등록 / 수정"><p className="muted">운영/관리 계정에서만 콘텐츠 등록 및 수정이 가능합니다.</p></Card>}
-      <Card title="콘텐츠 목록"><Table rows={contents} /><div className="action-list">{(isAdmin || currentGrade === "2" || currentGrade === "3") ? contents.map((item) => <div key={item.id} className="inline-actions"><button onClick={() => editContent(item)}>편집</button><button className="danger" onClick={() => deleteContent(item.id)}>삭제</button></div>) : <p className="muted">열람 전용</p>}</div></Card>
-      {(isAdmin || currentGrade === "2" || currentGrade === "3" || isCustomer) ? <Card title="신고 생성 / 처리">
-        <div className="form-grid two-col">
-          <input type="number" value={reportForm.reporter_id} onChange={(e) => setReportForm({ ...reportForm, reporter_id: Number(e.target.value) })} placeholder="reporter_id" />
-          <input value={reportForm.target_type} onChange={(e) => setReportForm({ ...reportForm, target_type: e.target.value })} placeholder="target_type" />
-          <input type="number" value={reportForm.target_id} onChange={(e) => setReportForm({ ...reportForm, target_id: Number(e.target.value) })} placeholder="target_id" />
-          <input value={reportForm.reason_code} onChange={(e) => setReportForm({ ...reportForm, reason_code: e.target.value })} placeholder="reason_code" />
-          <select value={reportForm.priority} onChange={(e) => setReportForm({ ...reportForm, priority: e.target.value })}><option value="normal">normal</option><option value="high">high</option></select>
-        </div>
-        <div className="actions"><button onClick={createReport}>신고 등록</button></div>
-        <Table rows={reports} />
-        <div className="action-list">{(isAdmin || currentGrade === "2" || currentGrade === "3") ? reports.map((item) => <div key={item.id} className="inline-actions"><button onClick={() => resolveReport(item.id, "resolved")}>해제</button><button className="danger" onClick={() => resolveReport(item.id, "actioned")}>조치</button></div>) : <p className="muted">소비자는 신고 등록, 운영/관리자는 처리 가능</p>}</div>
-      </Card> : <Card title="신고 생성 / 처리"><p className="muted">신고는 고객/운영/관리자 계정에서 사용 가능합니다.</p></Card>}
-      {isAdmin ? <Card title="관리자 액션 로그"><Table rows={actionLogs} /></Card> : <Card title="관리자 액션 로그"><p className="muted">관리자 전용 로그 화면입니다.</p></Card>}
-      <Card title="판매자 패널티"><Table rows={penalties} /></Card>
-      <Card title="앱 자산 DB"><Table rows={assets} /></Card>
-    </div>
-  );
-
-  const SecurityTab = (
-    <div className="grid-2">
-      <Card title="로그인 / 2FA / Refresh">
-        <div className="form-grid two-col">
-          <input value={loginForm.email} onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })} placeholder="email" />
-          <input type="password" value={loginForm.password} onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })} placeholder="password" />
-          <input value={loginForm.device_name} onChange={(e) => setLoginForm({ ...loginForm, device_name: e.target.value })} placeholder="device name" />
-          <input value={loginForm.otp_code} onChange={(e) => setLoginForm({ ...loginForm, otp_code: e.target.value })} placeholder="OTP" />
-          <input value={loginForm.backup_code} onChange={(e) => setLoginForm({ ...loginForm, backup_code: e.target.value })} placeholder="backup code" />
-        </div>
-        <div className="actions"><button onClick={login}>로그인</button><button onClick={() => completeTwoFactor(false)} disabled={!challengeToken}>OTP 인증</button><button onClick={() => completeTwoFactor(true)} disabled={!challengeToken}>백업코드 인증</button><button onClick={refreshAccess}>토큰 재발급</button><button onClick={logout}>로그아웃</button></div>
-        <pre>{JSON.stringify({ authMe, challengeToken }, null, 2)}</pre>
-      </Card>
-      <Card title="비밀번호 변경 / 초기화">
-        <div className="form-grid two-col">
-          <input type="password" value={passwordForm.current_password} onChange={(e) => setPasswordForm({ ...passwordForm, current_password: e.target.value })} placeholder="현재 비밀번호" />
-          <input type="password" value={passwordForm.new_password} onChange={(e) => setPasswordForm({ ...passwordForm, new_password: e.target.value })} placeholder="새 비밀번호" />
-          <input value={resetRequestEmail} onChange={(e) => setResetRequestEmail(e.target.value)} placeholder="reset email" />
-          <input value={resetToken} onChange={(e) => setResetToken(e.target.value)} placeholder="reset token" />
-          <input type="password" value={resetNewPassword} onChange={(e) => setResetNewPassword(e.target.value)} placeholder="reset new password" />
-        </div>
-        <div className="actions"><button onClick={changePassword}>비밀번호 변경</button><button onClick={requestReset}>초기화 요청</button><button onClick={confirmReset}>초기화 확정</button></div>
-      </Card>
-      <Card title="관리자 2FA 등록 / 백업코드">
-        <div className="actions"><button onClick={setupTwoFA}>2FA 시크릿 발급</button><button onClick={verifyTwoFA}>2FA 검증</button><button onClick={regenerateBackupCodes}>백업코드 재생성</button></div>
-        <pre>{JSON.stringify({ twoFASetup, backupCodes }, null, 2)}</pre>
-      </Card>
-      <Card title="기기별 세션관리"><Table rows={sessions} /><div className="action-list">{sessions.map((s) => <div key={s.id} className="inline-actions"><button className="danger" onClick={() => revokeSession(s.id)}>세션 종료</button></div>)}</div></Card>
-      <Card title="Rate Limit / 보안 제어"><pre>{JSON.stringify(security, null, 2)}</pre></Card>
-      <Card title="RBAC"><pre>{JSON.stringify(rbacMap, null, 2)}</pre></Card>
-    </div>
-  );
-
-  const ReviewTab = (
-    <div className="grid-2">
-      <Card title="앱 심사 모드"><pre>{JSON.stringify(reviewMode, null, 2)}</pre></Card>
-      <Card title="심사 스크린샷 자산"><Table rows={screenshots} /></Card>
-      <Card title="승인 큐"><Table rows={approvalQueue} /><div className="action-list">{approvalQueue.map((row) => <div key={row.id} className="inline-actions"><button onClick={() => approveQueue(row.id)}>승인</button></div>)}</div></Card>
-    </div>
-  );
-
-  const safeTab = visibleTabs.includes(activeTab) ? activeTab : visibleTabs[0];
-  const body = safeTab === "홈" ? HomeTab : safeTab === "쇼핑" ? ShopTab : safeTab === "주문" ? OrderTab : safeTab === "운영" ? OpsTab : safeTab === "보안" ? SecurityTab : ReviewTab;
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">adultapp</div>
-        {visibleTabs.map((tab) => <button key={tab} className={safeTab === tab ? "nav-btn active" : "nav-btn"} onClick={() => setActiveTab(tab)}>{tab}</button>)}
-      </aside>
-      <main className="main-panel">
-        <div className="notice-box">블랙 테마 기준으로 가독성을 보강했고, 계정 등급에 따라 탭/버튼/업무 흐름이 바로 분기되도록 연결했습니다.</div>
-        {body}
+    <div className="mobile-app-shell">
+      <header className="top-header">
+        <div>
+          <p className="eyebrow">adultapp mobile flow</p>
+          <h1>홈 · 쇼핑 · 채팅 · 소통 · 장바구니 · 프로필</h1>
+          <span className="top-subcopy">모바일 하단 6버튼 중심으로 재구성하고, 기존 운영 기능은 상단 메뉴 안으로 이동한 버전</span>
+        </div>
+        {topActions}
+      </header>
+
+      <div className={`menu-drawer ${menuOpen ? "open" : ""}`}>
+        <div className="drawer-head">
+          <strong>상단 메뉴</strong>
+          <button className="ghost-btn" onClick={() => setMenuOpen(false)}>닫기</button>
+        </div>
+        <div className="drawer-subtitle">기존 운영/보안/앱심사/배포 기능은 여기에서 계속 접근</div>
+        <nav className="legacy-nav">
+          {legacyMenu.map((item) => (
+            <button
+              key={item}
+              className={`legacy-nav-btn ${legacySection === item ? "active" : ""}`}
+              onClick={() => {
+                setLegacySection(item);
+                setMenuOpen(false);
+              }}
+            >
+              {item}
+            </button>
+          ))}
+        </nav>
+      </div>
+      {menuOpen ? <div className="drawer-scrim" onClick={() => setMenuOpen(false)} /> : null}
+
+      <main className="mobile-main">
+        <LegacyPanel section={legacySection} projectStatus={projectStatus} deployGuide={deployGuide} />
+
+        {activeTab === "홈" ? (
+          <section className="tab-pane">
+            <div className="section-head">
+              <div>
+                <h2>홈 피드</h2>
+                <p>유튜브처럼 사진/영상 기반 피드를 스크롤로 이어보고, 10개 단위로 계속 로드하는 구조</p>
+              </div>
+              <button className="ghost-btn" onClick={() => setFeedLimit((prev) => Math.min(prev + 10, feedSeed.length))}>피드 10개 더 보기</button>
+            </div>
+            <div className="feed-stack">
+              {visibleFeed.map((item) => <FeedPoster key={item.id} item={item} />)}
+            </div>
+          </section>
+        ) : null}
+
+        {activeTab === "쇼핑" ? (
+          <section className="tab-pane">
+            <div className="section-head">
+              <div>
+                <h2>쇼핑</h2>
+                <p>좌측 카테고리 메뉴 접기/펼치기 + 우측 상단 검색 + 품목군별 탐색</p>
+              </div>
+              <div className="section-tools">
+                <input value={shopKeyword} onChange={(e) => setShopKeyword(e.target.value)} placeholder="상품명/설명 검색" />
+                <button className="ghost-btn" onClick={() => setShopOpen((prev) => !prev)}>{shopOpen ? "카테고리 접기" : "카테고리 펼치기"}</button>
+              </div>
+            </div>
+            <div className="split-layout">
+              <aside className={`left-menu ${shopOpen ? "open" : "collapsed"}`}>
+                <button className={`left-link ${selectedShopCategory === "전체" ? "active" : ""}`} onClick={() => setSelectedShopCategory("전체")}>전체 보기</button>
+                {shopCategories.map((group) => (
+                  <div key={group.group} className="menu-group">
+                    <div className="menu-group-title">{group.icon} {group.group}</div>
+                    {group.items.map((item) => (
+                      <button key={item.name} className={`left-link ${selectedShopCategory === item.name ? "active" : ""}`} onClick={() => setSelectedShopCategory(item.name)}>
+                        <span>{item.name}</span>
+                        <b>{item.count}</b>
+                      </button>
+                    ))}
+                  </div>
+                ))}
+              </aside>
+              <div className="content-grid product-grid">
+                {allShopItems.map((product) => (
+                  <article key={product.id} className="product-card">
+                    <div className="product-thumb" />
+                    <span className="product-badge">{product.badge}</span>
+                    <strong>{product.name}</strong>
+                    <p>{product.subtitle}</p>
+                    <div className="product-meta">
+                      <span>{product.category}</span>
+                      <b>{product.price}</b>
+                    </div>
+                    <button>장바구니 담기</button>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </section>
+        ) : null}
+
+        {activeTab === "채팅" ? (
+          <section className="tab-pane">
+            <div className="section-head">
+              <div>
+                <h2>채팅</h2>
+                <p>1:1 채팅 목록창과 최근 메시지 미리보기 구조</p>
+              </div>
+            </div>
+            <div className="chat-list">
+              {threadSeed.map((thread) => (
+                <article key={thread.id} className="chat-row">
+                  <div className="avatar-circle">{thread.name[0]}</div>
+                  <div className="chat-copy">
+                    <strong>{thread.name}</strong>
+                    <span>{thread.purpose}</span>
+                    <p>{thread.preview}</p>
+                  </div>
+                  <div className="chat-meta">
+                    <span>{thread.time}</span>
+                    {thread.unread > 0 ? <b>{thread.unread}</b> : null}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {activeTab === "소통" ? (
+          <section className="tab-pane">
+            <div className="section-head">
+              <div>
+                <h2>소통</h2>
+                <p>커뮤니티 카테고리를 좌측 메뉴로 접고 펼치며 게시글을 탐색하는 구조</p>
+              </div>
+              <div className="section-tools">
+                <input value={communityKeyword} onChange={(e) => setCommunityKeyword(e.target.value)} placeholder="게시글 검색" />
+                <button className="ghost-btn" onClick={() => setCommunityOpen((prev) => !prev)}>{communityOpen ? "메뉴 접기" : "메뉴 펼치기"}</button>
+              </div>
+            </div>
+            <div className="split-layout">
+              <aside className={`left-menu ${communityOpen ? "open" : "collapsed"}`}>
+                <button className={`left-link ${selectedCommunityCategory === "전체" ? "active" : ""}`} onClick={() => setSelectedCommunityCategory("전체")}>전체 글</button>
+                {communityCategories.map((category) => (
+                  <button key={category} className={`left-link ${selectedCommunityCategory === category ? "active" : ""}`} onClick={() => setSelectedCommunityCategory(category)}>{category}</button>
+                ))}
+              </aside>
+              <div className="community-list">
+                {filteredCommunity.map((post) => (
+                  <article key={post.id} className="community-card">
+                    <span className="community-chip">{post.category}</span>
+                    <strong>{post.title}</strong>
+                    <p>{post.summary}</p>
+                    <div className="community-meta">{post.meta}</div>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </section>
+        ) : null}
+
+        {activeTab === "장바구니" ? (
+          <section className="tab-pane">
+            <div className="section-head">
+              <div>
+                <h2>장바구니</h2>
+                <p>쇼핑한 물품 목록과 결제 전 확인 카드</p>
+              </div>
+            </div>
+            <div className="cart-box">
+              {cartSeed.map((item) => (
+                <div key={item.id} className="cart-row">
+                  <div>
+                    <strong>{item.name}</strong>
+                    <span>{item.option} · 수량 {item.qty}</span>
+                  </div>
+                  <b>{item.price}</b>
+                </div>
+              ))}
+              <div className="cart-summary">
+                <span>총 결제 예정</span>
+                <strong>₩112,500</strong>
+              </div>
+              <button>주문/결제 진행</button>
+            </div>
+          </section>
+        ) : null}
+
+        {activeTab === "프로필" ? (
+          <section className="tab-pane">
+            <div className="section-head">
+              <div>
+                <h2>프로필</h2>
+                <p>내 프로필, 팔로워/팔로잉 수, 작성 피드와 업로드 상품 확인</p>
+              </div>
+            </div>
+            <div className="profile-shell">
+              <div className="profile-card">
+                <div className="profile-avatar">A</div>
+                <strong>adult official</strong>
+                <span>운영/브랜드/판매자 통합 프로필 예시</span>
+                <div className="profile-stats">
+                  {profileStats.map((stat) => (
+                    <div key={stat.label}>
+                      <b>{stat.value}</b>
+                      <span>{stat.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="profile-columns">
+                <div className="legacy-box">
+                  <h3>내가 작성한 게시글</h3>
+                  <ul>
+                    {communitySeed.slice(0, 3).map((post) => <li key={post.id}>{post.title}</li>)}
+                  </ul>
+                </div>
+                <div className="legacy-box">
+                  <h3>업로드한 상품</h3>
+                  <ul>
+                    {productsSeed.slice(0, 3).map((product) => <li key={product.id}>{product.name}</li>)}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : null}
       </main>
+
+      <nav className="bottom-nav">
+        {mobileTabs.map((tab) => (
+          <button key={tab} className={`bottom-nav-btn ${activeTab === tab ? "active" : ""}`} onClick={() => setActiveTab(tab)}>
+            <span>{tab}</span>
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }
