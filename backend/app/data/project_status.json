@@ -2,8 +2,8 @@
   "generated_at": "2026-04-08",
   "overall": {
     "label": "전체 진행도",
-    "percent": 90,
-    "status": "모바일 하단 6버튼(홈·쇼핑·채팅·소통·장바구니·프로필)과 상단 메뉴 기반 기존 기능 분리, Cloudflare 수동 배포까지 반영됐지만 실연동 마감 항목은 남아있는 상태",
+    "percent": 91,
+    "status": "상단바 좌측 메뉴·우측 검색/설정 버튼, 하단바 전폭 직각형 고정, 전체 UI 직각형 레이아웃까지 반영됐지만 실연동 마감 항목은 남아있는 상태",
     "gaps": [
       "실 Railway API 주소로 재배포 및 CORS 최종 반영",
       "실 PG 계약키/서명검증 규격 연결",
@@ -25,8 +25,8 @@
     },
     {
       "category": "앱 프로젝트",
-      "percent": 96,
-      "status": "모바일 6탭 IA + 상단 메뉴 레거시 기능 분리 + 쇼핑/소통 접이식 좌측 메뉴 반영",
+      "percent": 97,
+      "status": "모바일 6탭 IA + 상단바 메뉴/검색/설정 + 전역 직각형 UI 반영",
       "gaps": [
         "실주문·실결제 연동 / 모바일 래퍼 실기기 테스트 / 세부 UX polishing"
       ]
@@ -97,16 +97,16 @@
     },
     {
       "category": "인프라/배포",
-      "percent": 86,
-      "status": "Cloudflare Pages 수동 배포 성공, 자동배포는 Node/npm 환경 보정 필요",
+      "percent": 87,
+      "status": "Cloudflare Pages 수동 배포 성공, 수동 direct upload 기준 안정화",
       "gaps": [
         "실 Railway API 주소 주입 재배포 / PostgreSQL·Alembic 운영 / 백업점검"
       ]
     },
     {
       "category": "QA/테스트",
-      "percent": 78,
-      "status": "프론트 빌드·Pages direct upload·모바일 UI 점검 가능",
+      "percent": 80,
+      "status": "프론트 빌드·Pages direct upload·직각형 모바일 UI 점검 가능",
       "gaps": [
         "API 자동테스트 / E2E / 회귀테스트"
       ]

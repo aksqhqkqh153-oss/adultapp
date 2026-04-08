@@ -181,8 +181,8 @@ function LegacyPanel({
         <div className="legacy-grid two">
           <div className="legacy-box">
             <h3>전체 진행도</h3>
-            <div className="big-progress">{projectStatus?.overall?.percent ?? 90}%</div>
-            <p>{projectStatus?.overall?.status ?? "모바일 IA/상단 메뉴 재배치, Cloudflare 수동 배포 흐름까지 반영된 상태"}</p>
+            <div className="big-progress">{projectStatus?.overall?.percent ?? 91}%</div>
+            <p>{projectStatus?.overall?.status ?? "모바일 IA, 상단 검색/설정 버튼, 직각형 UI와 Cloudflare 수동 배포 흐름까지 반영된 상태"}</p>
           </div>
           <div className="legacy-box">
             <h3>현재 부족 항목</h3>
@@ -240,7 +240,7 @@ function LegacyPanel({
     return (
       <section className="legacy-panel">
         <div className="legacy-grid two">
-          <div className="legacy-box"><h3>Safe 노출 체크</h3><p>하단 6버튼 구조 + 공개영역 정보성 피드 + 민감 상세 분리</p></div>
+          <div className="legacy-box"><h3>Safe 노출 체크</h3><p>상단 검색/설정 + 하단 6버튼 직각형 구조 + 공개영역 정보성 피드 + 민감 상세 분리</p></div>
           <div className="legacy-box"><h3>남은 자산</h3><p>실기기 캡처 · App Preview · 스토어 메타데이터 최종본</p></div>
         </div>
       </section>
@@ -267,6 +267,9 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<(typeof mobileTabs)[number]>("홈");
   const [legacySection, setLegacySection] = useState<(typeof legacyMenu)[number]>("운영현황");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [globalKeyword, setGlobalKeyword] = useState("");
   const [feedLimit, setFeedLimit] = useState(10);
   const [shopOpen, setShopOpen] = useState(true);
   const [communityOpen, setCommunityOpen] = useState(true);
@@ -282,53 +285,81 @@ export default function App() {
     getJson<DeployGuide>("/deploy/cloudflare-pages-manual").then(setDeployGuide).catch(() => null);
   }, []);
 
-  const visibleFeed = useMemo(() => feedSeed.slice(0, feedLimit), [feedLimit]);
+  const visibleFeed = useMemo(() => {
+    const keyword = globalKeyword.trim().toLowerCase();
+    const filtered = !keyword
+      ? feedSeed
+      : feedSeed.filter((item) => `${item.title} ${item.caption} ${item.category} ${item.author}`.toLowerCase().includes(keyword));
+    return filtered.slice(0, feedLimit);
+  }, [feedLimit, globalKeyword]);
 
   const allShopItems = useMemo(() => {
-    const mapped = productsSeed.filter((product) => {
+    const keyword = `${shopKeyword} ${globalKeyword}`.trim().toLowerCase();
+    return productsSeed.filter((product) => {
       const matchCategory = selectedShopCategory === "전체" || product.category === selectedShopCategory;
-      const keyword = shopKeyword.trim().toLowerCase();
       const matchKeyword = !keyword || `${product.name} ${product.subtitle} ${product.category}`.toLowerCase().includes(keyword);
       return matchCategory && matchKeyword;
     });
-    return mapped;
-  }, [selectedShopCategory, shopKeyword]);
+  }, [selectedShopCategory, shopKeyword, globalKeyword]);
 
   const filteredCommunity = useMemo(() => {
+    const keyword = `${communityKeyword} ${globalKeyword}`.trim().toLowerCase();
     return communitySeed.filter((post) => {
       const matchCategory = selectedCommunityCategory === "전체" || post.category === selectedCommunityCategory;
-      const keyword = communityKeyword.trim().toLowerCase();
       const matchKeyword = !keyword || `${post.title} ${post.summary}`.toLowerCase().includes(keyword);
       return matchCategory && matchKeyword;
     });
-  }, [selectedCommunityCategory, communityKeyword]);
+  }, [selectedCommunityCategory, communityKeyword, globalKeyword]);
 
-  const topActions = (
-    <div className="top-actions">
-      <button className="ghost-btn" onClick={() => setMenuOpen((prev) => !prev)}>
-        ☰ 메뉴
-      </button>
-      <button className="ghost-btn small-btn">기존 운영 기능</button>
-    </div>
-  );
+  const filteredThreads = useMemo(() => {
+    const keyword = globalKeyword.trim().toLowerCase();
+    return !keyword ? threadSeed : threadSeed.filter((thread) => `${thread.name} ${thread.preview} ${thread.purpose}`.toLowerCase().includes(keyword));
+  }, [globalKeyword]);
 
   return (
     <div className="mobile-app-shell">
       <header className="top-header">
-        <div>
-          <p className="eyebrow">adultapp mobile flow</p>
-          <h1>홈 · 쇼핑 · 채팅 · 소통 · 장바구니 · 프로필</h1>
-          <span className="top-subcopy">모바일 하단 6버튼 중심으로 재구성하고, 기존 운영 기능은 상단 메뉴 안으로 이동한 버전</span>
+        <div className="topbar-row">
+          <button className="ghost-btn topbar-btn" onClick={() => setMenuOpen((prev) => !prev)}>☰ 메뉴</button>
+          <div className="topbar-title-block">
+            <p className="eyebrow">adultapp mobile flow</p>
+            <h1>직각형 모바일 구조 · 상단바 + 하단 6버튼</h1>
+          </div>
+          <div className="topbar-tools">
+            <button className={`ghost-btn topbar-btn ${searchOpen ? "active" : ""}`} onClick={() => setSearchOpen((prev) => !prev)}>검색</button>
+            <button className={`ghost-btn topbar-btn ${settingsOpen ? "active" : ""}`} onClick={() => setSettingsOpen((prev) => !prev)}>설정</button>
+          </div>
         </div>
-        {topActions}
+        <div className="top-subcopy">모바일 하단 6버튼 중심 구조를 유지하면서 상단바 좌측 메뉴, 우측 검색·설정 버튼, 전체 직각형 레이아웃으로 재정리한 버전</div>
       </header>
+
+      {searchOpen ? (
+        <section className="utility-strip">
+          <div className="utility-head">통합 검색</div>
+          <div className="utility-row">
+            <input value={globalKeyword} onChange={(e) => setGlobalKeyword(e.target.value)} placeholder="홈·쇼핑·채팅·소통 전체 검색" />
+            <button className="ghost-btn" onClick={() => setGlobalKeyword("")}>초기화</button>
+          </div>
+        </section>
+      ) : null}
+
+      {settingsOpen ? (
+        <section className="utility-strip">
+          <div className="utility-head">설정 요약</div>
+          <div className="settings-grid">
+            <div className="legacy-box compact"><h3>테마</h3><p>라운드 대신 직각형, 여백 절제, 선형 분리 강조</p></div>
+            <div className="legacy-box compact"><h3>배포</h3><p>Cloudflare Pages 수동 배포 기본, Git 자동배포는 보조 경로</p></div>
+            <div className="legacy-box compact"><h3>연동</h3><p>실 Railway API 주소 주입과 CORS 반영 필요</p></div>
+          </div>
+        </section>
+      ) : null}
 
       <div className={`menu-drawer ${menuOpen ? "open" : ""}`}>
         <div className="drawer-head">
           <strong>상단 메뉴</strong>
           <button className="ghost-btn" onClick={() => setMenuOpen(false)}>닫기</button>
         </div>
-        <div className="drawer-subtitle">기존 운영/보안/앱심사/배포 기능은 여기에서 계속 접근</div>
+        <div className="drawer-subtitle">기존 운영/보안/앱심사/배포 기능은 이 메뉴 안에서 계속 접근</div>
         <nav className="legacy-nav">
           {legacyMenu.map((item) => (
             <button
@@ -354,7 +385,7 @@ export default function App() {
             <div className="section-head">
               <div>
                 <h2>홈 피드</h2>
-                <p>유튜브처럼 사진/영상 기반 피드를 스크롤로 이어보고, 10개 단위로 계속 로드하는 구조</p>
+                <p>사진/영상 기반 피드를 스크롤로 이어보고, 10개 단위로 계속 로드하는 구조</p>
               </div>
               <button className="ghost-btn" onClick={() => setFeedLimit((prev) => Math.min(prev + 10, feedSeed.length))}>피드 10개 더 보기</button>
             </div>
@@ -419,7 +450,7 @@ export default function App() {
               </div>
             </div>
             <div className="chat-list">
-              {threadSeed.map((thread) => (
+              {filteredThreads.map((thread) => (
                 <article key={thread.id} className="chat-row">
                   <div className="avatar-circle">{thread.name[0]}</div>
                   <div className="chat-copy">
