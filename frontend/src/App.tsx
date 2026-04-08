@@ -722,28 +722,30 @@ export default function App() {
         </nav>
       </aside>
       <main className="main-panel">
-        <header className="mobile-topbar">
+        <header className="topbar">
           <button className="menu-toggle" onClick={() => setMobileNavOpen(true)} aria-label="메뉴 열기">☰</button>
-          <div className="mobile-topbar-copy">
+          <div className="topbar-copy">
             <strong>adultapp</strong>
             <span>{gradeLabelMap[currentGrade]} · {safeTab}</span>
           </div>
-          <div className="mobile-topbar-state">{lastAction}</div>
+          <div className="topbar-state">{lastAction}</div>
         </header>
-        <div className="notice-box">블랙 테마 기준으로 가독성을 보강했고, 계정 등급에 따라 탭/버튼/업무 흐름이 바로 분기되도록 연결했습니다.</div>
-        {body}
-      </main>
-      <nav className="mobile-bottom-nav" aria-label="모바일 하단 탭">
+        <section className="content-viewport">
+          <div className="notice-box">블랙 테마 기준으로 가독성을 보강했고, 계정 등급에 따라 탭/버튼/업무 흐름이 바로 분기되도록 연결했습니다.</div>
+          {body}
+        </section>
+        <nav className="bottom-nav" aria-label="하단 탭">
         {visibleTabs.map((tab) => (
           <button
             key={tab}
-            className={safeTab === tab ? "mobile-tab active" : "mobile-tab"}
+            className={safeTab === tab ? "bottom-tab active" : "bottom-tab"}
             onClick={() => setActiveTab(tab)}
           >
             {tab}
           </button>
         ))}
-      </nav>
+        </nav>
+      </main>
     </div>
   );
 }
