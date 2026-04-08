@@ -122,25 +122,6 @@ CATEGORY_GROUPS = [
     {"group": "판매자센터", "items": ["상품등록", "사진/영상 첨부", "SKU 관리", "재고/상태 변경"]},
 ]
 
-CLOUDFLARE_MANUAL_DEPLOY = {
-    "project_name": "adultapp",
-    "frontend_root": "frontend",
-    "build_command": "npm run cf:build",
-    "output_directory": "dist",
-    "spa_fallback": "frontend/public/_redirects",
-    "required_env": [
-        "VITE_API_BASE_URL",
-        "VITE_APP_REVIEW_MODE",
-        "VITE_MOBILE_WEB_FALLBACK_URL",
-    ],
-    "windows_script": "scripts/cloudflare_manual_deploy.ps1",
-    "pages_cli": "npx wrangler pages deploy dist --project-name adultapp --branch main --commit-dirty=true",
-    "notes": [
-        "wrangler login 후 whoami 확인",
-        "backend CORS_ORIGINS에 pages.dev/custom domain 추가",
-        "Railway backend URL은 /api 까지 포함해 VITE_API_BASE_URL에 주입",
-    ],
-}
 
 ALLOWED_UPLOAD_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".mp4", ".mov", ".webm"}
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
@@ -476,12 +457,6 @@ def project_update_needs() -> dict[str, Any]:
         "recommended_updates": status.get("recommended_updates", []),
         "items": status.get("items", []),
     }
-
-
-
-@router.get("/deploy/cloudflare-pages-manual")
-def cloudflare_pages_manual():
-    return CLOUDFLARE_MANUAL_DEPLOY
 
 
 @router.get("/dashboard")
