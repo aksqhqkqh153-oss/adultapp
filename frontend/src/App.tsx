@@ -316,13 +316,15 @@ export default function App() {
     return !keyword ? threadSeed : threadSeed.filter((thread) => `${thread.name} ${thread.preview} ${thread.purpose}`.toLowerCase().includes(keyword));
   }, [globalKeyword]);
 
+  const currentScreenTitle = activeTab;
+
   return (
     <div className="mobile-app-shell">
       <header className="top-header">
         <div className="topbar-row">
           <button className="ghost-btn topbar-btn" onClick={() => setMenuOpen((prev) => !prev)}>☰ 메뉴</button>
           <div className="topbar-title-block">
-            <h1>어른플랫폼</h1>
+            <h1>{currentScreenTitle}</h1>
           </div>
           <div className="topbar-tools">
             <button className={`ghost-btn topbar-btn ${searchOpen ? "active" : ""}`} onClick={() => setSearchOpen((prev) => !prev)}>검색</button>

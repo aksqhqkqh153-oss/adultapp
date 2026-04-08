@@ -67,7 +67,7 @@ input {
   gap: 12px;
   align-items: center;
 }
-.topbar-title-block { min-width: 0; }
+.topbar-title-block { min-width: 0; text-align: center; }
 .topbar-tools { display: flex; gap: 8px; }
 .topbar-btn { min-width: 72px; white-space: nowrap; }
 .eyebrow {
