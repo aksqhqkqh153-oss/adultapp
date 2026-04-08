@@ -124,6 +124,7 @@ export default function App() {
   const [postForm, setPostForm] = useState<any>({ category: "정보공유", title: "", body: "", visibility: "safe", purpose: "정보교류", allow_dm: true });
   const [threadForm, setThreadForm] = useState<any>({ participant_b_id: 2, subject: "상품/운영 문의", purpose_code: "PRODUCT_QA", thread_type: "product_inquiry", related_post_id: null, related_product_id: 1 });
   const [messageForm, setMessageForm] = useState<any>({ thread_id: 0, message: "", purpose_code: "PRODUCT_QA" });
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   async function loadPublicData() {
     const [dashboard, review, seller, policy, refundList, penaltyList, assetList, pg, adult, tax, securityResp, queue, screenshotResp, overview, roles, productList, contentList, categoryList, progress, orderList, settlementPreview, reportList, logList, communityList, threadList, smokeResp] = await Promise.all([
@@ -688,16 +689,61 @@ export default function App() {
   const safeTab = visibleTabs.includes(activeTab) ? activeTab : visibleTabs[0];
   const body = safeTab === "홈" ? HomeTab : safeTab === "쇼핑" ? ShopTab : safeTab === "주문" ? OrderTab : safeTab === "운영" ? OpsTab : safeTab === "보안" ? SecurityTab : ReviewTab;
 
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [safeTab, currentGrade]);
+
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">adultapp</div>
-        {visibleTabs.map((tab) => <button key={tab} className={safeTab === tab ? "nav-btn active" : "nav-btn"} onClick={() => setActiveTab(tab)}>{tab}</button>)}
+      <div className={mobileNavOpen ? "sidebar-backdrop open" : "sidebar-backdrop"} onClick={() => setMobileNavOpen(false)} />
+      <aside className={mobileNavOpen ? "sidebar open" : "sidebar"}>
+        <div className="sidebar-head">
+          <div className="brand">adultapp</div>
+          <button className="sidebar-close" onClick={() => setMobileNavOpen(false)} aria-label="메뉴 닫기">닫기</button>
+        </div>
+        <div className="sidebar-role-card">
+          <span className="muted">접속 역할</span>
+          <strong>{gradeLabelMap[currentGrade]}</strong>
+          <small>{roleInfo.summary}</small>
+        </div>
+        <nav className="sidebar-nav">
+          {visibleTabs.map((tab) => (
+            <button
+              key={tab}
+              className={safeTab === tab ? "nav-btn active" : "nav-btn"}
+              onClick={() => {
+                setActiveTab(tab);
+                setMobileNavOpen(false);
+              }}
+            >
+              {tab}
+            </button>
+          ))}
+        </nav>
       </aside>
       <main className="main-panel">
+        <header className="mobile-topbar">
+          <button className="menu-toggle" onClick={() => setMobileNavOpen(true)} aria-label="메뉴 열기">☰</button>
+          <div className="mobile-topbar-copy">
+            <strong>adultapp</strong>
+            <span>{gradeLabelMap[currentGrade]} · {safeTab}</span>
+          </div>
+          <div className="mobile-topbar-state">{lastAction}</div>
+        </header>
         <div className="notice-box">블랙 테마 기준으로 가독성을 보강했고, 계정 등급에 따라 탭/버튼/업무 흐름이 바로 분기되도록 연결했습니다.</div>
         {body}
       </main>
+      <nav className="mobile-bottom-nav" aria-label="모바일 하단 탭">
+        {visibleTabs.map((tab) => (
+          <button
+            key={tab}
+            className={safeTab === tab ? "mobile-tab active" : "mobile-tab"}
+            onClick={() => setActiveTab(tab)}
+          >
+            {tab}
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }
