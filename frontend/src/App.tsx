@@ -180,21 +180,21 @@ function LegacyPanel({
       <section className="legacy-panel">
         <div className="legacy-grid two">
           <div className="legacy-box">
-            <h3>전체 진행도</h3>
-            <div className="big-progress">{projectStatus?.overall?.percent ?? 91}%</div>
-            <p>{projectStatus?.overall?.status ?? "모바일 IA, 상단 검색/설정 버튼, 직각형 UI와 Cloudflare 수동 배포 흐름까지 반영된 상태"}</p>
+            <h3>운영 요약</h3>
+            <div className="big-progress">LIVE</div>
+            <p>모바일 6탭 구조와 상단 메뉴 기반 운영 기능을 함께 사용하는 운영형 화면입니다.</p>
           </div>
           <div className="legacy-box">
-            <h3>현재 부족 항목</h3>
+            <h3>운영 체크포인트</h3>
             <ul>
-              {(projectStatus?.overall?.gaps ?? ["실 PG/실세무 발급 연동", "실기기 앱 제출 자산", "운영 DB 마이그레이션"]).map((gap) => (
-                <li key={gap}>{gap}</li>
-              ))}
+              <li>상단 메뉴로 운영현황 · 주문관리 · 보안 · 앱심사 · 배포가이드 접근</li>
+              <li>하단 6버튼으로 홈 · 쇼핑 · 채팅 · 소통 · 장바구니 · 프로필 이동</li>
+              <li>직각형 레이아웃 기준으로 모바일 화면 일관성 유지</li>
             </ul>
           </div>
         </div>
         <div className="legacy-box">
-          <h3>세부 항목 진행도</h3>
+          <h3>운영 상태 목록</h3>
           <div className="progress-list">
             {(projectStatus?.items ?? []).map((item) => (
               <div key={item.category} className="progress-row">
@@ -322,15 +322,13 @@ export default function App() {
         <div className="topbar-row">
           <button className="ghost-btn topbar-btn" onClick={() => setMenuOpen((prev) => !prev)}>☰ 메뉴</button>
           <div className="topbar-title-block">
-            <p className="eyebrow">adultapp mobile flow</p>
-            <h1>직각형 모바일 구조 · 상단바 + 하단 6버튼</h1>
+            <h1>어른플랫폼</h1>
           </div>
           <div className="topbar-tools">
             <button className={`ghost-btn topbar-btn ${searchOpen ? "active" : ""}`} onClick={() => setSearchOpen((prev) => !prev)}>검색</button>
             <button className={`ghost-btn topbar-btn ${settingsOpen ? "active" : ""}`} onClick={() => setSettingsOpen((prev) => !prev)}>설정</button>
           </div>
         </div>
-        <div className="top-subcopy">모바일 하단 6버튼 중심 구조를 유지하면서 상단바 좌측 메뉴, 우측 검색·설정 버튼, 전체 직각형 레이아웃으로 재정리한 버전</div>
       </header>
 
       {searchOpen ? (
