@@ -565,7 +565,9 @@ export default function App() {
   const [oneToOneCategory, setOneToOneCategory] = useState<OneToOneRandomCategory>("고민상담");
   const [randomSettingsOpen, setRandomSettingsOpen] = useState(false);
   const [matchingRandom, setMatchingRandom] = useState(false);
-  const [matchedRandomUser, setMatchedRandomUser] = useState<{ name: string; category: OneToOneRandomCategory } | null>(null);
+  const [matchedRandomUser, setMatchedRandomUser] = useState<{ name: string; category: OneToOneRandomCategory; nickname: string } | null>(null);
+  const [randomMatchPhase, setRandomMatchPhase] = useState<"idle" | "queueing" | "matched">("idle");
+  const [randomMatchNote, setRandomMatchNote] = useState("카테고리를 고른 뒤 랜덤채팅을 시작할 수 있습니다.");
   const [shopKeyword, setShopKeyword] = useState("");
   const [communityKeyword, setCommunityKeyword] = useState("");
   const [projectStatus, setProjectStatus] = useState<ProjectStatus | null>(null);
@@ -655,17 +657,29 @@ export default function App() {
     if (matchingRandom) return;
     setRandomSettingsOpen(false);
     setMatchedRandomUser(null);
+    setRandomMatchPhase("queueing");
+    setRandomMatchNote(`${oneToOneCategory} 카테고리 대기열에 등록되었습니다. 매칭 상대를 찾는 중입니다.`);
     setMatchingRandom(true);
     window.setTimeout(() => {
-      const demoMatches: Record<OneToOneRandomCategory, string> = {
-        고민상담: "익명 상담 파트너",
-        자유수다: "자유수다 메이트",
-        아무말대잔치: "아무말 메이트",
-        도파민수다: "도파민 토커",
+      const demoMatches: Record<OneToOneRandomCategory, { name: string; nickname: string }> = {
+        고민상담: { name: "익명 상담 파트너", nickname: "달빛고민러" },
+        자유수다: { name: "자유수다 메이트", nickname: "수다한잔" },
+        아무말대잔치: { name: "아무말 메이트", nickname: "말풍선친구" },
+        도파민수다: { name: "도파민 토커", nickname: "텐션부스터" },
       };
-      setMatchedRandomUser({ name: demoMatches[oneToOneCategory], category: oneToOneCategory });
+      const picked = demoMatches[oneToOneCategory];
+      setMatchedRandomUser({ ...picked, category: oneToOneCategory });
+      setRandomMatchPhase("matched");
+      setRandomMatchNote(`${picked.nickname} 님과 연결되었습니다. 다음 단계에서는 실제 소켓 채팅방으로 이동시키면 됩니다.`);
       setMatchingRandom(false);
-    }, 1400);
+    }, 1600);
+  };
+
+  const cancelRandomMatch = () => {
+    setMatchingRandom(false);
+    setRandomMatchPhase("idle");
+    setMatchedRandomUser(null);
+    setRandomMatchNote("랜덤채팅 대기열에서 빠졌습니다.");
   };
 
   const openAskFromFeed = (item: FeedItem) => {
@@ -727,6 +741,8 @@ export default function App() {
       setRandomSettingsOpen(false);
       setMatchingRandom(false);
       setMatchedRandomUser(null);
+      setRandomMatchPhase("idle");
+      setRandomMatchNote("카테고리를 고른 뒤 랜덤채팅을 시작할 수 있습니다.");
     }
     if (tab !== "프로필") setProfileTab("내정보");
   };
@@ -941,11 +957,26 @@ export default function App() {
                     {matchingRandom ? "랜덤채팅찾는중" : "1:1랜덤채팅"}
                   </button>
                 </div>
+                <div className="random-skeleton-card">
+                  <div className="random-skeleton-row">
+                    <span className="random-skeleton-label">현재 상태</span>
+                    <strong>{randomMatchPhase === "idle" ? "대기 전" : randomMatchPhase === "queueing" ? "대기열 참여중" : "매칭 완료"}</strong>
+                  </div>
+                  <div className="random-skeleton-row">
+                    <span className="random-skeleton-label">선택 카테고리</span>
+                    <span>{oneToOneCategory}</span>
+                  </div>
+                  <p>{randomMatchNote}</p>
+                  <div className="random-skeleton-actions">
+                    <button type="button" className="ghost-btn" onClick={cancelRandomMatch}>대기취소</button>
+                    <button type="button">신고/차단 기준 확인</button>
+                  </div>
+                </div>
                 {matchedRandomUser ? (
                   <div className="random-match-result">
                     <span className="random-room-category-chip">{matchedRandomUser.category}</span>
                     <strong>{matchedRandomUser.name}</strong>
-                    <p>같은 카테고리를 선택한 사용자와 연결된 데모 화면입니다.</p>
+                    <p>{matchedRandomUser.nickname} 닉네임으로 연결된 데모 화면입니다. 다음 단계에서 실제 1:1 채팅방 입장 API를 연결하면 됩니다.</p>
                   </div>
                 ) : null}
               </div>
