@@ -2,8 +2,8 @@
   "generated_at": "2026-04-09",
   "overall": {
     "label": "전체 진행도",
-    "percent": 93,
-    "status": "Production API 기본 바인딩, 모바일 상단·하단 고정, 홈/쇼핑 상단 서브탭 구조까지 반영된 상태",
+    "percent": 94,
+    "status": "모바일 상단바에 홈/쇼핑/소통/채팅/프로필별 인라인 메뉴와 우측 운영·검색·설정 액션을 일체형으로 반영한 상태",
     "gaps": [
       "실 PG 계약키/서명검증 규격 연결",
       "실 PASS/NICE callback/응답코드 맵 반영",
@@ -24,8 +24,8 @@
     },
     {
       "category": "앱 프로젝트",
-      "percent": 98,
-      "status": "모바일 고정 헤더/푸터 + 홈/쇼핑 상단 서브탭 + Production API fallback 반영",
+      "percent": 99,
+      "status": "모바일 상단 일체형 네비게이션 + 하단 고정탭 + Production API fallback 반영",
       "gaps": [
         "실주문·실결제 연동 / 모바일 래퍼 실기기 테스트 / 세부 UX polishing"
       ]
@@ -104,8 +104,8 @@
     },
     {
       "category": "QA/테스트",
-      "percent": 84,
-      "status": "프론트 빌드·고정 레이아웃·production API fallback 점검 가능",
+      "percent": 85,
+      "status": "프론트 빌드·상단바 구조·고정 레이아웃·production API fallback 점검 가능",
       "gaps": [
         "API 자동테스트 / E2E / 회귀테스트"
       ]

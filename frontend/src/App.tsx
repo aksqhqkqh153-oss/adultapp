@@ -92,6 +92,12 @@ type ShoppingTab = (typeof shoppingTabs)[number];
 
 type OverlayMode = "menu" | "search" | "settings" | null;
 
+type HeaderNavItem = {
+  label: string;
+  active?: boolean;
+  onClick?: () => void;
+};
+
 const feedSeed: FeedItem[] = Array.from({ length: 18 }, (_, idx) => ({
   id: idx + 1,
   type: idx % 3 === 0 ? "video" : "image",
@@ -314,47 +320,71 @@ export default function App() {
 
   const homeProducts = useMemo(() => productsSeed.slice(0, 4), []);
 
-  const currentScreenTitle =
-    activeTab === "홈" ? `홈 · ${homeTab}` : activeTab === "쇼핑" ? `쇼핑 · ${shoppingTab}` : activeTab;
+  const currentScreenTitle = activeTab;
 
   const openOverlay = (mode: Exclude<OverlayMode, null>) => {
     setOverlayMode((prev) => (prev === mode ? null : mode));
   };
 
-  const renderContextNav = () => {
+  const headerNavItems = useMemo<HeaderNavItem[]>(() => {
     if (activeTab === "홈") {
-      return (
-        <div className="context-nav">
-          {homeTabs.map((tab) => (
-            <button key={tab} className={`context-btn ${homeTab === tab ? "active" : ""}`} onClick={() => setHomeTab(tab)}>{tab}</button>
-          ))}
-        </div>
-      );
+      return homeTabs.map((tab) => ({
+        label: tab,
+        active: homeTab === tab,
+        onClick: () => setHomeTab(tab),
+      }));
     }
     if (activeTab === "쇼핑") {
-      return (
-        <div className="context-nav">
-          {shoppingTabs.map((tab) => (
-            <button key={tab} className={`context-btn ${shoppingTab === tab ? "active" : ""}`} onClick={() => setShoppingTab(tab)}>{tab}</button>
-          ))}
-        </div>
-      );
+      return shoppingTabs.map((tab) => ({
+        label: tab,
+        active: shoppingTab === tab,
+        onClick: () => setShoppingTab(tab),
+      }));
     }
-    return <div className="context-nav context-label">현재 화면</div>;
+    if (activeTab === "소통") {
+      return [{ label: "게시글", active: true }];
+    }
+    if (activeTab === "채팅") {
+      return [{ label: "대화목록", active: true }];
+    }
+    return [{ label: "내정보", active: true }];
+  }, [activeTab, homeTab, shoppingTab]);
+
+  const selectBottomTab = (tab: MobileTab) => {
+    setActiveTab(tab);
+    setOverlayMode(null);
+    if (tab !== "홈") setHomeTab("피드");
+    if (tab !== "쇼핑") setShoppingTab("목록");
   };
 
   return (
     <div className="mobile-app-shell">
       <header className="top-header">
         <div className="topbar-row">
-          <div className="topbar-left">{renderContextNav()}</div>
+          <div className="topbar-side topbar-left">
+            <div className="topbar-inline-actions topbar-inline-actions-left">
+              {headerNavItems.map((item) => (
+                <button
+                  key={item.label}
+                  type="button"
+                  className={`header-inline-btn ${item.active ? "active" : ""}`}
+                  onClick={item.onClick}
+                  disabled={!item.onClick}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="topbar-title-block">
             <h1>{currentScreenTitle}</h1>
           </div>
-          <div className="topbar-tools">
-            <button className={`ghost-btn tool-btn ${overlayMode === "menu" ? "active" : ""}`} onClick={() => openOverlay("menu")}>운영</button>
-            <button className={`ghost-btn tool-btn ${overlayMode === "search" ? "active" : ""}`} onClick={() => openOverlay("search")}>검색</button>
-            <button className={`ghost-btn tool-btn ${overlayMode === "settings" ? "active" : ""}`} onClick={() => openOverlay("settings")}>설정</button>
+          <div className="topbar-side topbar-right">
+            <div className="topbar-inline-actions topbar-inline-actions-right">
+              <button className={`header-inline-btn ${overlayMode === "menu" ? "active" : ""}`} onClick={() => openOverlay("menu")}>운영</button>
+              <button className={`header-inline-btn ${overlayMode === "search" ? "active" : ""}`} onClick={() => openOverlay("search")}>검색</button>
+              <button className={`header-inline-btn ${overlayMode === "settings" ? "active" : ""}`} onClick={() => openOverlay("settings")}>설정</button>
+            </div>
           </div>
         </div>
       </header>
@@ -626,11 +656,7 @@ export default function App() {
           <button
             key={tab}
             className={`bottom-nav-btn ${activeTab === tab ? "active" : ""}`}
-            onClick={() => {
-              setActiveTab(tab);
-              if (tab !== "홈") setHomeTab("피드");
-              if (tab !== "쇼핑") setShoppingTab("목록");
-            }}
+            onClick={() => selectBottomTab(tab)}
           >
             <span>{tab}</span>
           </button>
