@@ -45,6 +45,15 @@ type ThreadItem = {
   unread: number;
 };
 
+type RandomRoom = {
+  id: number;
+  title: string;
+  category: string;
+  maxPeople: number;
+  password: string;
+  peopleText: string;
+};
+
 type CartItem = {
   id: number;
   name: string;
@@ -88,6 +97,8 @@ const communityTabs = ["커뮤", "후기", "이벤트"] as const;
 const chatTabs = ["채팅", "랜덤", "질문"] as const;
 const profileTabs = ["내정보"] as const;
 const settingsCategories = ["일반", "계정", "알림", "보안", "배포", "운영"] as const;
+const randomRoomCategories = ["전체", "고민/상담", "정보공유", "일상대화", "취미/관심사", "자유주제"] as const;
+
 
 type MobileTab = (typeof mobileTabs)[number];
 type LegacyTab = (typeof legacyMenu)[number];
@@ -97,6 +108,7 @@ type CommunityTab = (typeof communityTabs)[number];
 type ChatTab = (typeof chatTabs)[number];
 type ProfileTab = (typeof profileTabs)[number];
 type SettingsCategory = (typeof settingsCategories)[number];
+type RandomRoomCategory = (typeof randomRoomCategories)[number];
 type OverlayMode = "search" | "settings" | null;
 
 type HeaderNavItem = {
@@ -150,6 +162,16 @@ const threadSeed: ThreadItem[] = [
   { id: 102, name: "seller_studio", purpose: "판매자 1:1", preview: "승인 대기 상품 이미지 규격을 수정했습니다.", time: "12분 전", unread: 0 },
   { id: 103, name: "brand_note", purpose: "콘텐츠 응답", preview: "피드형 홈 카드 노출 순서 제안 드립니다.", time: "1시간 전", unread: 1 },
   { id: 104, name: "customer demo", purpose: "구매자 지원", preview: "장바구니와 프로필 연동 상태를 확인하고 싶어요.", time: "어제", unread: 0 },
+];
+
+const randomRoomSeed: RandomRoom[] = [
+  { id: 2001, title: "고민 나눔방", category: "고민/상담", maxPeople: 6, password: "", peopleText: "3 / 6" },
+  { id: 2002, title: "정보공유 오픈룸", category: "정보공유", maxPeople: 8, password: "1234", peopleText: "5 / 8" },
+  { id: 2003, title: "퇴근 후 일상대화", category: "일상대화", maxPeople: 5, password: "", peopleText: "2 / 5" },
+  { id: 2004, title: "취미/관심사 잡담", category: "취미/관심사", maxPeople: 10, password: "", peopleText: "7 / 10" },
+  { id: 2005, title: "주제 자유 토크", category: "자유주제", maxPeople: 4, password: "5678", peopleText: "1 / 4" },
+  { id: 2006, title: "오늘의 고민", category: "고민/상담", maxPeople: 6, password: "", peopleText: "4 / 6" },
+  { id: 2007, title: "초보 정보공유", category: "정보공유", maxPeople: 8, password: "", peopleText: "6 / 8" },
 ];
 
 const cartSeed: CartItem[] = [
@@ -279,7 +301,7 @@ function SettingSection({ category, isAdmin, legacySection, setLegacySection, pr
   if (category === "일반") {
     return (
       <div className="settings-grid settings-two-col">
-        <div className="legacy-box compact"><h3>레이아웃</h3><p>모바일 1줄 상단바, 중앙 제목, 하단 고정 탭 구조를 유지합니다.</p></div>
+        <div className="legacy-box compact"><h3>레이아웃</h3><p>상단/하단 높이를 축소하고 각 버튼 영역을 분리한 1줄 구조를 유지합니다.</p></div>
         <div className="legacy-box compact"><h3>탭 구조</h3><p>홈/쇼핑/소통/채팅/프로필별 좌측 서브탭과 우측 검색·설정 구조를 통일했습니다.</p></div>
       </div>
     );
@@ -344,10 +366,16 @@ export default function App() {
   const [settingsCategory, setSettingsCategory] = useState<SettingsCategory>("일반");
   const [selectedShopCategory, setSelectedShopCategory] = useState("전체");
   const [selectedCommunityCategory, setSelectedCommunityCategory] = useState<string>("전체");
+  const [randomRoomCategory, setRandomRoomCategory] = useState<RandomRoomCategory>("전체");
   const [shopKeyword, setShopKeyword] = useState("");
   const [communityKeyword, setCommunityKeyword] = useState("");
   const [projectStatus, setProjectStatus] = useState<ProjectStatus | null>(null);
   const [deployGuide, setDeployGuide] = useState<DeployGuide | null>(null);
+  const [randomRooms, setRandomRooms] = useState<RandomRoom[]>(randomRoomSeed);
+  const [roomModalOpen, setRoomModalOpen] = useState(false);
+  const [newRoomCategory, setNewRoomCategory] = useState<Exclude<RandomRoomCategory, "전체">>("고민/상담");
+  const [newRoomMaxPeople, setNewRoomMaxPeople] = useState("8");
+  const [newRoomPassword, setNewRoomPassword] = useState("");
   const [currentUserRole] = useState(() => {
     if (typeof window === "undefined") return "ADMIN";
     return (window.localStorage.getItem("adultapp_demo_role") ?? "ADMIN").toUpperCase();
@@ -376,32 +404,56 @@ export default function App() {
 
   const filteredCommunity = useMemo(() => {
     const keyword = `${communityKeyword} ${globalKeyword}`.trim().toLowerCase();
-    const base = communitySeed.filter((post) => {
+    return communitySeed.filter((post) => {
       const tabMatch = communityTab === "커뮤" ? ["공지", "정보공유", "판매자소식"].includes(post.category) : post.category === communityTab;
       const categoryMatch = selectedCommunityCategory === "전체" || post.category === selectedCommunityCategory;
       const keywordMatch = !keyword || `${post.title} ${post.summary}`.toLowerCase().includes(keyword);
       return tabMatch && categoryMatch && keywordMatch;
     });
-    return base;
   }, [selectedCommunityCategory, communityKeyword, globalKeyword, communityTab]);
 
   const filteredThreads = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
     const base = !keyword ? threadSeed : threadSeed.filter((thread) => `${thread.name} ${thread.preview} ${thread.purpose}`.toLowerCase().includes(keyword));
-    if (chatTab === "랜덤") {
-      return base.map((item, idx) => ({ ...item, id: item.id + 1000, name: `랜덤방 ${idx + 1}`, purpose: "익명 랜덤 채팅", preview: "실시간 익명 대화방 미리보기 예시입니다." }));
-    }
     if (chatTab === "질문") {
       return base.map((item, idx) => ({ ...item, id: item.id + 2000, name: `질문 스레드 ${idx + 1}`, purpose: "질문/답변", preview: "질문 등록 후 답변이 이어지는 목록 예시입니다." }));
     }
     return base;
   }, [globalKeyword, chatTab]);
 
+  const filteredRandomRooms = useMemo(() => {
+    const keyword = globalKeyword.trim().toLowerCase();
+    return randomRooms.filter((room) => {
+      const categoryMatch = randomRoomCategory === "전체" || room.category === randomRoomCategory;
+      const keywordMatch = !keyword || `${room.title} ${room.category}`.toLowerCase().includes(keyword);
+      return categoryMatch && keywordMatch;
+    });
+  }, [globalKeyword, randomRoomCategory, randomRooms]);
+
   const homeProducts = useMemo(() => productsSeed.slice(0, 4), []);
   const currentScreenTitle = activeTab;
 
   const openOverlay = (mode: Exclude<OverlayMode, null>) => {
     setOverlayMode((prev) => (prev === mode ? null : mode));
+    setRoomModalOpen(false);
+  };
+
+  const createRandomRoom = () => {
+    const parsedMax = Math.max(2, Math.min(20, Number(newRoomMaxPeople) || 8));
+    const nextRoom: RandomRoom = {
+      id: Date.now(),
+      category: newRoomCategory,
+      maxPeople: parsedMax,
+      password: newRoomPassword,
+      title: `${newRoomCategory} 채팅방`,
+      peopleText: `1 / ${parsedMax}`,
+    };
+    setRandomRooms((prev) => [nextRoom, ...prev]);
+    setRandomRoomCategory("전체");
+    setNewRoomCategory("고민/상담");
+    setNewRoomMaxPeople("8");
+    setNewRoomPassword("");
+    setRoomModalOpen(false);
   };
 
   const headerNavItems = useMemo<HeaderNavItem[]>(() => {
@@ -420,13 +472,12 @@ export default function App() {
     return profileTabs.map((tab) => ({ label: tab, active: profileTab === tab, onClick: () => setProfileTab(tab) }));
   }, [activeTab, homeTab, shoppingTab, communityTab, chatTab, profileTab]);
 
-  const settingsNavItems = useMemo<SettingsCategory[]>(() => {
-    return settingsCategories.filter((item) => item !== "운영" || isAdmin);
-  }, [isAdmin]);
+  const settingsNavItems = useMemo<SettingsCategory[]>(() => settingsCategories.filter((item) => item !== "운영" || isAdmin), [isAdmin]);
 
   const selectBottomTab = (tab: MobileTab) => {
     setActiveTab(tab);
     setOverlayMode(null);
+    setRoomModalOpen(false);
     if (tab !== "홈") setHomeTab("피드");
     if (tab !== "쇼핑") setShoppingTab("목록");
     if (tab !== "소통") setCommunityTab("커뮤");
@@ -438,7 +489,7 @@ export default function App() {
     <div className="mobile-app-shell">
       <header className="top-header">
         <div className="topbar-row">
-          <div className="topbar-side topbar-left">
+          <div className="topbar-side topbar-left topbar-segment">
             <div className="topbar-inline-actions topbar-inline-actions-left">
               {headerNavItems.map((item) => (
                 <button key={item.label} type="button" className={`header-inline-btn ${item.active ? "active" : ""}`} onClick={item.onClick} disabled={!item.onClick}>
@@ -447,10 +498,10 @@ export default function App() {
               ))}
             </div>
           </div>
-          <div className="topbar-title-block">
+          <div className="topbar-title-block topbar-segment">
             <h1>{currentScreenTitle}</h1>
           </div>
-          <div className="topbar-side topbar-right">
+          <div className="topbar-side topbar-right topbar-segment">
             <div className="topbar-inline-actions topbar-inline-actions-right">
               <button className={`header-inline-btn ${overlayMode === "search" ? "active" : ""}`} onClick={() => openOverlay("search")}>검색</button>
               <button className={`header-inline-btn ${overlayMode === "settings" ? "active" : ""}`} onClick={() => openOverlay("settings")}>설정</button>
@@ -618,16 +669,40 @@ export default function App() {
 
         {activeTab === "채팅" ? (
           <section className="tab-pane fill-pane">
-            <div className="section-head compact-head"><div><h2>채팅</h2><p>{chatTab === "채팅" ? "대화목록 기반의 채팅 목록입니다." : chatTab === "랜덤" ? "익명 랜덤 대화방 목록 예시입니다." : "질문/답변 스레드 목록 예시입니다."}</p></div></div>
-            <div className="chat-list compact-scroll-list">
-              {filteredThreads.map((thread) => (
-                <article key={thread.id} className="chat-row">
-                  <div className="avatar-circle">{thread.name[0]}</div>
-                  <div className="chat-copy"><strong>{thread.name}</strong><span>{thread.purpose}</span><p>{thread.preview}</p></div>
-                  <div className="chat-meta"><span>{thread.time}</span>{thread.unread > 0 ? <b>{thread.unread}</b> : null}</div>
-                </article>
-              ))}
-            </div>
+            {chatTab === "랜덤" ? (
+              <>
+                <div className="random-room-toolbar">
+                  <select className="random-room-select" value={randomRoomCategory} onChange={(e) => setRandomRoomCategory(e.target.value as RandomRoomCategory)}>
+                    {randomRoomCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+                  </select>
+                  <button className="random-room-create-btn" onClick={() => setRoomModalOpen(true)}>개설</button>
+                </div>
+                <div className="random-room-list compact-scroll-list">
+                  {filteredRandomRooms.map((room) => (
+                    <article key={room.id} className="random-room-card">
+                      <div>
+                        <strong>{room.title}</strong>
+                        <p>{room.category} · 최대 {room.maxPeople}명{room.password ? " · 비밀번호" : ""}</p>
+                      </div>
+                      <b>{room.peopleText}</b>
+                    </article>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="section-head compact-head"><div><h2>채팅</h2><p>{chatTab === "채팅" ? "대화목록 기반의 채팅 목록입니다." : "질문/답변 스레드 목록 예시입니다."}</p></div></div>
+                <div className="chat-list compact-scroll-list">
+                  {filteredThreads.map((thread) => (
+                    <article key={thread.id} className="chat-row">
+                      <div className="avatar-circle">{thread.name[0]}</div>
+                      <div className="chat-copy"><strong>{thread.name}</strong><span>{thread.purpose}</span><p>{thread.preview}</p></div>
+                      <div className="chat-meta"><span>{thread.time}</span>{thread.unread > 0 ? <b>{thread.unread}</b> : null}</div>
+                    </article>
+                  ))}
+                </div>
+              </>
+            )}
           </section>
         ) : null}
 
@@ -661,6 +736,26 @@ export default function App() {
           </button>
         ))}
       </nav>
+
+      {roomModalOpen ? (
+        <div className="modal-backdrop">
+          <div className="modal-card">
+            <div className="modal-header-row">
+              <button className="header-inline-btn modal-back-btn" onClick={() => setRoomModalOpen(false)}>←</button>
+              <strong>랜덤방 개설</strong>
+              <span className="modal-spacer" />
+            </div>
+            <div className="modal-form-grid">
+              <select value={newRoomCategory} onChange={(e) => setNewRoomCategory(e.target.value as Exclude<RandomRoomCategory, "전체">)}>
+                {randomRoomCategories.filter((item) => item !== "전체").map((item) => <option key={item} value={item}>{item}</option>)}
+              </select>
+              <input value={newRoomMaxPeople} onChange={(e) => setNewRoomMaxPeople(e.target.value.replace(/[^0-9]/g, ""))} placeholder="최대인원수설정" />
+              <input value={newRoomPassword} onChange={(e) => setNewRoomPassword(e.target.value.replace(/[^0-9]/g, "").slice(0, 8))} placeholder="비밀번호설정" />
+            </div>
+            <button className="modal-submit-btn" onClick={createRandomRoom}>채팅방 개설</button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
