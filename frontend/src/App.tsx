@@ -1066,17 +1066,19 @@ export default function App() {
               </div>
             ) : (
               <>
-                <div className="chat-category-bar">
-                  {chatCategories.map((category) => (
-                    <button
-                      key={category}
-                      type="button"
-                      className={`chat-category-btn ${chatCategory === category ? "active" : ""}`}
-                      onClick={() => setChatCategory(category)}
-                    >
-                      {category}
-                    </button>
-                  ))}
+                <div className="chat-category-strip">
+                  <div className="chat-category-bar">
+                    {chatCategories.map((category) => (
+                      <button
+                        key={category}
+                        type="button"
+                        className={`chat-category-btn ${chatCategory === category ? "active" : ""}`}
+                        onClick={() => setChatCategory(category)}
+                      >
+                        {category}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 {chatCategory === "단체" ? (
                   <>
