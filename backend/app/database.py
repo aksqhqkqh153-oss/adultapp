@@ -23,6 +23,8 @@ SQLITE_MIGRATIONS = {
         ("gender", "ALTER TABLE user ADD COLUMN gender VARCHAR"),
         ("age_band", "ALTER TABLE user ADD COLUMN age_band VARCHAR"),
         ("region_code", "ALTER TABLE user ADD COLUMN region_code VARCHAR"),
+        ("latitude", "ALTER TABLE user ADD COLUMN latitude FLOAT"),
+        ("longitude", "ALTER TABLE user ADD COLUMN longitude FLOAT"),
     ],
     "refreshtoken": [
         ("session_id", "ALTER TABLE refreshtoken ADD COLUMN session_id INTEGER"),
