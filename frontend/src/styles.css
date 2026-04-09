@@ -501,3 +501,35 @@ pre {
   .profile-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .bottom-nav-btn { min-height: 58px; font-size: 12px; }
 }
+
+@media (max-width: 900px) {
+  .topbar-row {
+    gap: 6px;
+    padding: 8px 10px;
+  }
+  .topbar-inline-actions {
+    gap: 4px;
+    overflow: hidden;
+  }
+  .header-inline-btn {
+    height: 28px;
+    padding: 0 7px;
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 640px) {
+  .topbar-row {
+    grid-template-columns: minmax(0, 1.35fr) auto minmax(0, 1.45fr);
+    gap: 4px;
+    padding: 8px 8px;
+  }
+  .topbar-title-block h1 {
+    font-size: 13px;
+  }
+  .header-inline-btn {
+    padding: 0 6px;
+    font-size: 10px;
+    letter-spacing: -0.03em;
+  }
+}

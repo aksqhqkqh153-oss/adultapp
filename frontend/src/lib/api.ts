@@ -1,27 +1,47 @@
-function resolveApiBase() {
+function normalizeBase(value: string) {
+  return value.replace(/\/$/, "");
+}
+
+function collectApiBases() {
+  const bases: string[] = [];
   const envBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
-  if (envBase) return envBase.replace(/\/$/, "");
+  const envFallbacks = (import.meta.env.VITE_API_BASE_FALLBACKS as string | undefined)?.trim();
+
+  if (envBase) bases.push(normalizeBase(envBase));
+  if (envFallbacks) {
+    envFallbacks
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .forEach((item) => bases.push(normalizeBase(item)));
+  }
 
   if (typeof window !== "undefined") {
     const { hostname, origin } = window.location;
     if (hostname === "localhost" || hostname === "127.0.0.1") {
-      return "http://localhost:8000/api";
-    }
-    if (hostname.endsWith("pages.dev")) {
-      return "https://adultapp-production.up.railway.app/api";
-    }
-    if (hostname.endsWith("up.railway.app")) {
-      return `${origin}/api`;
+      bases.push("http://localhost:8000/api");
+    } else if (hostname.endsWith("pages.dev")) {
+      bases.push("https://adultapp-production.up.railway.app/api");
+    } else if (hostname.endsWith("up.railway.app")) {
+      bases.push(`${origin}/api`);
     }
   }
 
-  return "https://adultapp-production.up.railway.app/api";
+  bases.push("https://adultapp-production.up.railway.app/api");
+  return [...new Set(bases.filter(Boolean))];
 }
 
-const API_BASE = resolveApiBase();
+const API_BASES = collectApiBases();
+const DEFAULT_TIMEOUT_MS = 8000;
+
+let activeApiBase = API_BASES[0];
 
 let accessToken = localStorage.getItem("adultapp_access_token") ?? "";
 let refreshToken = localStorage.getItem("adultapp_refresh_token") ?? "";
+
+export function getApiBase() {
+  return activeApiBase;
+}
 
 export function setAuthToken(token: string) {
   accessToken = token;
@@ -44,17 +64,38 @@ export function clearTokens() {
   setRefreshToken("");
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function requestOnce<T>(base: string, path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers ?? {});
   const isFormData = typeof FormData !== "undefined" && init?.body instanceof FormData;
   if (!headers.has("Content-Type") && init?.body && !isFormData) headers.set("Content-Type", "application/json");
   if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
-  const response = await fetch(`${API_BASE}${path}`, { ...init, headers });
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`${init?.method ?? "GET"} ${path} failed: ${response.status} ${text}`);
+
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${base}${path}`, { ...init, headers, signal: controller.signal });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`${init?.method ?? "GET"} ${path} failed: ${response.status} ${text}`);
+    }
+    activeApiBase = base;
+    return (await response.json()) as T;
+  } finally {
+    window.clearTimeout(timeout);
   }
-  return (await response.json()) as T;
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  let lastError: unknown = null;
+  for (const base of [activeApiBase, ...API_BASES.filter((item) => item !== activeApiBase)]) {
+    try {
+      return await requestOnce<T>(base, path, init);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(`${init?.method ?? "GET"} ${path} failed`);
 }
 
 export function getJson<T>(path: string): Promise<T> {

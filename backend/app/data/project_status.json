@@ -3,7 +3,7 @@
   "overall": {
     "label": "전체 진행도",
     "percent": 94,
-    "status": "모바일 상단바에 홈/쇼핑/소통/채팅/프로필별 인라인 메뉴와 우측 운영·검색·설정 액션을 일체형으로 반영한 상태",
+    "status": "모바일 상단바에 홈/쇼핑/소통/채팅/프로필별 인라인 메뉴와 우측 운영·검색·설정 액션을 일체형으로 반영하고, Production API timeout/fallback을 보강한 상태",
     "gaps": [
       "실 PG 계약키/서명검증 규격 연결",
       "실 PASS/NICE callback/응답코드 맵 반영",
@@ -25,7 +25,7 @@
     {
       "category": "앱 프로젝트",
       "percent": 99,
-      "status": "모바일 상단 일체형 네비게이션 + 하단 고정탭 + Production API fallback 반영",
+      "status": "모바일 상단 일체형 네비게이션 + 하단 고정탭 + Production API timeout/fallback 반영",
       "gaps": [
         "실주문·실결제 연동 / 모바일 래퍼 실기기 테스트 / 세부 UX polishing"
       ]
@@ -97,7 +97,7 @@
     {
       "category": "인프라/배포",
       "percent": 91,
-      "status": "Cloudflare Pages 수동 배포 기준 + Railway /api production 기본 연결값 반영",
+      "status": "Cloudflare Pages 수동 배포 기준 + Railway /api production 기본 연결값 + API 재시도 fallback 반영",
       "gaps": [
         "PostgreSQL·Alembic 운영 / 백업점검 / preview 도메인 최종 점검"
       ]
@@ -105,7 +105,7 @@
     {
       "category": "QA/테스트",
       "percent": 85,
-      "status": "프론트 빌드·상단바 구조·고정 레이아웃·production API fallback 점검 가능",
+      "status": "프론트 빌드·상단바 구조·고정 레이아웃·production API timeout/fallback 점검 가능",
       "gaps": [
         "API 자동테스트 / E2E / 회귀테스트"
       ]
