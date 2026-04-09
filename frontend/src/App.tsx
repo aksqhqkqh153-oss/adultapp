@@ -44,6 +44,8 @@ type ThreadItem = {
   time: string;
   unread: number;
   avatar: string;
+  kind: "개인" | "단체";
+  favorite?: boolean;
   status?: string;
 };
 
@@ -112,6 +114,8 @@ const chatTabs = ["채팅", "랜덤", "질문"] as const;
 const profileTabs = ["내정보"] as const;
 const settingsCategories = ["일반", "계정", "알림", "보안", "배포", "운영"] as const;
 const randomRoomCategories = ["전체", "고민/상담", "정보공유", "일상대화", "취미/관심사", "자유주제"] as const;
+const chatCategories = ["전체", "즐겨찾기", "개인", "단체"] as const;
+const oneToOneRandomCategories = ["고민상담", "자유수다", "아무말대잔치", "도파민수다"] as const;
 
 
 type MobileTab = (typeof mobileTabs)[number];
@@ -123,6 +127,8 @@ type ChatTab = (typeof chatTabs)[number];
 type ProfileTab = (typeof profileTabs)[number];
 type SettingsCategory = (typeof settingsCategories)[number];
 type RandomRoomCategory = (typeof randomRoomCategories)[number];
+type ChatCategory = (typeof chatCategories)[number];
+type OneToOneRandomCategory = (typeof oneToOneRandomCategories)[number];
 type OverlayMode = "search" | "settings" | null;
 
 type HeaderNavItem = {
@@ -172,12 +178,12 @@ const communitySeed: CommunityPost[] = [
 ];
 
 const threadSeed: ThreadItem[] = [
-  { id: 101, name: "운영 문의", purpose: "상품/운영 문의", preview: "결제 허용 SKU 범위를 다시 확인 부탁드립니다.", time: "오전 9:41", unread: 2, avatar: "운", status: "고정" },
-  { id: 102, name: "seller_studio", purpose: "판매자 1:1", preview: "승인 대기 상품 이미지 규격을 수정했습니다.", time: "오전 8:12", unread: 0, avatar: "S" },
-  { id: 103, name: "brand_note", purpose: "콘텐츠 응답", preview: "피드형 홈 카드 노출 순서 제안 드립니다.", time: "어제", unread: 1, avatar: "B" },
-  { id: 104, name: "customer demo", purpose: "구매자 지원", preview: "장바구니와 프로필 연동 상태를 확인하고 싶어요.", time: "어제", unread: 0, avatar: "C" },
-  { id: 105, name: "정산 지원", purpose: "정산/환불", preview: "환불 검수 상태를 오늘 안으로 공유드릴게요.", time: "4월 8일", unread: 3, avatar: "정" },
-  { id: 106, name: "notice bot", purpose: "시스템 안내", preview: "새로운 공지와 이벤트가 등록되었습니다.", time: "4월 7일", unread: 0, avatar: "N", status: "알림" },
+  { id: 101, name: "운영 문의", purpose: "상품/운영 문의", preview: "결제 허용 SKU 범위를 다시 확인 부탁드립니다.", time: "오전 9:41", unread: 2, avatar: "운", kind: "개인", favorite: true, status: "고정" },
+  { id: 102, name: "seller_studio", purpose: "판매자 1:1", preview: "승인 대기 상품 이미지 규격을 수정했습니다.", time: "오전 8:12", unread: 0, avatar: "S", kind: "개인", favorite: true },
+  { id: 103, name: "brand_note", purpose: "콘텐츠 응답", preview: "피드형 홈 카드 노출 순서 제안 드립니다.", time: "어제", unread: 1, avatar: "B", kind: "개인" },
+  { id: 104, name: "customer demo", purpose: "구매자 지원", preview: "장바구니와 프로필 연동 상태를 확인하고 싶어요.", time: "어제", unread: 0, avatar: "C", kind: "개인" },
+  { id: 105, name: "정산 지원", purpose: "정산/환불", preview: "환불 검수 상태를 오늘 안으로 공유드릴게요.", time: "4월 8일", unread: 3, avatar: "정", kind: "개인", favorite: true },
+  { id: 106, name: "notice bot", purpose: "시스템 안내", preview: "새로운 공지와 이벤트가 등록되었습니다.", time: "4월 7일", unread: 0, avatar: "N", kind: "단체", status: "알림" },
 ];
 
 const randomRoomSeed: RandomRoom[] = [
@@ -384,11 +390,16 @@ export default function App() {
   const [shoppingTab, setShoppingTab] = useState<ShoppingTab>("목록");
   const [communityTab, setCommunityTab] = useState<CommunityTab>("커뮤");
   const [chatTab, setChatTab] = useState<ChatTab>("채팅");
+  const [chatCategory, setChatCategory] = useState<ChatCategory>("전체");
   const [profileTab, setProfileTab] = useState<ProfileTab>("내정보");
   const [settingsCategory, setSettingsCategory] = useState<SettingsCategory>("일반");
   const [selectedShopCategory, setSelectedShopCategory] = useState("전체");
   const [selectedCommunityCategory, setSelectedCommunityCategory] = useState<string>("전체");
   const [randomRoomCategory, setRandomRoomCategory] = useState<RandomRoomCategory>("전체");
+  const [oneToOneCategory, setOneToOneCategory] = useState<OneToOneRandomCategory>("고민상담");
+  const [randomSettingsOpen, setRandomSettingsOpen] = useState(false);
+  const [matchingRandom, setMatchingRandom] = useState(false);
+  const [matchedRandomUser, setMatchedRandomUser] = useState<{ name: string; category: OneToOneRandomCategory } | null>(null);
   const [shopKeyword, setShopKeyword] = useState("");
   const [communityKeyword, setCommunityKeyword] = useState("");
   const [projectStatus, setProjectStatus] = useState<ProjectStatus | null>(null);
@@ -438,8 +449,15 @@ export default function App() {
 
   const filteredThreads = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
-    return !keyword ? threadSeed : threadSeed.filter((thread) => `${thread.name} ${thread.preview} ${thread.purpose}`.toLowerCase().includes(keyword));
-  }, [globalKeyword]);
+    return threadSeed.filter((thread) => {
+      const categoryMatch = chatCategory === "전체"
+        || (chatCategory === "즐겨찾기" && !!thread.favorite)
+        || (chatCategory === "개인" && thread.kind === "개인")
+        || (chatCategory === "단체" && thread.kind === "단체");
+      const keywordMatch = !keyword || `${thread.name} ${thread.preview} ${thread.purpose}`.toLowerCase().includes(keyword);
+      return categoryMatch && keywordMatch;
+    });
+  }, [globalKeyword, chatCategory]);
 
   const filteredQuestions = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
@@ -463,6 +481,23 @@ export default function App() {
   const openOverlay = (mode: Exclude<OverlayMode, null>) => {
     setOverlayMode((prev) => (prev === mode ? null : mode));
     setRoomModalOpen(false);
+  };
+
+  const startRandomMatch = () => {
+    if (matchingRandom) return;
+    setRandomSettingsOpen(false);
+    setMatchedRandomUser(null);
+    setMatchingRandom(true);
+    window.setTimeout(() => {
+      const demoMatches: Record<OneToOneRandomCategory, string> = {
+        고민상담: "익명 상담 파트너",
+        자유수다: "자유수다 메이트",
+        아무말대잔치: "아무말 메이트",
+        도파민수다: "도파민 토커",
+      };
+      setMatchedRandomUser({ name: demoMatches[oneToOneCategory], category: oneToOneCategory });
+      setMatchingRandom(false);
+    }, 1400);
   };
 
   const createRandomRoom = () => {
@@ -513,7 +548,13 @@ export default function App() {
     if (tab !== "홈") setHomeTab("피드");
     if (tab !== "쇼핑") setShoppingTab("목록");
     if (tab !== "소통") setCommunityTab("커뮤");
-    if (tab !== "채팅") setChatTab("채팅");
+    if (tab !== "채팅") {
+      setChatTab("채팅");
+      setChatCategory("전체");
+      setRandomSettingsOpen(false);
+      setMatchingRandom(false);
+      setMatchedRandomUser(null);
+    }
     if (tab !== "프로필") setProfileTab("내정보");
   };
 
@@ -702,29 +743,33 @@ export default function App() {
         {activeTab === "채팅" ? (
           <section className="tab-pane fill-pane">
             {chatTab === "랜덤" ? (
-              <>
-                <div className="random-room-toolbar">
-                  <select className="random-room-select" value={randomRoomCategory} onChange={(e) => setRandomRoomCategory(e.target.value as RandomRoomCategory)}>
-                    {randomRoomCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+              <div className="random-match-pane">
+                <div className="random-match-toolbar">
+                  <select className="random-room-select" value={oneToOneCategory} onChange={(e) => setOneToOneCategory(e.target.value as OneToOneRandomCategory)}>
+                    {oneToOneRandomCategories.map((category) => <option key={category} value={category}>{category}</option>)}
                   </select>
-                  <button className="random-room-create-btn" onClick={() => setRoomModalOpen(true)}>개설</button>
-                </div>
-                <div className="random-room-list compact-scroll-list">
-                  {filteredRandomRooms.map((room) => (
-                    <article key={room.id} className="random-room-card">
-                      <div className="random-room-topline">
-                        <span className="random-room-category-chip">{room.category}</span>
-                        <div className="random-room-occupancy">{room.currentPeople}/{room.maxPeople}</div>
+                  <div className="random-match-settings-wrap">
+                    <button className={`random-room-create-btn ${randomSettingsOpen ? "active" : ""}`} onClick={() => setRandomSettingsOpen((prev) => !prev)}>설정</button>
+                    {randomSettingsOpen ? (
+                      <div className="random-settings-menu">
+                        <button type="button" className="random-settings-item">건의(카테고리)</button>
                       </div>
-                      <div className="random-room-middleline">
-                        <strong>{room.title}</strong>
-                        <b>{room.currentPeople}/{room.maxPeople}</b>
-                      </div>
-                      <p>{room.latestMessage}{room.password ? " · 비밀번호 있음" : ""}{room.anonymous ? " · 익명방" : ""}</p>
-                    </article>
-                  ))}
+                    ) : null}
+                  </div>
                 </div>
-              </>
+                <div className="random-match-center">
+                  <button className={`random-start-btn ${matchingRandom ? "loading" : ""}`} onClick={startRandomMatch}>
+                    {matchingRandom ? "랜덤채팅찾는중" : "1:1랜덤채팅"}
+                  </button>
+                </div>
+                {matchedRandomUser ? (
+                  <div className="random-match-result">
+                    <span className="random-room-category-chip">{matchedRandomUser.category}</span>
+                    <strong>{matchedRandomUser.name}</strong>
+                    <p>같은 카테고리를 선택한 사용자와 연결된 데모 화면입니다.</p>
+                  </div>
+                ) : null}
+              </div>
             ) : chatTab === "질문" ? (
               <div className="question-board compact-scroll-list">
                 <div className="section-head compact-head"><div><h2>질문</h2><p>historyprofile 질문 화면 흐름을 참고한 카드형 질문/답변 화면입니다.</p></div></div>
@@ -780,28 +825,65 @@ export default function App() {
               </div>
             ) : (
               <>
-                <div className="section-head compact-head"><div><h2>채팅</h2><p>대화목록 기반의 채팅 목록입니다.</p></div></div>
-                <div className="chat-list compact-scroll-list kakao-chat-list">
-                  {filteredThreads.map((thread) => (
-                    <article key={thread.id} className="chat-row kakao-chat-row">
-                      <div className="avatar-circle kakao-avatar">{thread.avatar}</div>
-                      <div className="chat-copy kakao-chat-copy">
-                        <div className="kakao-chat-head">
-                          <strong>{thread.name}</strong>
-                          <div className="kakao-chat-badges">
-                            <span>{thread.purpose}</span>
-                            {thread.status ? <em>{thread.status}</em> : null}
-                          </div>
-                        </div>
-                        <p>{thread.preview}</p>
-                      </div>
-                      <div className="chat-meta kakao-chat-meta">
-                        <span>{thread.time}</span>
-                        {thread.unread > 0 ? <b>{thread.unread}</b> : null}
-                      </div>
-                    </article>
+                <div className="chat-category-bar">
+                  {chatCategories.map((category) => (
+                    <button
+                      key={category}
+                      type="button"
+                      className={`chat-category-btn ${chatCategory === category ? "active" : ""}`}
+                      onClick={() => setChatCategory(category)}
+                    >
+                      {category}
+                    </button>
                   ))}
                 </div>
+                {chatCategory === "단체" ? (
+                  <>
+                    <div className="random-room-toolbar grouped-room-toolbar">
+                      <select className="random-room-select" value={randomRoomCategory} onChange={(e) => setRandomRoomCategory(e.target.value as RandomRoomCategory)}>
+                        {randomRoomCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+                      </select>
+                      <button className="random-room-create-btn" onClick={() => setRoomModalOpen(true)}>개설</button>
+                    </div>
+                    <div className="random-room-list compact-scroll-list">
+                      {filteredRandomRooms.map((room) => (
+                        <article key={room.id} className="random-room-card grouped-room-card">
+                          <div className="random-room-topline">
+                            <span className="random-room-category-chip">{room.category}</span>
+                            <div className="random-room-occupancy">현원</div>
+                          </div>
+                          <div className="random-room-middleline grouped-room-title-line">
+                            <strong>{room.title}</strong>
+                            <b>{room.currentPeople}/{room.maxPeople}</b>
+                          </div>
+                          <p>{room.latestMessage}{room.password ? " · 비밀번호 있음" : ""}{room.anonymous ? " · 익명방" : ""}</p>
+                        </article>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="chat-list compact-scroll-list kakao-chat-list">
+                    {filteredThreads.map((thread) => (
+                      <article key={thread.id} className="chat-row kakao-chat-row">
+                        <div className="avatar-circle kakao-avatar">{thread.avatar}</div>
+                        <div className="chat-copy kakao-chat-copy">
+                          <div className="kakao-chat-head">
+                            <strong>{thread.name}</strong>
+                            <div className="kakao-chat-badges">
+                              <span>{thread.purpose}</span>
+                              {thread.status ? <em>{thread.status}</em> : null}
+                            </div>
+                          </div>
+                          <p>{thread.preview}</p>
+                        </div>
+                        <div className="chat-meta kakao-chat-meta">
+                          <span>{thread.time}</span>
+                          {thread.unread > 0 ? <b>{thread.unread}</b> : null}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
               </>
             )}
           </section>
