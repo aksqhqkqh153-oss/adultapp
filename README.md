@@ -51,3 +51,22 @@ npm run dev
 - 사업자: `seller@example.com` / `seller1234`
 - 소비자: `customer@example.com` / `customer1234`
 - 일반회원: `general@example.com` / `general1234`
+
+## Cloudflare Pages 수동 배포
+```bash
+cd frontend
+npm install
+npx wrangler login
+npx wrangler whoami
+```
+
+```bash
+cd frontend
+VITE_API_BASE_URL=https://your-railway-domain.up.railway.app/api npm run cf:build
+npx wrangler pages deploy dist --project-name adultapp --branch main --commit-dirty=true
+```
+
+Windows PowerShell helper:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\cloudflare_manual_deploy.ps1 -BackendApiBaseUrl "https://your-railway-domain.up.railway.app/api" -PagesProjectName "adultapp"
+```

@@ -6,7 +6,8 @@ class Settings(BaseSettings):
     app_env: str = "development"
     app_review_mode: bool = True
     database_url: str = "sqlite:///./adult_platform.db"
-    cors_origins: str = "http://localhost:5173"
+    cors_origins: str = "http://localhost:5173,http://localhost:8000,https://adultapp.pages.dev"
+    cors_origin_regex: str = r"https://.*\.adultapp\.pages\.dev"
 
     jwt_secret_key: str = "change-me-jwt-secret"
     jwt_algorithm: str = "HS256"
@@ -48,7 +49,7 @@ class Settings(BaseSettings):
     audit_log_hash_chain: bool = True
 
     uploads_dir: str = "./uploads"
-    media_base_url: str = "http://localhost:8000/media"
+    media_base_url: str = "https://adultapp-production.up.railway.app/media"
     media_public_root: str = "assets/store"
     password_reset_delivery_mode: str = "file"
     password_reset_sender_email: str = "noreply@example.com"

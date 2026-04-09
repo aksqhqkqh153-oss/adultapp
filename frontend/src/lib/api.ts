@@ -1,4 +1,24 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api";
+function resolveApiBase() {
+  const envBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+  if (envBase) return envBase.replace(/\/$/, "");
+
+  if (typeof window !== "undefined") {
+    const { hostname, origin } = window.location;
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return "http://localhost:8000/api";
+    }
+    if (hostname.endsWith("pages.dev")) {
+      return "https://adultapp-production.up.railway.app/api";
+    }
+    if (hostname.endsWith("up.railway.app")) {
+      return `${origin}/api`;
+    }
+  }
+
+  return "https://adultapp-production.up.railway.app/api";
+}
+
+const API_BASE = resolveApiBase();
 
 let accessToken = localStorage.getItem("adultapp_access_token") ?? "";
 let refreshToken = localStorage.getItem("adultapp_refresh_token") ?? "";

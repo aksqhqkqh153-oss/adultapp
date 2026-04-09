@@ -1,17 +1,16 @@
 {
-  "generated_at": "2026-04-08",
+  "generated_at": "2026-04-09",
   "overall": {
     "label": "전체 진행도",
-    "percent": 87,
-    "status": "블랙 테마, 역할기반 UI, 커뮤니티 피드/정보 DM, 운영형 보안·세무·주문 스타터까지 연결됐지만 실계약 기반 연동과 스토어 제출 최종물은 남아있는 상태",
+    "percent": 93,
+    "status": "Production API 기본 바인딩, 모바일 상단·하단 고정, 홈/쇼핑 상단 서브탭 구조까지 반영된 상태",
     "gaps": [
       "실 PG 계약키/서명검증 규격 연결",
       "실 PASS/NICE callback/응답코드 맵 반영",
       "실 세무발급사 연결 및 실패 재처리",
       "앱 제출용 실기기 캡처/App Preview/심사계정 정리",
       "운영 PostgreSQL 환경에서 Alembic 실제 리비전 운용",
-      "CI 수준 백엔드/프론트 자동 테스트 고정",
-      "커뮤니티/DM 자동 모더레이션 고도화 및 차단어 사전 운영"
+      "CI 수준 백엔드/프론트 자동 테스트 고정"
     ]
   },
   "items": [
@@ -25,16 +24,16 @@
     },
     {
       "category": "앱 프로젝트",
-      "percent": 94,
-      "status": "역할기반 UI·블랙 테마·커뮤니티/정보 DM 반영",
+      "percent": 98,
+      "status": "모바일 고정 헤더/푸터 + 홈/쇼핑 상단 서브탭 + Production API fallback 반영",
       "gaps": [
         "실주문·실결제 연동 / 모바일 래퍼 실기기 테스트 / 세부 UX polishing"
       ]
     },
     {
       "category": "앱(안드로이드/iOS)등록",
-      "percent": 40,
-      "status": "심사 자산 구조+safe UI 준비",
+      "percent": 44,
+      "status": "모바일 safe UI/하단 6탭 구조 준비",
       "gaps": [
         "실기기 캡처 / App Preview / 스토어 메타데이터 / 실 바이너리 제출"
       ]
@@ -97,16 +96,16 @@
     },
     {
       "category": "인프라/배포",
-      "percent": 76,
-      "status": "운영DB 전환 뼈대+빌드 보정 반영",
+      "percent": 91,
+      "status": "Cloudflare Pages 수동 배포 기준 + Railway /api production 기본 연결값 반영",
       "gaps": [
-        "실 PostgreSQL 연결 / Alembic 리비전 운용 / 백업점검"
+        "PostgreSQL·Alembic 운영 / 백업점검 / preview 도메인 최종 점검"
       ]
     },
     {
       "category": "QA/테스트",
-      "percent": 72,
-      "status": "빌드/스모크/역할별 UI+커뮤니티 흐름 점검 강화",
+      "percent": 84,
+      "status": "프론트 빌드·고정 레이아웃·production API fallback 점검 가능",
       "gaps": [
         "API 자동테스트 / E2E / 회귀테스트"
       ]
@@ -118,8 +117,6 @@
     "실 세무발급사 연결 및 실패 재처리",
     "앱 제출용 실기기 캡처/App Preview/심사계정 정리",
     "운영 PostgreSQL 환경에서 Alembic 실제 리비전 운용",
-    "CI 수준 백엔드/프론트 자동 테스트 고정",
-    "커뮤니티/DM 자동 모더레이션 고도화 및 차단어 사전 운영",
-    "스토어 제출 safe 자산 최종본 및 FAQ 버전관리 마감"
+    "CI 수준 백엔드/프론트 자동 테스트 고정"
   ]
 }
