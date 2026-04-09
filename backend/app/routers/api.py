@@ -13,6 +13,7 @@ import pyotp
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 from sqlmodel import Session, select
+from sqlalchemy import func
 
 from ..auth import (
     authenticate_refresh_token,
@@ -1177,9 +1178,12 @@ def _serialize_random_rule(rule: RandomChatRule) -> dict[str, Any]:
         "gender_standard": _normalize_csv(rule.gender_standard),
         "gender_options": _normalize_csv(rule.gender_options),
         "age_options": _normalize_csv(rule.age_options),
+        "age_match_mode": rule.age_match_mode,
         "region_unit": rule.region_unit,
         "region_options": _normalize_csv(rule.region_options),
         "geo_distance_enabled": rule.geo_distance_enabled,
+        "max_distance_km": rule.max_distance_km,
+        "distance_slider_steps": rule.distance_slider_steps,
         "anonymous_mode": rule.anonymous_mode,
         "min_wait_seconds": rule.min_wait_seconds,
         "max_wait_seconds": rule.max_wait_seconds,
@@ -1191,14 +1195,19 @@ def _serialize_random_rule(rule: RandomChatRule) -> dict[str, Any]:
         "retention_days": rule.retention_days,
         "thread_keep_hours_after_block": rule.thread_keep_hours_after_block,
         "allow_unblock": rule.allow_unblock,
+        "unblock_roles": _normalize_csv(rule.unblock_roles),
         "personal_room_conversion": rule.personal_room_conversion,
         "message_storage_mode": rule.message_storage_mode,
         "message_edit_delete_mask_support": rule.message_edit_delete_mask_support,
+        "delete_display_mode": rule.delete_display_mode,
         "admin_log_enabled": rule.admin_log_enabled,
         "admin_message_access_scope": rule.admin_message_access_scope,
         "report_reason_codes": _normalize_csv(rule.report_reason_codes),
         "auto_suspend_policy": rule.auto_suspend_policy,
         "auto_suspend_threshold": rule.auto_suspend_threshold,
+        "admin_review_sla_hours": rule.admin_review_sla_hours,
+        "report_manage_layout": rule.report_manage_layout,
+        "permanent_ban_mode": rule.permanent_ban_mode,
     }
 
 
@@ -1290,6 +1299,18 @@ def create_block(payload: UserBlockCreate, current_user: User = Depends(get_curr
     return {"ok": True, "blocked_id": payload.blocked_id}
 
 
+
+
+@router.post("/social/blocks/{blocked_id}/unblock")
+def unblock_user(blocked_id: int, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    row = session.exec(select(UserBlock).where(UserBlock.blocker_id == (current_user.id or 0), UserBlock.blocked_id == blocked_id)).first()
+    if row:
+        row.is_active = False
+        session.add(row)
+        session.commit()
+    return {"ok": True, "blocked_id": blocked_id, "is_active": False}
+
+
 @router.get("/chat/random/rules")
 def get_random_rules(session: Session = Depends(get_session)):
     return _serialize_random_rule(_get_or_create_random_rule(session))
@@ -1302,9 +1323,12 @@ def update_random_rules(payload: RandomRuleUpdateRequest, current_user: User = D
     rule.gender_standard = ",".join(payload.gender_standard)
     rule.gender_options = ",".join(payload.gender_options)
     rule.age_options = ",".join(payload.age_options)
+    rule.age_match_mode = payload.age_match_mode
     rule.region_unit = payload.region_unit
     rule.region_options = ",".join(payload.region_options)
     rule.geo_distance_enabled = payload.geo_distance_enabled
+    rule.max_distance_km = payload.max_distance_km
+    rule.distance_slider_steps = payload.distance_slider_steps
     rule.anonymous_mode = payload.anonymous_mode
     rule.min_wait_seconds = payload.min_wait_seconds
     rule.max_wait_seconds = payload.max_wait_seconds
@@ -1316,14 +1340,19 @@ def update_random_rules(payload: RandomRuleUpdateRequest, current_user: User = D
     rule.retention_days = payload.retention_days
     rule.thread_keep_hours_after_block = payload.thread_keep_hours_after_block
     rule.allow_unblock = payload.allow_unblock
+    rule.unblock_roles = ",".join(payload.unblock_roles)
     rule.personal_room_conversion = payload.personal_room_conversion
     rule.message_storage_mode = payload.message_storage_mode
     rule.message_edit_delete_mask_support = payload.message_edit_delete_mask_support
+    rule.delete_display_mode = payload.delete_display_mode
     rule.admin_log_enabled = payload.admin_log_enabled
     rule.admin_message_access_scope = payload.admin_message_access_scope
     rule.report_reason_codes = ",".join(payload.report_reason_codes)
     rule.auto_suspend_policy = payload.auto_suspend_policy
     rule.auto_suspend_threshold = payload.auto_suspend_threshold
+    rule.admin_review_sla_hours = payload.admin_review_sla_hours
+    rule.report_manage_layout = payload.report_manage_layout
+    rule.permanent_ban_mode = payload.permanent_ban_mode
     rule.updated_at = utcnow()
     session.add(rule)
     session.commit()
@@ -1422,3 +1451,38 @@ def report_random_chat(payload: RandomReportCreate, current_user: User = Depends
     if target_user:
         suspension = _apply_random_chat_suspension(session, target_user, rule, total_reports)
     return {"ok": True, "report_id": report.id, "user_report_id": user_report.id, "auto_blocked": auto_blocked, "threshold": rule.auto_suspend_threshold, "target_user_report_count": total_reports, "suspension": suspension}
+
+
+@router.get("/admin/chat-random/report-manage")
+def admin_random_report_manage(filter_value: str | None = None, current_user: User = Depends(require_grade(MemberGrade.ADMIN)), session: Session = Depends(get_session)):
+    rule = _get_or_create_random_rule(session)
+    stmt = select(ModerationReport).where(ModerationReport.target_type == "random_chat_user")
+    reports = session.exec(stmt).all()
+    grouped: dict[int, dict[str, Any]] = {}
+    for report in reports:
+        if filter_value and filter_value not in (report.reason_code or "") and filter_value not in str(report.target_id):
+            continue
+        bucket = grouped.setdefault(report.target_id, {
+            "user_id": report.target_id,
+            "report_count": 0,
+            "report_history": [],
+            "last_reported_at": None,
+        })
+        bucket["report_count"] += 1
+        created_at = report.created_at.isoformat() if report.created_at else ""
+        bucket["report_history"].append({
+            "report_id": report.id,
+            "reason_code": report.reason_code,
+            "status": report.status,
+            "priority": report.priority,
+            "created_at": created_at,
+        })
+        if created_at and (bucket["last_reported_at"] is None or created_at > bucket["last_reported_at"]):
+            bucket["last_reported_at"] = created_at
+    items = sorted(grouped.values(), key=lambda row: (-row["report_count"], row["last_reported_at"] or ""), reverse=False)
+    return {
+        "filter": filter_value or "",
+        "sla_hours": rule.admin_review_sla_hours,
+        "columns": ["누적신고수", "고유ID", "신고내역", "최근신고받은일자"],
+        "items": items,
+    }
