@@ -50,8 +50,20 @@ type RandomRoom = {
   title: string;
   category: string;
   maxPeople: number;
+  currentPeople: number;
   password: string;
-  peopleText: string;
+  latestMessage: string;
+  anonymous?: boolean;
+};
+
+type QuestionCard = {
+  id: number;
+  author: string;
+  question: string;
+  answer: string;
+  meta: string;
+  likes: number;
+  comments: number;
 };
 
 type CartItem = {
@@ -165,13 +177,19 @@ const threadSeed: ThreadItem[] = [
 ];
 
 const randomRoomSeed: RandomRoom[] = [
-  { id: 2001, title: "고민 나눔방", category: "고민/상담", maxPeople: 6, password: "", peopleText: "3 / 6" },
-  { id: 2002, title: "정보공유 오픈룸", category: "정보공유", maxPeople: 8, password: "1234", peopleText: "5 / 8" },
-  { id: 2003, title: "퇴근 후 일상대화", category: "일상대화", maxPeople: 5, password: "", peopleText: "2 / 5" },
-  { id: 2004, title: "취미/관심사 잡담", category: "취미/관심사", maxPeople: 10, password: "", peopleText: "7 / 10" },
-  { id: 2005, title: "주제 자유 토크", category: "자유주제", maxPeople: 4, password: "5678", peopleText: "1 / 4" },
-  { id: 2006, title: "오늘의 고민", category: "고민/상담", maxPeople: 6, password: "", peopleText: "4 / 6" },
-  { id: 2007, title: "초보 정보공유", category: "정보공유", maxPeople: 8, password: "", peopleText: "6 / 8" },
+  { id: 2001, title: "고민 나눔방", category: "고민/상담", maxPeople: 6, currentPeople: 3, password: "", latestMessage: "오늘 있었던 일부터 편하게 이야기해요." },
+  { id: 2002, title: "정보공유 오픈룸", category: "정보공유", maxPeople: 8, currentPeople: 5, password: "1234", latestMessage: "익명포장, 결제, 보관 팁을 정리해두었습니다." },
+  { id: 2003, title: "퇴근 후 일상대화", category: "일상대화", maxPeople: 5, currentPeople: 2, password: "", latestMessage: "가볍게 하루 있었던 일을 나누는 방입니다." },
+  { id: 2004, title: "취미/관심사 잡담", category: "취미/관심사", maxPeople: 10, currentPeople: 7, password: "", latestMessage: "취미, 루틴, 관심 주제를 자유롭게 나눠요." },
+  { id: 2005, title: "주제 자유 토크", category: "자유주제", maxPeople: 4, currentPeople: 1, password: "5678", latestMessage: "규칙만 지키면 어떤 주제든 이야기 가능합니다." },
+  { id: 2006, title: "오늘의 고민", category: "고민/상담", maxPeople: 6, currentPeople: 4, password: "", latestMessage: "익명으로 편하게 고민을 적어주세요." },
+  { id: 2007, title: "초보 정보공유", category: "정보공유", maxPeople: 8, currentPeople: 6, password: "", latestMessage: "입문자가 보기 쉬운 정보만 모아두는 방입니다." },
+];
+
+const questionSeed: QuestionCard[] = [
+  { id: 1, author: "profile_owner", question: "프로필을 꾸밀 때 가장 먼저 신경 쓰는 부분은 무엇인가요?", answer: "처음 들어온 사람이 한눈에 이해할 수 있도록 제목, 요약, 대표 이미지를 먼저 정리합니다. 질문 화면에서는 너무 자극적인 표현보다 신뢰감 있는 설명이 오래 남습니다.", meta: "답변 완료 · 오늘", likes: 28, comments: 6 },
+  { id: 2, author: "visitor_204", question: "질문 기능은 어떤 식으로 운영하면 참여율이 높아질까요?", answer: "질문 등록 버튼을 눈에 띄게 두고, 답변 완료된 질문을 카드형으로 계속 노출하면 참여율이 높아집니다. 상단 광고는 콘텐츠 흐름을 끊지 않는 위치에 두는 것이 안전합니다.", meta: "답변 완료 · 2시간 전", likes: 17, comments: 4 },
+  { id: 3, author: "community_user", question: "익명 질문과 일반 질문을 같이 운영해도 괜찮나요?", answer: "가능합니다. 다만 신고, 차단, 키워드 필터, 운영정책이 함께 있어야 운영 리스크를 줄일 수 있습니다. 질문 등록 전 가이드 문구도 같이 노출하는 것이 좋습니다.", meta: "답변 완료 · 어제", likes: 21, comments: 3 },
 ];
 
 const cartSeed: CartItem[] = [
@@ -374,6 +392,8 @@ export default function App() {
   const [randomRooms, setRandomRooms] = useState<RandomRoom[]>(randomRoomSeed);
   const [roomModalOpen, setRoomModalOpen] = useState(false);
   const [newRoomCategory, setNewRoomCategory] = useState<Exclude<RandomRoomCategory, "전체">>("고민/상담");
+  const [newRoomTitle, setNewRoomTitle] = useState("");
+  const [newRoomAnonymous, setNewRoomAnonymous] = useState(true);
   const [newRoomMaxPeople, setNewRoomMaxPeople] = useState("8");
   const [newRoomPassword, setNewRoomPassword] = useState("");
   const [currentUserRole] = useState(() => {
@@ -414,12 +434,15 @@ export default function App() {
 
   const filteredThreads = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
-    const base = !keyword ? threadSeed : threadSeed.filter((thread) => `${thread.name} ${thread.preview} ${thread.purpose}`.toLowerCase().includes(keyword));
-    if (chatTab === "질문") {
-      return base.map((item, idx) => ({ ...item, id: item.id + 2000, name: `질문 스레드 ${idx + 1}`, purpose: "질문/답변", preview: "질문 등록 후 답변이 이어지는 목록 예시입니다." }));
-    }
-    return base;
-  }, [globalKeyword, chatTab]);
+    return !keyword ? threadSeed : threadSeed.filter((thread) => `${thread.name} ${thread.preview} ${thread.purpose}`.toLowerCase().includes(keyword));
+  }, [globalKeyword]);
+
+  const filteredQuestions = useMemo(() => {
+    const keyword = globalKeyword.trim().toLowerCase();
+    return !keyword
+      ? questionSeed
+      : questionSeed.filter((item) => `${item.author} ${item.question} ${item.answer}`.toLowerCase().includes(keyword));
+  }, [globalKeyword]);
 
   const filteredRandomRooms = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
@@ -440,17 +463,22 @@ export default function App() {
 
   const createRandomRoom = () => {
     const parsedMax = Math.max(2, Math.min(20, Number(newRoomMaxPeople) || 8));
+    const safeTitle = newRoomTitle.trim() || `${newRoomCategory} 채팅방`;
     const nextRoom: RandomRoom = {
       id: Date.now(),
       category: newRoomCategory,
       maxPeople: parsedMax,
+      currentPeople: 1,
       password: newRoomPassword,
-      title: `${newRoomCategory} 채팅방`,
-      peopleText: `1 / ${parsedMax}`,
+      title: safeTitle,
+      anonymous: newRoomAnonymous,
+      latestMessage: newRoomAnonymous ? "익명으로 생성된 방입니다. 가이드를 확인하고 입장하세요." : "새로 개설된 방입니다. 첫 대화를 시작해보세요.",
     };
     setRandomRooms((prev) => [nextRoom, ...prev]);
     setRandomRoomCategory("전체");
     setNewRoomCategory("고민/상담");
+    setNewRoomTitle("");
+    setNewRoomAnonymous(true);
     setNewRoomMaxPeople("8");
     setNewRoomPassword("");
     setRoomModalOpen(false);
@@ -680,18 +708,75 @@ export default function App() {
                 <div className="random-room-list compact-scroll-list">
                   {filteredRandomRooms.map((room) => (
                     <article key={room.id} className="random-room-card">
-                      <div>
-                        <strong>{room.title}</strong>
-                        <p>{room.category} · 최대 {room.maxPeople}명{room.password ? " · 비밀번호" : ""}</p>
+                      <div className="random-room-topline">
+                        <span className="random-room-category-chip">{room.category}</span>
+                        <div className="random-room-occupancy">{room.currentPeople}/{room.maxPeople}</div>
                       </div>
-                      <b>{room.peopleText}</b>
+                      <div className="random-room-middleline">
+                        <strong>{room.title}</strong>
+                        <b>{room.currentPeople}/{room.maxPeople}</b>
+                      </div>
+                      <p>{room.latestMessage}{room.password ? " · 비밀번호 있음" : ""}{room.anonymous ? " · 익명방" : ""}</p>
                     </article>
                   ))}
                 </div>
               </>
+            ) : chatTab === "질문" ? (
+              <div className="question-board compact-scroll-list">
+                <div className="section-head compact-head"><div><h2>질문</h2><p>historyprofile 질문 화면 흐름을 참고한 카드형 질문/답변 화면입니다.</p></div></div>
+                <div className="question-profile-hero">
+                  <div className="question-profile-copy">
+                    <span className="question-profile-chip">질문 허용</span>
+                    <strong>adult official · 질문 프로필</strong>
+                    <p>질문을 받고 답변을 공개 카드로 정리하는 화면 예시입니다. 상단/중간 광고 영역도 함께 배치했습니다.</p>
+                  </div>
+                  <div className="question-profile-actions">
+                    <button>질문하기</button>
+                    <button className="ghost-btn">공유</button>
+                  </div>
+                </div>
+                <div className="ad-banner ad-banner-top">
+                  <span>Google AdSense 영역</span>
+                  <strong>질문 화면 상단 광고</strong>
+                </div>
+                <div className="question-list">
+                  {filteredQuestions.map((item, idx) => (
+                    <>
+                      <article key={item.id} className="question-feed-card">
+                        <div className="question-feed-top">
+                          <div>
+                            <div className="question-user-line">
+                              <span className="community-chip">질문</span>
+                              <strong>{item.author}</strong>
+                              <span className="community-meta">{item.meta}</span>
+                            </div>
+                            <div className="question-body">Q. {item.question}</div>
+                          </div>
+                        </div>
+                        <div className="question-answer-box">
+                          <span className="product-badge">답변</span>
+                          <div className="question-body">{item.answer}</div>
+                        </div>
+                        <div className="question-footer-actions">
+                          <button>좋아요 {item.likes}</button>
+                          <button>댓글 {item.comments}</button>
+                          <button>공유</button>
+                          <button>저장</button>
+                        </div>
+                      </article>
+                      {idx === 0 ? (
+                        <div className="ad-banner ad-banner-inline" key={`ad-${item.id}`}>
+                          <span>Google AdSense 영역</span>
+                          <strong>질문 피드 중간 광고</strong>
+                        </div>
+                      ) : null}
+                    </>
+                  ))}
+                </div>
+              </div>
             ) : (
               <>
-                <div className="section-head compact-head"><div><h2>채팅</h2><p>{chatTab === "채팅" ? "대화목록 기반의 채팅 목록입니다." : "질문/답변 스레드 목록 예시입니다."}</p></div></div>
+                <div className="section-head compact-head"><div><h2>채팅</h2><p>대화목록 기반의 채팅 목록입니다.</p></div></div>
                 <div className="chat-list compact-scroll-list">
                   {filteredThreads.map((thread) => (
                     <article key={thread.id} className="chat-row">
@@ -745,12 +830,16 @@ export default function App() {
               <strong>랜덤방 개설</strong>
               <span className="modal-spacer" />
             </div>
-            <div className="modal-form-grid">
+            <div className="modal-form-grid modal-form-grid-top">
               <select value={newRoomCategory} onChange={(e) => setNewRoomCategory(e.target.value as Exclude<RandomRoomCategory, "전체">)}>
                 {randomRoomCategories.filter((item) => item !== "전체").map((item) => <option key={item} value={item}>{item}</option>)}
               </select>
-              <input value={newRoomMaxPeople} onChange={(e) => setNewRoomMaxPeople(e.target.value.replace(/[^0-9]/g, ""))} placeholder="최대인원수설정" />
-              <input value={newRoomPassword} onChange={(e) => setNewRoomPassword(e.target.value.replace(/[^0-9]/g, "").slice(0, 8))} placeholder="비밀번호설정" />
+              <input value={newRoomTitle} onChange={(e) => setNewRoomTitle(e.target.value.slice(0, 24))} placeholder="방제목입력칸" />
+            </div>
+            <div className="modal-form-grid modal-form-grid-bottom">
+              <label className="anonymous-check"><span>익명</span><input type="checkbox" checked={newRoomAnonymous} onChange={(e) => setNewRoomAnonymous(e.target.checked)} /></label>
+              <input value={newRoomMaxPeople} onChange={(e) => setNewRoomMaxPeople(e.target.value.replace(/[^0-9]/g, ""))} placeholder="인원수" />
+              <input value={newRoomPassword} onChange={(e) => setNewRoomPassword(e.target.value.replace(/[^0-9]/g, "").slice(0, 8))} placeholder="비밀번호입력칸" />
             </div>
             <button className="modal-submit-btn" onClick={createRandomRoom}>채팅방 개설</button>
           </div>
