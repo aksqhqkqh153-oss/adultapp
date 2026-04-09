@@ -121,7 +121,7 @@ type DeployGuide = {
 };
 
 const mobileTabs = ["홈", "쇼핑", "소통", "채팅", "프로필"] as const;
-const legacyMenu = ["운영현황", "주문관리", "보안", "앱심사", "배포가이드"] as const;
+const legacyMenu = ["운영현황", "주문관리", "보안", "앱심사", "채팅-랜덤 규칙", "배포가이드"] as const;
 const homeTabs = ["피드", "상품"] as const;
 const shoppingTabs = ["목록", "주문", "바구니"] as const;
 const communityTabs = ["커뮤", "후기", "이벤트"] as const;
@@ -131,6 +131,9 @@ const settingsCategories = ["일반", "계정", "알림", "보안", "배포", "�
 const randomRoomCategories = ["전체", "고민/상담", "정보공유", "일상대화", "취미/관심사", "자유주제"] as const;
 const chatCategories = ["전체", "즐겨찾기", "개인", "단체"] as const;
 const oneToOneRandomCategories = ["고민상담", "자유수다", "아무말대잔치", "도파민수다"] as const;
+const randomGenderOptions = ["무관", "남-여", "동성"] as const;
+const randomAgeOptions = ["성인 전체", "20대", "30대", "40대", "50대", "60대", "70대"] as const;
+const randomRegionOptions = ["무관", "같은 지역 우선", "거리기반"] as const;
 
 
 type MobileTab = (typeof mobileTabs)[number];
@@ -144,6 +147,9 @@ type SettingsCategory = (typeof settingsCategories)[number];
 type RandomRoomCategory = (typeof randomRoomCategories)[number];
 type ChatCategory = (typeof chatCategories)[number];
 type OneToOneRandomCategory = (typeof oneToOneRandomCategories)[number];
+type RandomGenderOption = (typeof randomGenderOptions)[number];
+type RandomAgeOption = (typeof randomAgeOptions)[number];
+type RandomRegionOption = (typeof randomRegionOptions)[number];
 type OverlayMode = "search" | "settings" | null;
 
 type HeaderNavItem = {
@@ -456,6 +462,23 @@ function LegacyPanel({ section, projectStatus, deployGuide }: { section: LegacyT
     );
   }
 
+  if (section === "채팅-랜덤 규칙") {
+    return (
+      <section className="legacy-panel compact-panel">
+        <div className="legacy-grid two">
+          <div className="legacy-box"><h3>매칭 규칙</h3><p>같은 카테고리만 매칭 · 성별 조건 선택 가능 · 연령대 선택 가능 · 지역 무관/같은 지역 우선/거리기반 설정</p></div>
+          <div className="legacy-box"><h3>대기/재탐색</h3><p>최소 20초, 최대 5분 탐색 · 실패 시 자동 재탐색 · 과거 차단 유저 제외</p></div>
+          <div className="legacy-box"><h3>입장/종료</h3><p>매칭 성공 시 1:1 채팅방 자동 생성 · 수동 종료 또는 상대 차단 시 종료</p></div>
+          <div className="legacy-box"><h3>보관/로그</h3><p>대화 저장 6개월 · 관리자 계정에는 로그 기록 · 누적 신고 시 자동 차단 정책 연결 예정</p></div>
+        </div>
+        <div className="legacy-box compact">
+          <h3>신고 사유 기본안</h3>
+          <p>욕설/비하 · 광고/도배 · 불법거래유도 · 성매매유도 · 개인정보요구 · 음란표현과다 · 기타 운영위반</p>
+        </div>
+      </section>
+    );
+  }
+
   if (section === "앱심사") {
     return (
       <section className="legacy-panel compact-panel">
@@ -563,6 +586,9 @@ export default function App() {
   const [selectedCommunityCategory, setSelectedCommunityCategory] = useState<string>("전체");
   const [randomRoomCategory, setRandomRoomCategory] = useState<RandomRoomCategory>("전체");
   const [oneToOneCategory, setOneToOneCategory] = useState<OneToOneRandomCategory>("고민상담");
+  const [randomGenderOption, setRandomGenderOption] = useState<RandomGenderOption>("무관");
+  const [randomAgeOption, setRandomAgeOption] = useState<RandomAgeOption>("성인 전체");
+  const [randomRegionOption, setRandomRegionOption] = useState<RandomRegionOption>("무관");
   const [randomSettingsOpen, setRandomSettingsOpen] = useState(false);
   const [matchingRandom, setMatchingRandom] = useState(false);
   const [matchedRandomUser, setMatchedRandomUser] = useState<{ name: string; category: OneToOneRandomCategory; nickname: string } | null>(null);
@@ -658,7 +684,7 @@ export default function App() {
     setRandomSettingsOpen(false);
     setMatchedRandomUser(null);
     setRandomMatchPhase("queueing");
-    setRandomMatchNote(`${oneToOneCategory} 카테고리 대기열에 등록되었습니다. 매칭 상대를 찾는 중입니다.`);
+    setRandomMatchNote(`${oneToOneCategory} 카테고리 대기열에 등록되었습니다. 성별 ${randomGenderOption} · 연령 ${randomAgeOption} · 지역 ${randomRegionOption} 조건으로 매칭 상대를 찾는 중입니다. 최소 20초, 최대 5분까지 자동 탐색합니다.`);
     setMatchingRandom(true);
     window.setTimeout(() => {
       const demoMatches: Record<OneToOneRandomCategory, { name: string; nickname: string }> = {
@@ -670,7 +696,7 @@ export default function App() {
       const picked = demoMatches[oneToOneCategory];
       setMatchedRandomUser({ ...picked, category: oneToOneCategory });
       setRandomMatchPhase("matched");
-      setRandomMatchNote(`${picked.nickname} 님과 연결되었습니다. 다음 단계에서는 실제 소켓 채팅방으로 이동시키면 됩니다.`);
+      setRandomMatchNote(`${picked.nickname} 님과 연결되었습니다. 같은 카테고리 우선, 과거 차단 유저 제외, 실패 시 자동 재탐색 규칙이 적용된 데모 매칭입니다.`);
       setMatchingRandom(false);
     }, 1600);
   };
@@ -679,7 +705,7 @@ export default function App() {
     setMatchingRandom(false);
     setRandomMatchPhase("idle");
     setMatchedRandomUser(null);
-    setRandomMatchNote("랜덤채팅 대기열에서 빠졌습니다.");
+    setRandomMatchNote("랜덤채팅 대기열에서 빠졌습니다. 실제 운영 시에는 같은 카테고리만 매칭하고 6개월 대화 보관 로그를 남기도록 연결하면 됩니다.");
   };
 
   const openAskFromFeed = (item: FeedItem) => {
@@ -939,7 +965,7 @@ export default function App() {
           <section className="tab-pane fill-pane">
             {chatTab === "랜덤" ? (
               <div className="random-match-pane">
-                <div className="random-match-toolbar">
+                <div className="random-match-toolbar random-match-toolbar-primary">
                   <select className="random-room-select" value={oneToOneCategory} onChange={(e) => setOneToOneCategory(e.target.value as OneToOneRandomCategory)}>
                     {oneToOneRandomCategories.map((category) => <option key={category} value={category}>{category}</option>)}
                   </select>
@@ -951,6 +977,11 @@ export default function App() {
                       </div>
                     ) : null}
                   </div>
+                </div>
+                <div className="random-filter-grid">
+                  <label className="random-filter-field"><span>성별 조건</span><select value={randomGenderOption} onChange={(e) => setRandomGenderOption(e.target.value as RandomGenderOption)}>{randomGenderOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+                  <label className="random-filter-field"><span>연령 조건</span><select value={randomAgeOption} onChange={(e) => setRandomAgeOption(e.target.value as RandomAgeOption)}>{randomAgeOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+                  <label className="random-filter-field"><span>지역 조건</span><select value={randomRegionOption} onChange={(e) => setRandomRegionOption(e.target.value as RandomRegionOption)}>{randomRegionOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
                 </div>
                 <div className="random-match-center">
                   <button className={`random-start-btn ${matchingRandom ? "loading" : ""}`} onClick={startRandomMatch}>
