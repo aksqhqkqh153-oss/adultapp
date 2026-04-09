@@ -13,6 +13,21 @@ type FeedItem = {
   accent: string;
 };
 
+type StoryItem = {
+  id: number;
+  name: string;
+  role: string;
+  accent: string;
+};
+
+type AskProfile = {
+  id: number;
+  name: string;
+  headline: string;
+  intro: string;
+  highlight: string;
+};
+
 type ShopCategory = {
   group: string;
   icon: string;
@@ -152,6 +167,30 @@ const feedSeed: FeedItem[] = Array.from({ length: 18 }, (_, idx) => ({
   accent: ["sunrise", "violet", "teal", "rose"][idx % 4],
 }));
 
+const storySeed: StoryItem[] = [
+  { id: 1, name: "adult official", role: "브랜드 스토리", accent: "sunrise" },
+  { id: 2, name: "seller studio", role: "판매자 소식", accent: "violet" },
+  { id: 3, name: "care lab", role: "보관 가이드", accent: "teal" },
+  { id: 4, name: "safety note", role: "안전 팁", accent: "rose" },
+  { id: 5, name: "review crew", role: "후기 모음", accent: "sunrise" },
+  { id: 6, name: "event pick", role: "이벤트", accent: "violet" },
+];
+
+const askProfiles: AskProfile[] = [
+  { id: 1, name: "adult official", headline: "브랜드/운영 통합 계정", intro: "스토리와 피드를 통해 정보를 공유하고 질문을 받는 홈 프로필입니다.", highlight: "답변이 공개되면 홈 피드 카드로 다시 노출됩니다." },
+  { id: 2, name: "seller studio", headline: "상품 큐레이션 셀러", intro: "추천 상품, 사용 팁, 후기형 피드를 올리는 셀러 계정입니다.", highlight: "익명 또는 닉네임 기반 질문을 받을 수 있습니다." },
+  { id: 3, name: "care lab", headline: "위생/보관 큐레이터", intro: "보관 루틴, 관리 팁, FAQ를 중심으로 피드를 운영합니다.", highlight: "질문 화면 상단에 프로필 요약과 질문 입력영역이 함께 보입니다." },
+];
+
+const storyPreviewText: Record<string, string> = {
+  "adult official": "오늘의 브랜드 스토리와 신상품 피드를 확인해보세요.",
+  "seller studio": "실사용 후기와 셀러 추천 포인트를 짧게 정리했습니다.",
+  "care lab": "보관/위생 루틴을 카드형 숏토리로 모았습니다.",
+  "safety note": "안전 가이드를 빠르게 훑어볼 수 있습니다.",
+  "review crew": "후기형 피드를 모아 놓은 스토리입니다.",
+  "event pick": "진행 중인 이벤트와 공지를 바로 확인해보세요.",
+};
+
 const shopCategories: ShopCategory[] = [
   { group: "입문/기본", icon: "◎", items: [{ name: "입문 액세서리", count: 18 }, { name: "위생·보관", count: 24 }, { name: "케어/세정", count: 14 }] },
   { group: "브랜드관", icon: "◇", items: [{ name: "국내 브랜드", count: 12 }, { name: "수입 브랜드", count: 21 }, { name: "안전 기획전", count: 9 }] },
@@ -215,9 +254,19 @@ const profileStats: ProfileItem[] = [
   { label: "상품", value: "26" },
 ];
 
-function FeedPoster({ item }: { item: FeedItem }) {
+function FeedPoster({ item, onAsk }: { item: FeedItem; onAsk: (item: FeedItem) => void }) {
   return (
-    <article className={`feed-card ${item.accent}`}>
+    <article className={`feed-card history-feed-card ${item.accent}`}>
+      <div className="history-feed-head">
+        <div className="history-feed-profile">
+          <div className="story-mini-avatar">{item.author.slice(0, 1).toUpperCase()}</div>
+          <div>
+            <strong>{item.author}</strong>
+            <p>{item.category} · 방금 업데이트</p>
+          </div>
+        </div>
+        <button type="button" className="feed-question-btn" onClick={() => onAsk(item)}>질문</button>
+      </div>
       <div className="feed-media">
         <div className="feed-badge">{item.type === "video" ? "VIDEO" : "PHOTO"}</div>
         <div className="feed-category">{item.category}</div>
@@ -234,9 +283,126 @@ function FeedPoster({ item }: { item: FeedItem }) {
           <span>댓글 {item.comments}</span>
         </div>
       </div>
+      <div className="history-feed-footer">
+        <button type="button">좋아요</button>
+        <button type="button">댓글</button>
+        <button type="button" onClick={() => onAsk(item)}>질문하기</button>
+      </div>
     </article>
   );
 }
+
+function StoryStrip({ onOpenStory }: { onOpenStory: (story: StoryItem) => void }) {
+  return (
+    <section className="home-story-card">
+      <div className="story-strip" role="list" aria-label="스토리 목록">
+        <button type="button" className="story-chip story-chip-compose" role="listitem">
+          <span className="story-chip-ring">
+            <span className="story-chip-avatar story-chip-avatar-compose">+</span>
+          </span>
+          <span className="story-chip-name">피드추가</span>
+        </button>
+        {storySeed.map((story) => (
+          <button key={story.id} type="button" className="story-chip" onClick={() => onOpenStory(story)} role="listitem">
+            <span className={`story-chip-ring ${story.accent}`}>
+              <span className="story-chip-avatar">{story.name.slice(0, 1).toUpperCase()}</span>
+            </span>
+            <span className="story-chip-name">{story.name}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function AskProfileScreen({ profile, onClose }: { profile: AskProfile; onClose: () => void }) {
+  const [questionText, setQuestionText] = useState("");
+  return (
+    <div className="question-overlay">
+      <section className="asked-page-head">
+        <div className="asked-nav-row">
+          <button type="button" className="header-inline-btn modal-back-btn" onClick={onClose}>←</button>
+          <div className="asked-page-title">질문</div>
+          <span className="modal-spacer" />
+        </div>
+      </section>
+      <div className="question-overlay-body">
+        <section className="asked-question-profile-header">
+          <div className="asked-question-profile-card">
+            <div className="asked-question-avatar">{profile.name.slice(0, 1).toUpperCase()}</div>
+            <div className="asked-question-copy">
+              <strong>{profile.name}</strong>
+              <span>{profile.headline}</span>
+              <p>{profile.intro}</p>
+            </div>
+          </div>
+          <div className="asked-question-toolbar">
+            <button type="button">팔로우</button>
+            <button type="button" className="ghost-btn">공유</button>
+          </div>
+        </section>
+
+        <section className="asked-question-form">
+          <div className="question-profile-chip-row">
+            <span className="question-profile-chip">질문 허용</span>
+            <span className="question-profile-chip muted-chip">익명 가능</span>
+          </div>
+          <label>질문 내용</label>
+          <textarea value={questionText} onChange={(e) => setQuestionText(e.target.value)} placeholder="상대에게 남길 질문을 입력하세요." />
+          <div className="asked-question-form-actions">
+            <button type="button">익명으로 질문</button>
+            <button type="button" className="ghost-btn">질문 등록</button>
+          </div>
+        </section>
+
+        <div className="ad-banner ad-banner-top">
+          <span>Google AdSense 영역</span>
+          <strong>질문 화면 상단 광고</strong>
+        </div>
+
+        <section className="question-list">
+          {questionSeed.map((item, idx) => (
+            <div key={`ask-${item.id}`} className="question-feed-stack">
+              <article className="question-feed-card">
+                <div className="question-feed-top">
+                  <div>
+                    <div className="question-user-line">
+                      <span className="community-chip">질문</span>
+                      <strong>{item.author}</strong>
+                      <span className="community-meta">{item.meta}</span>
+                    </div>
+                    <div className="question-body">Q. {item.question}</div>
+                  </div>
+                </div>
+                <div className="question-answer-box">
+                  <span className="product-badge">답변</span>
+                  <div className="question-body">{item.answer}</div>
+                </div>
+                <div className="question-footer-actions">
+                  <button type="button">좋아요 {item.likes}</button>
+                  <button type="button">댓글 {item.comments}</button>
+                  <button type="button">공유</button>
+                </div>
+              </article>
+              {idx === 0 ? (
+                <div className="ad-banner ad-banner-inline">
+                  <span>Google AdSense 영역</span>
+                  <strong>질문 피드 중간 광고</strong>
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </section>
+
+        <section className="asked-question-highlight">
+          <strong>질문 화면 안내</strong>
+          <p>{profile.highlight}</p>
+        </section>
+      </div>
+    </div>
+  );
+}
+
 
 function LegacyPanel({ section, projectStatus, deployGuide }: { section: LegacyTab; projectStatus: ProjectStatus | null; deployGuide: DeployGuide | null }) {
   if (section === "운영현황") {
@@ -415,6 +581,8 @@ export default function App() {
     if (typeof window === "undefined") return "ADMIN";
     return (window.localStorage.getItem("adultapp_demo_role") ?? "ADMIN").toUpperCase();
   });
+  const [selectedAskProfile, setSelectedAskProfile] = useState<AskProfile | null>(null);
+  const [selectedStory, setSelectedStory] = useState<StoryItem | null>(null);
 
   const isAdmin = ["ADMIN", "1", "GRADE_1"].includes(currentUserRole);
 
@@ -498,6 +666,11 @@ export default function App() {
       setMatchedRandomUser({ name: demoMatches[oneToOneCategory], category: oneToOneCategory });
       setMatchingRandom(false);
     }, 1400);
+  };
+
+  const openAskFromFeed = (item: FeedItem) => {
+    const matched = askProfiles.find((profile) => profile.name.toLowerCase() === item.author.toLowerCase()) ?? askProfiles[0];
+    setSelectedAskProfile(matched);
   };
 
   const createRandomRoom = () => {
@@ -620,11 +793,17 @@ export default function App() {
         ) : null}
 
         {activeTab === "홈" ? (
-          <section className="tab-pane fill-pane">
+          <section className="tab-pane fill-pane home-feed-pane">
             {homeTab === "피드" ? (
               <>
-                <div className="section-head compact-head"><div><h2>홈 피드</h2><p>세로 스크롤 내부에서 사진/영상 피드를 연속 탐색합니다.</p></div></div>
-                <div className="feed-stack compact-scroll-list">{visibleFeed.map((item) => <FeedPoster key={item.id} item={item} />)}</div>
+                <StoryStrip onOpenStory={setSelectedStory} />
+                {selectedStory ? (
+                  <section className="legacy-box story-preview-card">
+                    <div className="split-row"><strong>{selectedStory.name}</strong><button type="button" className="ghost-btn" onClick={() => setSelectedStory(null)}>닫기</button></div>
+                    <p>{storyPreviewText[selectedStory.name] ?? "선택한 스토리의 요약입니다."}</p>
+                  </section>
+                ) : null}
+                <div className="feed-post-list compact-scroll-list">{visibleFeed.map((item) => <FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} />)}</div>
               </>
             ) : (
               <>
@@ -919,6 +1098,8 @@ export default function App() {
           </button>
         ))}
       </nav>
+
+      {selectedAskProfile ? <AskProfileScreen profile={selectedAskProfile} onClose={() => setSelectedAskProfile(null)} /> : null}
 
       {roomModalOpen ? (
         <div className="modal-backdrop">
