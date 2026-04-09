@@ -7,6 +7,7 @@ from .models import (
     AppAsset,
     CommunityPost,
     ContentItem,
+    FeedPost,
     DirectMessage,
     DirectMessageThread,
     LaunchGate,
@@ -17,6 +18,10 @@ from .models import (
     OrderItem,
     Product,
     ProductMedia,
+    ProfileQuestion,
+    RandomChatRule,
+    StoryItem,
+    UserBlock,
     RefundCase,
     RefundStatus,
     SellerOnboardingStatus,
@@ -32,9 +37,10 @@ def seed_database(session: Session) -> None:
         if existing_seller:
             seed_operational_tables(session, existing_seller.id)
         seed_community_tables(session)
+        seed_social_chat_tables(session)
         return
 
-    admin = User(email="admin@example.com", name="관리자", password_hash=hash_password("admin1234"), grade=MemberGrade.ADMIN, adult_verified=True)
+    admin = User(email="admin@example.com", name="관리자", password_hash=hash_password("admin1234"), grade=MemberGrade.ADMIN, adult_verified=True, gender="남성", age_band="30대", region_code="서울")
     seller_user = User(
         email="seller@example.com",
         name="사업자A",
@@ -42,9 +48,12 @@ def seed_database(session: Session) -> None:
         grade=MemberGrade.SELLER,
         adult_verified=True,
         seller_onboarding_status=SellerOnboardingStatus.ACTIVE,
+        gender="여성",
+        age_band="30대",
+        region_code="경기",
     )
-    customer = User(email="customer@example.com", name="고객A", password_hash=hash_password("customer1234"), grade=MemberGrade.CUSTOMER, adult_verified=True)
-    general_user = User(email="general@example.com", name="일반회원A", password_hash=hash_password("general1234"), grade=MemberGrade.GENERAL, adult_verified=False, member_status="pending_adult_verification")
+    customer = User(email="customer@example.com", name="고객A", password_hash=hash_password("customer1234"), grade=MemberGrade.CUSTOMER, adult_verified=True, gender="남성", age_band="20대", region_code="서울")
+    general_user = User(email="general@example.com", name="일반회원A", password_hash=hash_password("general1234"), grade=MemberGrade.GENERAL, adult_verified=False, gender="여성", age_band="20대", region_code="인천", member_status="pending_adult_verification")
     session.add(admin)
     session.add(seller_user)
     session.add(customer)
@@ -97,6 +106,7 @@ def seed_database(session: Session) -> None:
     session.commit()
     seed_operational_tables(session, seller_user.id)
     seed_community_tables(session)
+    seed_social_chat_tables(session)
 
 
 def seed_operational_tables(session: Session, seller_id: int) -> None:
@@ -150,3 +160,24 @@ def seed_community_tables(session: Session) -> None:
         session.add(DirectMessage(thread_id=dm_thread.id, sender_id=customer.id, receiver_id=seller_user.id, purpose_code="PRODUCT_QA", message="배송 상태와 보관 방법을 문의드립니다."))
         session.add(DirectMessage(thread_id=dm_thread.id, sender_id=seller_user.id, receiver_id=customer.id, purpose_code="PRODUCT_QA", message="보관은 직사광선을 피하고 주문 탭에서 배송 상태를 확인하시면 됩니다."))
         session.commit()
+
+
+
+def seed_social_chat_tables(session: Session) -> None:
+    admin = session.exec(select(User).where(User.grade == MemberGrade.ADMIN)).first()
+    seller_user = session.exec(select(User).where(User.grade == MemberGrade.SELLER)).first()
+    customer = session.exec(select(User).where(User.grade == MemberGrade.CUSTOMER)).first()
+    general_user = session.exec(select(User).where(User.grade == MemberGrade.GENERAL)).first()
+    if admin and not session.exec(select(RandomChatRule)).first():
+        session.add(RandomChatRule(rule_name="default"))
+    if admin and not session.exec(select(StoryItem)).first():
+        session.add(StoryItem(author_id=admin.id or 0, title="운영 스토리", image_url="/media/sample-story.png", visibility="safe"))
+    if seller_user and not session.exec(select(FeedPost)).first():
+        session.add(FeedPost(author_id=seller_user.id or 0, category="정보공유", title="익명포장 실사용 팁", body="포장 상태, 보관, 사용 전 확인 포인트를 정리했습니다.", image_url="/media/sample-feed.png", allow_questions=True, visibility="safe"))
+    session.commit()
+    feed = session.exec(select(FeedPost)).first()
+    if customer and seller_user and feed and not session.exec(select(ProfileQuestion)).first():
+        session.add(ProfileQuestion(questioner_id=customer.id or 0, target_user_id=seller_user.id or 0, feed_post_id=feed.id, question_text="익명포장 흔적은 없나요?", answer_text="외부 박스에는 품목이 노출되지 않습니다.", status="answered", is_anonymous=True))
+    if customer and general_user and not session.exec(select(UserBlock)).first():
+        session.add(UserBlock(blocker_id=customer.id or 0, blocked_id=general_user.id or 0, reason_code="seed_block", is_active=True))
+    session.commit()

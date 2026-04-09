@@ -20,6 +20,9 @@ SQLITE_MIGRATIONS = {
     "user": [
         ("password_changed_at", "ALTER TABLE user ADD COLUMN password_changed_at DATETIME"),
         ("reset_required", "ALTER TABLE user ADD COLUMN reset_required BOOLEAN DEFAULT 0"),
+        ("gender", "ALTER TABLE user ADD COLUMN gender VARCHAR"),
+        ("age_band", "ALTER TABLE user ADD COLUMN age_band VARCHAR"),
+        ("region_code", "ALTER TABLE user ADD COLUMN region_code VARCHAR"),
     ],
     "refreshtoken": [
         ("session_id", "ALTER TABLE refreshtoken ADD COLUMN session_id INTEGER"),

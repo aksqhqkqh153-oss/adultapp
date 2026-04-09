@@ -22,6 +22,7 @@ from ..auth import (
     consume_login_challenge,
     consume_password_reset_token,
     create_access_token,
+    decode_token,
     create_device_session,
     create_password_reset_token,
     deliver_password_reset_token,
@@ -46,6 +47,7 @@ from ..models import (
     AppealCase,
     CommunityPost,
     ContentItem,
+    FeedPost,
     DirectMessage,
     DirectMessageThread,
     DeviceSession,
@@ -56,28 +58,43 @@ from ..models import (
     OrderItem,
     Product,
     ProductMedia,
+    ProfileQuestion,
+    RandomChatRule,
+    RandomMatchTicket,
+    StoryItem,
+    UserBlock,
     RefundCase,
     SlaEvent,
     SellerPenalty,
     SellerProfile,
     User,
 )
+from ..services.realtime import thread_connection_manager
+
 from ..schemas import (
     AppReviewSettings,
     BackupCodeResponse,
     ChangePasswordRequest,
     CommunityPostCreate,
+    FeedPostCreate,
     ContentUpsertRequest,
     DirectMessageCreate,
     DirectMessageThreadCreate,
     DeviceSessionRevokeRequest,
     LoginRequest,
+    ProfileQuestionAnswerRequest,
+    ProfileQuestionCreate,
     PasswordResetConfirmRequest,
     PasswordResetRequest,
     ProductMediaAttachRequest,
+    RandomReportCreate,
+    RandomRuleUpdateRequest,
+    RandomTicketCreate,
     ProductUpsertRequest,
     RefreshTokenRequest,
     RefundTransitionRequest,
+    StoryCreate,
+    UserBlockCreate,
     SellerActivationChecklist,
     SimpleReportCreate,
     TokenResponse,
@@ -1045,3 +1062,363 @@ def create_appeal(report_id: int, payload: dict[str, str], user: User = Depends(
 @router.get("/reports/appeals")
 def list_appeals(session: Session = Depends(get_session)):
     return session.exec(select(AppealCase).order_by(AppealCase.id.desc())).all()
+
+
+
+def _normalize_csv(value: str | list[str]) -> list[str]:
+    if isinstance(value, list):
+        return [str(x).strip() for x in value if str(x).strip()]
+    return [x.strip() for x in str(value or "").split(",") if x.strip()]
+
+
+
+def _user_public_meta(session: Session, user_id: int) -> dict[str, Any]:
+    user = session.get(User, user_id)
+    if not user:
+        return {"user_id": user_id, "name": f"user:{user_id}", "gender": None, "age_band": None, "region_code": None}
+    return {"user_id": user.id, "name": user.name, "gender": user.gender, "age_band": user.age_band, "region_code": user.region_code}
+
+
+
+def _is_blocked_pair(session: Session, left_id: int, right_id: int) -> bool:
+    stmt = select(UserBlock).where(
+        UserBlock.is_active == True,  # noqa: E712
+        ((UserBlock.blocker_id == left_id) & (UserBlock.blocked_id == right_id)) | ((UserBlock.blocker_id == right_id) & (UserBlock.blocked_id == left_id))
+    )
+    return session.exec(stmt).first() is not None
+
+
+
+def _ticket_matches(rule: RandomChatRule, session: Session, source_user: User, source: RandomMatchTicket, target_user: User, target: RandomMatchTicket) -> bool:
+    if (target.status or "") != "queued":
+        return False
+    if rule.same_category_only and source.category != target.category:
+        return False
+    if rule.exclude_blocked_users and _is_blocked_pair(session, source_user.id or 0, target_user.id or 0):
+        return False
+    if source.gender_option == "동성" and source_user.gender and target_user.gender and source_user.gender != target_user.gender:
+        return False
+    if source.gender_option == "남-여" and source_user.gender and target_user.gender and source_user.gender == target_user.gender:
+        return False
+    if target.gender_option == "동성" and source_user.gender and target_user.gender and source_user.gender != target_user.gender:
+        return False
+    if target.gender_option == "남-여" and source_user.gender and target_user.gender and source_user.gender == target_user.gender:
+        return False
+    if source.age_option != "성인 전체" and target_user.age_band and source.age_option != target_user.age_band:
+        return False
+    if target.age_option != "성인 전체" and source_user.age_band and target.age_option != source_user.age_band:
+        return False
+    if source.region_option == "같은 지역 우선" and source_user.region_code and target_user.region_code and source_user.region_code != target_user.region_code:
+        return False
+    if target.region_option == "같은 지역 우선" and source_user.region_code and target_user.region_code and source_user.region_code != target_user.region_code:
+        return False
+    return True
+
+
+
+def _get_or_create_random_rule(session: Session) -> RandomChatRule:
+    item = session.exec(select(RandomChatRule).where(RandomChatRule.rule_name == "default")).first()
+    if item:
+        return item
+    item = RandomChatRule(rule_name="default")
+    session.add(item)
+    session.commit()
+    session.refresh(item)
+    return item
+
+
+
+
+
+def _parse_suspend_policy(value: str) -> list[tuple[int, str]]:
+    items: list[tuple[int, str]] = []
+    for token in (value or '').split(','):
+        token = token.strip()
+        if not token or ':' not in token:
+            continue
+        threshold, action = token.split(':', 1)
+        try:
+            items.append((int(threshold.strip()), action.strip()))
+        except ValueError:
+            continue
+    return sorted(items, key=lambda item: item[0])
+
+
+def _apply_random_chat_suspension(session: Session, user: User, rule: RandomChatRule, report_count: int) -> dict[str, Any]:
+    outcome = {"applied": False, "action": None, "locked_until": None, "member_status": user.member_status}
+    for threshold, action in _parse_suspend_policy(rule.auto_suspend_policy):
+        if report_count < threshold:
+            continue
+        if action == 'admin_review':
+            user.member_status = 'review_required'
+            outcome = {"applied": True, "action": action, "locked_until": None, "member_status": user.member_status}
+            continue
+        days = 0
+        if action.endswith('d'):
+            try:
+                days = int(action[:-1])
+            except ValueError:
+                days = 0
+        if days > 0:
+            now = utcnow()
+            base_until = user.locked_until if user.locked_until and user.locked_until > now else now
+            user.locked_until = base_until + timedelta(days=days)
+            user.member_status = 'temporarily_suspended'
+            outcome = {"applied": True, "action": action, "locked_until": user.locked_until.isoformat(), "member_status": user.member_status}
+    session.add(user)
+    session.commit()
+    return outcome
+
+def _serialize_random_rule(rule: RandomChatRule) -> dict[str, Any]:
+    return {
+        "id": rule.id,
+        "rule_name": rule.rule_name,
+        "same_category_only": rule.same_category_only,
+        "gender_standard": _normalize_csv(rule.gender_standard),
+        "gender_options": _normalize_csv(rule.gender_options),
+        "age_options": _normalize_csv(rule.age_options),
+        "region_unit": rule.region_unit,
+        "region_options": _normalize_csv(rule.region_options),
+        "geo_distance_enabled": rule.geo_distance_enabled,
+        "anonymous_mode": rule.anonymous_mode,
+        "min_wait_seconds": rule.min_wait_seconds,
+        "max_wait_seconds": rule.max_wait_seconds,
+        "auto_rematch": rule.auto_rematch,
+        "exclude_blocked_users": rule.exclude_blocked_users,
+        "priority_order": _normalize_csv(rule.priority_order),
+        "room_open_mode": rule.room_open_mode,
+        "chat_end_rule": rule.chat_end_rule,
+        "retention_days": rule.retention_days,
+        "thread_keep_hours_after_block": rule.thread_keep_hours_after_block,
+        "allow_unblock": rule.allow_unblock,
+        "personal_room_conversion": rule.personal_room_conversion,
+        "message_storage_mode": rule.message_storage_mode,
+        "message_edit_delete_mask_support": rule.message_edit_delete_mask_support,
+        "admin_log_enabled": rule.admin_log_enabled,
+        "admin_message_access_scope": rule.admin_message_access_scope,
+        "report_reason_codes": _normalize_csv(rule.report_reason_codes),
+        "auto_suspend_policy": rule.auto_suspend_policy,
+        "auto_suspend_threshold": rule.auto_suspend_threshold,
+    }
+
+
+@router.get("/social/stories")
+def list_stories(session: Session = Depends(get_session)):
+    rows = []
+    for item in session.exec(select(StoryItem).order_by(StoryItem.created_at.desc())).all():
+        rows.append({**item.model_dump(), "author": _user_public_meta(session, item.author_id), "created_at": item.created_at.isoformat() if item.created_at else "", "expires_at": item.expires_at.isoformat() if item.expires_at else None})
+    return rows
+
+
+@router.post("/social/stories")
+def create_story(payload: StoryCreate, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    item = StoryItem(author_id=current_user.id or 0, title=payload.title, image_url=payload.image_url, visibility=payload.visibility, created_at=utcnow(), expires_at=utcnow() + timedelta(hours=24))
+    session.add(item)
+    session.commit()
+    session.refresh(item)
+    return item
+
+
+@router.get("/social/feed")
+def list_feed(session: Session = Depends(get_session)):
+    rows = []
+    for item in session.exec(select(FeedPost).order_by(FeedPost.created_at.desc())).all():
+        rows.append({**item.model_dump(), "author": _user_public_meta(session, item.author_id), "created_at": item.created_at.isoformat() if item.created_at else "", "updated_at": item.updated_at.isoformat() if item.updated_at else ""})
+    return rows
+
+
+@router.post("/social/feed")
+def create_feed_post(payload: FeedPostCreate, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    validate_exchange_text(payload.title)
+    validate_exchange_text(payload.body)
+    item = FeedPost(author_id=current_user.id or 0, category=payload.category, title=payload.title, body=payload.body, image_url=payload.image_url, allow_questions=payload.allow_questions, visibility=payload.visibility, created_at=utcnow(), updated_at=utcnow())
+    session.add(item)
+    session.commit()
+    session.refresh(item)
+    return item
+
+
+@router.get("/social/questions")
+def list_questions(target_user_id: int | None = None, session: Session = Depends(get_session)):
+    stmt = select(ProfileQuestion).order_by(ProfileQuestion.created_at.desc())
+    if target_user_id:
+        stmt = stmt.where(ProfileQuestion.target_user_id == target_user_id)
+    rows = []
+    for item in session.exec(stmt).all():
+        rows.append({**item.model_dump(), "questioner": _user_public_meta(session, item.questioner_id), "target_user": _user_public_meta(session, item.target_user_id), "created_at": item.created_at.isoformat() if item.created_at else "", "updated_at": item.updated_at.isoformat() if item.updated_at else ""})
+    return rows
+
+
+@router.post("/social/questions")
+def create_question(payload: ProfileQuestionCreate, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    validate_exchange_text(payload.question_text)
+    item = ProfileQuestion(questioner_id=current_user.id or 0, target_user_id=payload.target_user_id, feed_post_id=payload.feed_post_id, question_text=payload.question_text, is_anonymous=payload.is_anonymous, status="asked", created_at=utcnow(), updated_at=utcnow())
+    session.add(item)
+    session.commit()
+    session.refresh(item)
+    return item
+
+
+@router.post("/social/questions/{question_id}/answer")
+def answer_question(question_id: int, payload: ProfileQuestionAnswerRequest, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    item = session.get(ProfileQuestion, question_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="question not found")
+    if item.target_user_id != (current_user.id or 0):
+        raise HTTPException(status_code=403, detail="only target user can answer")
+    validate_exchange_text(payload.answer_text)
+    item.answer_text = payload.answer_text
+    item.status = "answered"
+    item.updated_at = utcnow()
+    session.add(item)
+    session.commit()
+    return {"ok": True, "id": item.id, "status": item.status}
+
+
+@router.post("/social/blocks")
+def create_block(payload: UserBlockCreate, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    if payload.blocked_id == (current_user.id or 0):
+        raise HTTPException(status_code=400, detail="cannot block self")
+    row = session.exec(select(UserBlock).where(UserBlock.blocker_id == (current_user.id or 0), UserBlock.blocked_id == payload.blocked_id)).first()
+    if row:
+        row.is_active = True
+        row.reason_code = payload.reason_code
+    else:
+        row = UserBlock(blocker_id=current_user.id or 0, blocked_id=payload.blocked_id, reason_code=payload.reason_code, is_active=True, created_at=utcnow())
+    session.add(row)
+    session.commit()
+    return {"ok": True, "blocked_id": payload.blocked_id}
+
+
+@router.get("/chat/random/rules")
+def get_random_rules(session: Session = Depends(get_session)):
+    return _serialize_random_rule(_get_or_create_random_rule(session))
+
+
+@router.put("/chat/random/rules")
+def update_random_rules(payload: RandomRuleUpdateRequest, current_user: User = Depends(require_grade(MemberGrade.ADMIN)), session: Session = Depends(get_session)):
+    rule = _get_or_create_random_rule(session)
+    rule.same_category_only = payload.same_category_only
+    rule.gender_standard = ",".join(payload.gender_standard)
+    rule.gender_options = ",".join(payload.gender_options)
+    rule.age_options = ",".join(payload.age_options)
+    rule.region_unit = payload.region_unit
+    rule.region_options = ",".join(payload.region_options)
+    rule.geo_distance_enabled = payload.geo_distance_enabled
+    rule.anonymous_mode = payload.anonymous_mode
+    rule.min_wait_seconds = payload.min_wait_seconds
+    rule.max_wait_seconds = payload.max_wait_seconds
+    rule.auto_rematch = payload.auto_rematch
+    rule.exclude_blocked_users = payload.exclude_blocked_users
+    rule.priority_order = ",".join(payload.priority_order)
+    rule.room_open_mode = payload.room_open_mode
+    rule.chat_end_rule = payload.chat_end_rule
+    rule.retention_days = payload.retention_days
+    rule.thread_keep_hours_after_block = payload.thread_keep_hours_after_block
+    rule.allow_unblock = payload.allow_unblock
+    rule.personal_room_conversion = payload.personal_room_conversion
+    rule.message_storage_mode = payload.message_storage_mode
+    rule.message_edit_delete_mask_support = payload.message_edit_delete_mask_support
+    rule.admin_log_enabled = payload.admin_log_enabled
+    rule.admin_message_access_scope = payload.admin_message_access_scope
+    rule.report_reason_codes = ",".join(payload.report_reason_codes)
+    rule.auto_suspend_policy = payload.auto_suspend_policy
+    rule.auto_suspend_threshold = payload.auto_suspend_threshold
+    rule.updated_at = utcnow()
+    session.add(rule)
+    session.commit()
+    write_admin_log(session, current_user, "random_rule_update", "random_chat_rule", str(rule.id or 0), "채팅-랜덤 규칙 수정")
+    return _serialize_random_rule(rule)
+
+
+@router.post("/chat/random/tickets")
+def create_random_ticket(payload: RandomTicketCreate, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    rule = _get_or_create_random_rule(session)
+    existing = session.exec(select(RandomMatchTicket).where(RandomMatchTicket.user_id == (current_user.id or 0), RandomMatchTicket.status == "queued")).first()
+    if existing:
+        existing.status = "cancelled"
+        existing.updated_at = utcnow()
+        session.add(existing)
+        session.commit()
+    ticket = RandomMatchTicket(user_id=current_user.id or 0, category=payload.category, gender_option=payload.gender_option, age_option=payload.age_option, region_option=payload.region_option, region_value=payload.region_value or current_user.region_code, is_anonymous=True, status="queued", created_at=utcnow(), updated_at=utcnow(), expires_at=utcnow() + timedelta(seconds=rule.max_wait_seconds))
+    session.add(ticket)
+    session.commit()
+    session.refresh(ticket)
+    queued = session.exec(select(RandomMatchTicket).where(RandomMatchTicket.status == "queued", RandomMatchTicket.category == ticket.category, RandomMatchTicket.user_id != (current_user.id or 0)).order_by(RandomMatchTicket.created_at)).all()
+    for candidate in queued:
+        candidate_user = session.get(User, candidate.user_id)
+        if not candidate_user:
+            continue
+        if _ticket_matches(rule, session, current_user, ticket, candidate_user, candidate):
+            thread = DirectMessageThread(subject=f"랜덤채팅:{ticket.category}", purpose_code="SUPPORT", thread_type="random_1to1", created_by=current_user.id or 0, participant_a_id=current_user.id or 0, participant_b_id=candidate.user_id, status="open", created_at=utcnow(), updated_at=utcnow())
+            session.add(thread)
+            session.commit()
+            session.refresh(thread)
+            ticket.status = "matched"
+            candidate.status = "matched"
+            ticket.matched_thread_id = thread.id
+            candidate.matched_thread_id = thread.id
+            ticket.updated_at = utcnow()
+            candidate.updated_at = utcnow()
+            session.add(ticket)
+            session.add(candidate)
+            session.commit()
+            return {"ticket_id": ticket.id, "status": "matched", "thread_id": thread.id, "matched_user": _user_public_meta(session, candidate.user_id), "rule": _serialize_random_rule(rule)}
+    return {"ticket_id": ticket.id, "status": "queued", "rule": _serialize_random_rule(rule), "match_window": {"min_wait_seconds": rule.min_wait_seconds, "max_wait_seconds": rule.max_wait_seconds, "auto_rematch": rule.auto_rematch}}
+
+
+@router.get("/chat/random/tickets/{ticket_id}")
+def get_random_ticket(ticket_id: int, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    item = session.get(RandomMatchTicket, ticket_id)
+    if not item or item.user_id != (current_user.id or 0):
+        raise HTTPException(status_code=404, detail="ticket not found")
+    now = utcnow()
+    if item.status == "queued" and item.expires_at and item.expires_at < now:
+        item.status = "expired"
+        item.updated_at = now
+        session.add(item)
+        session.commit()
+    return {**item.model_dump(), "created_at": item.created_at.isoformat() if item.created_at else "", "updated_at": item.updated_at.isoformat() if item.updated_at else "", "expires_at": item.expires_at.isoformat() if item.expires_at else None}
+
+
+@router.post("/chat/random/tickets/{ticket_id}/cancel")
+def cancel_random_ticket(ticket_id: int, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    item = session.get(RandomMatchTicket, ticket_id)
+    if not item or item.user_id != (current_user.id or 0):
+        raise HTTPException(status_code=404, detail="ticket not found")
+    item.status = "cancelled"
+    item.updated_at = utcnow()
+    session.add(item)
+    session.commit()
+    return {"ok": True, "status": item.status}
+
+
+@router.post("/chat/random/report")
+def report_random_chat(payload: RandomReportCreate, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    rule = _get_or_create_random_rule(session)
+    thread = session.get(DirectMessageThread, payload.thread_id)
+    if not thread:
+        raise HTTPException(status_code=404, detail="thread not found")
+    _ensure_thread_member(thread, current_user.id or 0)
+    report = ModerationReport(reporter_id=current_user.id or 0, target_type="random_chat_thread", target_id=payload.thread_id, reason_code=payload.reason_code, priority="high", status="queued")
+    session.add(report)
+    session.commit()
+    target_user_id = _message_counterparty(thread, current_user.id or 0)
+    user_report = ModerationReport(reporter_id=current_user.id or 0, target_type="random_chat_user", target_id=target_user_id, reason_code=payload.reason_code, priority="high", status="queued")
+    session.add(user_report)
+    session.commit()
+    total_reports = len(session.exec(select(ModerationReport).where(ModerationReport.target_type == "random_chat_user", ModerationReport.target_id == target_user_id)).all())
+    auto_blocked = total_reports >= rule.auto_suspend_threshold
+    if auto_blocked:
+        block = session.exec(select(UserBlock).where(UserBlock.blocker_id == (current_user.id or 0), UserBlock.blocked_id == target_user_id)).first()
+        if not block:
+            block = UserBlock(blocker_id=current_user.id or 0, blocked_id=target_user_id, reason_code="auto_report_block", is_active=True, created_at=utcnow())
+        else:
+            block.is_active = True
+        session.add(block)
+        session.commit()
+    target_user = session.get(User, target_user_id)
+    suspension = {"applied": False, "action": None, "locked_until": None, "member_status": None}
+    if target_user:
+        suspension = _apply_random_chat_suspension(session, target_user, rule, total_reports)
+    return {"ok": True, "report_id": report.id, "user_report_id": user_report.id, "auto_blocked": auto_blocked, "threshold": rule.auto_suspend_threshold, "target_user_report_count": total_reports, "suspension": suspension}

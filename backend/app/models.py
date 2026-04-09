@@ -55,6 +55,11 @@ class User(SQLModel, table=True):
     password_hash: str = Field(default="")
     grade: MemberGrade = Field(default=MemberGrade.GENERAL)
     adult_verified: bool = Field(default=False)
+    gender: Optional[str] = Field(default=None, index=True)
+    age_band: Optional[str] = Field(default=None, index=True)
+    region_code: Optional[str] = Field(default=None, index=True)
+    latitude: Optional[float] = Field(default=None)
+    longitude: Optional[float] = Field(default=None)
     member_status: str = Field(default="active")
     seller_onboarding_status: Optional[SellerOnboardingStatus] = Field(default=None)
     admin_2fa_secret: Optional[str] = None
@@ -215,6 +220,103 @@ class DirectMessage(SQLModel, table=True):
     message: str
     is_read: bool = Field(default=False)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class StoryItem(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    author_id: int = Field(index=True)
+    title: str = Field(default="스토리")
+    image_url: Optional[str] = None
+    expires_at: Optional[datetime] = None
+    visibility: str = Field(default="safe")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class FeedPost(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    author_id: int = Field(index=True)
+    category: str = Field(default="일상")
+    title: str
+    body: str
+    image_url: Optional[str] = None
+    allow_questions: bool = Field(default=True)
+    visibility: str = Field(default="safe")
+    like_count: int = Field(default=0)
+    comment_count: int = Field(default=0)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ProfileQuestion(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    questioner_id: int = Field(index=True)
+    target_user_id: int = Field(index=True)
+    feed_post_id: Optional[int] = Field(default=None, index=True)
+    question_text: str
+    answer_text: Optional[str] = None
+    status: str = Field(default="asked")
+    is_anonymous: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class UserBlock(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("blocker_id", "blocked_id", name="uq_user_block_pair"),)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    blocker_id: int = Field(index=True)
+    blocked_id: int = Field(index=True)
+    reason_code: str = Field(default="user_request")
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class RandomChatRule(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    rule_name: str = Field(default="default", index=True, unique=True)
+    same_category_only: bool = Field(default=True)
+    gender_standard: str = Field(default="남성,여성,기타,비공개")
+    gender_options: str = Field(default="무관,남-여,동성")
+    age_options: str = Field(default="성인 전체,20대,30대,40대,50대,60대,70대")
+    region_unit: str = Field(default="시/도")
+    region_options: str = Field(default="무관,같은 지역 우선,거리기반")
+    geo_distance_enabled: bool = Field(default=True)
+    anonymous_mode: str = Field(default="완전 익명")
+    min_wait_seconds: int = Field(default=20)
+    max_wait_seconds: int = Field(default=300)
+    auto_rematch: bool = Field(default=True)
+    exclude_blocked_users: bool = Field(default=True)
+    priority_order: str = Field(default="gender_wait,age,region")
+    room_open_mode: str = Field(default="auto_create_1to1")
+    chat_end_rule: str = Field(default="manual_or_block")
+    retention_days: int = Field(default=180)
+    thread_keep_hours_after_block: int = Field(default=24)
+    allow_unblock: bool = Field(default=True)
+    personal_room_conversion: str = Field(default="mutual_consent_only")
+    message_storage_mode: str = Field(default="full_text")
+    message_edit_delete_mask_support: bool = Field(default=True)
+    admin_log_enabled: bool = Field(default=True)
+    admin_message_access_scope: str = Field(default="all_threads")
+    report_reason_codes: str = Field(default="욕설,불법권유,스팸,개인정보요구,음란물전송,기타")
+    auto_suspend_policy: str = Field(default="5:3d,10:7d,20:30d,21:admin_review")
+    auto_suspend_threshold: int = Field(default=5)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class RandomMatchTicket(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(index=True)
+    category: str = Field(index=True)
+    gender_option: str = Field(default="무관")
+    age_option: str = Field(default="성인 전체")
+    region_option: str = Field(default="무관")
+    region_value: Optional[str] = None
+    is_anonymous: bool = Field(default=True)
+    status: str = Field(default="queued", index=True)
+    matched_thread_id: Optional[int] = Field(default=None, index=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    expires_at: Optional[datetime] = None
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class Order(SQLModel, table=True):

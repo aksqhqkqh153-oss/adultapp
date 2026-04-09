@@ -187,3 +187,78 @@ class DirectMessageCreate(BaseModel):
     thread_id: int
     message: str
     purpose_code: str = "INFO_EXCHANGE"
+
+
+class StoryCreate(BaseModel):
+    title: str = "스토리"
+    image_url: Optional[str] = None
+    visibility: str = "safe"
+
+
+class FeedPostCreate(BaseModel):
+    category: str = "일상"
+    title: str
+    body: str
+    image_url: Optional[str] = None
+    allow_questions: bool = True
+    visibility: str = "safe"
+
+
+class ProfileQuestionCreate(BaseModel):
+    target_user_id: int
+    question_text: str
+    feed_post_id: Optional[int] = None
+    is_anonymous: bool = True
+
+
+class ProfileQuestionAnswerRequest(BaseModel):
+    answer_text: str
+
+
+class UserBlockCreate(BaseModel):
+    blocked_id: int
+    reason_code: str = "user_request"
+
+
+class RandomTicketCreate(BaseModel):
+    category: str
+    gender_option: str = "무관"
+    age_option: str = "성인 전체"
+    region_option: str = "무관"
+    region_value: Optional[str] = None
+    is_anonymous: bool = True
+
+
+class RandomRuleUpdateRequest(BaseModel):
+    same_category_only: bool = True
+    gender_standard: list[str] = ["남성", "여성", "기타", "비공개"]
+    gender_options: list[str] = ["무관", "남-여", "동성"]
+    age_options: list[str] = ["성인 전체", "20대", "30대", "40대", "50대", "60대", "70대"]
+    region_unit: str = "시/도"
+    region_options: list[str] = ["무관", "같은 지역 우선", "거리기반"]
+    geo_distance_enabled: bool = True
+    anonymous_mode: str = "완전 익명"
+    min_wait_seconds: int = 20
+    max_wait_seconds: int = 300
+    auto_rematch: bool = True
+    exclude_blocked_users: bool = True
+    priority_order: list[str] = ["gender_wait", "age", "region"]
+    room_open_mode: str = "auto_create_1to1"
+    chat_end_rule: str = "manual_or_block"
+    retention_days: int = 180
+    thread_keep_hours_after_block: int = 24
+    allow_unblock: bool = True
+    personal_room_conversion: str = "mutual_consent_only"
+    message_storage_mode: str = "full_text"
+    message_edit_delete_mask_support: bool = True
+    admin_log_enabled: bool = True
+    admin_message_access_scope: str = "all_threads"
+    report_reason_codes: list[str] = ["욕설", "불법권유", "스팸", "개인정보요구", "음란물전송", "기타"]
+    auto_suspend_policy: str = "5:3d,10:7d,20:30d,21:admin_review"
+    auto_suspend_threshold: int = 5
+
+
+class RandomReportCreate(BaseModel):
+    thread_id: int
+    reason_code: str
+    detail: Optional[str] = None
