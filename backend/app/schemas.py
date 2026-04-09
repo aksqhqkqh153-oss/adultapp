@@ -235,11 +235,13 @@ class RandomRuleUpdateRequest(BaseModel):
     gender_options: list[str] = ["무관", "남-여", "동성"]
     age_options: list[str] = ["성인 전체", "20대", "30대", "40대", "50대", "60대", "70대"]
     age_match_mode: str = "exact_then_adjacent"
+    adjacent_age_pairs: str = "30대:40대,40대:30대"
     region_unit: str = "시/도"
     region_options: list[str] = ["무관", "같은 지역 우선", "거리기반"]
     geo_distance_enabled: bool = True
     max_distance_km: int = 600
     distance_slider_steps: str = "0-20:1,20-100:5,100-600:20"
+    distance_score_mode: str = "band_bonus"
     anonymous_mode: str = "완전 익명"
     min_wait_seconds: int = 20
     max_wait_seconds: int = 300
@@ -252,10 +254,12 @@ class RandomRuleUpdateRequest(BaseModel):
     thread_keep_hours_after_block: int = 24
     allow_unblock: bool = True
     unblock_roles: list[str] = ["user", "admin"]
+    unblock_log_mode: str = "always_admin_log"
     personal_room_conversion: str = "mutual_consent_only"
     message_storage_mode: str = "full_text"
     message_edit_delete_mask_support: bool = True
     delete_display_mode: str = "hard_deleted_label_admin_raw"
+    admin_restore_only: bool = True
     admin_log_enabled: bool = True
     admin_message_access_scope: str = "all_threads"
     report_reason_codes: list[str] = ["욕설", "불법권유", "스팸", "개인정보요구", "음란물전송", "기타"]
@@ -264,6 +268,7 @@ class RandomRuleUpdateRequest(BaseModel):
     admin_review_sla_hours: int = 48
     report_manage_layout: str = "filter,count,user_id,report_history,last_reported_at"
     permanent_ban_mode: str = "admin_decision_by_report_history"
+    permanent_ban_keep_threads: bool = True
 
 
 class RandomReportCreate(BaseModel):

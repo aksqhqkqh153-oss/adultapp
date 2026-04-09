@@ -29,13 +29,18 @@ SQLITE_MIGRATIONS = {
     ],
     "randomchatrule": [
         ("age_match_mode", "ALTER TABLE randomchatrule ADD COLUMN age_match_mode VARCHAR DEFAULT 'exact_then_adjacent'"),
+        ("adjacent_age_pairs", "ALTER TABLE randomchatrule ADD COLUMN adjacent_age_pairs VARCHAR DEFAULT '30대:40대,40대:30대'"),
         ("max_distance_km", "ALTER TABLE randomchatrule ADD COLUMN max_distance_km INTEGER DEFAULT 600"),
         ("distance_slider_steps", "ALTER TABLE randomchatrule ADD COLUMN distance_slider_steps VARCHAR DEFAULT '0-20:1,20-100:5,100-600:20'"),
+        ("distance_score_mode", "ALTER TABLE randomchatrule ADD COLUMN distance_score_mode VARCHAR DEFAULT 'band_bonus'"),
         ("unblock_roles", "ALTER TABLE randomchatrule ADD COLUMN unblock_roles VARCHAR DEFAULT 'user,admin'"),
+        ("unblock_log_mode", "ALTER TABLE randomchatrule ADD COLUMN unblock_log_mode VARCHAR DEFAULT 'always_admin_log'"),
         ("delete_display_mode", "ALTER TABLE randomchatrule ADD COLUMN delete_display_mode VARCHAR DEFAULT 'hard_deleted_label_admin_raw'"),
+        ("admin_restore_only", "ALTER TABLE randomchatrule ADD COLUMN admin_restore_only BOOLEAN DEFAULT 1"),
         ("admin_review_sla_hours", "ALTER TABLE randomchatrule ADD COLUMN admin_review_sla_hours INTEGER DEFAULT 48"),
         ("report_manage_layout", "ALTER TABLE randomchatrule ADD COLUMN report_manage_layout VARCHAR DEFAULT 'filter,count,user_id,report_history,last_reported_at'"),
         ("permanent_ban_mode", "ALTER TABLE randomchatrule ADD COLUMN permanent_ban_mode VARCHAR DEFAULT 'admin_decision_by_report_history'"),
+        ("permanent_ban_keep_threads", "ALTER TABLE randomchatrule ADD COLUMN permanent_ban_keep_threads BOOLEAN DEFAULT 1"),
     ],
     "refreshtoken": [
         ("session_id", "ALTER TABLE refreshtoken ADD COLUMN session_id INTEGER"),

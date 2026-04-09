@@ -1090,6 +1090,81 @@ def _is_blocked_pair(session: Session, left_id: int, right_id: int) -> bool:
 
 
 
+def _parse_adjacent_age_pairs(value: str) -> set[tuple[str, str]]:
+    pairs: set[tuple[str, str]] = set()
+    for token in (value or "").split(","):
+        token = token.strip()
+        if not token or ":" not in token:
+            continue
+        left, right = [part.strip() for part in token.split(":", 1)]
+        if left and right:
+            pairs.add((left, right))
+    return pairs
+
+
+def _is_adjacent_age_allowed(rule: RandomChatRule, wanted: str, actual: str | None) -> bool:
+    if wanted == "성인 전체" or not actual:
+        return True
+    if wanted == actual:
+        return True
+    if rule.age_match_mode != "exact_then_adjacent":
+        return False
+    return (wanted, actual) in _parse_adjacent_age_pairs(rule.adjacent_age_pairs)
+
+
+def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    import math
+    r = 6371.0
+    p1 = math.radians(lat1)
+    p2 = math.radians(lat2)
+    d1 = math.radians(lat2 - lat1)
+    d2 = math.radians(lon2 - lon1)
+    a = math.sin(d1 / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(d2 / 2) ** 2
+    return 2 * r * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+def _distance_bonus(rule: RandomChatRule, source_user: User, target_user: User) -> int:
+    if not rule.geo_distance_enabled:
+        return 0
+    if None in (source_user.latitude, source_user.longitude, target_user.latitude, target_user.longitude):
+        return 0
+    distance = _haversine_km(float(source_user.latitude), float(source_user.longitude), float(target_user.latitude), float(target_user.longitude))
+    if distance > rule.max_distance_km:
+        return -9999
+    if distance <= 20:
+        return 300 - int(distance)
+    if distance <= 100:
+        return 220 - int(distance / 5)
+    if distance <= 600:
+        return 150 - int(distance / 20)
+    return 0
+
+
+def _candidate_score(rule: RandomChatRule, source_user: User, target_user: User, target: RandomMatchTicket) -> tuple[int, int, int, int]:
+    gender_score = 0
+    if source_user.gender and target_user.gender:
+        if source_user.gender == target_user.gender:
+            gender_score = 10
+        else:
+            gender_score = 5
+    age_score = 0
+    if source_user.age_band and target_user.age_band:
+        if source_user.age_band == target_user.age_band:
+            age_score = 20
+        elif _is_adjacent_age_allowed(rule, source_user.age_band, target_user.age_band):
+            age_score = 10
+    region_score = 0
+    if source_user.region_code and target_user.region_code and source_user.region_code == target_user.region_code:
+        region_score = 15
+    distance_score = _distance_bonus(rule, source_user, target_user)
+    wait_score = int(target.created_at.timestamp()) * -1 if target.created_at else 0
+    total = gender_score * 1000000 + wait_score
+    total += age_score * 1000
+    total += region_score * 100
+    total += distance_score
+    return (total, gender_score, age_score, region_score)
+
+
 def _ticket_matches(rule: RandomChatRule, session: Session, source_user: User, source: RandomMatchTicket, target_user: User, target: RandomMatchTicket) -> bool:
     if (target.status or "") != "queued":
         return False
@@ -1105,9 +1180,9 @@ def _ticket_matches(rule: RandomChatRule, session: Session, source_user: User, s
         return False
     if target.gender_option == "남-여" and source_user.gender and target_user.gender and source_user.gender == target_user.gender:
         return False
-    if source.age_option != "성인 전체" and target_user.age_band and source.age_option != target_user.age_band:
+    if not _is_adjacent_age_allowed(rule, source.age_option, target_user.age_band):
         return False
-    if target.age_option != "성인 전체" and source_user.age_band and target.age_option != source_user.age_band:
+    if not _is_adjacent_age_allowed(rule, target.age_option, source_user.age_band):
         return False
     if source.region_option == "같은 지역 우선" and source_user.region_code and target_user.region_code and source_user.region_code != target_user.region_code:
         return False
@@ -1179,11 +1254,13 @@ def _serialize_random_rule(rule: RandomChatRule) -> dict[str, Any]:
         "gender_options": _normalize_csv(rule.gender_options),
         "age_options": _normalize_csv(rule.age_options),
         "age_match_mode": rule.age_match_mode,
+        "adjacent_age_pairs": rule.adjacent_age_pairs,
         "region_unit": rule.region_unit,
         "region_options": _normalize_csv(rule.region_options),
         "geo_distance_enabled": rule.geo_distance_enabled,
         "max_distance_km": rule.max_distance_km,
         "distance_slider_steps": rule.distance_slider_steps,
+        "distance_score_mode": rule.distance_score_mode,
         "anonymous_mode": rule.anonymous_mode,
         "min_wait_seconds": rule.min_wait_seconds,
         "max_wait_seconds": rule.max_wait_seconds,
@@ -1196,10 +1273,12 @@ def _serialize_random_rule(rule: RandomChatRule) -> dict[str, Any]:
         "thread_keep_hours_after_block": rule.thread_keep_hours_after_block,
         "allow_unblock": rule.allow_unblock,
         "unblock_roles": _normalize_csv(rule.unblock_roles),
+        "unblock_log_mode": rule.unblock_log_mode,
         "personal_room_conversion": rule.personal_room_conversion,
         "message_storage_mode": rule.message_storage_mode,
         "message_edit_delete_mask_support": rule.message_edit_delete_mask_support,
         "delete_display_mode": rule.delete_display_mode,
+        "admin_restore_only": rule.admin_restore_only,
         "admin_log_enabled": rule.admin_log_enabled,
         "admin_message_access_scope": rule.admin_message_access_scope,
         "report_reason_codes": _normalize_csv(rule.report_reason_codes),
@@ -1208,6 +1287,7 @@ def _serialize_random_rule(rule: RandomChatRule) -> dict[str, Any]:
         "admin_review_sla_hours": rule.admin_review_sla_hours,
         "report_manage_layout": rule.report_manage_layout,
         "permanent_ban_mode": rule.permanent_ban_mode,
+        "permanent_ban_keep_threads": rule.permanent_ban_keep_threads,
     }
 
 
@@ -1303,11 +1383,15 @@ def create_block(payload: UserBlockCreate, current_user: User = Depends(get_curr
 
 @router.post("/social/blocks/{blocked_id}/unblock")
 def unblock_user(blocked_id: int, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    rule = _get_or_create_random_rule(session)
     row = session.exec(select(UserBlock).where(UserBlock.blocker_id == (current_user.id or 0), UserBlock.blocked_id == blocked_id)).first()
     if row:
+        before = "active" if row.is_active else "inactive"
         row.is_active = False
         session.add(row)
         session.commit()
+        if rule.unblock_log_mode == "always_admin_log":
+            write_admin_log(session, current_user, "user_unblock", "user_block", str(row.id or 0), f"blocked_id={blocked_id}", before_state=before, after_state="inactive")
     return {"ok": True, "blocked_id": blocked_id, "is_active": False}
 
 
@@ -1324,11 +1408,13 @@ def update_random_rules(payload: RandomRuleUpdateRequest, current_user: User = D
     rule.gender_options = ",".join(payload.gender_options)
     rule.age_options = ",".join(payload.age_options)
     rule.age_match_mode = payload.age_match_mode
+    rule.adjacent_age_pairs = payload.adjacent_age_pairs
     rule.region_unit = payload.region_unit
     rule.region_options = ",".join(payload.region_options)
     rule.geo_distance_enabled = payload.geo_distance_enabled
     rule.max_distance_km = payload.max_distance_km
     rule.distance_slider_steps = payload.distance_slider_steps
+    rule.distance_score_mode = payload.distance_score_mode
     rule.anonymous_mode = payload.anonymous_mode
     rule.min_wait_seconds = payload.min_wait_seconds
     rule.max_wait_seconds = payload.max_wait_seconds
@@ -1341,10 +1427,12 @@ def update_random_rules(payload: RandomRuleUpdateRequest, current_user: User = D
     rule.thread_keep_hours_after_block = payload.thread_keep_hours_after_block
     rule.allow_unblock = payload.allow_unblock
     rule.unblock_roles = ",".join(payload.unblock_roles)
+    rule.unblock_log_mode = payload.unblock_log_mode
     rule.personal_room_conversion = payload.personal_room_conversion
     rule.message_storage_mode = payload.message_storage_mode
     rule.message_edit_delete_mask_support = payload.message_edit_delete_mask_support
     rule.delete_display_mode = payload.delete_display_mode
+    rule.admin_restore_only = payload.admin_restore_only
     rule.admin_log_enabled = payload.admin_log_enabled
     rule.admin_message_access_scope = payload.admin_message_access_scope
     rule.report_reason_codes = ",".join(payload.report_reason_codes)
@@ -1353,6 +1441,7 @@ def update_random_rules(payload: RandomRuleUpdateRequest, current_user: User = D
     rule.admin_review_sla_hours = payload.admin_review_sla_hours
     rule.report_manage_layout = payload.report_manage_layout
     rule.permanent_ban_mode = payload.permanent_ban_mode
+    rule.permanent_ban_keep_threads = payload.permanent_ban_keep_threads
     rule.updated_at = utcnow()
     session.add(rule)
     session.commit()
@@ -1374,25 +1463,35 @@ def create_random_ticket(payload: RandomTicketCreate, current_user: User = Depen
     session.commit()
     session.refresh(ticket)
     queued = session.exec(select(RandomMatchTicket).where(RandomMatchTicket.status == "queued", RandomMatchTicket.category == ticket.category, RandomMatchTicket.user_id != (current_user.id or 0)).order_by(RandomMatchTicket.created_at)).all()
+    best_candidate = None
+    best_user = None
+    best_score = None
     for candidate in queued:
         candidate_user = session.get(User, candidate.user_id)
         if not candidate_user:
             continue
-        if _ticket_matches(rule, session, current_user, ticket, candidate_user, candidate):
-            thread = DirectMessageThread(subject=f"랜덤채팅:{ticket.category}", purpose_code="SUPPORT", thread_type="random_1to1", created_by=current_user.id or 0, participant_a_id=current_user.id or 0, participant_b_id=candidate.user_id, status="open", created_at=utcnow(), updated_at=utcnow())
-            session.add(thread)
-            session.commit()
-            session.refresh(thread)
-            ticket.status = "matched"
-            candidate.status = "matched"
-            ticket.matched_thread_id = thread.id
-            candidate.matched_thread_id = thread.id
-            ticket.updated_at = utcnow()
-            candidate.updated_at = utcnow()
-            session.add(ticket)
-            session.add(candidate)
-            session.commit()
-            return {"ticket_id": ticket.id, "status": "matched", "thread_id": thread.id, "matched_user": _user_public_meta(session, candidate.user_id), "rule": _serialize_random_rule(rule)}
+        if not _ticket_matches(rule, session, current_user, ticket, candidate_user, candidate):
+            continue
+        score = _candidate_score(rule, current_user, candidate_user, candidate)
+        if best_score is None or score[0] > best_score[0]:
+            best_candidate = candidate
+            best_user = candidate_user
+            best_score = score
+    if best_candidate and best_user:
+        thread = DirectMessageThread(subject=f"랜덤채팅:{ticket.category}", purpose_code="SUPPORT", thread_type="random_1to1", created_by=current_user.id or 0, participant_a_id=current_user.id or 0, participant_b_id=best_candidate.user_id, status="open", created_at=utcnow(), updated_at=utcnow())
+        session.add(thread)
+        session.commit()
+        session.refresh(thread)
+        ticket.status = "matched"
+        best_candidate.status = "matched"
+        ticket.matched_thread_id = thread.id
+        best_candidate.matched_thread_id = thread.id
+        ticket.updated_at = utcnow()
+        best_candidate.updated_at = utcnow()
+        session.add(ticket)
+        session.add(best_candidate)
+        session.commit()
+        return {"ticket_id": ticket.id, "status": "matched", "thread_id": thread.id, "matched_user": _user_public_meta(session, best_candidate.user_id), "match_score": {"total": best_score[0], "gender": best_score[1], "age": best_score[2], "region": best_score[3]}, "rule": _serialize_random_rule(rule)}
     return {"ticket_id": ticket.id, "status": "queued", "rule": _serialize_random_rule(rule), "match_window": {"min_wait_seconds": rule.min_wait_seconds, "max_wait_seconds": rule.max_wait_seconds, "auto_rematch": rule.auto_rematch}}
 
 
