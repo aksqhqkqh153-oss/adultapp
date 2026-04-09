@@ -84,13 +84,20 @@ const mobileTabs = ["홈", "쇼핑", "소통", "채팅", "프로필"] as const;
 const legacyMenu = ["운영현황", "주문관리", "보안", "앱심사", "배포가이드"] as const;
 const homeTabs = ["피드", "상품"] as const;
 const shoppingTabs = ["목록", "주문", "바구니"] as const;
+const communityTabs = ["커뮤", "후기", "이벤트"] as const;
+const chatTabs = ["채팅", "랜덤", "질문"] as const;
+const profileTabs = ["내정보"] as const;
+const settingsCategories = ["일반", "계정", "알림", "보안", "배포", "운영"] as const;
 
 type MobileTab = (typeof mobileTabs)[number];
 type LegacyTab = (typeof legacyMenu)[number];
 type HomeTab = (typeof homeTabs)[number];
 type ShoppingTab = (typeof shoppingTabs)[number];
-
-type OverlayMode = "menu" | "search" | "settings" | null;
+type CommunityTab = (typeof communityTabs)[number];
+type ChatTab = (typeof chatTabs)[number];
+type ProfileTab = (typeof profileTabs)[number];
+type SettingsCategory = (typeof settingsCategories)[number];
+type OverlayMode = "search" | "settings" | null;
 
 type HeaderNavItem = {
   label: string;
@@ -181,15 +188,7 @@ function FeedPoster({ item }: { item: FeedItem }) {
   );
 }
 
-function LegacyPanel({
-  section,
-  projectStatus,
-  deployGuide,
-}: {
-  section: LegacyTab;
-  projectStatus: ProjectStatus | null;
-  deployGuide: DeployGuide | null;
-}) {
+function LegacyPanel({ section, projectStatus, deployGuide }: { section: LegacyTab; projectStatus: ProjectStatus | null; deployGuide: DeployGuide | null }) {
   if (section === "운영현황") {
     return (
       <section className="legacy-panel compact-panel">
@@ -268,6 +267,70 @@ function LegacyPanel({
   );
 }
 
+function SettingSection({ category, isAdmin, legacySection, setLegacySection, projectStatus, deployGuide, currentUserRole }: {
+  category: SettingsCategory;
+  isAdmin: boolean;
+  legacySection: LegacyTab;
+  setLegacySection: (section: LegacyTab) => void;
+  projectStatus: ProjectStatus | null;
+  deployGuide: DeployGuide | null;
+  currentUserRole: string;
+}) {
+  if (category === "일반") {
+    return (
+      <div className="settings-grid settings-two-col">
+        <div className="legacy-box compact"><h3>레이아웃</h3><p>모바일 1줄 상단바, 중앙 제목, 하단 고정 탭 구조를 유지합니다.</p></div>
+        <div className="legacy-box compact"><h3>탭 구조</h3><p>홈/쇼핑/소통/채팅/프로필별 좌측 서브탭과 우측 검색·설정 구조를 통일했습니다.</p></div>
+      </div>
+    );
+  }
+  if (category === "계정") {
+    return (
+      <div className="settings-grid settings-two-col">
+        <div className="legacy-box compact"><h3>현재 역할</h3><p>{currentUserRole}</p></div>
+        <div className="legacy-box compact"><h3>프로필 접근</h3><p>내정보, 작성 글, 업로드 상품, 통계 카드를 확인할 수 있습니다.</p></div>
+      </div>
+    );
+  }
+  if (category === "알림") {
+    return (
+      <div className="settings-grid settings-two-col">
+        <div className="legacy-box compact"><h3>주문/결제 알림</h3><p>주문상태, 결제대기, 환불 요청을 목록 기준으로 묶어 표시합니다.</p></div>
+        <div className="legacy-box compact"><h3>채팅 알림</h3><p>채팅 미확인 수, 랜덤방, 질문응답 알림을 분리해서 보여줍니다.</p></div>
+      </div>
+    );
+  }
+  if (category === "보안") {
+    return (
+      <div className="settings-grid settings-two-col">
+        <div className="legacy-box compact"><h3>권한 가드</h3><p>관리자 전용 운영 항목은 관리자 계정일 때만 노출됩니다.</p></div>
+        <div className="legacy-box compact"><h3>API 연결</h3><p>Production API timeout/fallback과 재시도를 유지합니다.</p></div>
+      </div>
+    );
+  }
+  if (category === "배포") {
+    return (
+      <div className="settings-grid settings-two-col">
+        <div className="legacy-box compact"><h3>Cloudflare Pages</h3><p>{deployGuide?.project_name ?? "adultapp"} · dist 업로드 기준</p></div>
+        <div className="legacy-box compact"><h3>진행도</h3><p>{projectStatus?.overall?.status ?? "진행도 데이터 로딩중"}</p></div>
+      </div>
+    );
+  }
+  if (!isAdmin) {
+    return <div className="legacy-box compact"><h3>운영</h3><p>관리자 계정에서만 확인할 수 있습니다.</p></div>;
+  }
+  return (
+    <>
+      <div className="legacy-nav inline">
+        {legacyMenu.map((item) => (
+          <button key={item} className={`legacy-nav-btn ${legacySection === item ? "active" : ""}`} onClick={() => setLegacySection(item)}>{item}</button>
+        ))}
+      </div>
+      <LegacyPanel section={legacySection} projectStatus={projectStatus} deployGuide={deployGuide} />
+    </>
+  );
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<MobileTab>("홈");
   const [legacySection, setLegacySection] = useState<LegacyTab>("운영현황");
@@ -275,12 +338,22 @@ export default function App() {
   const [globalKeyword, setGlobalKeyword] = useState("");
   const [homeTab, setHomeTab] = useState<HomeTab>("피드");
   const [shoppingTab, setShoppingTab] = useState<ShoppingTab>("목록");
+  const [communityTab, setCommunityTab] = useState<CommunityTab>("커뮤");
+  const [chatTab, setChatTab] = useState<ChatTab>("채팅");
+  const [profileTab, setProfileTab] = useState<ProfileTab>("내정보");
+  const [settingsCategory, setSettingsCategory] = useState<SettingsCategory>("일반");
   const [selectedShopCategory, setSelectedShopCategory] = useState("전체");
   const [selectedCommunityCategory, setSelectedCommunityCategory] = useState<string>("전체");
   const [shopKeyword, setShopKeyword] = useState("");
   const [communityKeyword, setCommunityKeyword] = useState("");
   const [projectStatus, setProjectStatus] = useState<ProjectStatus | null>(null);
   const [deployGuide, setDeployGuide] = useState<DeployGuide | null>(null);
+  const [currentUserRole] = useState(() => {
+    if (typeof window === "undefined") return "ADMIN";
+    return (window.localStorage.getItem("adultapp_demo_role") ?? "ADMIN").toUpperCase();
+  });
+
+  const isAdmin = ["ADMIN", "1", "GRADE_1"].includes(currentUserRole);
 
   useEffect(() => {
     getJson<ProjectStatus>("/project-status").then(setProjectStatus).catch(() => null);
@@ -289,10 +362,7 @@ export default function App() {
 
   const visibleFeed = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
-    const filtered = !keyword
-      ? feedSeed
-      : feedSeed.filter((item) => `${item.title} ${item.caption} ${item.category} ${item.author}`.toLowerCase().includes(keyword));
-    return filtered;
+    return !keyword ? feedSeed : feedSeed.filter((item) => `${item.title} ${item.caption} ${item.category} ${item.author}`.toLowerCase().includes(keyword));
   }, [globalKeyword]);
 
   const allShopItems = useMemo(() => {
@@ -306,20 +376,28 @@ export default function App() {
 
   const filteredCommunity = useMemo(() => {
     const keyword = `${communityKeyword} ${globalKeyword}`.trim().toLowerCase();
-    return communitySeed.filter((post) => {
-      const matchCategory = selectedCommunityCategory === "전체" || post.category === selectedCommunityCategory;
-      const matchKeyword = !keyword || `${post.title} ${post.summary}`.toLowerCase().includes(keyword);
-      return matchCategory && matchKeyword;
+    const base = communitySeed.filter((post) => {
+      const tabMatch = communityTab === "커뮤" ? ["공지", "정보공유", "판매자소식"].includes(post.category) : post.category === communityTab;
+      const categoryMatch = selectedCommunityCategory === "전체" || post.category === selectedCommunityCategory;
+      const keywordMatch = !keyword || `${post.title} ${post.summary}`.toLowerCase().includes(keyword);
+      return tabMatch && categoryMatch && keywordMatch;
     });
-  }, [selectedCommunityCategory, communityKeyword, globalKeyword]);
+    return base;
+  }, [selectedCommunityCategory, communityKeyword, globalKeyword, communityTab]);
 
   const filteredThreads = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
-    return !keyword ? threadSeed : threadSeed.filter((thread) => `${thread.name} ${thread.preview} ${thread.purpose}`.toLowerCase().includes(keyword));
-  }, [globalKeyword]);
+    const base = !keyword ? threadSeed : threadSeed.filter((thread) => `${thread.name} ${thread.preview} ${thread.purpose}`.toLowerCase().includes(keyword));
+    if (chatTab === "랜덤") {
+      return base.map((item, idx) => ({ ...item, id: item.id + 1000, name: `랜덤방 ${idx + 1}`, purpose: "익명 랜덤 채팅", preview: "실시간 익명 대화방 미리보기 예시입니다." }));
+    }
+    if (chatTab === "질문") {
+      return base.map((item, idx) => ({ ...item, id: item.id + 2000, name: `질문 스레드 ${idx + 1}`, purpose: "질문/답변", preview: "질문 등록 후 답변이 이어지는 목록 예시입니다." }));
+    }
+    return base;
+  }, [globalKeyword, chatTab]);
 
   const homeProducts = useMemo(() => productsSeed.slice(0, 4), []);
-
   const currentScreenTitle = activeTab;
 
   const openOverlay = (mode: Exclude<OverlayMode, null>) => {
@@ -328,33 +406,32 @@ export default function App() {
 
   const headerNavItems = useMemo<HeaderNavItem[]>(() => {
     if (activeTab === "홈") {
-      return homeTabs.map((tab) => ({
-        label: tab,
-        active: homeTab === tab,
-        onClick: () => setHomeTab(tab),
-      }));
+      return homeTabs.map((tab) => ({ label: tab, active: homeTab === tab, onClick: () => setHomeTab(tab) }));
     }
     if (activeTab === "쇼핑") {
-      return shoppingTabs.map((tab) => ({
-        label: tab,
-        active: shoppingTab === tab,
-        onClick: () => setShoppingTab(tab),
-      }));
+      return shoppingTabs.map((tab) => ({ label: tab, active: shoppingTab === tab, onClick: () => setShoppingTab(tab) }));
     }
     if (activeTab === "소통") {
-      return [{ label: "게시글", active: true }];
+      return communityTabs.map((tab) => ({ label: tab, active: communityTab === tab, onClick: () => setCommunityTab(tab) }));
     }
     if (activeTab === "채팅") {
-      return [{ label: "대화목록", active: true }];
+      return chatTabs.map((tab) => ({ label: tab, active: chatTab === tab, onClick: () => setChatTab(tab) }));
     }
-    return [{ label: "내정보", active: true }];
-  }, [activeTab, homeTab, shoppingTab]);
+    return profileTabs.map((tab) => ({ label: tab, active: profileTab === tab, onClick: () => setProfileTab(tab) }));
+  }, [activeTab, homeTab, shoppingTab, communityTab, chatTab, profileTab]);
+
+  const settingsNavItems = useMemo<SettingsCategory[]>(() => {
+    return settingsCategories.filter((item) => item !== "운영" || isAdmin);
+  }, [isAdmin]);
 
   const selectBottomTab = (tab: MobileTab) => {
     setActiveTab(tab);
     setOverlayMode(null);
     if (tab !== "홈") setHomeTab("피드");
     if (tab !== "쇼핑") setShoppingTab("목록");
+    if (tab !== "소통") setCommunityTab("커뮤");
+    if (tab !== "채팅") setChatTab("채팅");
+    if (tab !== "프로필") setProfileTab("내정보");
   };
 
   return (
@@ -364,13 +441,7 @@ export default function App() {
           <div className="topbar-side topbar-left">
             <div className="topbar-inline-actions topbar-inline-actions-left">
               {headerNavItems.map((item) => (
-                <button
-                  key={item.label}
-                  type="button"
-                  className={`header-inline-btn ${item.active ? "active" : ""}`}
-                  onClick={item.onClick}
-                  disabled={!item.onClick}
-                >
+                <button key={item.label} type="button" className={`header-inline-btn ${item.active ? "active" : ""}`} onClick={item.onClick} disabled={!item.onClick}>
                   {item.label}
                 </button>
               ))}
@@ -381,7 +452,6 @@ export default function App() {
           </div>
           <div className="topbar-side topbar-right">
             <div className="topbar-inline-actions topbar-inline-actions-right">
-              <button className={`header-inline-btn ${overlayMode === "menu" ? "active" : ""}`} onClick={() => openOverlay("menu")}>운영</button>
               <button className={`header-inline-btn ${overlayMode === "search" ? "active" : ""}`} onClick={() => openOverlay("search")}>검색</button>
               <button className={`header-inline-btn ${overlayMode === "settings" ? "active" : ""}`} onClick={() => openOverlay("settings")}>설정</button>
             </div>
@@ -393,20 +463,9 @@ export default function App() {
         {overlayMode ? (
           <section className="overlay-card">
             <div className="overlay-head">
-              <strong>{overlayMode === "menu" ? "운영 패널" : overlayMode === "search" ? "통합 검색" : "설정 요약"}</strong>
+              <strong>{overlayMode === "search" ? "통합 검색" : "설정 카테고리"}</strong>
               <button className="ghost-btn" onClick={() => setOverlayMode(null)}>닫기</button>
             </div>
-
-            {overlayMode === "menu" ? (
-              <>
-                <div className="legacy-nav inline">
-                  {legacyMenu.map((item) => (
-                    <button key={item} className={`legacy-nav-btn ${legacySection === item ? "active" : ""}`} onClick={() => setLegacySection(item)}>{item}</button>
-                  ))}
-                </div>
-                <LegacyPanel section={legacySection} projectStatus={projectStatus} deployGuide={deployGuide} />
-              </>
-            ) : null}
 
             {overlayMode === "search" ? (
               <div className="overlay-body stack-gap">
@@ -416,10 +475,21 @@ export default function App() {
             ) : null}
 
             {overlayMode === "settings" ? (
-              <div className="settings-grid">
-                <div className="legacy-box compact"><h3>레이아웃</h3><p>모바일 1화면 기준 상단/하단 고정, 본문 개별 스크롤 구조</p></div>
-                <div className="legacy-box compact"><h3>API 연결</h3><p>Production build 기본 API를 Railway /api 로 고정</p></div>
-                <div className="legacy-box compact"><h3>배포</h3><p>Cloudflare Pages 수동 업로드 및 Railway health 체크 기준 유지</p></div>
+              <div className="stack-gap">
+                <div className="legacy-nav inline settings-category-nav">
+                  {settingsNavItems.map((item) => (
+                    <button key={item} className={`legacy-nav-btn ${settingsCategory === item ? "active" : ""}`} onClick={() => setSettingsCategory(item)}>{item}</button>
+                  ))}
+                </div>
+                <SettingSection
+                  category={settingsCategory}
+                  isAdmin={isAdmin}
+                  legacySection={legacySection}
+                  setLegacySection={setLegacySection}
+                  projectStatus={projectStatus}
+                  deployGuide={deployGuide}
+                  currentUserRole={currentUserRole}
+                />
               </div>
             ) : null}
           </section>
@@ -429,24 +499,12 @@ export default function App() {
           <section className="tab-pane fill-pane">
             {homeTab === "피드" ? (
               <>
-                <div className="section-head compact-head">
-                  <div>
-                    <h2>홈 피드</h2>
-                    <p>세로 스크롤 내부에서 사진/영상 피드를 연속 탐색합니다.</p>
-                  </div>
-                </div>
-                <div className="feed-stack compact-scroll-list">
-                  {visibleFeed.map((item) => <FeedPoster key={item.id} item={item} />)}
-                </div>
+                <div className="section-head compact-head"><div><h2>홈 피드</h2><p>세로 스크롤 내부에서 사진/영상 피드를 연속 탐색합니다.</p></div></div>
+                <div className="feed-stack compact-scroll-list">{visibleFeed.map((item) => <FeedPoster key={item.id} item={item} />)}</div>
               </>
             ) : (
               <>
-                <div className="section-head compact-head">
-                  <div>
-                    <h2>추천 상품</h2>
-                    <p>홈에서 바로 진입하는 추천 상품 카드 모음입니다.</p>
-                  </div>
-                </div>
+                <div className="section-head compact-head"><div><h2>추천 상품</h2><p>홈에서 바로 진입하는 추천 상품 카드 모음입니다.</p></div></div>
                 <div className="content-grid product-grid compact-scroll-list">
                   {homeProducts.map((product) => (
                     <article key={product.id} className="product-card">
@@ -454,10 +512,7 @@ export default function App() {
                       <span className="product-badge">{product.badge}</span>
                       <strong>{product.name}</strong>
                       <p>{product.subtitle}</p>
-                      <div className="product-meta">
-                        <span>{product.category}</span>
-                        <b>{product.price}</b>
-                      </div>
+                      <div className="product-meta"><span>{product.category}</span><b>{product.price}</b></div>
                     </article>
                   ))}
                 </div>
@@ -471,13 +526,8 @@ export default function App() {
             {shoppingTab === "목록" ? (
               <>
                 <div className="section-head compact-head">
-                  <div>
-                    <h2>상품 목록</h2>
-                    <p>카테고리와 검색을 조합해 한 화면 안에서 탐색합니다.</p>
-                  </div>
-                  <div className="section-tools slim-tools">
-                    <input value={shopKeyword} onChange={(e) => setShopKeyword(e.target.value)} placeholder="상품명/설명 검색" />
-                  </div>
+                  <div><h2>상품 목록</h2><p>카테고리와 검색을 조합해 한 화면 안에서 탐색합니다.</p></div>
+                  <div className="section-tools slim-tools"><input value={shopKeyword} onChange={(e) => setShopKeyword(e.target.value)} placeholder="상품명/설명 검색" /></div>
                 </div>
                 <div className="split-layout mobile-split">
                   <aside className="left-menu always-open">
@@ -501,10 +551,7 @@ export default function App() {
                         <span className="product-badge">{product.badge}</span>
                         <strong>{product.name}</strong>
                         <p>{product.subtitle}</p>
-                        <div className="product-meta">
-                          <span>{product.category}</span>
-                          <b>{product.price}</b>
-                        </div>
+                        <div className="product-meta"><span>{product.category}</span><b>{product.price}</b></div>
                         <button>장바구니 담기</button>
                       </article>
                     ))}
@@ -533,18 +580,9 @@ export default function App() {
             {shoppingTab === "바구니" ? (
               <div className="cart-box compact-scroll-list">
                 {cartSeed.map((item) => (
-                  <div key={item.id} className="cart-row">
-                    <div>
-                      <strong>{item.name}</strong>
-                      <span>{item.option} · 수량 {item.qty}</span>
-                    </div>
-                    <b>{item.price}</b>
-                  </div>
+                  <div key={item.id} className="cart-row"><div><strong>{item.name}</strong><span>{item.option} · 수량 {item.qty}</span></div><b>{item.price}</b></div>
                 ))}
-                <div className="cart-summary">
-                  <span>총 결제 예정</span>
-                  <strong>₩112,500</strong>
-                </div>
+                <div className="cart-summary"><span>총 결제 예정</span><strong>₩112,500</strong></div>
                 <button>주문/결제 진행</button>
               </div>
             ) : null}
@@ -554,13 +592,8 @@ export default function App() {
         {activeTab === "소통" ? (
           <section className="tab-pane fill-pane">
             <div className="section-head compact-head">
-              <div>
-                <h2>소통</h2>
-                <p>카테고리별 게시글을 한 화면 내 스크롤로 확인합니다.</p>
-              </div>
-              <div className="section-tools slim-tools">
-                <input value={communityKeyword} onChange={(e) => setCommunityKeyword(e.target.value)} placeholder="게시글 검색" />
-              </div>
+              <div><h2>소통</h2><p>{communityTab === "커뮤" ? "커뮤니티 글과 공지, 정보공유를 확인합니다." : communityTab === "후기" ? "후기 글 모음을 확인합니다." : "이벤트 공지를 확인합니다."}</p></div>
+              <div className="section-tools slim-tools"><input value={communityKeyword} onChange={(e) => setCommunityKeyword(e.target.value)} placeholder="게시글 검색" /></div>
             </div>
             <div className="split-layout mobile-split">
               <aside className="left-menu always-open slim-left-menu">
@@ -585,25 +618,13 @@ export default function App() {
 
         {activeTab === "채팅" ? (
           <section className="tab-pane fill-pane">
-            <div className="section-head compact-head">
-              <div>
-                <h2>채팅</h2>
-                <p>최근 1:1 문의 목록과 미리보기를 보여줍니다.</p>
-              </div>
-            </div>
+            <div className="section-head compact-head"><div><h2>채팅</h2><p>{chatTab === "채팅" ? "대화목록 기반의 채팅 목록입니다." : chatTab === "랜덤" ? "익명 랜덤 대화방 목록 예시입니다." : "질문/답변 스레드 목록 예시입니다."}</p></div></div>
             <div className="chat-list compact-scroll-list">
               {filteredThreads.map((thread) => (
                 <article key={thread.id} className="chat-row">
                   <div className="avatar-circle">{thread.name[0]}</div>
-                  <div className="chat-copy">
-                    <strong>{thread.name}</strong>
-                    <span>{thread.purpose}</span>
-                    <p>{thread.preview}</p>
-                  </div>
-                  <div className="chat-meta">
-                    <span>{thread.time}</span>
-                    {thread.unread > 0 ? <b>{thread.unread}</b> : null}
-                  </div>
+                  <div className="chat-copy"><strong>{thread.name}</strong><span>{thread.purpose}</span><p>{thread.preview}</p></div>
+                  <div className="chat-meta"><span>{thread.time}</span>{thread.unread > 0 ? <b>{thread.unread}</b> : null}</div>
                 </article>
               ))}
             </div>
@@ -612,12 +633,7 @@ export default function App() {
 
         {activeTab === "프로필" ? (
           <section className="tab-pane fill-pane">
-            <div className="section-head compact-head">
-              <div>
-                <h2>프로필</h2>
-                <p>내 프로필, 통계, 작성 글과 업로드 상품을 확인합니다.</p>
-              </div>
-            </div>
+            <div className="section-head compact-head"><div><h2>프로필</h2><p>내정보와 활동 통계를 확인합니다.</p></div></div>
             <div className="profile-shell compact-scroll-list">
               <div className="profile-card">
                 <div className="profile-avatar">A</div>
@@ -625,26 +641,13 @@ export default function App() {
                 <span>운영/브랜드/판매자 통합 프로필 예시</span>
                 <div className="profile-stats">
                   {profileStats.map((stat) => (
-                    <div key={stat.label}>
-                      <b>{stat.value}</b>
-                      <span>{stat.label}</span>
-                    </div>
+                    <div key={stat.label}><b>{stat.value}</b><span>{stat.label}</span></div>
                   ))}
                 </div>
               </div>
               <div className="profile-columns">
-                <div className="legacy-box">
-                  <h3>내가 작성한 게시글</h3>
-                  <ul>
-                    {communitySeed.slice(0, 3).map((post) => <li key={post.id}>{post.title}</li>)}
-                  </ul>
-                </div>
-                <div className="legacy-box">
-                  <h3>업로드한 상품</h3>
-                  <ul>
-                    {productsSeed.slice(0, 3).map((product) => <li key={product.id}>{product.name}</li>)}
-                  </ul>
-                </div>
+                <div className="legacy-box"><h3>내가 작성한 게시글</h3><ul>{communitySeed.slice(0, 3).map((post) => <li key={post.id}>{post.title}</li>)}</ul></div>
+                <div className="legacy-box"><h3>업로드한 상품</h3><ul>{productsSeed.slice(0, 3).map((product) => <li key={product.id}>{product.name}</li>)}</ul></div>
               </div>
             </div>
           </section>
@@ -653,11 +656,7 @@ export default function App() {
 
       <nav className="bottom-nav">
         {mobileTabs.map((tab) => (
-          <button
-            key={tab}
-            className={`bottom-nav-btn ${activeTab === tab ? "active" : ""}`}
-            onClick={() => selectBottomTab(tab)}
-          >
+          <button key={tab} className={`bottom-nav-btn ${activeTab === tab ? "active" : ""}`} onClick={() => selectBottomTab(tab)}>
             <span>{tab}</span>
           </button>
         ))}

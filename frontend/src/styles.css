@@ -101,6 +101,7 @@ pre {
   gap: 4px;
   min-width: 0;
   flex-wrap: nowrap;
+  overflow: hidden;
 }
 .topbar-inline-actions-left {
   justify-content: flex-start;
@@ -117,6 +118,7 @@ pre {
   flex: 0 1 auto;
   height: 26px;
   padding: 0 6px;
+  max-width: 100%;
   border-radius: 0;
   background: #0e141c;
   color: #d6dfeb;
@@ -189,6 +191,8 @@ pre {
   gap: 12px;
 }
 .settings-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.settings-two-col { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.settings-category-nav { grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); }
 .legacy-grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .legacy-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .legacy-box { padding: 14px; }
@@ -475,27 +479,13 @@ pre {
   .legacy-grid.three,
   .mobile-split,
   .profile-shell,
-  .content-grid.product-grid {
+  .content-grid.product-grid,
+  .settings-two-col {
     grid-template-columns: 1fr;
   }
   .section-tools,
   .slim-tools,
   .slim-left-menu { min-width: 0; max-width: none; }
-}
-@media (max-width: 900px) {
-  .topbar-row {
-    grid-template-columns: 1fr;
-    gap: 8px;
-  }
-  .topbar-title-block { order: -1; }
-  .topbar-inline-actions-left,
-  .topbar-inline-actions-right {
-    justify-content: flex-start;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .topbar-inline-actions-left::-webkit-scrollbar,
-  .topbar-inline-actions-right::-webkit-scrollbar { display: none; }
 }
 @media (max-width: 720px) {
   .mobile-main { padding: 12px; }
@@ -515,6 +505,7 @@ pre {
 
 @media (max-width: 900px) {
   .topbar-row {
+    grid-template-columns: minmax(0, 1.35fr) auto minmax(0, 1.1fr);
     gap: 6px;
     padding: 8px 10px;
   }
@@ -523,9 +514,9 @@ pre {
     overflow: hidden;
   }
   .header-inline-btn {
-    height: 28px;
+    height: 27px;
     padding: 0 7px;
-    font-size: 11px;
+    font-size: 10px;
   }
 }
 
