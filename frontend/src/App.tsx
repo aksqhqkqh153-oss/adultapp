@@ -43,6 +43,8 @@ type ThreadItem = {
   preview: string;
   time: string;
   unread: number;
+  avatar: string;
+  status?: string;
 };
 
 type RandomRoom = {
@@ -170,10 +172,12 @@ const communitySeed: CommunityPost[] = [
 ];
 
 const threadSeed: ThreadItem[] = [
-  { id: 101, name: "운영 문의", purpose: "상품/운영 문의", preview: "결제 허용 SKU 범위를 다시 확인 부탁드립니다.", time: "방금", unread: 2 },
-  { id: 102, name: "seller_studio", purpose: "판매자 1:1", preview: "승인 대기 상품 이미지 규격을 수정했습니다.", time: "12분 전", unread: 0 },
-  { id: 103, name: "brand_note", purpose: "콘텐츠 응답", preview: "피드형 홈 카드 노출 순서 제안 드립니다.", time: "1시간 전", unread: 1 },
-  { id: 104, name: "customer demo", purpose: "구매자 지원", preview: "장바구니와 프로필 연동 상태를 확인하고 싶어요.", time: "어제", unread: 0 },
+  { id: 101, name: "운영 문의", purpose: "상품/운영 문의", preview: "결제 허용 SKU 범위를 다시 확인 부탁드립니다.", time: "오전 9:41", unread: 2, avatar: "운", status: "고정" },
+  { id: 102, name: "seller_studio", purpose: "판매자 1:1", preview: "승인 대기 상품 이미지 규격을 수정했습니다.", time: "오전 8:12", unread: 0, avatar: "S" },
+  { id: 103, name: "brand_note", purpose: "콘텐츠 응답", preview: "피드형 홈 카드 노출 순서 제안 드립니다.", time: "어제", unread: 1, avatar: "B" },
+  { id: 104, name: "customer demo", purpose: "구매자 지원", preview: "장바구니와 프로필 연동 상태를 확인하고 싶어요.", time: "어제", unread: 0, avatar: "C" },
+  { id: 105, name: "정산 지원", purpose: "정산/환불", preview: "환불 검수 상태를 오늘 안으로 공유드릴게요.", time: "4월 8일", unread: 3, avatar: "정" },
+  { id: 106, name: "notice bot", purpose: "시스템 안내", preview: "새로운 공지와 이벤트가 등록되었습니다.", time: "4월 7일", unread: 0, avatar: "N", status: "알림" },
 ];
 
 const randomRoomSeed: RandomRoom[] = [
@@ -777,12 +781,24 @@ export default function App() {
             ) : (
               <>
                 <div className="section-head compact-head"><div><h2>채팅</h2><p>대화목록 기반의 채팅 목록입니다.</p></div></div>
-                <div className="chat-list compact-scroll-list">
+                <div className="chat-list compact-scroll-list kakao-chat-list">
                   {filteredThreads.map((thread) => (
-                    <article key={thread.id} className="chat-row">
-                      <div className="avatar-circle">{thread.name[0]}</div>
-                      <div className="chat-copy"><strong>{thread.name}</strong><span>{thread.purpose}</span><p>{thread.preview}</p></div>
-                      <div className="chat-meta"><span>{thread.time}</span>{thread.unread > 0 ? <b>{thread.unread}</b> : null}</div>
+                    <article key={thread.id} className="chat-row kakao-chat-row">
+                      <div className="avatar-circle kakao-avatar">{thread.avatar}</div>
+                      <div className="chat-copy kakao-chat-copy">
+                        <div className="kakao-chat-head">
+                          <strong>{thread.name}</strong>
+                          <div className="kakao-chat-badges">
+                            <span>{thread.purpose}</span>
+                            {thread.status ? <em>{thread.status}</em> : null}
+                          </div>
+                        </div>
+                        <p>{thread.preview}</p>
+                      </div>
+                      <div className="chat-meta kakao-chat-meta">
+                        <span>{thread.time}</span>
+                        {thread.unread > 0 ? <b>{thread.unread}</b> : null}
+                      </div>
                     </article>
                   ))}
                 </div>

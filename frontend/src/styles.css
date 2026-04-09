@@ -124,14 +124,14 @@ pre {
   min-width: 0;
   flex: 0 1 auto;
   height: 26px;
-  padding: 0 6px;
+  padding: 0 7px;
   max-width: 100%;
   border-radius: 0;
   background: #0e141c;
   color: #d6dfeb;
   border: 1px solid rgba(255, 255, 255, 0.08);
   white-space: nowrap;
-  font-size: clamp(9px, 2.7vw, 10px);
+  font-size: clamp(11px, 2.9vw, 12px);
   line-height: 1;
   letter-spacing: -0.03em;
 }
@@ -437,6 +437,95 @@ pre {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.kakao-chat-list {
+  gap: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+.kakao-chat-row {
+  grid-template-columns: 54px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 4px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  border-radius: 0;
+}
+.kakao-chat-row:last-child {
+  border-bottom: 0;
+}
+.kakao-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(245,158,11,.36), rgba(59,130,246,.28));
+  color: #f7fbff;
+  font-size: 18px;
+}
+.kakao-chat-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.kakao-chat-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.kakao-chat-head strong {
+  min-width: 0;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kakao-chat-badges {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--soft);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.kakao-chat-badges span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kakao-chat-badges em {
+  font-style: normal;
+  padding: 2px 6px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+  color: #ffe4a3;
+}
+.kakao-chat-copy p {
+  margin: 0;
+  color: #c2cddc;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kakao-chat-meta {
+  align-self: start;
+  min-width: 44px;
+  gap: 6px;
+}
+.kakao-chat-meta span {
+  font-size: 11px;
+}
+.kakao-chat-meta b {
+  min-width: 20px;
+  height: 20px;
+  font-size: 11px;
+}
+
 .question-board {
   display: grid;
   gap: 12px;
@@ -636,6 +725,8 @@ pre {
 .modal-submit-btn { min-height: 42px; }
 
 @media (max-width: 1080px) {
+  .kakao-chat-row { padding: 12px 0; }
+
   .settings-grid,
   .legacy-grid.two,
   .legacy-grid.three,
