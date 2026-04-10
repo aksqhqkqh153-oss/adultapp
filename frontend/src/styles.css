@@ -343,6 +343,23 @@ pre {
   text-align: center;
   background: #101721;
 }
+
+.ghost-link-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  background: #101721;
+  text-decoration: none;
+  color: #d9e2ef;
+}
+.muted-mini {
+  color: var(--soft);
+  font-size: 12px;
+}
+
 .section-head { align-items: flex-start; }
 .compact-head { margin-bottom: -2px; }
 .section-head p { margin: 6px 0 0; color: var(--soft); }

@@ -39,6 +39,10 @@ SQLITE_MIGRATIONS = {
         ("identity_verified_at", "ALTER TABLE user ADD COLUMN identity_verified_at DATETIME"),
         ("adult_verified_at", "ALTER TABLE user ADD COLUMN adult_verified_at DATETIME"),
         ("adult_verification_status", "ALTER TABLE user ADD COLUMN adult_verification_status VARCHAR DEFAULT 'pending'"),
+        ("adult_verification_provider", "ALTER TABLE user ADD COLUMN adult_verification_provider VARCHAR"),
+        ("adult_verification_tx_id", "ALTER TABLE user ADD COLUMN adult_verification_tx_id VARCHAR"),
+        ("adult_verification_fail_count", "ALTER TABLE user ADD COLUMN adult_verification_fail_count INTEGER DEFAULT 0"),
+        ("adult_verification_locked_until", "ALTER TABLE user ADD COLUMN adult_verification_locked_until DATETIME"),
     ],
     "randomchatrule": [
         ("age_match_mode", "ALTER TABLE randomchatrule ADD COLUMN age_match_mode VARCHAR DEFAULT 'exact_then_adjacent'"),

@@ -1,5 +1,5 @@
 import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
-import { getJson } from "./lib/api";
+import { getApiBase, getJson, postJson, setAuthToken, setRefreshToken } from "./lib/api";
 
 type FeedItem = {
   id: number;
@@ -147,6 +147,17 @@ type RandomRuleSnapshot = {
   admin_message_access_scope?: string;
 };
 
+
+type LegalDocumentItem = {
+  version: string;
+  content: string;
+  path: string;
+};
+
+type LegalDocumentsResponse = {
+  items: Record<string, LegalDocumentItem>;
+  required_signup_consents: string[];
+};
 type AdminDbManage = {
   rule?: RandomRuleSnapshot;
   report?: {
@@ -251,8 +262,8 @@ function SearchIcon() {
 function SettingsIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M12 2.8 13.4 4.4 15.55 4.05 16.6 5.85 18.75 6.45 18.95 8.6 20.5 10 19.95 12 20.5 14 18.95 15.4 18.75 17.55 16.6 18.15 15.55 19.95 13.4 19.6 12 21.2 10.6 19.6 8.45 19.95 7.4 18.15 5.25 17.55 5.05 15.4 3.5 14 4.05 12 3.5 10 5.05 8.6 5.25 6.45 7.4 5.85 8.45 4.05 10.6 4.4 12 2.8Z" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" />
-      <circle cx="12" cy="12" r="3.35" fill="none" stroke="currentColor" strokeWidth="2.2" />
+      <path d="M19.14 12.94a7.4 7.4 0 0 0 .05-.94 7.4 7.4 0 0 0-.05-.94l2.03-1.58a.6.6 0 0 0 .15-.77l-1.92-3.32a.6.6 0 0 0-.73-.26l-2.39.96a7.78 7.78 0 0 0-1.63-.94l-.36-2.54a.6.6 0 0 0-.59-.51H10.3a.6.6 0 0 0-.59.51l-.36 2.54c-.58.22-1.13.54-1.63.94l-2.39-.96a.6.6 0 0 0-.73.26L2.68 8.71a.6.6 0 0 0 .15.77l2.03 1.58a7.4 7.4 0 0 0-.05.94c0 .32.02.63.05.94L2.83 14.52a.6.6 0 0 0-.15.77l1.92 3.32c.16.28.49.39.79.26l2.39-.96c.5.4 1.05.72 1.63.94l.36 2.54c.05.29.3.51.59.51h3.4c.3 0 .55-.22.59-.51l.36-2.54c.58-.22 1.13-.54 1.63-.94l2.39.96c.3.12.63.01.79-.26l1.92-3.32a.6.6 0 0 0-.15-.77l-2.03-1.58Z" fill="none" stroke="currentColor" strokeWidth="2.05" strokeLinejoin="round" />
+      <circle cx="12" cy="12" r="3.1" fill="none" stroke="currentColor" strokeWidth="2.05" />
     </svg>
   );
 }
@@ -899,6 +910,7 @@ export default function App() {
   const [communityKeyword, setCommunityKeyword] = useState("");
   const [projectStatus, setProjectStatus] = useState<ProjectStatus | null>(null);
   const [deployGuide, setDeployGuide] = useState<DeployGuide | null>(null);
+  const [legalDocuments, setLegalDocuments] = useState<LegalDocumentsResponse | null>(null);
   const [adminDbManage, setAdminDbManage] = useState<AdminDbManage | null>(null);
   const [randomRooms, setRandomRooms] = useState<RandomRoom[]>(randomRoomSeed);
   const [roomModalOpen, setRoomModalOpen] = useState(false);
@@ -968,6 +980,7 @@ export default function App() {
   useEffect(() => {
     getJson<ProjectStatus>("/project-status").then(setProjectStatus).catch(() => null);
     getJson<DeployGuide>("/deploy/cloudflare-pages-manual").then(setDeployGuide).catch(() => null);
+    getJson<LegalDocumentsResponse>("/legal/documents").then(setLegalDocuments).catch(() => null);
     if (isAdmin) {
       getJson<AdminDbManage>("/admin/chat-random/db-manage").then(setAdminDbManage).catch(() => null);
     }
@@ -1190,14 +1203,22 @@ export default function App() {
     { consent_type: "profile_optional_opt_in", agreed: signupConsents.profileOptional, required: false, version: consentVersionMap.profileOptional },
   ];
 
-  const startIdentitySignup = (provider: DemoLoginProvider) => {
+  const startIdentitySignup = async (provider: DemoLoginProvider) => {
     if (provider === "카카오") {
       setDemoLoginProvider("카카오");
       return;
     }
-    setIdentityMethod(provider);
-    setIdentityVerified(true);
-    setIdentityVerificationToken(`iv_${provider}_${Date.now()}`);
+    try {
+      const start = await postJson<{ tx_id: string }>("/auth/identity/start", { provider });
+      const confirm = await postJson<{ identity_verification_token: string }>("/auth/identity/confirm", { provider, tx_id: start.tx_id, verification_code: "000000" });
+      setIdentityMethod(provider);
+      setIdentityVerified(true);
+      setIdentityVerificationToken(confirm.identity_verification_token);
+    } catch {
+      setIdentityMethod(provider);
+      setIdentityVerified(true);
+      setIdentityVerificationToken(`iv_${provider}_${Date.now()}`);
+    }
     setAdultGateView("intro");
     if (["홈", "쇼핑"].includes(activeTab)) {
       setAdultPromptOpen(true);
@@ -1216,8 +1237,25 @@ export default function App() {
     }
   };
 
-  const completeSignupFlow = (skipOptional = false) => {
+  const completeSignupFlow = async (skipOptional = false) => {
     if (!requiredConsentAccepted || !signupAccountValid) return;
+    const consentPayload = consentRecordsPreview.map((item) => ({ consent_type: item.consent_type, agreed: item.agreed, is_required: item.required, version: item.version }));
+    try {
+      const response = await postJson<{ access_token?: string; refresh_token?: string }>("/auth/signup", {
+        email: signupForm.email,
+        password: signupForm.password,
+        name: signupForm.displayName,
+        login_provider: signupForm.loginMethod === "카카오" ? "kakao" : "email",
+        identity_verification_token: identityVerificationToken,
+        identity_verification_method: identityMethod === "미완료" ? "휴대폰" : identityMethod,
+        adult_verification_status: adultVerified ? "verified_adult" : "pending",
+        consents: consentPayload,
+      });
+      if (response.access_token) setAuthToken(response.access_token);
+      if (response.refresh_token) setRefreshToken(response.refresh_token);
+    } catch {
+      // demo fallback
+    }
     setIdentityVerified(true);
     setDemoLoginProvider(signupForm.loginMethod === "카카오" ? "카카오" : identityMethod === "미완료" ? "휴대폰" : identityMethod);
     setAdultGateView("intro");
@@ -1246,10 +1284,27 @@ export default function App() {
     setSignupStep("consent");
   };
 
-  const attemptAdultVerification = (mode: "success" | "fail" | "minor") => {
+  const attemptAdultVerification = async (mode: "success" | "fail" | "minor") => {
     if (adultCooldownUntil > Date.now()) {
       setAdultGateView("failed");
       return;
+    }
+    if (mode === "minor") {
+      setAdultVerified(false);
+      setAdultGateView("minor");
+      return;
+    }
+    try {
+      const start = await postJson<{ tx_id: string }>("/auth/adult/start", { provider: identityMethod === "미완료" ? "PASS" : identityMethod });
+      const result = await postJson<{ ok: boolean; adult_verified: boolean; adult_verification_fail_count: number; adult_verification_locked_until: string | null }>("/auth/adult/confirm", { tx_id: start.tx_id, verification_code: mode === "success" ? "000000" : "111111" });
+      setAdultVerified(Boolean(result.adult_verified));
+      setAdultFailCount(result.adult_verification_fail_count ?? 0);
+      setAdultCooldownUntil(result.adult_verification_locked_until ? new Date(result.adult_verification_locked_until).getTime() : 0);
+      setAdultGateView(result.adult_verified ? "success" : "failed");
+      setAdultPromptOpen(!result.adult_verified);
+      if (result.adult_verified) return;
+    } catch {
+      // fallback to local demo flow
     }
     if (mode === "success") {
       setAdultVerified(true);
@@ -1257,11 +1312,6 @@ export default function App() {
       setAdultCooldownUntil(0);
       setAdultGateView("success");
       setAdultPromptOpen(false);
-      return;
-    }
-    if (mode === "minor") {
-      setAdultVerified(false);
-      setAdultGateView("minor");
       return;
     }
     const nextFail = adultFailCount + 1;
@@ -1639,6 +1689,12 @@ export default function App() {
                     <p>수집 항목 : 이메일, 비밀번호, 이름, 본인확인 결과값</p>
                     <p>보유 및 이용 기간 : 법령상 보존기간까지</p>
                     <p>동의 거부권 및 불이익 : 필수 항목 미동의 시 회원가입이 제한될 수 있음</p>
+                    <div className="copy-action-row legal-link-row">
+                      <a className="ghost-link-btn" href={`${getApiBase()}/legal/terms-of-service`} target="_blank" rel="noreferrer">이용약관 보기</a>
+                      <a className="ghost-link-btn" href={`${getApiBase()}/legal/privacy-policy`} target="_blank" rel="noreferrer">개인정보 처리방침 보기</a>
+                      <a className="ghost-link-btn" href={`${getApiBase()}/legal/youth-policy`} target="_blank" rel="noreferrer">청소년 보호정책 보기</a>
+                    </div>
+                    {legalDocuments ? <p className="muted-mini">약관 버전: {legalDocuments.items.terms_of_service?.version ?? "-"} · 처리방침 버전: {legalDocuments.items.privacy_policy?.version ?? "-"}</p> : null}
                   </div>
                   <div className="consent-checklist">
                     <label className={`consent-row ${signupConsents.terms ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.terms} onChange={(e) => setSignupConsents((prev) => ({ ...prev, terms: e.target.checked }))} /><span>[필수] 이용약관 확인</span></label>

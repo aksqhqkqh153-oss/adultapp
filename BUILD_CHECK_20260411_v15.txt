@@ -1,0 +1,32 @@
+[adultapp build check v15]
+Date: 2026-04-11
+
+1) Frontend build
+- Command: npm --prefix frontend run build
+- Result: PASS
+- Output:
+  - dist/assets/index-kl24lU0V.css
+  - dist/assets/index-CcbnS9l2.js
+
+2) Backend syntax
+- Command: python -m compileall backend/app
+- Result: PASS
+
+3) Backend dependency/runtime smoke check
+- Command: python -m pip install -r backend/requirements.txt
+- Command: python -c "from backend.app.database import create_db_and_tables; create_db_and_tables(); print('db_ok')"
+- Result: PASS
+- Output: db_ok
+
+4) Core updated files
+- backend/app/models.py
+- backend/app/database.py
+- backend/app/schemas.py
+- backend/app/routers/api.py
+- frontend/src/App.tsx
+- frontend/src/styles.css
+- docs/adultapp_legal_guardrails_update_20260411.md
+
+5) Notes
+- PASS/휴대폰 본인확인은 테스트 코드(000000) 기반 데모 검증 흐름까지 반영
+- 실제 운영 전에는 인증사 콜백 검증/서명 검증/실거래 키 교체 필요

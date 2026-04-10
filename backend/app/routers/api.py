@@ -8,6 +8,7 @@ import hashlib
 import io
 import json
 from pathlib import Path
+from urllib.parse import quote
 from typing import Any
 
 import pyotp
@@ -48,6 +49,7 @@ from ..models import (
     AppAsset,
     AppealCase,
     CommunityPost,
+    ConsentRecord,
     ContentItem,
     FeedPost,
     DirectMessage,
@@ -85,6 +87,12 @@ from ..schemas import (
     DirectMessageThreadCreate,
     DeviceSessionRevokeRequest,
     LoginRequest,
+    ConsentItem,
+    SignupRequest,
+    IdentityVerificationStartRequest,
+    IdentityVerificationConfirmRequest,
+    AdultVerificationStartRequest,
+    AdultVerificationConfirmRequest,
     ProfileQuestionAnswerRequest,
     ProfileQuestionCreate,
     PasswordResetConfirmRequest,
@@ -168,6 +176,104 @@ MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 SAFE_COMMUNITY_BLOCKLIST = ["만남", "조건만남", "오프라인", "카카오톡", "카톡", "텔레그램", "텔레", "라인", "whatsapp", "wechat", "숙소", "010-"]
 PHONE_RE = re.compile(r"01[016789][-\s]?\d{3,4}[-\s]?\d{4}")
 HANDLE_RE = re.compile(r"(?:@|https?://)(?:t\.me|open\.kakao|instagram\.com|line\.me|discord\.gg)", re.IGNORECASE)
+LEGAL_DOC_VERSIONS = {
+    "terms_of_service": "2026-04-11.v1",
+    "privacy_policy": "2026-04-11.v1",
+    "adult_service_notice": "2026-04-11.v1",
+    "identity_notice": "2026-04-11.v1",
+    "marketing_opt_in": "2026-04-11.v1",
+    "profile_optional_opt_in": "2026-04-11.v1",
+}
+REQUIRED_SIGNUP_CONSENT_TYPES = ["terms_of_service", "privacy_policy", "adult_service_notice", "identity_notice"]
+LEGAL_TEMPLATE_FILES = {
+    "terms_of_service": Path("docs/legal_templates/terms_of_service_final.md"),
+    "privacy_policy": Path("docs/legal_templates/privacy_policy_final.md"),
+    "youth_policy": Path("docs/legal_templates/youth_policy_final.md"),
+    "refund_policy": Path("docs/legal_templates/refund_policy_final.md"),
+}
+
+
+
+def _read_legal_markdown(doc_key: str) -> str:
+    path = LEGAL_TEMPLATE_FILES.get(doc_key)
+    if not path:
+        raise HTTPException(status_code=404, detail="legal document not found")
+    if not path.exists():
+        return f"# {doc_key}\n\n문서 파일이 아직 배치되지 않았습니다."
+    return path.read_text(encoding="utf-8")
+
+
+def _record_consents(session: Session, user_id: int, consents: list[ConsentItem], request: Request) -> None:
+    ip_address = request.client.host if request.client else "127.0.0.1"
+    user_agent = request.headers.get("user-agent")
+    for item in consents:
+        session.add(ConsentRecord(user_id=user_id, consent_type=item.consent_type, is_required=item.is_required, agreed=item.agreed, version=item.version, ip_address=ip_address, user_agent=user_agent))
+    session.commit()
+
+
+def _latest_user_consents(session: Session, user_id: int) -> dict[str, ConsentRecord]:
+    rows = session.exec(select(ConsentRecord).where(ConsentRecord.user_id == user_id).order_by(ConsentRecord.agreed_at.desc(), ConsentRecord.id.desc())).all()
+    latest: dict[str, ConsentRecord] = {}
+    for row in rows:
+        latest.setdefault(row.consent_type, row)
+    return latest
+
+
+def _user_requires_reconsent(session: Session, user_id: int) -> bool:
+    latest = _latest_user_consents(session, user_id)
+    for consent_type in REQUIRED_SIGNUP_CONSENT_TYPES:
+        row = latest.get(consent_type)
+        if not row or not row.agreed or row.version != LEGAL_DOC_VERSIONS.get(consent_type, row.version):
+            return True
+    return False
+
+
+def _extract_optional_user(session: Session, request: Request) -> User | None:
+    auth_header = request.headers.get("authorization", "")
+    if not auth_header.lower().startswith("bearer "):
+        return None
+    token = auth_header.split(" ", 1)[1].strip()
+    if not token:
+        return None
+    try:
+        payload = decode_token(token)
+    except HTTPException:
+        return None
+    user_id = payload.get("sub")
+    try:
+        user_id_int = int(user_id)
+    except (TypeError, ValueError):
+        return None
+    return session.get(User, user_id_int)
+
+
+def _user_can_view_adult(user: User | None) -> bool:
+    return bool(user and user.adult_verified)
+
+
+def _adult_lock_payload(user: User) -> dict[str, Any]:
+    return {
+        "adult_verified": bool(user.adult_verified),
+        "adult_verification_status": user.adult_verification_status,
+        "adult_verification_fail_count": user.adult_verification_fail_count or 0,
+        "adult_verification_locked_until": user.adult_verification_locked_until.isoformat() if user.adult_verification_locked_until else None,
+        "identity_verified": bool(user.identity_verified),
+    }
+
+
+def _build_identity_tx(prefix: str, provider: str) -> str:
+    safe_provider = re.sub(r"[^a-z0-9]+", "-", provider.lower())
+    return f"{prefix}_{safe_provider}_{int(datetime.utcnow().timestamp())}_{random.randint(1000,9999)}"
+
+
+def _register_adult_verification_failure(user: User, session: Session) -> None:
+    now = utcnow()
+    user.adult_verification_fail_count = (user.adult_verification_fail_count or 0) + 1
+    if user.adult_verification_fail_count >= 5:
+        user.adult_verification_locked_until = now + timedelta(hours=1)
+        user.adult_verification_fail_count = 0
+    session.add(user)
+    session.commit()
 
 
 def validate_exchange_text(text_value: str) -> None:
@@ -341,6 +447,158 @@ def read_seed() -> dict[str, Any]:
     return load_seed()
 
 
+@router.get("/legal/documents")
+def legal_documents():
+    items = {}
+    for key in ["terms_of_service", "privacy_policy", "youth_policy", "refund_policy"]:
+        content = _read_legal_markdown(key)
+        version = LEGAL_DOC_VERSIONS.get(key, "2026-04-11.v1")
+        items[key] = {
+            "version": version,
+            "content": content,
+            "path": f"/api/legal/{key.replace('_', '-')}",
+        }
+    return {"items": items, "required_signup_consents": REQUIRED_SIGNUP_CONSENT_TYPES}
+
+
+@router.get("/legal/{doc_slug}")
+def legal_document(doc_slug: str):
+    normalized = doc_slug.replace('-', '_')
+    return {"doc_key": normalized, "version": LEGAL_DOC_VERSIONS.get(normalized, "2026-04-11.v1"), "content": _read_legal_markdown(normalized)}
+
+
+@router.post("/auth/signup")
+def signup(payload: SignupRequest, request: Request, session: Session = Depends(get_session)):
+    email = payload.email.strip().lower()
+    if session.exec(select(User).where(User.email == email)).first():
+        raise HTTPException(status_code=409, detail="email already exists")
+    consent_map = {item.consent_type: item for item in payload.consents}
+    for consent_type in REQUIRED_SIGNUP_CONSENT_TYPES:
+        consent = consent_map.get(consent_type)
+        if not consent or not consent.agreed:
+            raise HTTPException(status_code=400, detail=f"required consent missing: {consent_type}")
+    if not payload.identity_verification_token.strip():
+        raise HTTPException(status_code=400, detail="identity verification token required")
+    user = User(
+        email=email,
+        name=payload.name.strip(),
+        password_hash=hash_password(payload.password),
+        grade=MemberGrade.GENERAL,
+        identity_verified=True,
+        identity_verification_method=payload.identity_verification_method,
+        identity_verification_token=payload.identity_verification_token.strip(),
+        identity_verified_at=utcnow(),
+        login_provider=payload.login_provider,
+        adult_verified=False,
+        adult_verification_status=payload.adult_verification_status or "pending",
+    )
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    _record_consents(session, user.id or 0, payload.consents, request)
+    device_session = create_device_session(user, session, payload.login_provider or "web-browser", request.headers.get("user-agent"), request.client.host if request.client else "127.0.0.1")
+    tokens = build_token_response(user, session, device_session)
+    return {
+        "ok": True,
+        "user_id": user.id,
+        "email": user.email,
+        "identity_verified": user.identity_verified,
+        "adult_verified": user.adult_verified,
+        "reconsent_required": _user_requires_reconsent(session, user.id or 0),
+        **tokens.model_dump(),
+    }
+
+
+@router.post("/auth/identity/start")
+def start_identity_verification(payload: IdentityVerificationStartRequest):
+    provider = payload.provider.strip() or settings.adult_verification_provider
+    tx_id = _build_identity_tx("identity", provider)
+    return {
+        "ok": True,
+        "provider": provider,
+        "tx_id": tx_id,
+        "next_action": "open_provider_popup",
+        "verification_code_hint": "000000" if settings.adult_verification_test_mode else None,
+        "callback_web": settings.adult_verification_callback_web,
+    }
+
+
+@router.post("/auth/identity/confirm")
+def confirm_identity_verification(payload: IdentityVerificationConfirmRequest):
+    expected = "000000" if settings.adult_verification_test_mode else settings.adult_verification_client_secret
+    if payload.verification_code != expected:
+        raise HTTPException(status_code=400, detail="identity verification failed")
+    return {
+        "ok": True,
+        "provider": payload.provider,
+        "tx_id": payload.tx_id,
+        "identity_verification_token": f"idv::{payload.provider}::{payload.tx_id}",
+        "identity_verified": True,
+        "adult_verification_status": "pending",
+    }
+
+
+@router.post("/auth/adult/start")
+def start_adult_verification(payload: AdultVerificationStartRequest, user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    if user.grade != MemberGrade.ADMIN and not user.identity_verified:
+        raise HTTPException(status_code=403, detail="identity verification required")
+    if user.adult_verification_locked_until and user.adult_verification_locked_until > utcnow():
+        raise HTTPException(status_code=423, detail=f"adult verification locked until {user.adult_verification_locked_until.isoformat()}")
+    provider = payload.provider.strip() or settings.adult_verification_provider
+    tx_id = _build_identity_tx("adult", provider)
+    user.adult_verification_provider = provider
+    user.adult_verification_tx_id = tx_id
+    user.adult_verification_status = "started"
+    session.add(user)
+    session.commit()
+    return {"ok": True, "provider": provider, "tx_id": tx_id, "verification_code_hint": "000000" if settings.adult_verification_test_mode else None}
+
+
+@router.post("/auth/adult/confirm")
+def confirm_adult_verification(payload: AdultVerificationConfirmRequest, user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    if user.grade != MemberGrade.ADMIN and not user.identity_verified:
+        raise HTTPException(status_code=403, detail="identity verification required")
+    if user.adult_verification_locked_until and user.adult_verification_locked_until > utcnow():
+        raise HTTPException(status_code=423, detail=f"adult verification locked until {user.adult_verification_locked_until.isoformat()}")
+    if user.adult_verification_tx_id and payload.tx_id != user.adult_verification_tx_id:
+        raise HTTPException(status_code=400, detail="adult verification transaction mismatch")
+    expected = "000000" if settings.adult_verification_test_mode else settings.adult_verification_client_secret
+    if payload.verification_code != expected:
+        user.adult_verification_status = "failed"
+        session.add(user)
+        session.commit()
+        _register_adult_verification_failure(user, session)
+        return {"ok": False, **_adult_lock_payload(user)}
+    user.adult_verified = True
+    user.adult_verified_at = utcnow()
+    user.adult_verification_status = "verified_adult"
+    user.adult_verification_fail_count = 0
+    user.adult_verification_locked_until = None
+    session.add(user)
+    session.commit()
+    return {"ok": True, **_adult_lock_payload(user)}
+
+
+@router.get("/auth/adult/status")
+def adult_verification_status(user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    latest_consents = _latest_user_consents(session, user.id or 0)
+    return {
+        **_adult_lock_payload(user),
+        "reconsent_required": _user_requires_reconsent(session, user.id or 0),
+        "latest_consents": {key: {"agreed": row.agreed, "version": row.version, "agreed_at": row.agreed_at.isoformat()} for key, row in latest_consents.items()},
+    }
+
+
+@router.post("/moderation/check-text")
+def moderation_check_text(payload: dict[str, str]):
+    value = payload.get("text", "")
+    try:
+        validate_exchange_text(value)
+    except HTTPException as exc:
+        return {"ok": False, "blocked": True, "reason": exc.detail}
+    return {"ok": True, "blocked": False, "reason": None}
+
+
 @router.post("/auth/login", response_model=TokenResponse)
 def login(payload: LoginRequest, request: Request, session: Session = Depends(get_session)) -> TokenResponse:
     client_ip = request.client.host if request.client else "127.0.0.1"
@@ -353,6 +611,8 @@ def login(payload: LoginRequest, request: Request, session: Session = Depends(ge
     if not verify_password(payload.password, user.password_hash):
         register_login_failure(user, session)
         raise HTTPException(status_code=401, detail="invalid credentials")
+    if user.grade != MemberGrade.ADMIN and not user.identity_verified:
+        raise HTTPException(status_code=403, detail="identity verification required")
     clear_login_failures(user, session)
     device_session = create_device_session(user, session, payload.device_name, request.headers.get("user-agent"), client_ip)
     if user.grade == MemberGrade.ADMIN and settings.admin_2fa_enabled and user.admin_2fa_confirmed:
@@ -427,6 +687,12 @@ def auth_me(user: User = Depends(get_current_user), session: Session = Depends(g
         "name": user.name,
         "grade": user.grade,
         "adult_verified": user.adult_verified,
+        "identity_verified": user.identity_verified,
+        "adult_verification_status": user.adult_verification_status,
+        "adult_verification_fail_count": user.adult_verification_fail_count,
+        "adult_verification_locked_until": user.adult_verification_locked_until.isoformat() if user.adult_verification_locked_until else None,
+        "reconsent_required": _user_requires_reconsent(session, user.id or 0),
+        "random_chat_profile_ready": bool(user.gender and user.age_band and user.region_code),
         "admin_2fa_confirmed": user.admin_2fa_confirmed,
         "backup_codes_remaining": backup_count,
         "locked_until": user.locked_until.isoformat() if user.locked_until else "",
@@ -695,8 +961,13 @@ def ui_category_groups():
 
 
 @router.get("/products")
-def list_products(session: Session = Depends(get_session)):
-    return session.exec(select(Product).order_by(Product.created_at.desc())).all()
+def list_products(request: Request, session: Session = Depends(get_session)):
+    viewer = _extract_optional_user(session, request)
+    stmt = select(Product).order_by(Product.created_at.desc())
+    rows = session.exec(stmt).all()
+    if _user_can_view_adult(viewer):
+        return rows
+    return [item for item in rows if str(getattr(item, "review_visibility", "safe")) == "safe"]
 
 
 @router.post("/products")
@@ -750,14 +1021,21 @@ def attach_product_media(payload: ProductMediaAttachRequest, session: Session = 
 
 
 @router.get("/contents")
-def list_contents(session: Session = Depends(get_session)):
-    return session.exec(select(ContentItem).order_by(ContentItem.created_at.desc())).all()
+def list_contents(request: Request, session: Session = Depends(get_session)):
+    viewer = _extract_optional_user(session, request)
+    rows = session.exec(select(ContentItem).order_by(ContentItem.created_at.desc())).all()
+    if _user_can_view_adult(viewer):
+        return rows
+    return [item for item in rows if (item.visibility or "safe") == "safe"]
 
 
 @router.get("/community/posts")
-def list_community_posts(session: Session = Depends(get_session)):
+def list_community_posts(request: Request, session: Session = Depends(get_session)):
     rows = []
+    viewer = _extract_optional_user(session, request)
     for post in session.exec(select(CommunityPost).order_by(CommunityPost.created_at.desc())).all():
+        if not _user_can_view_adult(viewer) and (post.visibility or "safe") != "safe":
+            continue
         meta = _community_author(session, post.author_id)
         rows.append({"id": post.id, "category": post.category, "title": post.title, "body": post.body, "visibility": post.visibility, "purpose": post.purpose, "allow_dm": post.allow_dm, "status": post.status, "author_id": post.author_id, **meta, "created_at": post.created_at.isoformat() if post.created_at else ""})
     return rows

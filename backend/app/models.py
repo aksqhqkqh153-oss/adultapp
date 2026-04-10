@@ -62,6 +62,10 @@ class User(SQLModel, table=True):
     identity_verified_at: Optional[datetime] = None
     adult_verified_at: Optional[datetime] = None
     adult_verification_status: str = Field(default="pending")
+    adult_verification_provider: Optional[str] = Field(default=None)
+    adult_verification_tx_id: Optional[str] = Field(default=None, index=True)
+    adult_verification_fail_count: int = Field(default=0)
+    adult_verification_locked_until: Optional[datetime] = None
     gender: Optional[str] = Field(default=None, index=True)
     age_band: Optional[str] = Field(default=None, index=True)
     region_code: Optional[str] = Field(default=None, index=True)

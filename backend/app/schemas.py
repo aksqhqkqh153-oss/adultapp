@@ -116,6 +116,46 @@ class DeviceSessionRevokeRequest(BaseModel):
     session_id: int
 
 
+
+
+class ConsentItem(BaseModel):
+    consent_type: str
+    agreed: bool
+    is_required: bool = True
+    version: str = "v1"
+
+
+class SignupRequest(BaseModel):
+    email: str
+    password: str
+    name: str
+    login_provider: str = "email"
+    identity_verification_token: str
+    identity_verification_method: str = "PASS"
+    adult_verification_status: str = "pending"
+    consents: list[ConsentItem]
+
+
+class IdentityVerificationStartRequest(BaseModel):
+    provider: str = "PASS"
+
+
+class IdentityVerificationConfirmRequest(BaseModel):
+    email: Optional[str] = None
+    name: Optional[str] = None
+    provider: str = "PASS"
+    tx_id: str
+    verification_code: str
+
+
+class AdultVerificationStartRequest(BaseModel):
+    provider: str = "PASS"
+
+
+class AdultVerificationConfirmRequest(BaseModel):
+    tx_id: str
+    verification_code: str
+
 class ProductUpsertRequest(BaseModel):
     id: Optional[int] = None
     seller_id: int = 2
