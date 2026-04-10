@@ -32,6 +32,13 @@ SQLITE_MIGRATIONS = {
         ("false_report_count", "ALTER TABLE user ADD COLUMN false_report_count INTEGER DEFAULT 0"),
         ("false_report_score", "ALTER TABLE user ADD COLUMN false_report_score INTEGER DEFAULT 0"),
         ("random_chat_cooldown_until", "ALTER TABLE user ADD COLUMN random_chat_cooldown_until DATETIME"),
+        ("identity_verified", "ALTER TABLE user ADD COLUMN identity_verified BOOLEAN DEFAULT 0"),
+        ("login_provider", "ALTER TABLE user ADD COLUMN login_provider VARCHAR"),
+        ("identity_verification_method", "ALTER TABLE user ADD COLUMN identity_verification_method VARCHAR"),
+        ("identity_verification_token", "ALTER TABLE user ADD COLUMN identity_verification_token VARCHAR"),
+        ("identity_verified_at", "ALTER TABLE user ADD COLUMN identity_verified_at DATETIME"),
+        ("adult_verified_at", "ALTER TABLE user ADD COLUMN adult_verified_at DATETIME"),
+        ("adult_verification_status", "ALTER TABLE user ADD COLUMN adult_verification_status VARCHAR DEFAULT 'pending'"),
     ],
     "randomchatrule": [
         ("age_match_mode", "ALTER TABLE randomchatrule ADD COLUMN age_match_mode VARCHAR DEFAULT 'exact_then_adjacent'"),

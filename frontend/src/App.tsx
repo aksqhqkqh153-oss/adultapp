@@ -189,6 +189,12 @@ const randomGenderOptions = ["무관", "남", "여", "기타"] as const;
 const randomRegionOptions = ["무관", "같은 지역 우선", "거리기반"] as const;
 const randomEntryTabs = ["시작", "목록"] as const;
 const adminModeTabs = ["DB관리", "신고", "채팅", "기타"] as const;
+const consentVersionMap = { terms: "terms_v1", privacy: "privacy_v1", adultNotice: "adult_notice_v1", identityNotice: "identity_notice_v1", marketing: "marketing_v1", profileOptional: "profile_optional_v1" } as const;
+const requiredConsentKeys: ConsentKey[] = ["terms", "privacy", "adultNotice", "identityNotice"];
+const profileGenderOptions = ["", "남성", "여성", "기타", "응답 안 함"] as const;
+const profileAgeBandOptions = ["", "20대", "30대", "40대", "50대", "60대+"] as const;
+const profileRegionOptions = ["", "서울", "경기", "인천", "강원", "충청", "전라", "경상", "제주"] as const;
+const interestCategoryOptions = ["뷰티", "케어", "건강", "커뮤니티", "브랜드", "이벤트"] as const;
 
 
 type MobileTab = (typeof mobileTabs)[number];
@@ -209,6 +215,12 @@ type AdminModeTab = (typeof adminModeTabs)[number];
 type OverlayMode = "search" | "settings" | null;
 type DemoLoginProvider = "PASS" | "휴대폰" | "카카오";
 type AdultGateView = "intro" | "success" | "failed" | "minor";
+type SignupStep = "consent" | "account" | "profile";
+type LoginMethod = "이메일" | "카카오";
+type ConsentKey = "terms" | "privacy" | "adultNotice" | "identityNotice" | "marketing" | "profileOptional";
+type SignupConsentState = Record<ConsentKey, boolean>;
+type SignupFormState = { email: string; password: string; displayName: string; loginMethod: LoginMethod; };
+type DemoProfileState = { gender: string; ageBand: string; regionCode: string; interests: string[]; marketingOptIn: boolean; };
 
 type HtmlInspectorInfo = {
   selector: string;
@@ -239,8 +251,8 @@ function SearchIcon() {
 function SettingsIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M12 3.2l1.64 1.03 1.92-.25 1.17 1.55 1.85.58.26 1.92 1.55 1.17-.25 1.92L20.8 12l1.03 1.64-.25 1.92-1.55 1.17-.26 1.92-1.85.58-1.17 1.55-1.92-.25L12 20.8l-1.64 1.03-1.92-.25-1.17-1.55-1.85-.58-.26-1.92-1.55-1.17.25-1.92L3.2 12 2.17 10.36l.25-1.92 1.55-1.17.26-1.92 1.85-.58 1.17-1.55 1.92.25L12 3.2Z" fill="none" stroke="currentColor" strokeWidth="1.95" strokeLinejoin="round" />
-      <circle cx="12" cy="12" r="3.25" fill="none" stroke="currentColor" strokeWidth="2.1" />
+      <path d="M12 2.8 13.4 4.4 15.55 4.05 16.6 5.85 18.75 6.45 18.95 8.6 20.5 10 19.95 12 20.5 14 18.95 15.4 18.75 17.55 16.6 18.15 15.55 19.95 13.4 19.6 12 21.2 10.6 19.6 8.45 19.95 7.4 18.15 5.25 17.55 5.05 15.4 3.5 14 4.05 12 3.5 10 5.05 8.6 5.25 6.45 7.4 5.85 8.45 4.05 10.6 4.4 12 2.8Z" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" />
+      <circle cx="12" cy="12" r="3.35" fill="none" stroke="currentColor" strokeWidth="2.2" />
     </svg>
   );
 }
@@ -923,6 +935,33 @@ export default function App() {
     return Number(window.localStorage.getItem("adultapp_adult_cooldown_until") ?? "0");
   });
   const [adultPromptOpen, setAdultPromptOpen] = useState(false);
+  const [signupStep, setSignupStep] = useState<SignupStep>("consent");
+  const [identityMethod, setIdentityMethod] = useState<"PASS" | "휴대폰" | "미완료">(() => {
+    if (typeof window === "undefined") return "미완료";
+    return (window.localStorage.getItem("adultapp_identity_method") as "PASS" | "휴대폰" | "미완료" | null) ?? "미완료";
+  });
+  const [identityVerificationToken, setIdentityVerificationToken] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return window.localStorage.getItem("adultapp_identity_token") ?? "";
+  });
+  const [signupConsents, setSignupConsents] = useState<SignupConsentState>(() => {
+    if (typeof window === "undefined") return { terms: false, privacy: false, adultNotice: false, identityNotice: false, marketing: false, profileOptional: false };
+    const raw = window.localStorage.getItem("adultapp_signup_consents");
+    if (!raw) return { terms: false, privacy: false, adultNotice: false, identityNotice: false, marketing: false, profileOptional: false };
+    try { return { terms: false, privacy: false, adultNotice: false, identityNotice: false, marketing: false, profileOptional: false, ...JSON.parse(raw) }; } catch { return { terms: false, privacy: false, adultNotice: false, identityNotice: false, marketing: false, profileOptional: false }; }
+  });
+  const [signupForm, setSignupForm] = useState<SignupFormState>(() => {
+    if (typeof window === "undefined") return { email: "", password: "", displayName: "", loginMethod: "이메일" };
+    const raw = window.localStorage.getItem("adultapp_signup_form");
+    if (!raw) return { email: "", password: "", displayName: "", loginMethod: "이메일" };
+    try { return { email: "", password: "", displayName: "", loginMethod: "이메일", ...JSON.parse(raw) }; } catch { return { email: "", password: "", displayName: "", loginMethod: "이메일" }; }
+  });
+  const [demoProfile, setDemoProfile] = useState<DemoProfileState>(() => {
+    if (typeof window === "undefined") return { gender: "", ageBand: "", regionCode: "", interests: [], marketingOptIn: false };
+    const raw = window.localStorage.getItem("adultapp_demo_profile");
+    if (!raw) return { gender: "", ageBand: "", regionCode: "", interests: [], marketingOptIn: false };
+    try { return { gender: "", ageBand: "", regionCode: "", interests: [], marketingOptIn: false, ...JSON.parse(raw) }; } catch { return { gender: "", ageBand: "", regionCode: "", interests: [], marketingOptIn: false }; }
+  });
 
   const isAdmin = ["ADMIN", "1", "GRADE_1"].includes(currentUserRole);
 
@@ -976,6 +1015,31 @@ export default function App() {
     if (typeof window === "undefined") return;
     window.localStorage.setItem("adultapp_adult_cooldown_until", String(adultCooldownUntil));
   }, [adultCooldownUntil]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_identity_method", identityMethod);
+  }, [identityMethod]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_identity_token", identityVerificationToken);
+  }, [identityVerificationToken]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_signup_consents", JSON.stringify(signupConsents));
+  }, [signupConsents]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_signup_form", JSON.stringify(signupForm));
+  }, [signupForm]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_demo_profile", JSON.stringify(demoProfile));
+  }, [demoProfile]);
 
   useEffect(() => {
     setRandomRooms((prev) => prev.map((room) => {
@@ -1113,24 +1177,73 @@ export default function App() {
   const requiresAdultGate = !isAdmin && !adultVerified && ["홈", "쇼핑"].includes(activeTab);
   const showAppTabContent = showBaseTabContent && !blockedByIdentity && !requiresAdultGate;
   const adultCooldownRemainMinutes = adultCooldownUntil > Date.now() ? Math.ceil((adultCooldownUntil - Date.now()) / 60000) : 0;
+  const requiredConsentAccepted = requiredConsentKeys.every((key) => signupConsents[key]);
+  const signupAccountValid = Boolean(signupForm.email.trim() && signupForm.password.trim() && signupForm.displayName.trim() && identityVerified && identityVerificationToken);
+  const randomProfileMissing = [!demoProfile.gender ? "성별" : null, !demoProfile.ageBand ? "연령대" : null, !demoProfile.regionCode ? "지역" : null].filter(Boolean) as string[];
+  const randomProfileReady = randomProfileMissing.length === 0;
+  const consentRecordsPreview = [
+    { consent_type: "terms_of_service", agreed: signupConsents.terms, required: true, version: consentVersionMap.terms },
+    { consent_type: "privacy_policy", agreed: signupConsents.privacy, required: true, version: consentVersionMap.privacy },
+    { consent_type: "adult_service_notice", agreed: signupConsents.adultNotice, required: true, version: consentVersionMap.adultNotice },
+    { consent_type: "identity_notice", agreed: signupConsents.identityNotice, required: true, version: consentVersionMap.identityNotice },
+    { consent_type: "marketing_opt_in", agreed: signupConsents.marketing, required: false, version: consentVersionMap.marketing },
+    { consent_type: "profile_optional_opt_in", agreed: signupConsents.profileOptional, required: false, version: consentVersionMap.profileOptional },
+  ];
 
   const startIdentitySignup = (provider: DemoLoginProvider) => {
-    setDemoLoginProvider(provider);
+    if (provider === "카카오") {
+      setDemoLoginProvider("카카오");
+      return;
+    }
+    setIdentityMethod(provider);
     setIdentityVerified(true);
+    setIdentityVerificationToken(`iv_${provider}_${Date.now()}`);
     setAdultGateView("intro");
     if (["홈", "쇼핑"].includes(activeTab)) {
       setAdultPromptOpen(true);
     }
   };
 
+  const advanceSignupStep = () => {
+    if (signupStep === "consent") {
+      if (!requiredConsentAccepted) return;
+      setSignupStep("account");
+      return;
+    }
+    if (signupStep === "account") {
+      if (!signupAccountValid) return;
+      setSignupStep("profile");
+    }
+  };
+
+  const completeSignupFlow = (skipOptional = false) => {
+    if (!requiredConsentAccepted || !signupAccountValid) return;
+    setIdentityVerified(true);
+    setDemoLoginProvider(signupForm.loginMethod === "카카오" ? "카카오" : identityMethod === "미완료" ? "휴대폰" : identityMethod);
+    setAdultGateView("intro");
+    if (skipOptional) {
+      setDemoProfile((prev) => ({ ...prev, marketingOptIn: signupConsents.marketing }));
+    }
+  };
+
+  const toggleInterestCategory = (category: string) => {
+    setDemoProfile((prev) => ({
+      ...prev,
+      interests: prev.interests.includes(category) ? prev.interests.filter((item) => item !== category) : [...prev.interests, category],
+    }));
+  };
+
   const resetAdultFlow = () => {
     setDemoLoginProvider("카카오");
+    setIdentityMethod("미완료");
     setIdentityVerified(false);
+    setIdentityVerificationToken("");
     setAdultVerified(false);
     setAdultFailCount(0);
     setAdultCooldownUntil(0);
     setAdultGateView("intro");
     setAdultPromptOpen(false);
+    setSignupStep("consent");
   };
 
   const attemptAdultVerification = (mode: "success" | "fail" | "minor") => {
@@ -1503,18 +1616,91 @@ export default function App() {
           <section className="tab-pane fill-pane auth-gate-pane">
             <div className="auth-gate-card stack-gap compact-scroll-list">
               <div className="section-head compact-head">
-                <div><h2>로그인 / 본인확인 필요</h2><p>미인증 경로로 접근한 계정은 로그인 화면으로 되돌리고, PASS 또는 휴대폰 본인확인 완료 후 가입/로그인 상태를 유지하도록 설계하는 것이 적합합니다.</p></div>
+                <div><h2>회원가입 / 본인확인</h2><p>필수 동의 → 가입 정보 입력 → 선택 프로필 입력 순서로 구성했습니다. 선택 동의 미체크만으로는 회원가입을 막지 않고, 필수 항목만 모두 충족되면 다음 단계로 진행됩니다.</p></div>
               </div>
-              <div className="legacy-grid three auth-option-grid">
-                <div className="legacy-box compact"><h3>PASS 인증 후 가입</h3><p>가입 전 본인 명의 휴대폰 기준 인증을 마친 뒤 계정을 생성하는 기본안입니다.</p><button type="button" onClick={() => startIdentitySignup("PASS")}>PASS 인증 후 가입 상태로 전환</button></div>
-                <div className="legacy-box compact"><h3>휴대폰 인증 후 가입</h3><p>문자/앱 기반 본인확인 완료 후 회원가입을 진행하는 대체안입니다.</p><button type="button" onClick={() => startIdentitySignup("휴대폰")}>휴대폰 인증 후 가입 상태로 전환</button></div>
-                <div className="legacy-box compact"><h3>카카오 로그인</h3><p>카카오 로그인 자체는 편의 로그인용으로 사용하고, 성인인증은 별도 PASS/휴대폰 본인확인을 추가하는 구조를 권장합니다.</p><button type="button" onClick={() => startIdentitySignup("카카오")}>카카오 로그인 상태로 전환</button></div>
+              <div className="signup-step-strip">
+                {[
+                  ["consent", "1단계 법정 문서 확인"],
+                  ["account", "2단계 가입 입력"],
+                  ["profile", "3단계 선택 정보 입력"],
+                ].map(([step, label]) => (
+                  <button key={step} type="button" className={`signup-step-btn ${signupStep === step ? "active" : ""}`} onClick={() => {
+                    if (step === "consent") { setSignupStep("consent"); return; }
+                    if (step === "account" && requiredConsentAccepted) { setSignupStep("account"); return; }
+                    if (step === "profile" && signupAccountValid) { setSignupStep("profile"); }
+                  }}>{label}</button>
+                ))}
               </div>
-              <div className="legacy-box compact auth-summary-box">
-                <h3>현재 데모 정책</h3>
-                <p>로그인 제공방식: {demoLoginProvider} · 가입 전 본인확인: {identityVerified ? "완료" : "미완료"} · 성인인증: {adultVerified ? "완료" : "미완료"}</p>
-                <p>불법경로 또는 미인증 계정 로그인 성공 시에는 다시 로그인/본인확인 단계로 보내는 정책을 권장합니다. 관리자 계정은 예외 처리합니다.</p>
-              </div>
+              {signupStep === "consent" ? (
+                <div className="stack-gap">
+                  <div className="legacy-box compact signup-legal-copy">
+                    <h3>개인정보 수집·이용 안내</h3>
+                    <p>수집·이용 목적 : 회원 식별, 로그인, 본인확인, 성인인증, 고객지원</p>
+                    <p>수집 항목 : 이메일, 비밀번호, 이름, 본인확인 결과값</p>
+                    <p>보유 및 이용 기간 : 법령상 보존기간까지</p>
+                    <p>동의 거부권 및 불이익 : 필수 항목 미동의 시 회원가입이 제한될 수 있음</p>
+                  </div>
+                  <div className="consent-checklist">
+                    <label className={`consent-row ${signupConsents.terms ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.terms} onChange={(e) => setSignupConsents((prev) => ({ ...prev, terms: e.target.checked }))} /><span>[필수] 이용약관 확인</span></label>
+                    <label className={`consent-row ${signupConsents.privacy ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.privacy} onChange={(e) => setSignupConsents((prev) => ({ ...prev, privacy: e.target.checked }))} /><span>[필수] 개인정보 처리방침 확인</span></label>
+                    <label className={`consent-row ${signupConsents.adultNotice ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.adultNotice} onChange={(e) => setSignupConsents((prev) => ({ ...prev, adultNotice: e.target.checked }))} /><span>[필수] 만 19세 이상 및 성인 서비스 이용 고지 확인</span></label>
+                    <label className={`consent-row ${signupConsents.identityNotice ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.identityNotice} onChange={(e) => setSignupConsents((prev) => ({ ...prev, identityNotice: e.target.checked }))} /><span>[필수] 본인확인/성인인증 결과 처리 안내 확인</span></label>
+                    <label className={`consent-row ${signupConsents.marketing ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.marketing} onChange={(e) => setSignupConsents((prev) => ({ ...prev, marketing: e.target.checked }))} /><span>[선택] 마케팅 정보 수신 동의</span></label>
+                    <label className={`consent-row ${signupConsents.profileOptional ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.profileOptional} onChange={(e) => setSignupConsents((prev) => ({ ...prev, profileOptional: e.target.checked }))} /><span>[선택] 맞춤 추천을 위한 프로필 정보 수집 동의</span></label>
+                  </div>
+                  <div className="copy-action-row">
+                    <button type="button" onClick={advanceSignupStep} disabled={!requiredConsentAccepted}>다음</button>
+                    <button type="button" className="ghost-btn" onClick={() => setSignupConsents((prev) => ({ ...prev, marketing: false, profileOptional: false }))}>선택 동의만 해제</button>
+                  </div>
+                </div>
+              ) : null}
+              {signupStep === "account" ? (
+                <div className="stack-gap">
+                  <div className="signup-form-grid">
+                    <label><span>로그인 수단</span><select value={signupForm.loginMethod} onChange={(e) => setSignupForm((prev) => ({ ...prev, loginMethod: e.target.value as LoginMethod }))}><option value="이메일">이메일</option><option value="카카오">카카오</option></select></label>
+                    <label><span>이메일</span><input value={signupForm.email} onChange={(e) => setSignupForm((prev) => ({ ...prev, email: e.target.value }))} placeholder="you@example.com" /></label>
+                    <label><span>비밀번호</span><input type="password" value={signupForm.password} onChange={(e) => setSignupForm((prev) => ({ ...prev, password: e.target.value }))} placeholder="비밀번호 입력" /></label>
+                    <label><span>표시 이름</span><input value={signupForm.displayName} onChange={(e) => setSignupForm((prev) => ({ ...prev, displayName: e.target.value }))} placeholder="앱에서 보일 이름" /></label>
+                    <label className="wide"><span>휴대폰 본인확인 결과 토큰</span><input value={identityVerificationToken} readOnly placeholder="PASS 또는 휴대폰 인증 완료 시 자동 입력" /></label>
+                    <label><span>성인인증 상태</span><input value={adultVerified ? "완료" : "가입 후 홈/쇼핑 진입 시 1회 추가 인증"} readOnly /></label>
+                  </div>
+                  <div className="legacy-grid three auth-option-grid">
+                    <div className="legacy-box compact"><h3>PASS 인증</h3><p>본인 명의 휴대폰 기준 인증을 완료하고 회원가입 토큰을 발급합니다.</p><button type="button" onClick={() => startIdentitySignup("PASS")}>PASS 인증 완료 처리</button></div>
+                    <div className="legacy-box compact"><h3>휴대폰 인증</h3><p>문자/앱 기반 본인확인 결과를 받아 가입 상태를 이어갑니다.</p><button type="button" onClick={() => startIdentitySignup("휴대폰")}>휴대폰 인증 완료 처리</button></div>
+                    <div className="legacy-box compact"><h3>카카오 로그인</h3><p>카카오 로그인 자체는 로그인 편의 수단으로만 보고, 본인확인 결과 토큰은 별도로 저장합니다.</p><button type="button" className="ghost-btn" onClick={() => setDemoLoginProvider("카카오")}>카카오 로그인 방식 선택</button></div>
+                  </div>
+                  <div className="legacy-box compact auth-summary-box">
+                    <h3>가입 입력 점검</h3>
+                    <p>로그인 수단: {signupForm.loginMethod} · 가입 전 본인확인: {identityVerified ? `${identityMethod} 완료` : "미완료"} · 추가 성인인증: {adultVerified ? "완료" : "추가 필요"}</p>
+                    <p>필수 동의만 모두 체크되어 있으면 선택 동의 미체크와 무관하게 진행할 수 있습니다.</p>
+                  </div>
+                  <div className="copy-action-row">
+                    <button type="button" className="ghost-btn" onClick={() => setSignupStep("consent")}>이전</button>
+                    <button type="button" onClick={advanceSignupStep} disabled={!signupAccountValid}>다음</button>
+                  </div>
+                </div>
+              ) : null}
+              {signupStep === "profile" ? (
+                <div className="stack-gap">
+                  <div className="legacy-box compact signup-optional-note">
+                    <h3>선택 정보 입력</h3>
+                    <p>이 단계는 건너뛸 수 있습니다. 다만 성별, 연령대, 지역을 입력하지 않으면 앱 내 전체 기능, 특히 추천/탐색/랜덤채팅 사용에 불편함과 어려움이 있을 수 있습니다.</p>
+                    <p>랜덤채팅 기능은 성별, 연령대, 지역 입력이 모두 완료되어야 사용할 수 있도록 설정했습니다.</p>
+                  </div>
+                  <div className="signup-form-grid">
+                    <label><span>성별</span><select value={demoProfile.gender} onChange={(e) => setDemoProfile((prev) => ({ ...prev, gender: e.target.value }))}>{profileGenderOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
+                    <label><span>연령대</span><select value={demoProfile.ageBand} onChange={(e) => setDemoProfile((prev) => ({ ...prev, ageBand: e.target.value }))}>{profileAgeBandOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
+                    <label><span>지역</span><select value={demoProfile.regionCode} onChange={(e) => setDemoProfile((prev) => ({ ...prev, regionCode: e.target.value }))}>{profileRegionOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
+                    <label className="wide"><span>관심 카테고리</span><div className="chip-checklist">{interestCategoryOptions.map((item) => <button key={item} type="button" className={`chip-check ${demoProfile.interests.includes(item) ? "active" : ""}`} onClick={() => toggleInterestCategory(item)}>{item}</button>)}</div></label>
+                    <label className="wide consent-row inline"><input type="checkbox" checked={demoProfile.marketingOptIn || signupConsents.marketing} onChange={(e) => { setDemoProfile((prev) => ({ ...prev, marketingOptIn: e.target.checked })); setSignupConsents((prev) => ({ ...prev, marketing: e.target.checked })); }} /><span>마케팅 수신 설정 반영</span></label>
+                  </div>
+                  <div className="copy-action-row">
+                    <button type="button" className="ghost-btn" onClick={() => setSignupStep("account")}>이전</button>
+                    <button type="button" className="ghost-btn" onClick={() => completeSignupFlow(true)}>건너뛰고 가입 완료</button>
+                    <button type="button" onClick={() => completeSignupFlow(false)}>저장 후 가입 완료</button>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </section>
         ) : null}
@@ -1671,6 +1857,7 @@ export default function App() {
         {showAppTabContent && activeTab === "채팅" ? (
           <section className="tab-pane fill-pane">
             {chatTab === "랜덤" ? (
+              randomProfileReady ? (
               <div className="random-match-pane">
                 <div className="chat-category-strip">
                   <div className="chat-category-bar">
@@ -1787,6 +1974,17 @@ export default function App() {
                   </div>
                 )}
               </div>
+                          ) : (
+                <div className="legacy-box compact random-profile-gate">
+                  <h3>랜덤채팅 사용 전 프로필 입력 필요</h3>
+                  <p>랜덤채팅 기능은 본인의 성별, 연령대, 지역 입력이 모두 완료되어야 사용할 수 있습니다.</p>
+                  <p>현재 미입력 항목: {randomProfileMissing.join(", ")}</p>
+                  <div className="copy-action-row">
+                    <button type="button" onClick={() => setActiveTab("프로필")}>프로필로 이동</button>
+                    <button type="button" className="ghost-btn" onClick={() => setChatTab("채팅")}>일반 채팅 보기</button>
+                  </div>
+                </div>
+              )
             ) : chatTab === "질문" ? (
               <div className="question-board compact-scroll-list">
                 <div className="section-head compact-head"><div><h2>질문</h2><p>historyprofile 질문 화면 흐름을 참고한 카드형 질문/답변 화면입니다.</p></div></div>
@@ -1908,7 +2106,7 @@ export default function App() {
           </section>
         ) : null}
 
-        {showAppTabContent && activeTab === "프로필" ? (
+                {showAppTabContent && activeTab === "프로필" ? (
           <section className="tab-pane fill-pane">
             <div className="profile-shell compact-scroll-list profile-shell-single">
               <div className="profile-card">
@@ -1922,23 +2120,44 @@ export default function App() {
                 </div>
               </div>
               <div className="profile-card auth-status-card">
-                <strong>성인인증 구현 상태</strong>
-                <span>로그인 수단: {demoLoginProvider} · 가입 전 본인확인: {identityVerified ? "완료" : "미완료"} · 성인인증: {adultVerified ? "완료" : "미완료"}</span>
+                <strong>회원가입 / 인증 상태</strong>
+                <span>로그인 수단: {demoLoginProvider} · 가입 전 본인확인: {identityVerified ? `${identityMethod} 완료` : "미완료"} · 성인인증: {adultVerified ? "완료" : "미완료"}</span>
                 <div className="profile-stats">
                   <div><b>{adultFailCount}</b><span>실패횟수</span></div>
                   <div><b>{adultCooldownRemainMinutes > 0 ? `${adultCooldownRemainMinutes}분` : "없음"}</b><span>쿨타임</span></div>
-                  <div><b>{isAdmin ? "예외" : "일반"}</b><span>정책대상</span></div>
+                  <div><b>{randomProfileReady ? "완료" : "보완필요"}</b><span>랜덤채팅 프로필</span></div>
                 </div>
                 <div className="copy-action-row">
-                  <button type="button" className="ghost-btn" onClick={() => startIdentitySignup("PASS")}>PASS 가입상태</button>
-                  <button type="button" className="ghost-btn" onClick={() => startIdentitySignup("카카오")}>카카오 로그인</button>
+                  <button type="button" className="ghost-btn" onClick={() => startIdentitySignup("PASS")}>PASS 인증</button>
+                  <button type="button" className="ghost-btn" onClick={() => setDemoLoginProvider("카카오")}>카카오 로그인</button>
                   <button type="button" onClick={() => attemptAdultVerification("success")}>성인인증 성공</button>
                   <button type="button" className="ghost-btn" onClick={resetAdultFlow}>상태 초기화</button>
+                </div>
+              </div>
+              <div className="profile-card auth-status-card">
+                <strong>선택 프로필 / 랜덤채팅 필수값</strong>
+                <span>성별, 연령대, 지역은 일반 가입 단계에서는 선택 입력이지만, 랜덤채팅 기능 사용 시에는 필수로 검사합니다.</span>
+                <div className="signup-form-grid profile-edit-grid">
+                  <label><span>성별</span><select value={demoProfile.gender} onChange={(e) => setDemoProfile((prev) => ({ ...prev, gender: e.target.value }))}>{profileGenderOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
+                  <label><span>연령대</span><select value={demoProfile.ageBand} onChange={(e) => setDemoProfile((prev) => ({ ...prev, ageBand: e.target.value }))}>{profileAgeBandOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
+                  <label><span>지역</span><select value={demoProfile.regionCode} onChange={(e) => setDemoProfile((prev) => ({ ...prev, regionCode: e.target.value }))}>{profileRegionOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
+                  <label className="wide"><span>관심 카테고리</span><div className="chip-checklist">{interestCategoryOptions.map((item) => <button key={item} type="button" className={`chip-check ${demoProfile.interests.includes(item) ? "active" : ""}`} onClick={() => toggleInterestCategory(item)}>{item}</button>)}</div></label>
+                </div>
+                {!randomProfileReady ? <p>미입력 항목: {randomProfileMissing.join(", ")} · 미입력 시 랜덤채팅 기능은 사용할 수 없습니다.</p> : <p>랜덤채팅 필수 프로필 입력이 완료되었습니다.</p>}
+              </div>
+              <div className="profile-card auth-status-card">
+                <strong>동의 이력 저장 예시</strong>
+                <span>필수·선택 동의를 분리 저장하고, 약관/처리방침 버전을 함께 기록하는 구조를 권장합니다.</span>
+                <div className="consent-record-list">
+                  {consentRecordsPreview.map((item) => (
+                    <div key={item.consent_type} className="simple-list-row"><b>{item.consent_type}</b><span>{item.agreed ? "동의" : "미동의"} · {item.required ? "필수" : "선택"} · {item.version}</span></div>
+                  ))}
                 </div>
               </div>
             </div>
           </section>
         ) : null}
+
       </main>
 
       {inspectedElement ? (

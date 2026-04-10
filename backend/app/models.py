@@ -55,6 +55,13 @@ class User(SQLModel, table=True):
     password_hash: str = Field(default="")
     grade: MemberGrade = Field(default=MemberGrade.GENERAL)
     adult_verified: bool = Field(default=False)
+    identity_verified: bool = Field(default=False)
+    login_provider: Optional[str] = Field(default=None, index=True)
+    identity_verification_method: Optional[str] = Field(default=None)
+    identity_verification_token: Optional[str] = Field(default=None)
+    identity_verified_at: Optional[datetime] = None
+    adult_verified_at: Optional[datetime] = None
+    adult_verification_status: str = Field(default="pending")
     gender: Optional[str] = Field(default=None, index=True)
     age_band: Optional[str] = Field(default=None, index=True)
     region_code: Optional[str] = Field(default=None, index=True)
@@ -74,6 +81,18 @@ class User(SQLModel, table=True):
     false_report_count: int = Field(default=0)
     false_report_score: int = Field(default=0)
     random_chat_cooldown_until: Optional[datetime] = None
+
+
+class ConsentRecord(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(index=True)
+    consent_type: str = Field(index=True)
+    is_required: bool = Field(default=True)
+    agreed: bool = Field(default=False)
+    version: str = Field(default="v1")
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+    agreed_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class RefreshToken(SQLModel, table=True):

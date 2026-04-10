@@ -311,3 +311,37 @@ class DirectMessageDeleteRequest(BaseModel):
 class RandomThreadEndRequest(BaseModel):
     reason_code: str = "user_end"
 
+
+
+class ConsentItem(BaseModel):
+    consent_type: str
+    agreed: bool
+    is_required: bool = True
+    version: str = "v1"
+
+
+class SignupConsentStatus(BaseModel):
+    terms_version: str = "terms_v1"
+    privacy_version: str = "privacy_v1"
+    adult_notice_version: str = "adult_notice_v1"
+    identity_notice_version: str = "identity_notice_v1"
+    reconsent_required: bool = False
+
+
+class SignupProfilePayload(BaseModel):
+    gender: Optional[str] = None
+    age_band: Optional[str] = None
+    region_code: Optional[str] = None
+    interests: list[str] = []
+    marketing_opt_in: bool = False
+
+
+class SignupRequest(BaseModel):
+    email: str
+    password: str
+    display_name: str
+    login_provider: str = "이메일"
+    identity_verification_token: str
+    identity_verification_method: str = "PASS"
+    consents: list[ConsentItem]
+    profile: Optional[SignupProfilePayload] = None
