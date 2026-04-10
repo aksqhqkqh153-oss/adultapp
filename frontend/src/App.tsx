@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { getJson } from "./lib/api";
 
 type FeedItem = {
@@ -183,7 +183,7 @@ const chatTabs = ["채팅", "랜덤", "질문"] as const;
 const profileTabs = ["내정보"] as const;
 const settingsCategories = ["일반", "계정", "알림", "보안", "배포", "운영", "관리자모드", "DB관리", "신고", "채팅", "기타", "HTML요소"] as const;
 const randomRoomCategories = ["전체", "고민/상담", "정보공유", "일상대화", "취미/관심사", "자유주제"] as const;
-const chatCategories = ["전체", "즐겨찾기", "개인", "단체"] as const;
+const chatCategories = ["전체", "즐겨찾기", "개인", "단체", "쇼핑"] as const;
 const oneToOneRandomCategories = ["고민상담", "자유수다", "아무말대잔치", "도파민수다"] as const;
 const randomGenderOptions = ["무관", "남", "여", "기타"] as const;
 const randomRegionOptions = ["무관", "같은 지역 우선", "거리기반"] as const;
@@ -216,6 +216,7 @@ type HtmlInspectorInfo = {
   text: string;
   html: string;
   cssText: string;
+  modalStyle?: CSSProperties;
 };
 
 type HeaderNavItem = {
@@ -236,9 +237,8 @@ function SearchIcon() {
 function SettingsIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M12 2.8v2.3M12 18.9v2.3M21.2 12h-2.3M5.1 12H2.8M18.5 5.5l-1.6 1.6M7.1 16.9l-1.6 1.6M18.5 18.5l-1.6-1.6M7.1 7.1L5.5 5.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-      <circle cx="12" cy="12" r="7.1" fill="none" stroke="currentColor" strokeWidth="1.4" opacity="0.95" />
+      <path d="M9.6 3.2h4.8l.7 2.1 2.1.9 1.9-1.1 3.4 3.4-1.1 1.9.9 2.1 2.1.7v4.8l-2.1.7-.9 2.1 1.1 1.9-3.4 3.4-1.9-1.1-2.1.9-.7 2.1H9.6l-.7-2.1-2.1-.9-1.9 1.1-3.4-3.4 1.1-1.9-.9-2.1-2.1-.7v-4.8l2.1-.7.9-2.1-1.1-1.9 3.4-3.4 1.9 1.1 2.1-.9.7-2.1Z" fill="none" stroke="currentColor" strokeWidth="1.45" strokeLinejoin="round" />
+      <circle cx="12" cy="12" r="3.15" fill="none" stroke="currentColor" strokeWidth="1.7" />
     </svg>
   );
 }
@@ -662,6 +662,15 @@ function buildElementCssText(element: HTMLElement) {
   return cssKeys.map((key) => `  ${key}: ${computed.getPropertyValue(key)};`).join("\n");
 }
 
+function buildInspectorModalStyle(target: HTMLElement): CSSProperties {
+  const rect = target.getBoundingClientRect();
+  const width = Math.min(window.innerWidth - 24, 360);
+  const maxHeight = Math.max(220, Math.round(window.innerHeight * 0.4));
+  const left = Math.max(12, Math.min(rect.left, window.innerWidth - width - 12));
+  const top = Math.max(12, Math.min(rect.bottom + 10, window.innerHeight - maxHeight - 12));
+  return { left: `${left}px`, top: `${top}px`, width: `${width}px`, maxHeight: `${maxHeight}px` };
+}
+
 function SettingSection({ category, isAdmin, legacySection, setLegacySection, projectStatus, deployGuide, currentUserRole, adminModeTab, setAdminModeTab, adminDbManage, htmlInspectorEnabled, setHtmlInspectorEnabled }: {
   category: SettingsCategory;
   isAdmin: boolean;
@@ -842,7 +851,9 @@ export default function App() {
     return window.localStorage.getItem("adultapp_html_inspector_enabled") === "1";
   });
   const [inspectedElement, setInspectedElement] = useState<HtmlInspectorInfo | null>(null);
+  const inspectedTargetRef = useRef<HTMLElement | null>(null);
   const [globalKeyword, setGlobalKeyword] = useState("");
+  const [searchFilter, setSearchFilter] = useState("전체");
   const [homeTab, setHomeTab] = useState<HomeTab>("피드");
   const [shoppingTab, setShoppingTab] = useState<ShoppingTab>("목록");
   const [communityTab, setCommunityTab] = useState<CommunityTab>("커뮤");
@@ -910,6 +921,14 @@ export default function App() {
   }, [htmlInspectorEnabled]);
 
   useEffect(() => {
+    if (!htmlInspectorEnabled && inspectedTargetRef.current) {
+      inspectedTargetRef.current.classList.remove("html-inspector-target");
+      inspectedTargetRef.current = null;
+      setInspectedElement(null);
+    }
+  }, [htmlInspectorEnabled]);
+
+  useEffect(() => {
     setRandomRooms((prev) => prev.map((room) => {
       if (room.kind !== "random_1to1" || room.status === "ended" || !room.expiresAt) return room;
       if (room.expiresAt > randomNow) return room;
@@ -972,7 +991,8 @@ export default function App() {
       const categoryMatch = chatCategory === "전체"
         || (chatCategory === "즐겨찾기" && !!thread.favorite)
         || (chatCategory === "개인" && thread.kind === "개인")
-        || (chatCategory === "단체" && thread.kind === "단체");
+        || (chatCategory === "단체" && thread.kind === "단체")
+        || (chatCategory === "쇼핑" && /상품|판매자|구매자|주문|운영 문의/.test(`${thread.name} ${thread.purpose}`));
       const keywordMatch = !keyword || `${thread.name} ${thread.preview} ${thread.purpose}`.toLowerCase().includes(keyword);
       return categoryMatch && keywordMatch;
     });
@@ -995,8 +1015,52 @@ export default function App() {
   }, [globalKeyword, randomRoomCategory, randomRooms]);
 
   const homeProducts = useMemo(() => productsSeed.slice(0, 4), []);
+  const homeSearchResults = useMemo(() => {
+    const keyword = globalKeyword.trim().toLowerCase();
+    if (!keyword) return [];
+    return feedSeed.filter((item) => {
+      const source = `${item.title} ${item.caption} ${item.author} ${item.category}`.toLowerCase();
+      if (searchFilter === "피드") return `${item.title} ${item.caption}`.toLowerCase().includes(keyword);
+      if (searchFilter === "작성자") return item.author.toLowerCase().includes(keyword);
+      return source.includes(keyword);
+    });
+  }, [globalKeyword, searchFilter]);
+
+  const shopSearchResults = useMemo(() => {
+    const keyword = globalKeyword.trim().toLowerCase();
+    if (!keyword) return [];
+    return productsSeed.filter((item) => {
+      if (searchFilter === "상품명") return item.name.toLowerCase().includes(keyword);
+      if (searchFilter === "내용") return item.subtitle.toLowerCase().includes(keyword);
+      if (searchFilter === "카테고리") return item.category.toLowerCase().includes(keyword);
+      return `${item.name} ${item.subtitle} ${item.category}`.toLowerCase().includes(keyword);
+    });
+  }, [globalKeyword, searchFilter]);
+
+  const communitySearchResults = useMemo(() => {
+    const keyword = globalKeyword.trim().toLowerCase();
+    if (!keyword) return [];
+    return communitySeed.filter((item) => {
+      if (searchFilter === "제목") return item.title.toLowerCase().includes(keyword);
+      if (searchFilter === "내용") return item.summary.toLowerCase().includes(keyword);
+      if (searchFilter === "카테고리") return item.category.toLowerCase().includes(keyword);
+      return `${item.title} ${item.summary} ${item.category}`.toLowerCase().includes(keyword);
+    });
+  }, [globalKeyword, searchFilter]);
+
+  const chatSearchResults = useMemo(() => {
+    const keyword = globalKeyword.trim().toLowerCase();
+    if (!keyword) return [];
+    return threadSeed.filter((item) => {
+      if (searchFilter === "제목") return item.name.toLowerCase().includes(keyword);
+      if (searchFilter === "내용") return item.preview.toLowerCase().includes(keyword);
+      if (searchFilter === "유형") return `${item.kind} ${item.purpose}`.toLowerCase().includes(keyword);
+      return `${item.name} ${item.preview} ${item.purpose} ${item.kind}`.toLowerCase().includes(keyword);
+    });
+  }, [globalKeyword, searchFilter]);
+
   const currentScreenTitle = overlayMode === "search"
-    ? "검색"
+    ? `${activeTab}검색`
     : overlayMode === "settings"
       ? "설정"
       : activeTab;
@@ -1005,6 +1069,7 @@ export default function App() {
   const openOverlay = (mode: Exclude<OverlayMode, null>) => {
     setOverlayMode((prev) => (prev === mode ? null : mode));
     setRoomModalOpen(false);
+    if (mode === "search") setSearchFilter("전체");
   };
 
   useEffect(() => {
@@ -1016,6 +1081,11 @@ export default function App() {
       if (target.closest('.html-inspector-modal') || target.closest('.settings-category-nav')) return;
       event.preventDefault();
       event.stopPropagation();
+      if (inspectedTargetRef.current) {
+        inspectedTargetRef.current.classList.remove("html-inspector-target");
+      }
+      target.classList.add("html-inspector-target");
+      inspectedTargetRef.current = target;
       const textContent = (target.innerText || target.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 300);
       const html = target.outerHTML.slice(0, 5000);
       setInspectedElement({
@@ -1026,6 +1096,7 @@ export default function App() {
         text: textContent || '-',
         html,
         cssText: buildElementCssText(target),
+        modalStyle: buildInspectorModalStyle(target),
       });
     };
     document.addEventListener('click', handleCtrlClick, true);
@@ -1174,6 +1245,26 @@ export default function App() {
     if (tab !== "프로필") setProfileTab("내정보");
   };
 
+  const searchFilterOptions = activeTab === "홈"
+    ? ["전체", "피드", "작성자"]
+    : activeTab === "쇼핑"
+      ? ["전체", "상품명", "내용", "카테고리"]
+      : activeTab === "소통"
+        ? ["전체", "제목", "내용", "카테고리"]
+        : activeTab === "채팅"
+          ? ["전체", "제목", "내용", "유형"]
+          : ["전체", "아이디", "피드"];
+
+  const profileSearchResults = useMemo(() => {
+    const keyword = globalKeyword.trim().toLowerCase();
+    if (!keyword) return [];
+    return feedSeed.filter((item) => {
+      if (searchFilter === "아이디") return item.author.toLowerCase().includes(keyword);
+      if (searchFilter === "피드") return `${item.title} ${item.caption}`.toLowerCase().includes(keyword);
+      return `${item.author} ${item.title} ${item.caption}`.toLowerCase().includes(keyword);
+    });
+  }, [globalKeyword, searchFilter]);
+
   return (
     <div className="mobile-app-shell">
       <header className="top-header">
@@ -1210,9 +1301,55 @@ export default function App() {
             </div>
 
             {overlayMode === "search" ? (
-              <div className="overlay-body stack-gap">
-                <input value={globalKeyword} onChange={(e) => setGlobalKeyword(e.target.value)} placeholder="홈·쇼핑·소통·채팅 전체 검색" />
-                <button className="ghost-btn" onClick={() => setGlobalKeyword("")}>검색어 초기화</button>
+              <div className="overlay-body stack-gap contextual-search-pane">
+                <div className="search-toolbar-grid">
+                  <input value={globalKeyword} onChange={(e) => setGlobalKeyword(e.target.value)} placeholder={`${activeTab} 검색어 입력`} />
+                  <select value={searchFilter} onChange={(e) => setSearchFilter(e.target.value)}>
+                    {searchFilterOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+                  </select>
+                </div>
+                <div className="search-toolbar-actions">
+                  <button className="ghost-btn" onClick={() => setGlobalKeyword("")}>검색어 초기화</button>
+                </div>
+                <div className="context-search-results compact-scroll-list">
+                  {activeTab === "홈" ? homeSearchResults.map((item) => (
+                    <article key={item.id} className="legacy-box compact search-result-card">
+                      <div className="split-row"><strong>{item.title}</strong><span>{item.author}</span></div>
+                      <p>{item.caption}</p>
+                      <span className="community-meta">{item.category}</span>
+                    </article>
+                  )) : null}
+                  {activeTab === "쇼핑" ? shopSearchResults.map((item) => (
+                    <article key={item.id} className="legacy-box compact search-result-card">
+                      <div className="split-row"><strong>{item.name}</strong><span>{item.price}</span></div>
+                      <p>{item.subtitle}</p>
+                      <span className="community-meta">{item.category} · {item.badge}</span>
+                    </article>
+                  )) : null}
+                  {activeTab === "소통" ? communitySearchResults.map((item) => (
+                    <article key={item.id} className="legacy-box compact search-result-card">
+                      <div className="split-row"><strong>{item.title}</strong><span>{item.category}</span></div>
+                      <p>{item.summary}</p>
+                      <span className="community-meta">{item.meta}</span>
+                    </article>
+                  )) : null}
+                  {activeTab === "채팅" ? chatSearchResults.map((item) => (
+                    <article key={item.id} className="legacy-box compact search-result-card">
+                      <div className="split-row"><strong>{item.name}</strong><span>{item.kind}</span></div>
+                      <p>{item.preview}</p>
+                      <span className="community-meta">{item.purpose} · {item.time}</span>
+                    </article>
+                  )) : null}
+                  {activeTab === "프로필" ? profileSearchResults.map((item) => (
+                    <article key={item.id} className="legacy-box compact search-result-card">
+                      <div className="split-row"><strong>{item.author}</strong><span>{item.category}</span></div>
+                      <p>{item.title} · {item.caption}</p>
+                    </article>
+                  )) : null}
+                  {globalKeyword.trim() && ((activeTab === "홈" && homeSearchResults.length === 0) || (activeTab === "쇼핑" && shopSearchResults.length === 0) || (activeTab === "소통" && communitySearchResults.length === 0) || (activeTab === "채팅" && chatSearchResults.length === 0) || (activeTab === "프로필" && profileSearchResults.length === 0)) ? (
+                    <div className="legacy-box compact"><p>연관 검색 결과가 없습니다.</p></div>
+                  ) : null}
+                </div>
               </div>
             ) : null}
 
@@ -1624,8 +1761,7 @@ export default function App() {
 
         {showBaseTabContent && activeTab === "프로필" ? (
           <section className="tab-pane fill-pane">
-            <div className="section-head compact-head"><div><h2>프로필</h2><p>내정보와 활동 통계를 확인합니다.</p></div></div>
-            <div className="profile-shell compact-scroll-list">
+            <div className="profile-shell compact-scroll-list profile-shell-single">
               <div className="profile-card">
                 <div className="profile-avatar">A</div>
                 <strong>adult official</strong>
@@ -1636,20 +1772,16 @@ export default function App() {
                   ))}
                 </div>
               </div>
-              <div className="profile-columns">
-                <div className="legacy-box"><h3>내가 작성한 게시글</h3><ul>{communitySeed.slice(0, 3).map((post) => <li key={post.id}>{post.title}</li>)}</ul></div>
-                <div className="legacy-box"><h3>업로드한 상품</h3><ul>{productsSeed.slice(0, 3).map((product) => <li key={product.id}>{product.name}</li>)}</ul></div>
-              </div>
             </div>
           </section>
         ) : null}
       </main>
 
       {inspectedElement ? (
-        <section className="overlay-card html-inspector-modal">
+        <section className="overlay-card html-inspector-modal" style={inspectedElement.modalStyle}>
           <div className="overlay-head">
             <strong>HTML 요소 복사</strong>
-            <button className="ghost-btn" onClick={() => setInspectedElement(null)}>닫기</button>
+            <button className="ghost-btn" onClick={() => { if (inspectedTargetRef.current) { inspectedTargetRef.current.classList.remove("html-inspector-target"); inspectedTargetRef.current = null; } setInspectedElement(null); }}>닫기</button>
           </div>
           <div className="stack-gap html-inspector-body">
             <div className="legacy-box compact">
