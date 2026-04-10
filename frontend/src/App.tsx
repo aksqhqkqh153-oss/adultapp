@@ -224,6 +224,24 @@ type HeaderNavItem = {
   onClick?: () => void;
 };
 
+function SearchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" strokeWidth="1.9" />
+      <path d="M16 16L21 21" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function SettingsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M12 8.2a3.8 3.8 0 1 0 0 7.6a3.8 3.8 0 0 0 0-7.6Z" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M19.4 13.2a1 1 0 0 0 .2-1.2l-1-1.8a1 1 0 0 1 .1-.9l.2-.3a1 1 0 0 0-.1-1.3l-1.1-1.1a1 1 0 0 0-1.3-.1l-.3.2a1 1 0 0 1-.9.1l-1.8-1a1 1 0 0 0-1.2.2l-.2.3a1 1 0 0 1-.8.4h-1a1 1 0 0 1-.8-.4l-.2-.3a1 1 0 0 0-1.2-.2l-1.8 1a1 1 0 0 1-.9-.1l-.3-.2a1 1 0 0 0-1.3.1L5 7.6a1 1 0 0 0-.1 1.3l.2.3a1 1 0 0 1 .1.9l-1 1.8a1 1 0 0 0 .2 1.2l.3.2a1 1 0 0 1 .4.8v1a1 1 0 0 1-.4.8l-.3.2a1 1 0 0 0-.2 1.2l1 1.8a1 1 0 0 1-.1.9l-.2.3a1 1 0 0 0 .1 1.3l1.1 1.1a1 1 0 0 0 1.3.1l.3-.2a1 1 0 0 1 .9-.1l1.8 1a1 1 0 0 0 1.2-.2l.2-.3a1 1 0 0 1 .8-.4h1a1 1 0 0 1 .8.4l.2.3a1 1 0 0 0 1.2.2l1.8-1a1 1 0 0 1 .9.1l.3.2a1 1 0 0 0 1.3-.1l1.1-1.1a1 1 0 0 0 .1-1.3l-.2-.3a1 1 0 0 1-.1-.9l1-1.8a1 1 0 0 0-.2-1.2l-.3-.2a1 1 0 0 1-.4-.8v-1a1 1 0 0 1 .4-.8l.3-.2Z" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 const feedSeed: FeedItem[] = Array.from({ length: 18 }, (_, idx) => ({
   id: idx + 1,
   type: idx % 3 === 0 ? "video" : "image",
@@ -1122,6 +1140,7 @@ export default function App() {
   }, [activeTab, homeTab, shoppingTab, communityTab, chatTab, profileTab]);
 
   const settingsNavItems = useMemo<SettingsCategory[]>(() => settingsCategories.filter((item) => (["운영", "관리자모드", "DB관리", "신고", "채팅", "기타"].includes(item) ? isAdmin : true)), [isAdmin]);
+  const visibleHeaderNavItems = overlayMode === null ? headerNavItems : [];
 
   const selectBottomTab = (tab: MobileTab) => {
     setActiveTab(tab);
@@ -1148,22 +1167,26 @@ export default function App() {
     <div className="mobile-app-shell">
       <header className="top-header">
         <div className="topbar-row">
-          <div className="topbar-side topbar-left topbar-segment">
+          <div className={`topbar-side topbar-left topbar-segment ${overlayMode ? "topbar-segment-hidden" : ""}`}>
             <div className="topbar-inline-actions topbar-inline-actions-left">
-              {headerNavItems.map((item) => (
+              {visibleHeaderNavItems.map((item) => (
                 <button key={item.label} type="button" className={`header-inline-btn ${item.active ? "active" : ""}`} onClick={item.onClick} disabled={!item.onClick}>
                   {item.label}
                 </button>
               ))}
             </div>
           </div>
-          <div className="topbar-title-block topbar-segment">
+          <div className="topbar-title-block">
             <h1>{currentScreenTitle}</h1>
           </div>
-          <div className="topbar-side topbar-right topbar-segment">
+          <div className="topbar-side topbar-right">
             <div className="topbar-inline-actions topbar-inline-actions-right">
-              <button className={`header-inline-btn ${overlayMode === "search" ? "active" : ""}`} onClick={() => openOverlay("search")}>검색</button>
-              <button className={`header-inline-btn ${overlayMode === "settings" ? "active" : ""}`} onClick={() => openOverlay("settings")}>설정</button>
+              <button className={`header-inline-btn header-icon-btn ${overlayMode === "search" ? "active" : ""}`} onClick={() => openOverlay("search")} aria-label="검색">
+                <SearchIcon />
+              </button>
+              <button className={`header-inline-btn header-icon-btn ${overlayMode === "settings" ? "active" : ""}`} onClick={() => openOverlay("settings")} aria-label="설정">
+                <SettingsIcon />
+              </button>
             </div>
           </div>
         </div>
