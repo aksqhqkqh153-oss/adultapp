@@ -158,6 +158,14 @@ type LegalDocumentsResponse = {
   items: Record<string, LegalDocumentItem>;
   required_signup_consents: string[];
 };
+
+type AuthSummary = {
+  adult_verified?: boolean;
+  identity_verified?: boolean;
+  reconsent_required?: boolean;
+  consent_status?: { reconsent_required?: boolean };
+  random_chat_profile_ready?: boolean;
+};
 type AdminDbManage = {
   rule?: RandomRuleSnapshot;
   report?: {
@@ -696,13 +704,15 @@ function buildInspectorModalStyle(target: HTMLElement): CSSProperties {
   return { left: `${left}px`, top: `${top}px`, width: `${width}px`, maxHeight: `${maxHeight}px` };
 }
 
-function SettingSection({ category, isAdmin, legacySection, setLegacySection, projectStatus, deployGuide, currentUserRole, adminModeTab, setAdminModeTab, adminDbManage, htmlInspectorEnabled, setHtmlInspectorEnabled }: {
+function SettingSection({ category, isAdmin, legacySection, setLegacySection, projectStatus, deployGuide, legalDocuments, authSummary, currentUserRole, adminModeTab, setAdminModeTab, adminDbManage, htmlInspectorEnabled, setHtmlInspectorEnabled }: {
   category: SettingsCategory;
   isAdmin: boolean;
   legacySection: LegacyTab;
   setLegacySection: (section: LegacyTab) => void;
   projectStatus: ProjectStatus | null;
   deployGuide: DeployGuide | null;
+  legalDocuments: LegalDocumentsResponse | null;
+  authSummary: AuthSummary | null;
   currentUserRole: string;
   adminModeTab: AdminModeTab;
   setAdminModeTab: (section: AdminModeTab) => void;
@@ -715,6 +725,8 @@ function SettingSection({ category, isAdmin, legacySection, setLegacySection, pr
       <div className="settings-grid settings-two-col">
         <div className="legacy-box compact"><h3>레이아웃</h3><p>상단/하단 높이를 축소하고 각 버튼 영역을 분리한 1줄 구조를 유지합니다.</p></div>
         <div className="legacy-box compact"><h3>탭 구조</h3><p>홈/쇼핑/소통/채팅/프로필별 좌측 서브탭과 우측 검색·설정 구조를 통일했습니다.</p></div>
+        <div className="legacy-box compact"><h3>법정 문서</h3><p>이용약관 {legalDocuments?.items?.terms_of_service?.version ?? '-'} · 처리방침 {legalDocuments?.items?.privacy_policy?.version ?? '-'} · 청소년 보호 {legalDocuments?.items?.youth_policy?.version ?? '-'}</p><p>회원가입 화면과 고정 링크에서 항상 열람할 수 있도록 유지합니다.</p></div>
+        <div className="legacy-box compact"><h3>재동의 상태</h3><p>{authSummary?.reconsent_required || authSummary?.consent_status?.reconsent_required ? '필수 재동의 필요' : '최신 버전 동의 상태'}</p></div>
       </div>
     );
   }
@@ -739,6 +751,8 @@ function SettingSection({ category, isAdmin, legacySection, setLegacySection, pr
       <div className="settings-grid settings-two-col">
         <div className="legacy-box compact"><h3>권한 가드</h3><p>관리자 전용 운영 항목은 관리자 계정일 때만 노출됩니다.</p></div>
         <div className="legacy-box compact"><h3>API 연결</h3><p>Production API timeout/fallback과 재시도를 유지합니다.</p></div>
+        <div className="legacy-box compact"><h3>인증 상태</h3><p>본인확인 {authSummary?.identity_verified ? '완료' : '미완료'} · 성인인증 {authSummary?.adult_verified ? '완료' : '미완료'} · 랜덤채팅 프로필 {authSummary?.random_chat_profile_ready ? '준비됨' : '추가 입력 필요'}</p></div>
+        <div className="legacy-box compact"><h3>운영 보호장치</h3><p>로그인·채팅·신고·주문 API는 서버 기준 rate limit, 감사로그, 성인 가드, 텍스트 필터를 적용하는 방향으로 정리했습니다.</p></div>
       </div>
     );
   }
@@ -911,6 +925,7 @@ export default function App() {
   const [projectStatus, setProjectStatus] = useState<ProjectStatus | null>(null);
   const [deployGuide, setDeployGuide] = useState<DeployGuide | null>(null);
   const [legalDocuments, setLegalDocuments] = useState<LegalDocumentsResponse | null>(null);
+  const [authSummary, setAuthSummary] = useState<AuthSummary | null>(null);
   const [adminDbManage, setAdminDbManage] = useState<AdminDbManage | null>(null);
   const [randomRooms, setRandomRooms] = useState<RandomRoom[]>(randomRoomSeed);
   const [roomModalOpen, setRoomModalOpen] = useState(false);
@@ -981,6 +996,7 @@ export default function App() {
     getJson<ProjectStatus>("/project-status").then(setProjectStatus).catch(() => null);
     getJson<DeployGuide>("/deploy/cloudflare-pages-manual").then(setDeployGuide).catch(() => null);
     getJson<LegalDocumentsResponse>("/legal/documents").then(setLegalDocuments).catch(() => null);
+    getJson<AuthSummary>("/auth/me").then(setAuthSummary).catch(() => null);
     if (isAdmin) {
       getJson<AdminDbManage>("/admin/chat-random/db-manage").then(setAdminDbManage).catch(() => null);
     }
@@ -1191,6 +1207,7 @@ export default function App() {
   const showAppTabContent = showBaseTabContent && !blockedByIdentity && !requiresAdultGate;
   const adultCooldownRemainMinutes = adultCooldownUntil > Date.now() ? Math.ceil((adultCooldownUntil - Date.now()) / 60000) : 0;
   const requiredConsentAccepted = requiredConsentKeys.every((key) => signupConsents[key]);
+  const reconsentRequired = Boolean(authSummary?.reconsent_required || authSummary?.consent_status?.reconsent_required);
   const signupAccountValid = Boolean(signupForm.email.trim() && signupForm.password.trim() && signupForm.displayName.trim() && identityVerified && identityVerificationToken);
   const randomProfileMissing = [!demoProfile.gender ? "성별" : null, !demoProfile.ageBand ? "연령대" : null, !demoProfile.regionCode ? "지역" : null].filter(Boolean) as string[];
   const randomProfileReady = randomProfileMissing.length === 0;
@@ -1650,6 +1667,8 @@ export default function App() {
                   setLegacySection={setLegacySection}
                   projectStatus={projectStatus}
                   deployGuide={deployGuide}
+                  legalDocuments={legalDocuments}
+                  authSummary={authSummary}
                   currentUserRole={currentUserRole}
                   adminModeTab={adminModeTab}
                   setAdminModeTab={setAdminModeTab}

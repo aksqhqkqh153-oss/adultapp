@@ -59,6 +59,27 @@ pre {
   color: #dce5f2;
   border-radius: 0;
 }
+
+.status-banner {
+  margin: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.03);
+  display: grid;
+  gap: 6px;
+}
+.status-banner.warning {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.1);
+}
+.status-banner strong {
+  font-size: 13px;
+}
+.status-banner span {
+  color: #e9d8b7;
+  font-size: 12px;
+  line-height: 1.5;
+}
 .mobile-app-shell {
   max-width: 1280px;
   margin: 0 auto;

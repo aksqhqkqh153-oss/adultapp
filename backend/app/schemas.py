@@ -156,6 +156,24 @@ class AdultVerificationConfirmRequest(BaseModel):
     tx_id: str
     verification_code: str
 
+
+
+class ReconsentRequest(BaseModel):
+    consents: list[ConsentItem]
+
+
+class ModerationTextRequest(BaseModel):
+    text: str
+    target_type: str = "generic"
+
+
+class SellerVerificationRequest(BaseModel):
+    business_number: str
+    cs_contact: str
+    return_address: str
+    seller_contract_agreed: bool = True
+
+
 class ProductUpsertRequest(BaseModel):
     id: Optional[int] = None
     seller_id: int = 2

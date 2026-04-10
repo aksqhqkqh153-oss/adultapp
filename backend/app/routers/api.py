@@ -115,6 +115,9 @@ from ..schemas import (
     VerifyOTPRequest,
     OrderCreateRequest,
     ReportResolveRequest,
+    ReconsentRequest,
+    ModerationTextRequest,
+    SellerVerificationRequest,
 )
 from ..services.seed_loader import load_project_status, load_seed
 
@@ -177,12 +180,15 @@ SAFE_COMMUNITY_BLOCKLIST = ["만남", "조건만남", "오프라인", "카카오
 PHONE_RE = re.compile(r"01[016789][-\s]?\d{3,4}[-\s]?\d{4}")
 HANDLE_RE = re.compile(r"(?:@|https?://)(?:t\.me|open\.kakao|instagram\.com|line\.me|discord\.gg)", re.IGNORECASE)
 LEGAL_DOC_VERSIONS = {
-    "terms_of_service": "2026-04-11.v1",
-    "privacy_policy": "2026-04-11.v1",
-    "adult_service_notice": "2026-04-11.v1",
-    "identity_notice": "2026-04-11.v1",
+    "terms_of_service": "2026-04-11.v2",
+    "privacy_policy": "2026-04-11.v2",
+    "adult_service_notice": "2026-04-11.v2",
+    "identity_notice": "2026-04-11.v2",
     "marketing_opt_in": "2026-04-11.v1",
     "profile_optional_opt_in": "2026-04-11.v1",
+    "youth_policy": "2026-04-11.v2",
+    "refund_policy": "2026-04-11.v2",
+    "seller_terms": "2026-04-11.v1",
 }
 REQUIRED_SIGNUP_CONSENT_TYPES = ["terms_of_service", "privacy_policy", "adult_service_notice", "identity_notice"]
 LEGAL_TEMPLATE_FILES = {
@@ -190,6 +196,7 @@ LEGAL_TEMPLATE_FILES = {
     "privacy_policy": Path("docs/legal_templates/privacy_policy_final.md"),
     "youth_policy": Path("docs/legal_templates/youth_policy_final.md"),
     "refund_policy": Path("docs/legal_templates/refund_policy_final.md"),
+    "seller_terms": Path("docs/legal_templates/seller_terms_final.md"),
 }
 
 
@@ -226,6 +233,49 @@ def _user_requires_reconsent(session: Session, user_id: int) -> bool:
         if not row or not row.agreed or row.version != LEGAL_DOC_VERSIONS.get(consent_type, row.version):
             return True
     return False
+
+
+def _consent_status_payload(session: Session, user_id: int) -> dict[str, Any]:
+    latest = _latest_user_consents(session, user_id)
+    items: dict[str, Any] = {}
+    for consent_type, version in LEGAL_DOC_VERSIONS.items():
+        row = latest.get(consent_type)
+        items[consent_type] = {
+            "required": consent_type in REQUIRED_SIGNUP_CONSENT_TYPES,
+            "current_version": version,
+            "agreed": bool(row.agreed) if row else False,
+            "agreed_version": row.version if row else None,
+            "agreed_at": row.agreed_at.isoformat() if row and row.agreed_at else None,
+            "needs_update": (not row or not row.agreed or row.version != version) if consent_type in REQUIRED_SIGNUP_CONSENT_TYPES else False,
+        }
+    return {
+        "reconsent_required": _user_requires_reconsent(session, user_id),
+        "items": items,
+    }
+
+
+def _assert_can_access_adult(user: User) -> None:
+    if user.grade == MemberGrade.ADMIN:
+        return
+    if not user.identity_verified:
+        raise HTTPException(status_code=403, detail="identity verification required")
+    if not user.adult_verified:
+        raise HTTPException(status_code=403, detail="adult verification required")
+
+
+def _enforce_route_rate_limit(request: Request, route_key: str, session: Session) -> None:
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    check_ip_rate_limit(client_ip, route_key, session)
+
+
+def _flag_moderation_event(session: Session, actor: User, target_type: str, text: str, reason: str = "자동 감지") -> dict[str, Any]:
+    report = ModerationReport(reporter_id=actor.id or 0, target_type=target_type, target_id=actor.id or 0, reason_code=reason, priority="high", status="queued")
+    session.add(report)
+    block = session.exec(select(UserBlock).where(UserBlock.blocker_id == (actor.id or 0), UserBlock.blocked_id == 1)).first()
+    if not block:
+        session.add(UserBlock(blocker_id=actor.id or 0, blocked_id=1, reason_code="auto_safety_hold", is_active=True, created_at=utcnow()))
+    session.commit()
+    return {"report_id": report.id, "reason": reason, "preview": text[:80]}
 
 
 def _extract_optional_user(session: Session, request: Request) -> User | None:
@@ -450,7 +500,7 @@ def read_seed() -> dict[str, Any]:
 @router.get("/legal/documents")
 def legal_documents():
     items = {}
-    for key in ["terms_of_service", "privacy_policy", "youth_policy", "refund_policy"]:
+    for key in ["terms_of_service", "privacy_policy", "youth_policy", "refund_policy", "seller_terms"]:
         content = _read_legal_markdown(key)
         version = LEGAL_DOC_VERSIONS.get(key, "2026-04-11.v1")
         items[key] = {
@@ -465,6 +515,22 @@ def legal_documents():
 def legal_document(doc_slug: str):
     normalized = doc_slug.replace('-', '_')
     return {"doc_key": normalized, "version": LEGAL_DOC_VERSIONS.get(normalized, "2026-04-11.v1"), "content": _read_legal_markdown(normalized)}
+
+
+@router.get("/legal/status")
+def legal_status(current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    return _consent_status_payload(session, current_user.id or 0)
+
+
+@router.post("/auth/reconsent")
+def auth_reconsent(payload: ReconsentRequest, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    consent_map = {item.consent_type: item for item in payload.consents}
+    for consent_type in REQUIRED_SIGNUP_CONSENT_TYPES:
+        consent = consent_map.get(consent_type)
+        if not consent or not consent.agreed:
+            raise HTTPException(status_code=400, detail=f"required consent missing: {consent_type}")
+    _record_consents(session, current_user.id or 0, payload.consents, request)
+    return {"ok": True, **_consent_status_payload(session, current_user.id or 0)}
 
 
 @router.post("/auth/signup")
@@ -584,19 +650,19 @@ def adult_verification_status(user: User = Depends(get_current_user), session: S
     latest_consents = _latest_user_consents(session, user.id or 0)
     return {
         **_adult_lock_payload(user),
-        "reconsent_required": _user_requires_reconsent(session, user.id or 0),
+        **_consent_status_payload(session, user.id or 0),
         "latest_consents": {key: {"agreed": row.agreed, "version": row.version, "agreed_at": row.agreed_at.isoformat()} for key, row in latest_consents.items()},
     }
 
 
 @router.post("/moderation/check-text")
-def moderation_check_text(payload: dict[str, str]):
-    value = payload.get("text", "")
+def moderation_check_text(payload: ModerationTextRequest):
+    value = payload.text
     try:
         validate_exchange_text(value)
     except HTTPException as exc:
-        return {"ok": False, "blocked": True, "reason": exc.detail}
-    return {"ok": True, "blocked": False, "reason": None}
+        return {"ok": False, "blocked": True, "reason": exc.detail, "target_type": payload.target_type}
+    return {"ok": True, "blocked": False, "reason": None, "target_type": payload.target_type}
 
 
 @router.post("/auth/login", response_model=TokenResponse)
@@ -971,7 +1037,11 @@ def list_products(request: Request, session: Session = Depends(get_session)):
 
 
 @router.post("/products")
-def upsert_product(payload: ProductUpsertRequest, session: Session = Depends(get_session)):
+def upsert_product(payload: ProductUpsertRequest, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    _enforce_route_rate_limit(request, "products_upsert", session)
+    _assert_can_access_adult(current_user)
+    validate_exchange_text(payload.name)
+    validate_exchange_text(payload.description or "")
     if payload.id:
         product = session.get(Product, payload.id)
         if not product:
@@ -1042,7 +1112,8 @@ def list_community_posts(request: Request, session: Session = Depends(get_sessio
 
 
 @router.post("/community/posts")
-def create_community_post(payload: CommunityPostCreate, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+def create_community_post(payload: CommunityPostCreate, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    _enforce_route_rate_limit(request, "community_posts_create", session)
     validate_exchange_text(payload.title)
     validate_exchange_text(payload.body)
     _ensure_post_visibility(current_user, payload.visibility)
@@ -1067,7 +1138,8 @@ def list_threads(current_user: User = Depends(get_current_user), session: Sessio
 
 
 @router.post("/community/threads")
-def create_thread(payload: DirectMessageThreadCreate, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+def create_thread(payload: DirectMessageThreadCreate, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    _enforce_route_rate_limit(request, "community_threads_create", session)
     if payload.participant_b_id == (current_user.id or 0):
         raise HTTPException(status_code=400, detail="cannot message self")
     validate_exchange_text(payload.subject)
@@ -1097,7 +1169,8 @@ def list_messages(thread_id: int, current_user: User = Depends(get_current_user)
 
 
 @router.post("/community/messages")
-def create_message(payload: DirectMessageCreate, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+def create_message(payload: DirectMessageCreate, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    _enforce_route_rate_limit(request, "community_messages_create", session)
     thread = session.get(DirectMessageThread, payload.thread_id)
     if not thread:
         raise HTTPException(status_code=404, detail="thread not found")
@@ -1145,7 +1218,12 @@ def delete_message(message_id: int, payload: DirectMessageDeleteRequest, current
 
 
 @router.post("/contents")
-def upsert_content(payload: ContentUpsertRequest, session: Session = Depends(get_session)):
+def upsert_content(payload: ContentUpsertRequest, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    _enforce_route_rate_limit(request, "contents_upsert", session)
+    if payload.visibility != "safe":
+        _assert_can_access_adult(current_user)
+    validate_exchange_text(payload.title)
+    validate_exchange_text(payload.body or "")
     if payload.id:
         item = session.get(ContentItem, payload.id)
         if not item:
@@ -1187,8 +1265,9 @@ async def upload_media(file: UploadFile = File(...)):
 
 
 @router.post("/reports")
-def create_report(payload: SimpleReportCreate, session: Session = Depends(get_session)):
-    report = ModerationReport(**payload.model_dump())
+def create_report(payload: SimpleReportCreate, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    _enforce_route_rate_limit(request, "reports_create", session)
+    report = ModerationReport(reporter_id=current_user.id or 0, target_type=payload.target_type, target_id=payload.target_id, reason_code=payload.reason_code, priority=payload.priority)
     session.add(report)
     session.commit()
     session.refresh(report)
@@ -1219,7 +1298,9 @@ def list_orders(session: Session = Depends(get_session)):
 
 
 @router.post("/orders")
-def create_order(payload: OrderCreateRequest, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+def create_order(payload: OrderCreateRequest, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    _enforce_route_rate_limit(request, "orders_create", session)
+    _assert_can_access_adult(current_user)
     product = session.get(Product, payload.product_id)
     if not product:
         raise HTTPException(status_code=404, detail="product not found")
@@ -1363,8 +1444,8 @@ def smoke_check(session: Session = Depends(get_session)):
     }
 
 
-@router.get("/legal/documents")
-def legal_documents():
+@router.get("/legal/files")
+def legal_document_files():
     base = Path(__file__).resolve().parents[2] / "docs" / "legal_templates"
     items = []
     for name in ["terms_checklist.md", "terms_of_service_final.md", "privacy_policy_final.md", "seller_terms_final.md", "youth_policy_final.md", "refund_policy_final.md"]:
