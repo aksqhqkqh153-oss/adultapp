@@ -1548,3 +1548,22 @@ pre {
 .simple-list-row:last-child {
   border-bottom: none;
 }
+
+
+.adult-html-inspector-enabled * {
+  cursor: crosshair !important;
+}
+.adult-html-inspector-enabled *:hover {
+  outline: 1px dashed rgba(255, 180, 0, 0.65);
+  outline-offset: 1px;
+}
+.admin-inspector-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 0;
+}
+.admin-inspector-preview {
+  display: grid;
+  gap: 0;
+}
