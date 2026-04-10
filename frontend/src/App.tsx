@@ -236,8 +236,9 @@ function SearchIcon() {
 function SettingsIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M12 8.2a3.8 3.8 0 1 0 0 7.6a3.8 3.8 0 0 0 0-7.6Z" fill="none" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M19.4 13.2a1 1 0 0 0 .2-1.2l-1-1.8a1 1 0 0 1 .1-.9l.2-.3a1 1 0 0 0-.1-1.3l-1.1-1.1a1 1 0 0 0-1.3-.1l-.3.2a1 1 0 0 1-.9.1l-1.8-1a1 1 0 0 0-1.2.2l-.2.3a1 1 0 0 1-.8.4h-1a1 1 0 0 1-.8-.4l-.2-.3a1 1 0 0 0-1.2-.2l-1.8 1a1 1 0 0 1-.9-.1l-.3-.2a1 1 0 0 0-1.3.1L5 7.6a1 1 0 0 0-.1 1.3l.2.3a1 1 0 0 1 .1.9l-1 1.8a1 1 0 0 0 .2 1.2l.3.2a1 1 0 0 1 .4.8v1a1 1 0 0 1-.4.8l-.3.2a1 1 0 0 0-.2 1.2l1 1.8a1 1 0 0 1-.1.9l-.2.3a1 1 0 0 0 .1 1.3l1.1 1.1a1 1 0 0 0 1.3.1l.3-.2a1 1 0 0 1 .9-.1l1.8 1a1 1 0 0 0 1.2-.2l.2-.3a1 1 0 0 1 .8-.4h1a1 1 0 0 1 .8.4l.2.3a1 1 0 0 0 1.2.2l1.8-1a1 1 0 0 1 .9.1l.3.2a1 1 0 0 0 1.3-.1l1.1-1.1a1 1 0 0 0 .1-1.3l-.2-.3a1 1 0 0 1-.1-.9l1-1.8a1 1 0 0 0-.2-1.2l-.3-.2a1 1 0 0 1-.4-.8v-1a1 1 0 0 1 .4-.8l.3-.2Z" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+      <circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M12 2.8v2.3M12 18.9v2.3M21.2 12h-2.3M5.1 12H2.8M18.5 5.5l-1.6 1.6M7.1 16.9l-1.6 1.6M18.5 18.5l-1.6-1.6M7.1 7.1L5.5 5.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="12" cy="12" r="7.1" fill="none" stroke="currentColor" strokeWidth="1.4" opacity="0.95" />
     </svg>
   );
 }
@@ -836,7 +837,10 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<MobileTab>("홈");
   const [legacySection, setLegacySection] = useState<LegacyTab>("운영현황");
   const [overlayMode, setOverlayMode] = useState<OverlayMode>(null);
-  const [htmlInspectorEnabled, setHtmlInspectorEnabled] = useState(false);
+  const [htmlInspectorEnabled, setHtmlInspectorEnabled] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("adultapp_html_inspector_enabled") === "1";
+  });
   const [inspectedElement, setInspectedElement] = useState<HtmlInspectorInfo | null>(null);
   const [globalKeyword, setGlobalKeyword] = useState("");
   const [homeTab, setHomeTab] = useState<HomeTab>("피드");
@@ -899,6 +903,11 @@ export default function App() {
     const timer = window.setInterval(() => setRandomNow(Date.now()), 30000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_html_inspector_enabled", htmlInspectorEnabled ? "1" : "0");
+  }, [htmlInspectorEnabled]);
 
   useEffect(() => {
     setRandomRooms((prev) => prev.map((room) => {
@@ -986,7 +995,11 @@ export default function App() {
   }, [globalKeyword, randomRoomCategory, randomRooms]);
 
   const homeProducts = useMemo(() => productsSeed.slice(0, 4), []);
-  const currentScreenTitle = activeTab;
+  const currentScreenTitle = overlayMode === "search"
+    ? "검색"
+    : overlayMode === "settings"
+      ? "설정"
+      : activeTab;
   const showBaseTabContent = overlayMode === null;
 
   const openOverlay = (mode: Exclude<OverlayMode, null>) => {
@@ -1146,8 +1159,6 @@ export default function App() {
     setActiveTab(tab);
     setOverlayMode(null);
     setRoomModalOpen(false);
-    setHtmlInspectorEnabled(false);
-    setInspectedElement(null);
     if (tab !== "홈") setHomeTab("피드");
     if (tab !== "쇼핑") setShoppingTab("목록");
     if (tab !== "소통") setCommunityTab("커뮤");
@@ -1167,7 +1178,7 @@ export default function App() {
     <div className="mobile-app-shell">
       <header className="top-header">
         <div className="topbar-row">
-          <div className={`topbar-side topbar-left topbar-segment ${overlayMode ? "topbar-segment-hidden" : ""}`}>
+          <div className="topbar-side topbar-left">
             <div className="topbar-inline-actions topbar-inline-actions-left">
               {visibleHeaderNavItems.map((item) => (
                 <button key={item.label} type="button" className={`header-inline-btn ${item.active ? "active" : ""}`} onClick={item.onClick} disabled={!item.onClick}>
@@ -1176,11 +1187,9 @@ export default function App() {
               ))}
             </div>
           </div>
-          <div className="topbar-title-block">
-            <h1>{currentScreenTitle}</h1>
-          </div>
           <div className="topbar-side topbar-right">
             <div className="topbar-inline-actions topbar-inline-actions-right">
+              <div className="topbar-title-inline" aria-live="polite">{currentScreenTitle}</div>
               <button className={`header-inline-btn header-icon-btn ${overlayMode === "search" ? "active" : ""}`} onClick={() => openOverlay("search")} aria-label="검색">
                 <SearchIcon />
               </button>
