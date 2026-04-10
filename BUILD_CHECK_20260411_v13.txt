@@ -1,0 +1,6 @@
+BUILD CHECK
+- frontend build: success
+- dist/assets/index-DHSiPEWy.css generated
+- dist/assets/index-DkiR3kQV.js generated
+- scope: topbar icon refresh + icon button border cleanup + adult verification demo flow + home/shopping gate + retry cooldown demo
+- note: external PASS/phone provider integration not included in this zip

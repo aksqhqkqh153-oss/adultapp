@@ -140,10 +140,17 @@ pre {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+.header-icon-btn:hover {
+  border-color: transparent;
+  background: rgba(255,255,255,0.04);
 }
 .header-icon-btn svg {
-  width: 20px;
-  height: 20px;
+  width: 21px;
+  height: 21px;
   display: block;
 }
 .header-inline-btn:disabled {
@@ -1650,4 +1657,25 @@ pre {
 }
 .profile-shell-single {
   grid-template-columns: 1fr;
+}
+
+.auth-gate-pane,
+.adult-gate-pane {
+  align-content: start;
+}
+.auth-gate-card,
+.adult-gate-card {
+  min-height: 100%;
+}
+.auth-option-grid {
+  align-items: stretch;
+}
+.auth-summary-box p {
+  margin: 6px 0;
+}
+.auth-status-card {
+  gap: 12px;
+}
+.adult-auth-modal {
+  width: min(92vw, 420px);
 }

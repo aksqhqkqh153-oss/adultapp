@@ -207,6 +207,8 @@ type RandomRegionOption = (typeof randomRegionOptions)[number];
 type RandomEntryTab = (typeof randomEntryTabs)[number];
 type AdminModeTab = (typeof adminModeTabs)[number];
 type OverlayMode = "search" | "settings" | null;
+type DemoLoginProvider = "PASS" | "휴대폰" | "카카오";
+type AdultGateView = "intro" | "success" | "failed" | "minor";
 
 type HtmlInspectorInfo = {
   selector: string;
@@ -237,8 +239,8 @@ function SearchIcon() {
 function SettingsIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M9.6 3.2h4.8l.7 2.1 2.1.9 1.9-1.1 3.4 3.4-1.1 1.9.9 2.1 2.1.7v4.8l-2.1.7-.9 2.1 1.1 1.9-3.4 3.4-1.9-1.1-2.1.9-.7 2.1H9.6l-.7-2.1-2.1-.9-1.9 1.1-3.4-3.4 1.1-1.9-.9-2.1-2.1-.7v-4.8l2.1-.7.9-2.1-1.1-1.9 3.4-3.4 1.9 1.1 2.1-.9.7-2.1Z" fill="none" stroke="currentColor" strokeWidth="1.45" strokeLinejoin="round" />
-      <circle cx="12" cy="12" r="3.15" fill="none" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M12 3.2l1.64 1.03 1.92-.25 1.17 1.55 1.85.58.26 1.92 1.55 1.17-.25 1.92L20.8 12l1.03 1.64-.25 1.92-1.55 1.17-.26 1.92-1.85.58-1.17 1.55-1.92-.25L12 20.8l-1.64 1.03-1.92-.25-1.17-1.55-1.85-.58-.26-1.92-1.55-1.17.25-1.92L3.2 12 2.17 10.36l.25-1.92 1.55-1.17.26-1.92 1.85-.58 1.17-1.55 1.92.25L12 3.2Z" fill="none" stroke="currentColor" strokeWidth="1.95" strokeLinejoin="round" />
+      <circle cx="12" cy="12" r="3.25" fill="none" stroke="currentColor" strokeWidth="2.1" />
     </svg>
   );
 }
@@ -899,6 +901,28 @@ export default function App() {
   });
   const [selectedAskProfile, setSelectedAskProfile] = useState<AskProfile | null>(null);
   const [selectedStory, setSelectedStory] = useState<StoryItem | null>(null);
+  const [demoLoginProvider, setDemoLoginProvider] = useState<DemoLoginProvider>(() => {
+    if (typeof window === "undefined") return "카카오";
+    return (window.localStorage.getItem("adultapp_demo_login_provider") as DemoLoginProvider | null) ?? "카카오";
+  });
+  const [identityVerified, setIdentityVerified] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("adultapp_identity_verified") === "1";
+  });
+  const [adultVerified, setAdultVerified] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("adultapp_adult_verified") === "1";
+  });
+  const [adultGateView, setAdultGateView] = useState<AdultGateView>("intro");
+  const [adultFailCount, setAdultFailCount] = useState(() => {
+    if (typeof window === "undefined") return 0;
+    return Number(window.localStorage.getItem("adultapp_adult_fail_count") ?? "0");
+  });
+  const [adultCooldownUntil, setAdultCooldownUntil] = useState(() => {
+    if (typeof window === "undefined") return 0;
+    return Number(window.localStorage.getItem("adultapp_adult_cooldown_until") ?? "0");
+  });
+  const [adultPromptOpen, setAdultPromptOpen] = useState(false);
 
   const isAdmin = ["ADMIN", "1", "GRADE_1"].includes(currentUserRole);
 
@@ -927,6 +951,31 @@ export default function App() {
       setInspectedElement(null);
     }
   }, [htmlInspectorEnabled]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_demo_login_provider", demoLoginProvider);
+  }, [demoLoginProvider]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_identity_verified", identityVerified ? "1" : "0");
+  }, [identityVerified]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_adult_verified", adultVerified ? "1" : "0");
+  }, [adultVerified]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_adult_fail_count", String(adultFailCount));
+  }, [adultFailCount]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_adult_cooldown_until", String(adultCooldownUntil));
+  }, [adultCooldownUntil]);
 
   useEffect(() => {
     setRandomRooms((prev) => prev.map((room) => {
@@ -1059,12 +1108,70 @@ export default function App() {
     });
   }, [globalKeyword, searchFilter]);
 
+  const showBaseTabContent = overlayMode === null;
+  const blockedByIdentity = !isAdmin && !identityVerified;
+  const requiresAdultGate = !isAdmin && !adultVerified && ["홈", "쇼핑"].includes(activeTab);
+  const showAppTabContent = showBaseTabContent && !blockedByIdentity && !requiresAdultGate;
+  const adultCooldownRemainMinutes = adultCooldownUntil > Date.now() ? Math.ceil((adultCooldownUntil - Date.now()) / 60000) : 0;
+
+  const startIdentitySignup = (provider: DemoLoginProvider) => {
+    setDemoLoginProvider(provider);
+    setIdentityVerified(true);
+    setAdultGateView("intro");
+    if (["홈", "쇼핑"].includes(activeTab)) {
+      setAdultPromptOpen(true);
+    }
+  };
+
+  const resetAdultFlow = () => {
+    setDemoLoginProvider("카카오");
+    setIdentityVerified(false);
+    setAdultVerified(false);
+    setAdultFailCount(0);
+    setAdultCooldownUntil(0);
+    setAdultGateView("intro");
+    setAdultPromptOpen(false);
+  };
+
+  const attemptAdultVerification = (mode: "success" | "fail" | "minor") => {
+    if (adultCooldownUntil > Date.now()) {
+      setAdultGateView("failed");
+      return;
+    }
+    if (mode === "success") {
+      setAdultVerified(true);
+      setAdultFailCount(0);
+      setAdultCooldownUntil(0);
+      setAdultGateView("success");
+      setAdultPromptOpen(false);
+      return;
+    }
+    if (mode === "minor") {
+      setAdultVerified(false);
+      setAdultGateView("minor");
+      return;
+    }
+    const nextFail = adultFailCount + 1;
+    setAdultFailCount(nextFail);
+    setAdultGateView("failed");
+    if (nextFail >= 5) {
+      setAdultCooldownUntil(Date.now() + (60 * 60 * 1000));
+    }
+  };
+
+  useEffect(() => {
+    if (!requiresAdultGate) {
+      setAdultPromptOpen(false);
+      return;
+    }
+    setAdultPromptOpen(true);
+  }, [requiresAdultGate, activeTab]);
+
   const currentScreenTitle = overlayMode === "search"
     ? `${activeTab}검색`
     : overlayMode === "settings"
       ? "설정"
       : activeTab;
-  const showBaseTabContent = overlayMode === null;
 
   const openOverlay = (mode: Exclude<OverlayMode, null>) => {
     setOverlayMode((prev) => (prev === mode ? null : mode));
@@ -1392,7 +1499,49 @@ export default function App() {
           </section>
         ) : null}
 
-        {showBaseTabContent && activeTab === "홈" ? (
+        {showBaseTabContent && blockedByIdentity ? (
+          <section className="tab-pane fill-pane auth-gate-pane">
+            <div className="auth-gate-card stack-gap compact-scroll-list">
+              <div className="section-head compact-head">
+                <div><h2>로그인 / 본인확인 필요</h2><p>미인증 경로로 접근한 계정은 로그인 화면으로 되돌리고, PASS 또는 휴대폰 본인확인 완료 후 가입/로그인 상태를 유지하도록 설계하는 것이 적합합니다.</p></div>
+              </div>
+              <div className="legacy-grid three auth-option-grid">
+                <div className="legacy-box compact"><h3>PASS 인증 후 가입</h3><p>가입 전 본인 명의 휴대폰 기준 인증을 마친 뒤 계정을 생성하는 기본안입니다.</p><button type="button" onClick={() => startIdentitySignup("PASS")}>PASS 인증 후 가입 상태로 전환</button></div>
+                <div className="legacy-box compact"><h3>휴대폰 인증 후 가입</h3><p>문자/앱 기반 본인확인 완료 후 회원가입을 진행하는 대체안입니다.</p><button type="button" onClick={() => startIdentitySignup("휴대폰")}>휴대폰 인증 후 가입 상태로 전환</button></div>
+                <div className="legacy-box compact"><h3>카카오 로그인</h3><p>카카오 로그인 자체는 편의 로그인용으로 사용하고, 성인인증은 별도 PASS/휴대폰 본인확인을 추가하는 구조를 권장합니다.</p><button type="button" onClick={() => startIdentitySignup("카카오")}>카카오 로그인 상태로 전환</button></div>
+              </div>
+              <div className="legacy-box compact auth-summary-box">
+                <h3>현재 데모 정책</h3>
+                <p>로그인 제공방식: {demoLoginProvider} · 가입 전 본인확인: {identityVerified ? "완료" : "미완료"} · 성인인증: {adultVerified ? "완료" : "미완료"}</p>
+                <p>불법경로 또는 미인증 계정 로그인 성공 시에는 다시 로그인/본인확인 단계로 보내는 정책을 권장합니다. 관리자 계정은 예외 처리합니다.</p>
+              </div>
+            </div>
+          </section>
+        ) : null}
+
+        {showBaseTabContent && !blockedByIdentity && requiresAdultGate ? (
+          <section className="tab-pane fill-pane adult-gate-pane">
+            <div className="adult-gate-card stack-gap compact-scroll-list">
+              <div className="section-head compact-head">
+                <div><h2>성인 인증 필요</h2><p>{activeTab} 화면은 최초 1회 성인 인증 완료 후 지속 이용 가능하도록 설계했습니다. 홈 또는 쇼핑 중 하나에서 인증이 완료되면 두 화면 모두 접근 가능합니다.</p></div>
+              </div>
+              <div className="legacy-grid three auth-option-grid">
+                <div className="legacy-box compact"><h3>성인 인증 안내</h3><p>PASS/휴대폰 본인확인 팝업 호출 → 서버 검증 성공 시 <code>adult_verified = true</code> 저장 → 홈/쇼핑 접근 허용 흐름을 권장합니다.</p><button type="button" className="ghost-btn" onClick={() => setAdultPromptOpen(true)}>성인인증 필요 모달 보기</button></div>
+                <div className="legacy-box compact"><h3>PASS/휴대폰 본인확인 시작</h3><p>실서비스에서는 외부 본인인증 SDK를 호출하고, 현재 데모에서는 흐름만 검증합니다.</p><div className="copy-action-row"><button type="button" onClick={() => attemptAdultVerification("success")}>PASS/휴대폰 인증 성공</button><button type="button" className="ghost-btn" onClick={() => attemptAdultVerification("fail")}>인증 실패</button></div></div>
+                <div className="legacy-box compact"><h3>차단 / 재시도 상태</h3><p>실패 {adultFailCount}회 · {adultCooldownRemainMinutes > 0 ? `${adultCooldownRemainMinutes}분 후 재시도 가능` : "현재 재시도 가능"}</p><button type="button" className="ghost-btn" onClick={() => attemptAdultVerification("minor")}>미성년 차단 화면 확인</button></div>
+              </div>
+              <div className="legacy-box compact auth-summary-box">
+                <h3>{adultGateView === "success" ? "인증 완료 화면" : adultGateView === "minor" ? "미성년자 차단 화면" : adultGateView === "failed" ? "인증 실패 / 재시도 화면" : "성인 인증 안내 화면"}</h3>
+                {adultGateView === "success" ? <p>성인 인증이 완료되었습니다. 이제 홈과 쇼핑 모두 지속적으로 접근할 수 있습니다.</p> : null}
+                {adultGateView === "minor" ? <p>이 기능은 성인 인증 후 이용할 수 있습니다. 청소년은 이용할 수 없습니다. 본인확인 결과에 따라 이용이 제한될 수 있습니다.</p> : null}
+                {adultGateView === "failed" ? <p>성인 인증에 실패했습니다. 1시간 이내 최대 5회 재시도 가능하며, 기준 횟수 초과 시 1시간 단위 쿨타임을 적용합니다.</p> : null}
+                {adultGateView === "intro" ? <p>현재 로그인 수단은 {demoLoginProvider}이며, 성인 기능 접근 시 1회 추가 PASS/휴대폰 본인확인을 진행하는 구조입니다.</p> : null}
+              </div>
+            </div>
+          </section>
+        ) : null}
+
+        {showAppTabContent && activeTab === "홈" ? (
           <section className="tab-pane fill-pane home-feed-pane">
             {homeTab === "피드" ? (
               <>
@@ -1424,7 +1573,7 @@ export default function App() {
           </section>
         ) : null}
 
-        {showBaseTabContent && activeTab === "쇼핑" ? (
+        {showAppTabContent && activeTab === "쇼핑" ? (
           <section className="tab-pane fill-pane">
             {shoppingTab === "목록" ? (
               <>
@@ -1492,7 +1641,7 @@ export default function App() {
           </section>
         ) : null}
 
-        {showBaseTabContent && activeTab === "소통" ? (
+        {showAppTabContent && activeTab === "소통" ? (
           <section className="tab-pane fill-pane">
             <div className="section-head compact-head">
               <div><h2>소통</h2><p>{communityTab === "커뮤" ? "커뮤니티 글과 공지, 정보공유를 확인합니다." : communityTab === "후기" ? "후기 글 모음을 확인합니다." : "이벤트 공지를 확인합니다."}</p></div>
@@ -1519,7 +1668,7 @@ export default function App() {
           </section>
         ) : null}
 
-        {showBaseTabContent && activeTab === "채팅" ? (
+        {showAppTabContent && activeTab === "채팅" ? (
           <section className="tab-pane fill-pane">
             {chatTab === "랜덤" ? (
               <div className="random-match-pane">
@@ -1759,7 +1908,7 @@ export default function App() {
           </section>
         ) : null}
 
-        {showBaseTabContent && activeTab === "프로필" ? (
+        {showAppTabContent && activeTab === "프로필" ? (
           <section className="tab-pane fill-pane">
             <div className="profile-shell compact-scroll-list profile-shell-single">
               <div className="profile-card">
@@ -1770,6 +1919,21 @@ export default function App() {
                   {profileStats.map((stat) => (
                     <div key={stat.label}><b>{stat.value}</b><span>{stat.label}</span></div>
                   ))}
+                </div>
+              </div>
+              <div className="profile-card auth-status-card">
+                <strong>성인인증 구현 상태</strong>
+                <span>로그인 수단: {demoLoginProvider} · 가입 전 본인확인: {identityVerified ? "완료" : "미완료"} · 성인인증: {adultVerified ? "완료" : "미완료"}</span>
+                <div className="profile-stats">
+                  <div><b>{adultFailCount}</b><span>실패횟수</span></div>
+                  <div><b>{adultCooldownRemainMinutes > 0 ? `${adultCooldownRemainMinutes}분` : "없음"}</b><span>쿨타임</span></div>
+                  <div><b>{isAdmin ? "예외" : "일반"}</b><span>정책대상</span></div>
+                </div>
+                <div className="copy-action-row">
+                  <button type="button" className="ghost-btn" onClick={() => startIdentitySignup("PASS")}>PASS 가입상태</button>
+                  <button type="button" className="ghost-btn" onClick={() => startIdentitySignup("카카오")}>카카오 로그인</button>
+                  <button type="button" onClick={() => attemptAdultVerification("success")}>성인인증 성공</button>
+                  <button type="button" className="ghost-btn" onClick={resetAdultFlow}>상태 초기화</button>
                 </div>
               </div>
             </div>
@@ -1806,6 +1970,28 @@ export default function App() {
             </div>
           </div>
         </section>
+      ) : null}
+
+      {adultPromptOpen ? (
+        <div className="modal-backdrop">
+          <div className="modal-card adult-auth-modal">
+            <div className="modal-header-row">
+              <strong>성인 인증 필요</strong>
+              <button className="ghost-btn" onClick={() => setAdultPromptOpen(false)}>닫기</button>
+            </div>
+            <div className="stack-gap">
+              <div className="legacy-box compact">
+                <p>이 기능은 성인 인증 후 이용할 수 있습니다.</p>
+                <p>청소년은 이용할 수 없습니다.</p>
+                <p>본인확인 결과에 따라 이용이 제한될 수 있습니다.</p>
+              </div>
+              <div className="copy-action-row">
+                <button type="button" onClick={() => attemptAdultVerification("success")}>PASS/휴대폰 인증 완료</button>
+                <button type="button" className="ghost-btn" onClick={() => attemptAdultVerification("fail")}>인증 실패</button>
+              </div>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       <nav className="bottom-nav">
