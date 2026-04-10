@@ -14,7 +14,7 @@ import pyotp
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 from sqlmodel import Session, select
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from ..auth import (
     authenticate_refresh_token,
@@ -1863,6 +1863,95 @@ def end_random_thread(thread_id: int, payload: RandomThreadEndRequest, current_u
     cooldown = _apply_random_rematch_cooldown(session, current_user, rule)
     return {"ok": True, "thread_id": thread_id, "status": thread.status, "reason_code": payload.reason_code, "rematch_cooldown": cooldown}
 
+
+
+
+@router.get("/admin/chat-random/db-manage")
+def admin_random_db_manage(current_user: User = Depends(require_grade(MemberGrade.ADMIN)), session: Session = Depends(get_session)):
+    rule = _get_or_create_random_rule(session)
+    random_reports = session.exec(select(ModerationReport).where(ModerationReport.target_type == "random_chat_user").order_by(ModerationReport.created_at.desc())).all()
+    random_threads = session.exec(select(DirectMessageThread).where(DirectMessageThread.thread_type == "random_1to1").order_by(DirectMessageThread.updated_at.desc())).all()
+    admin_logs = session.exec(
+        select(AdminActionLog).where(
+            or_(
+                AdminActionLog.target_type.in_(["random_chat_rule", "report", "direct_message_thread", "user_block"]),
+                AdminActionLog.action_type.in_(["random_rule_update", "report_resolve", "user_unblock", "thread_view_audit"]),
+            )
+        ).order_by(AdminActionLog.created_at.desc())
+    ).all()
+
+    report_status_counts: dict[str, int] = {}
+    report_reason_counts: dict[str, int] = {}
+    for report in random_reports:
+        report_status_counts[report.status] = report_status_counts.get(report.status, 0) + 1
+        report_reason_counts[report.reason_code] = report_reason_counts.get(report.reason_code, 0) + 1
+
+    thread_status_counts: dict[str, int] = {}
+    for thread in random_threads:
+        thread_status_counts[thread.status] = thread_status_counts.get(thread.status, 0) + 1
+
+    recent_reports = []
+    for item in random_reports[:10]:
+        recent_reports.append({
+            "id": item.id,
+            "reporter_id": item.reporter_id,
+            "target_id": item.target_id,
+            "reason_code": item.reason_code,
+            "status": item.status,
+            "priority": item.priority,
+            "created_at": item.created_at.isoformat() if item.created_at else "",
+        })
+
+    recent_threads = []
+    for item in random_threads[:10]:
+        recent_threads.append({
+            "id": item.id,
+            "subject": item.subject,
+            "status": item.status,
+            "participant_a_id": item.participant_a_id,
+            "participant_b_id": item.participant_b_id,
+            "created_at": item.created_at.isoformat() if item.created_at else "",
+            "updated_at": item.updated_at.isoformat() if item.updated_at else "",
+        })
+
+    recent_logs = []
+    for item in admin_logs[:12]:
+        recent_logs.append({
+            "id": item.id,
+            "action_type": item.action_type,
+            "target_type": item.target_type,
+            "target_id": item.target_id,
+            "reason": item.reason,
+            "admin_id": item.admin_id,
+            "created_at": item.created_at.isoformat() if item.created_at else "",
+        })
+
+    return {
+        "rule": _serialize_random_rule(rule),
+        "report": {
+            "total": len(random_reports),
+            "status_counts": report_status_counts,
+            "reason_counts": report_reason_counts,
+            "recent": recent_reports,
+        },
+        "chat": {
+            "total_threads": len(random_threads),
+            "status_counts": thread_status_counts,
+            "hidden_policy": rule.blocked_thread_visibility,
+            "delete_scope": rule.message_delete_scope,
+            "match_retry_limit": rule.match_retry_limit,
+            "match_search_timeout_seconds": rule.match_search_timeout_seconds,
+            "recent": recent_threads,
+        },
+        "other": {
+            "audit_enabled": rule.thread_view_audit_enabled,
+            "admin_access_scope": rule.admin_message_access_scope,
+            "random_chat_only_sanction_enabled": rule.random_chat_only_sanction_enabled,
+            "random_chat_only_sanction_policy": rule.random_chat_only_sanction_policy,
+            "permanent_ban_rejoin_after_days": rule.permanent_ban_rejoin_after_days,
+            "recent_logs": recent_logs,
+        },
+    }
 
 @router.get("/admin/chat-random/report-manage")
 def admin_random_report_manage(filter_value: str | None = None, current_user: User = Depends(require_grade(MemberGrade.ADMIN)), session: Session = Depends(get_session)):

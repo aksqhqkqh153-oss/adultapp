@@ -73,6 +73,16 @@ type RandomRoom = {
   password: string;
   latestMessage: string;
   anonymous?: boolean;
+  kind?: "group" | "random_1to1";
+  partnerName?: string;
+  partnerNickname?: string;
+  expiresAt?: number;
+  ageMin?: number;
+  ageMax?: number;
+  distanceMinKm?: number;
+  distanceMaxKm?: number;
+  genderOption?: string;
+  regionOption?: string;
 };
 
 type QuestionCard = {
@@ -120,6 +130,48 @@ type DeployGuide = {
   notes?: string[];
 };
 
+type RandomRuleSnapshot = {
+  report_result_notice_mode?: string;
+  blocked_thread_visibility?: string;
+  match_retry_limit?: number;
+  match_search_timeout_seconds?: number;
+  media_message_mode?: string;
+  thread_view_audit_enabled?: boolean;
+  message_delete_scope?: string;
+  self_message_delete_window_minutes?: number;
+  random_chat_only_sanction_enabled?: boolean;
+  random_chat_only_sanction_policy?: string;
+  permanent_ban_rejoin_after_days?: number;
+  admin_message_access_scope?: string;
+};
+
+type AdminDbManage = {
+  rule?: RandomRuleSnapshot;
+  report?: {
+    total?: number;
+    status_counts?: Record<string, number>;
+    reason_counts?: Record<string, number>;
+    recent?: Array<{ id: number; reporter_id: number; target_id: number; reason_code: string; status: string; priority: string; created_at: string }>;
+  };
+  chat?: {
+    total_threads?: number;
+    status_counts?: Record<string, number>;
+    hidden_policy?: string;
+    delete_scope?: string;
+    match_retry_limit?: number;
+    match_search_timeout_seconds?: number;
+    recent?: Array<{ id: number; subject: string; status: string; participant_a_id: number; participant_b_id: number; created_at: string; updated_at: string }>;
+  };
+  other?: {
+    audit_enabled?: boolean;
+    admin_access_scope?: string;
+    random_chat_only_sanction_enabled?: boolean;
+    random_chat_only_sanction_policy?: string;
+    permanent_ban_rejoin_after_days?: number;
+    recent_logs?: Array<{ id: number; action_type: string; target_type: string; target_id: string; reason: string; admin_id: number; created_at: string }>;
+  };
+};
+
 const mobileTabs = ["홈", "쇼핑", "소통", "채팅", "프로필"] as const;
 const legacyMenu = ["운영현황", "주문관리", "보안", "앱심사", "채팅-랜덤 규칙", "배포가이드"] as const;
 const homeTabs = ["피드", "상품"] as const;
@@ -127,13 +179,14 @@ const shoppingTabs = ["목록", "주문", "바구니"] as const;
 const communityTabs = ["커뮤", "후기", "이벤트"] as const;
 const chatTabs = ["채팅", "랜덤", "질문"] as const;
 const profileTabs = ["내정보"] as const;
-const settingsCategories = ["일반", "계정", "알림", "보안", "배포", "운영"] as const;
+const settingsCategories = ["일반", "계정", "알림", "보안", "배포", "운영", "관리자모드"] as const;
 const randomRoomCategories = ["전체", "고민/상담", "정보공유", "일상대화", "취미/관심사", "자유주제"] as const;
 const chatCategories = ["전체", "즐겨찾기", "개인", "단체"] as const;
 const oneToOneRandomCategories = ["고민상담", "자유수다", "아무말대잔치", "도파민수다"] as const;
-const randomGenderOptions = ["무관", "남-여", "동성"] as const;
-const randomAgeOptions = ["성인 전체", "20대", "30대", "40대", "50대", "60대", "70대"] as const;
+const randomGenderOptions = ["무관", "남", "여", "기타"] as const;
 const randomRegionOptions = ["무관", "같은 지역 우선", "거리기반"] as const;
+const randomEntryTabs = ["시작", "목록"] as const;
+const adminModeTabs = ["DB관리", "신고", "채팅", "기타"] as const;
 
 
 type MobileTab = (typeof mobileTabs)[number];
@@ -148,8 +201,9 @@ type RandomRoomCategory = (typeof randomRoomCategories)[number];
 type ChatCategory = (typeof chatCategories)[number];
 type OneToOneRandomCategory = (typeof oneToOneRandomCategories)[number];
 type RandomGenderOption = (typeof randomGenderOptions)[number];
-type RandomAgeOption = (typeof randomAgeOptions)[number];
 type RandomRegionOption = (typeof randomRegionOptions)[number];
+type RandomEntryTab = (typeof randomEntryTabs)[number];
+type AdminModeTab = (typeof adminModeTabs)[number];
 type OverlayMode = "search" | "settings" | null;
 
 type HeaderNavItem = {
@@ -506,7 +560,7 @@ function LegacyPanel({ section, projectStatus, deployGuide }: { section: LegacyT
   );
 }
 
-function SettingSection({ category, isAdmin, legacySection, setLegacySection, projectStatus, deployGuide, currentUserRole }: {
+function SettingSection({ category, isAdmin, legacySection, setLegacySection, projectStatus, deployGuide, currentUserRole, adminModeTab, setAdminModeTab, adminDbManage }: {
   category: SettingsCategory;
   isAdmin: boolean;
   legacySection: LegacyTab;
@@ -514,6 +568,9 @@ function SettingSection({ category, isAdmin, legacySection, setLegacySection, pr
   projectStatus: ProjectStatus | null;
   deployGuide: DeployGuide | null;
   currentUserRole: string;
+  adminModeTab: AdminModeTab;
+  setAdminModeTab: (section: AdminModeTab) => void;
+  adminDbManage: AdminDbManage | null;
 }) {
   if (category === "일반") {
     return (
@@ -555,6 +612,91 @@ function SettingSection({ category, isAdmin, legacySection, setLegacySection, pr
       </div>
     );
   }
+  if (category === "관리자모드") {
+    if (!isAdmin) {
+      return <div className="legacy-box compact"><h3>관리자모드</h3><p>관리자 계정에서만 확인할 수 있습니다.</p></div>;
+    }
+    return (
+      <div className="stack-gap">
+        <div className="legacy-nav inline">
+          {adminModeTabs.map((item) => (
+            <button key={item} className={`legacy-nav-btn ${adminModeTab === item ? "active" : ""}`} onClick={() => setAdminModeTab(item)}>{item}</button>
+          ))}
+        </div>
+        {adminModeTab === "DB관리" ? (
+          <div className="settings-grid settings-two-col">
+            <div className="legacy-box compact">
+              <h3>신고 DB</h3>
+              <p>총 {adminDbManage?.report?.total ?? 0}건 · 상태 {Object.entries(adminDbManage?.report?.status_counts ?? {}).map(([k, v]) => `${k}:${v}`).join(' / ') || '데이터 없음'}</p>
+            </div>
+            <div className="legacy-box compact">
+              <h3>채팅 DB</h3>
+              <p>총 {adminDbManage?.chat?.total_threads ?? 0}개 스레드 · 상태 {Object.entries(adminDbManage?.chat?.status_counts ?? {}).map(([k, v]) => `${k}:${v}`).join(' / ') || '데이터 없음'}</p>
+            </div>
+            <div className="legacy-box compact">
+              <h3>현재 제재 기준</h3>
+              <p>{adminDbManage?.other?.random_chat_only_sanction_enabled ? adminDbManage?.other?.random_chat_only_sanction_policy : '랜덤채팅 전용 제재 비활성'}</p>
+            </div>
+            <div className="legacy-box compact">
+              <h3>관리자 열람/감사</h3>
+              <p>{adminDbManage?.other?.admin_access_scope ?? '데이터 없음'} · 감사로그 {adminDbManage?.other?.audit_enabled ? '활성' : '비활성'}</p>
+            </div>
+          </div>
+        ) : null}
+        {adminModeTab === "신고" ? (
+          <div className="settings-grid settings-two-col">
+            <div className="legacy-box compact">
+              <h3>신고 정책</h3>
+              <p>결과 통지: {adminDbManage?.rule?.report_result_notice_mode ?? 'silent'} · 랜덤채팅 전용 제재: {adminDbManage?.other?.random_chat_only_sanction_policy ?? '데이터 없음'}</p>
+              <p>최근 사유 집계: {Object.entries(adminDbManage?.report?.reason_counts ?? {}).map(([k, v]) => `${k}:${v}`).join(' / ') || '데이터 없음'}</p>
+            </div>
+            <div className="legacy-box compact">
+              <h3>최근 신고</h3>
+              <div className="compact-scroll-list">
+                {(adminDbManage?.report?.recent ?? []).map((item) => (
+                  <div key={item.id} className="simple-list-row">#{item.id} · reporter {item.reporter_id} → target {item.target_id} · {item.reason_code} · {item.status}</div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
+        {adminModeTab === "채팅" ? (
+          <div className="settings-grid settings-two-col">
+            <div className="legacy-box compact">
+              <h3>채팅 정책</h3>
+              <p>차단 후 표시: {adminDbManage?.rule?.blocked_thread_visibility ?? 'hard_hidden'} · 삭제 범위: {adminDbManage?.rule?.message_delete_scope ?? 'delete_for_both_masked_archive'}</p>
+              <p>재시도 {adminDbManage?.rule?.match_retry_limit ?? 0}회 · 최대 탐색 {adminDbManage?.rule?.match_search_timeout_seconds ?? 0}초 · 미디어 {adminDbManage?.rule?.media_message_mode ?? 'text_only'}</p>
+            </div>
+            <div className="legacy-box compact">
+              <h3>최근 랜덤채팅 스레드</h3>
+              <div className="compact-scroll-list">
+                {(adminDbManage?.chat?.recent ?? []).map((item) => (
+                  <div key={item.id} className="simple-list-row">#{item.id} · {item.subject} · {item.status} · {item.participant_a_id}/{item.participant_b_id}</div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
+        {adminModeTab === "기타" ? (
+          <div className="settings-grid settings-two-col">
+            <div className="legacy-box compact">
+              <h3>재가입/보존</h3>
+              <p>영구정지 재가입 재심사: {adminDbManage?.other?.permanent_ban_rejoin_after_days ?? 365}일 후 가능</p>
+              <p>메시지 자가 삭제 허용: {adminDbManage?.rule?.self_message_delete_window_minutes ?? 30}분</p>
+            </div>
+            <div className="legacy-box compact">
+              <h3>최근 관리자 로그</h3>
+              <div className="compact-scroll-list">
+                {(adminDbManage?.other?.recent_logs ?? []).map((item) => (
+                  <div key={item.id} className="simple-list-row">#{item.id} · {item.action_type} · {item.target_type}:{item.target_id} · admin {item.admin_id}</div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
   if (!isAdmin) {
     return <div className="legacy-box compact"><h3>운영</h3><p>관리자 계정에서만 확인할 수 있습니다.</p></div>;
   }
@@ -582,13 +724,20 @@ export default function App() {
   const [chatCategory, setChatCategory] = useState<ChatCategory>("전체");
   const [profileTab, setProfileTab] = useState<ProfileTab>("내정보");
   const [settingsCategory, setSettingsCategory] = useState<SettingsCategory>("일반");
+  const [adminModeTab, setAdminModeTab] = useState<AdminModeTab>("DB관리");
   const [selectedShopCategory, setSelectedShopCategory] = useState("전체");
   const [selectedCommunityCategory, setSelectedCommunityCategory] = useState<string>("전체");
   const [randomRoomCategory, setRandomRoomCategory] = useState<RandomRoomCategory>("전체");
   const [oneToOneCategory, setOneToOneCategory] = useState<OneToOneRandomCategory>("고민상담");
   const [randomGenderOption, setRandomGenderOption] = useState<RandomGenderOption>("무관");
-  const [randomAgeOption, setRandomAgeOption] = useState<RandomAgeOption>("성인 전체");
+  const [randomAgeMin, setRandomAgeMin] = useState(20);
+  const [randomAgeMax, setRandomAgeMax] = useState(39);
   const [randomRegionOption, setRandomRegionOption] = useState<RandomRegionOption>("무관");
+  const [randomDistanceMinKm, setRandomDistanceMinKm] = useState(0);
+  const [randomDistanceMaxKm, setRandomDistanceMaxKm] = useState(60);
+  const [randomEntryTab, setRandomEntryTab] = useState<RandomEntryTab>("시작");
+  const [activeRandomRoomId, setActiveRandomRoomId] = useState<number | null>(null);
+  const [randomNow, setRandomNow] = useState(() => Date.now());
   const [randomSettingsOpen, setRandomSettingsOpen] = useState(false);
   const [matchingRandom, setMatchingRandom] = useState(false);
   const [matchedRandomUser, setMatchedRandomUser] = useState<{ name: string; category: OneToOneRandomCategory; nickname: string } | null>(null);
@@ -598,6 +747,7 @@ export default function App() {
   const [communityKeyword, setCommunityKeyword] = useState("");
   const [projectStatus, setProjectStatus] = useState<ProjectStatus | null>(null);
   const [deployGuide, setDeployGuide] = useState<DeployGuide | null>(null);
+  const [adminDbManage, setAdminDbManage] = useState<AdminDbManage | null>(null);
   const [randomRooms, setRandomRooms] = useState<RandomRoom[]>(randomRoomSeed);
   const [roomModalOpen, setRoomModalOpen] = useState(false);
   const [newRoomCategory, setNewRoomCategory] = useState<Exclude<RandomRoomCategory, "전체">>("고민/상담");
@@ -617,7 +767,24 @@ export default function App() {
   useEffect(() => {
     getJson<ProjectStatus>("/project-status").then(setProjectStatus).catch(() => null);
     getJson<DeployGuide>("/deploy/cloudflare-pages-manual").then(setDeployGuide).catch(() => null);
+    if (isAdmin) {
+      getJson<AdminDbManage>("/admin/chat-random/db-manage").then(setAdminDbManage).catch(() => null);
+    }
+  }, [isAdmin]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setRandomNow(Date.now()), 30000);
+    return () => window.clearInterval(timer);
   }, []);
+
+  const randomRoomRemainMinutes = (room: RandomRoom) => {
+    if (!room.expiresAt) return null;
+    return Math.max(0, Math.ceil((room.expiresAt - randomNow) / 60000));
+  };
+
+  const activeRandomRoom = useMemo(() => randomRooms.find((room) => room.id === activeRandomRoomId) ?? null, [activeRandomRoomId, randomRooms]);
+
+  const visibleRandomMatchRooms = useMemo(() => randomRooms.filter((room) => room.kind === "random_1to1"), [randomRooms]);
 
   const visibleFeed = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
@@ -684,7 +851,8 @@ export default function App() {
     setRandomSettingsOpen(false);
     setMatchedRandomUser(null);
     setRandomMatchPhase("queueing");
-    setRandomMatchNote(`${oneToOneCategory} 카테고리 대기열에 등록되었습니다. 성별 ${randomGenderOption} · 연령 ${randomAgeOption} · 지역 ${randomRegionOption} 조건으로 매칭 상대를 찾는 중입니다. 최소 20초, 최대 5분까지 자동 탐색합니다.`);
+    const distanceLabel = randomRegionOption === "거리기반" ? `거리 ${randomDistanceMinKm}km~${randomDistanceMaxKm}km` : randomRegionOption;
+    setRandomMatchNote(`${oneToOneCategory} 카테고리 대기열에 등록되었습니다. 성별 ${randomGenderOption} · 연령 ${randomAgeMin}~${randomAgeMax}세 · 지역 ${distanceLabel} 조건으로 매칭 상대를 찾는 중입니다. 재시도 최대 4회, 탐색 최대 5분 기준입니다.`);
     setMatchingRandom(true);
     window.setTimeout(() => {
       const demoMatches: Record<OneToOneRandomCategory, { name: string; nickname: string }> = {
@@ -694,9 +862,33 @@ export default function App() {
         도파민수다: { name: "도파민 토커", nickname: "텐션부스터" },
       };
       const picked = demoMatches[oneToOneCategory];
+      const roomId = Date.now();
+      const createdRoom: RandomRoom = {
+        id: roomId,
+        title: `${oneToOneCategory} · 1:1랜덤채팅`,
+        category: oneToOneCategory,
+        maxPeople: 2,
+        currentPeople: 2,
+        password: "",
+        latestMessage: `${picked.nickname} 님과 랜덤채팅이 시작되었습니다.`,
+        anonymous: true,
+        kind: "random_1to1",
+        partnerName: picked.name,
+        partnerNickname: picked.nickname,
+        expiresAt: Date.now() + (30 * 60 * 1000),
+        ageMin: randomAgeMin,
+        ageMax: randomAgeMax,
+        distanceMinKm: randomDistanceMinKm,
+        distanceMaxKm: randomDistanceMaxKm,
+        genderOption: randomGenderOption,
+        regionOption: randomRegionOption,
+      };
+      setRandomRooms((prev) => [createdRoom, ...prev]);
       setMatchedRandomUser({ ...picked, category: oneToOneCategory });
       setRandomMatchPhase("matched");
-      setRandomMatchNote(`${picked.nickname} 님과 연결되었습니다. 같은 카테고리 우선, 과거 차단 유저 제외, 신고 시 즉시 상호 대화 숨김 규칙이 적용된 데모 매칭입니다.`);
+      setRandomMatchNote(`${picked.nickname} 님과 연결되었습니다. 채팅방이 개설되어 바로 입장합니다. 차단/신고 시 즉시 숨김, 메시지 삭제는 30분 이내 양측 삭제 표기 기준입니다.`);
+      setActiveRandomRoomId(roomId);
+      setRandomEntryTab("목록");
       setMatchingRandom(false);
     }, 1600);
   };
@@ -706,6 +898,15 @@ export default function App() {
     setRandomMatchPhase("idle");
     setMatchedRandomUser(null);
     setRandomMatchNote("랜덤채팅 대기열에서 빠졌습니다. 실제 운영 시에는 텍스트 전용, 30분 내 삭제, 신고 즉시 차단·숨김 정책을 함께 연결하면 됩니다.");
+  };
+
+  const openRandomRoom = (roomId: number) => {
+    setActiveRandomRoomId(roomId);
+    setRandomEntryTab("목록");
+  };
+
+  const leaveRandomRoom = () => {
+    setActiveRandomRoomId(null);
   };
 
   const openAskFromFeed = (item: FeedItem) => {
@@ -725,6 +926,8 @@ export default function App() {
       title: safeTitle,
       anonymous: newRoomAnonymous,
       latestMessage: newRoomAnonymous ? "익명으로 생성된 방입니다. 가이드를 확인하고 입장하세요." : "새로 개설된 방입니다. 첫 대화를 시작해보세요.",
+      kind: "group",
+      expiresAt: Date.now() + (60 * 60 * 1000),
     };
     setRandomRooms((prev) => [nextRoom, ...prev]);
     setRandomRoomCategory("전체");
@@ -752,7 +955,7 @@ export default function App() {
     return profileTabs.map((tab) => ({ label: tab, active: profileTab === tab, onClick: () => setProfileTab(tab) }));
   }, [activeTab, homeTab, shoppingTab, communityTab, chatTab, profileTab]);
 
-  const settingsNavItems = useMemo<SettingsCategory[]>(() => settingsCategories.filter((item) => item !== "운영" || isAdmin), [isAdmin]);
+  const settingsNavItems = useMemo<SettingsCategory[]>(() => settingsCategories.filter((item) => (item !== "운영" && item !== "관리자모드") || isAdmin), [isAdmin]);
 
   const selectBottomTab = (tab: MobileTab) => {
     setActiveTab(tab);
@@ -828,6 +1031,9 @@ export default function App() {
                   projectStatus={projectStatus}
                   deployGuide={deployGuide}
                   currentUserRole={currentUserRole}
+                  adminModeTab={adminModeTab}
+                  setAdminModeTab={setAdminModeTab}
+                  adminDbManage={adminDbManage}
                 />
               </div>
             ) : null}
@@ -965,51 +1171,111 @@ export default function App() {
           <section className="tab-pane fill-pane">
             {chatTab === "랜덤" ? (
               <div className="random-match-pane">
-                <div className="random-match-toolbar random-match-toolbar-primary">
-                  <select className="random-room-select" value={oneToOneCategory} onChange={(e) => setOneToOneCategory(e.target.value as OneToOneRandomCategory)}>
-                    {oneToOneRandomCategories.map((category) => <option key={category} value={category}>{category}</option>)}
-                  </select>
-                  <div className="random-match-settings-wrap">
-                    <button className={`random-room-create-btn ${randomSettingsOpen ? "active" : ""}`} onClick={() => setRandomSettingsOpen((prev) => !prev)}>설정</button>
-                    {randomSettingsOpen ? (
-                      <div className="random-settings-menu">
-                        <button type="button" className="random-settings-item">건의(카테고리)</button>
+                <div className="chat-category-strip">
+                  <div className="chat-category-bar">
+                    {randomEntryTabs.map((tab) => (
+                      <button key={tab} type="button" className={`chat-category-btn ${randomEntryTab === tab ? "active" : ""}`} onClick={() => setRandomEntryTab(tab)}>
+                        {tab}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {activeRandomRoom ? (
+                  <div className="random-chat-room-card">
+                    <div className="random-chat-room-head">
+                      <div>
+                        <span className="random-room-category-chip">{activeRandomRoom.category}</span>
+                        <strong>{activeRandomRoom.title}</strong>
+                        <p>{activeRandomRoom.partnerNickname ?? "익명 사용자"} 님과 연결됨 · 남은 유지시간 {randomRoomRemainMinutes(activeRandomRoom) ?? 0}분</p>
                       </div>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="random-filter-grid">
-                  <label className="random-filter-field"><span>성별 조건</span><select value={randomGenderOption} onChange={(e) => setRandomGenderOption(e.target.value as RandomGenderOption)}>{randomGenderOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
-                  <label className="random-filter-field"><span>연령 조건</span><select value={randomAgeOption} onChange={(e) => setRandomAgeOption(e.target.value as RandomAgeOption)}>{randomAgeOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
-                  <label className="random-filter-field"><span>지역 조건</span><select value={randomRegionOption} onChange={(e) => setRandomRegionOption(e.target.value as RandomRegionOption)}>{randomRegionOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
-                </div>
-                <div className="random-match-center">
-                  <button className={`random-start-btn ${matchingRandom ? "loading" : ""}`} onClick={startRandomMatch}>
-                    {matchingRandom ? "랜덤채팅찾는중" : "1:1랜덤채팅"}
-                  </button>
-                </div>
-                <div className="random-skeleton-card">
-                  <div className="random-skeleton-row">
-                    <span className="random-skeleton-label">현재 상태</span>
-                    <strong>{randomMatchPhase === "idle" ? "대기 전" : randomMatchPhase === "queueing" ? "대기열 참여중" : "매칭 완료"}</strong>
-                  </div>
-                  <div className="random-skeleton-row">
-                    <span className="random-skeleton-label">선택 카테고리</span>
-                    <span>{oneToOneCategory}</span>
-                  </div>
-                  <p>{randomMatchNote}</p>
-                  <div className="random-skeleton-actions">
-                    <button type="button" className="ghost-btn" onClick={cancelRandomMatch}>대기취소</button>
-                    <button type="button">신고/차단 기준 확인</button>
-                  </div>
-                </div>
-                {matchedRandomUser ? (
-                  <div className="random-match-result">
-                    <span className="random-room-category-chip">{matchedRandomUser.category}</span>
-                    <strong>{matchedRandomUser.name}</strong>
-                    <p>{matchedRandomUser.nickname} 닉네임으로 연결된 데모 화면입니다. 실제 운영은 사진/영상 첨부 없이 텍스트만 허용하고, 종료 시 성별별 재매칭 대기시간을 적용합니다.</p>
+                      <button type="button" className="ghost-btn" onClick={leaveRandomRoom}>목록으로</button>
+                    </div>
+                    <div className="random-chat-bubble-list">
+                      <div className="random-chat-bubble other">안녕하세요. 방금 매칭된 랜덤채팅방입니다.</div>
+                      <div className="random-chat-bubble mine">네, 텍스트만 가능한 1:1 채팅방으로 입장된 상태예요.</div>
+                      <div className="random-chat-bubble system">메시지 삭제는 30분 이내 양측 삭제 표기 유지 · 신고 결과는 비공개</div>
+                    </div>
+                    <div className="random-chat-input-row">
+                      <input value="" readOnly placeholder="텍스트 입력창 예시 (데모 화면)" />
+                      <button type="button">전송</button>
+                    </div>
                   </div>
                 ) : null}
+                {randomEntryTab === "시작" ? (
+                  <>
+                    <div className="random-match-toolbar random-match-toolbar-primary">
+                      <select className="random-room-select" value={oneToOneCategory} onChange={(e) => setOneToOneCategory(e.target.value as OneToOneRandomCategory)}>
+                        {oneToOneRandomCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+                      </select>
+                      <div className="random-match-settings-wrap">
+                        <button className={`random-room-create-btn ${randomSettingsOpen ? "active" : ""}`} onClick={() => setRandomSettingsOpen((prev) => !prev)}>설정</button>
+                        {randomSettingsOpen ? (
+                          <div className="random-settings-menu">
+                            <button type="button" className="random-settings-item">건의(카테고리)</button>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="random-filter-grid">
+                      <label className="random-filter-field"><span>성별 조건</span><select value={randomGenderOption} onChange={(e) => setRandomGenderOption(e.target.value as RandomGenderOption)}>{randomGenderOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+                      <label className="random-filter-field random-range-field"><span>연령 조건</span><div className="random-range-box"><div className="random-range-values"><b>{randomAgeMin}세</b><b>{randomAgeMax}세</b></div><input type="range" min={20} max={99} value={randomAgeMin} onChange={(e) => setRandomAgeMin(Math.min(Number(e.target.value), randomAgeMax))} /><input type="range" min={20} max={99} value={randomAgeMax} onChange={(e) => setRandomAgeMax(Math.max(Number(e.target.value), randomAgeMin))} /></div></label>
+                      <label className="random-filter-field"><span>지역 조건</span><select value={randomRegionOption} onChange={(e) => setRandomRegionOption(e.target.value as RandomRegionOption)}>{randomRegionOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+                    </div>
+                    {randomRegionOption === "거리기반" ? (
+                      <div className="random-distance-panel">
+                        <div className="random-range-values"><b>{randomDistanceMinKm}km</b><b>{randomDistanceMaxKm}km</b></div>
+                        <input type="range" min={0} max={600} value={randomDistanceMinKm} onChange={(e) => setRandomDistanceMinKm(Math.min(Number(e.target.value), randomDistanceMaxKm))} />
+                        <input type="range" min={0} max={600} value={randomDistanceMaxKm} onChange={(e) => setRandomDistanceMaxKm(Math.max(Number(e.target.value), randomDistanceMinKm))} />
+                      </div>
+                    ) : null}
+                    <div className="random-match-center">
+                      <button className={`random-start-btn ${matchingRandom ? "loading" : ""}`} onClick={startRandomMatch}>
+                        {matchingRandom ? "랜덤채팅찾는중" : "1:1랜덤채팅"}
+                      </button>
+                    </div>
+                    <div className="random-skeleton-card">
+                      <div className="random-skeleton-row">
+                        <span className="random-skeleton-label">현재 상태</span>
+                        <strong>{randomMatchPhase === "idle" ? "대기 전" : randomMatchPhase === "queueing" ? "대기열 참여중" : "매칭 완료"}</strong>
+                      </div>
+                      <div className="random-skeleton-row">
+                        <span className="random-skeleton-label">선택 카테고리</span>
+                        <span>{oneToOneCategory}</span>
+                      </div>
+                      <p>{randomMatchNote}</p>
+                      <div className="random-skeleton-actions">
+                        <button type="button" className="ghost-btn" onClick={cancelRandomMatch}>대기취소</button>
+                        <button type="button" onClick={() => setRandomEntryTab("목록")}>목록 보기</button>
+                      </div>
+                    </div>
+                    {matchedRandomUser ? (
+                      <div className="random-match-result">
+                        <span className="random-room-category-chip">{matchedRandomUser.category}</span>
+                        <strong>{matchedRandomUser.name}</strong>
+                        <p>{matchedRandomUser.nickname} 님과 연결된 뒤 채팅방이 자동 개설되는 흐름으로 반영했습니다. 목록 탭에서 방별 남은 유지시간도 함께 확인할 수 있습니다.</p>
+                      </div>
+                    ) : null}
+                  </>
+                ) : (
+                  <div className="random-room-list compact-scroll-list random-match-room-list">
+                    {visibleRandomMatchRooms.length === 0 ? (
+                      <div className="random-skeleton-card"><p>아직 개설된 1:1 랜덤채팅방이 없습니다. 시작 탭에서 매칭을 진행하면 방이 생성됩니다.</p></div>
+                    ) : visibleRandomMatchRooms.map((room) => (
+                      <article key={room.id} className={`random-room-card random-match-room-card ${activeRandomRoomId === room.id ? "active" : ""}`}>
+                        <div className="random-room-topline">
+                          <span className="random-room-category-chip">{room.category}</span>
+                          <div className="random-room-occupancy">남은 {randomRoomRemainMinutes(room) ?? 0}분</div>
+                        </div>
+                        <div className="random-room-middleline grouped-room-title-line">
+                          <strong>{room.title}</strong>
+                          <b>{room.currentPeople}/{room.maxPeople}</b>
+                        </div>
+                        <p>{room.partnerNickname ?? "익명 사용자"} · 성별 {room.genderOption ?? "무관"} · 나이 {room.ageMin ?? 20}~{room.ageMax ?? 99}세{room.regionOption === "거리기반" ? ` · 거리 ${room.distanceMinKm ?? 0}~${room.distanceMaxKm ?? 600}km` : ""}</p>
+                        <div className="random-room-actions"><button type="button" onClick={() => openRandomRoom(room.id)}>입장</button></div>
+                      </article>
+                    ))}
+                  </div>
+                )}
               </div>
             ) : chatTab === "질문" ? (
               <div className="question-board compact-scroll-list">
@@ -1191,3 +1457,5 @@ export default function App() {
     </div>
   );
 }
+
+

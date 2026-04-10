@@ -558,6 +558,75 @@ pre {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
+.random-range-field {
+  grid-column: span 1;
+}
+.random-range-box,
+.random-distance-panel,
+.random-chat-room-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, #111721 0%, #131b25 100%);
+}
+.random-range-values {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: #dfeafe;
+}
+.random-distance-panel {
+  margin-top: -8px;
+}
+.random-match-room-list {
+  align-content: start;
+}
+.random-match-room-card.active {
+  border-color: rgba(245,158,11,.42);
+  box-shadow: 0 0 0 1px rgba(245,158,11,.18) inset;
+}
+.random-room-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.random-chat-room-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+}
+.random-chat-room-head p {
+  margin: 6px 0 0;
+  color: #d4dde9;
+}
+.random-chat-bubble-list {
+  display: grid;
+  gap: 8px;
+}
+.random-chat-bubble {
+  max-width: min(82%, 520px);
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #1b2430;
+  color: #eef3fa;
+}
+.random-chat-bubble.mine {
+  margin-left: auto;
+  background: rgba(245,158,11,.16);
+}
+.random-chat-bubble.system {
+  max-width: 100%;
+  background: rgba(59,130,246,.12);
+  color: #d8e5fb;
+  text-align: center;
+}
+.random-chat-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 88px;
+  gap: 8px;
+}
 .grouped-room-toolbar {
   margin-bottom: 12px;
 }
@@ -858,6 +927,8 @@ pre {
 @media (max-width: 1080px) {
   .kakao-chat-row { padding: 12px 0; }
   .random-filter-grid { grid-template-columns: 1fr; }
+  .random-chat-room-head { grid-template-columns: 1fr; display: grid; }
+  .random-chat-input-row { grid-template-columns: 1fr; }
 
   .settings-grid,
   .legacy-grid.two,
@@ -1371,4 +1442,14 @@ pre {
   .story-chip-name {
     max-width: 60px;
   }
+}
+
+.simple-list-row {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.simple-list-row:last-child {
+  border-bottom: none;
 }
