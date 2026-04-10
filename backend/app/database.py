@@ -11,6 +11,9 @@ from .config import settings
 connect_args = {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
 engine = create_engine(settings.database_url, echo=False, connect_args=connect_args)
 
+if settings.app_env.lower() in {"production", "staging"} and settings.database_url.startswith("sqlite"):
+    raise RuntimeError("SQLite is restricted to local development only. Set DATABASE_URL to PostgreSQL for staging/production.")
+
 
 def create_db_and_tables() -> None:
     SQLModel.metadata.create_all(engine)
@@ -26,6 +29,8 @@ SQLITE_MIGRATIONS = {
         ("region_code", "ALTER TABLE user ADD COLUMN region_code VARCHAR"),
         ("latitude", "ALTER TABLE user ADD COLUMN latitude FLOAT"),
         ("longitude", "ALTER TABLE user ADD COLUMN longitude FLOAT"),
+        ("false_report_count", "ALTER TABLE user ADD COLUMN false_report_count INTEGER DEFAULT 0"),
+        ("false_report_score", "ALTER TABLE user ADD COLUMN false_report_score INTEGER DEFAULT 0"),
     ],
     "randomchatrule": [
         ("age_match_mode", "ALTER TABLE randomchatrule ADD COLUMN age_match_mode VARCHAR DEFAULT 'exact_then_adjacent'"),
@@ -35,12 +40,21 @@ SQLITE_MIGRATIONS = {
         ("distance_score_mode", "ALTER TABLE randomchatrule ADD COLUMN distance_score_mode VARCHAR DEFAULT 'band_bonus'"),
         ("unblock_roles", "ALTER TABLE randomchatrule ADD COLUMN unblock_roles VARCHAR DEFAULT 'user,admin'"),
         ("unblock_log_mode", "ALTER TABLE randomchatrule ADD COLUMN unblock_log_mode VARCHAR DEFAULT 'always_admin_log'"),
-        ("delete_display_mode", "ALTER TABLE randomchatrule ADD COLUMN delete_display_mode VARCHAR DEFAULT 'hard_deleted_label_admin_raw'"),
+        ("delete_display_mode", "ALTER TABLE randomchatrule ADD COLUMN delete_display_mode VARCHAR DEFAULT 'masked_deleted_label_admin_archive'"),
         ("admin_restore_only", "ALTER TABLE randomchatrule ADD COLUMN admin_restore_only BOOLEAN DEFAULT 1"),
         ("admin_review_sla_hours", "ALTER TABLE randomchatrule ADD COLUMN admin_review_sla_hours INTEGER DEFAULT 48"),
         ("report_manage_layout", "ALTER TABLE randomchatrule ADD COLUMN report_manage_layout VARCHAR DEFAULT 'filter,count,user_id,report_history,last_reported_at'"),
         ("permanent_ban_mode", "ALTER TABLE randomchatrule ADD COLUMN permanent_ban_mode VARCHAR DEFAULT 'admin_decision_by_report_history'"),
         ("permanent_ban_keep_threads", "ALTER TABLE randomchatrule ADD COLUMN permanent_ban_keep_threads BOOLEAN DEFAULT 1"),
+        ("report_score_label", "ALTER TABLE randomchatrule ADD COLUMN report_score_label VARCHAR DEFAULT '점'"),
+        ("report_score_weights", "ALTER TABLE randomchatrule ADD COLUMN report_score_weights VARCHAR DEFAULT '욕설:1,스팸:1,개인정보요구:2,음란물전송:3,불법권유:3,기타:1'"),
+        ("permanent_ban_thread_access", "ALTER TABLE randomchatrule ADD COLUMN permanent_ban_thread_access VARCHAR DEFAULT 'read_only_profile_limited_attachment_block_reconnect_block'"),
+        ("region_display_mode", "ALTER TABLE randomchatrule ADD COLUMN region_display_mode VARCHAR DEFAULT 'city_alias_standard'"),
+        ("websocket_scale_policy", "ALTER TABLE randomchatrule ADD COLUMN websocket_scale_policy VARCHAR DEFAULT 'railway_only_until_single_instance_limit_then_redis'"),
+        ("duplicate_report_policy", "ALTER TABLE randomchatrule ADD COLUMN duplicate_report_policy VARCHAR DEFAULT 'same_target_once'"),
+        ("report_auto_block_mode", "ALTER TABLE randomchatrule ADD COLUMN report_auto_block_mode VARCHAR DEFAULT 'immediate_reporter_block'"),
+        ("false_report_policy", "ALTER TABLE randomchatrule ADD COLUMN false_report_policy VARCHAR DEFAULT '3:warn,5:3d,10:7d,15:admin_review'"),
+        ("self_message_delete_window_minutes", "ALTER TABLE randomchatrule ADD COLUMN self_message_delete_window_minutes INTEGER DEFAULT 5"),
     ],
     "refreshtoken": [
         ("session_id", "ALTER TABLE refreshtoken ADD COLUMN session_id INTEGER"),

@@ -1,0 +1,14 @@
+[build]
+frontend npm install: ok
+frontend npm run build: ok
+backend python compile: ok
+backend /api/health: 200 ok
+backend /api/chat/random/rules: 200 ok
+backend /api/admin/chat-random/report-manage: 401 without bearer token (expected)
+
+[policy baseline]
+report score label: 점
+report score weights: 욕설1 / 스팸1 / 개인정보요구2 / 음란물전송3 / 불법권유3 / 기타1
+auto suspend policy: 5=3d / 10=7d / 20=30d / 21+=admin_review
+retention_days baseline: 1095
+sqlite production restriction: enabled

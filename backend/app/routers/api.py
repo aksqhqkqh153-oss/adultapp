@@ -939,6 +939,7 @@ def list_reports(session: Session = Depends(get_session)):
                 "target_type": report.target_type,
                 "target_id": report.target_id,
                 "reason_code": report.reason_code,
+            "score": _report_score(rule, report.reason_code or ""),
                 "priority": report.priority,
                 "status": report.status,
                 "assigned_to": report.assigned_to,
@@ -959,8 +960,14 @@ def resolve_report(report_id: int, payload: ReportResolveRequest, current_user: 
     report.assigned_to = current_user.id
     session.add(report)
     session.commit()
+    extra: dict[str, Any] = {}
+    if report.target_type == "random_chat_user" and payload.status in {"rejected", "false_report", "abuse_confirmed"}:
+        rule = _get_or_create_random_rule(session)
+        reporter = session.get(User, report.reporter_id)
+        if reporter:
+            extra["false_report_sanction"] = _apply_false_report_sanction(session, reporter, rule, score_delta=_report_score(rule, report.reason_code or "기타"))
     write_admin_log(session, current_user, "report_resolve", "report", str(report_id), payload.action_taken or "신고 처리", before_state=before, after_state=report.status)
-    return {"ok": True, "id": report_id, "status": report.status}
+    return {"ok": True, "id": report_id, "status": report.status, **extra}
 
 
 @router.get("/admin-action-logs")
@@ -1206,6 +1213,19 @@ def _apply_random_chat_policy_baseline(rule: RandomChatRule) -> bool:
         "admin_restore_only": True,
         "permanent_ban_keep_threads": True,
         "admin_message_access_scope": "admin_archive_all_threads",
+        "report_reason_codes": "욕설,스팸,개인정보요구,음란물전송,불법권유,기타",
+        "report_score_label": "점",
+        "report_score_weights": "욕설:1,스팸:1,개인정보요구:2,음란물전송:3,불법권유:3,기타:1",
+        "auto_suspend_policy": "5:3d,10:7d,20:30d,21:admin_review",
+        "auto_suspend_threshold": 5,
+        "retention_days": 1095,
+        "permanent_ban_thread_access": "read_only_profile_limited_attachment_block_reconnect_block",
+        "region_display_mode": "city_alias_standard",
+        "websocket_scale_policy": "railway_only_until_single_instance_limit_then_redis",
+        "duplicate_report_policy": "same_target_once",
+        "report_auto_block_mode": "immediate_reporter_block",
+        "false_report_policy": "3:warn,5:3d,10:7d,15:admin_review",
+        "self_message_delete_window_minutes": 5,
     }
     for key, value in baseline.items():
         if getattr(rule, key) != value:
@@ -1232,6 +1252,54 @@ def _get_or_create_random_rule(session: Session) -> RandomChatRule:
 
 
 
+
+def _parse_score_weights(value: str) -> dict[str, int]:
+    weights: dict[str, int] = {}
+    for token in (value or '').split(','):
+        token = token.strip()
+        if not token or ':' not in token:
+            continue
+        name, score = token.split(':', 1)
+        try:
+            weights[name.strip()] = int(score.strip())
+        except ValueError:
+            continue
+    return weights
+
+
+def _report_score(rule: RandomChatRule, reason_code: str) -> int:
+    weights = _parse_score_weights(rule.report_score_weights)
+    return max(1, weights.get(reason_code, weights.get('기타', 1)))
+
+
+def _city_alias(value: str | None) -> str | None:
+    raw = (value or '').strip()
+    if not raw:
+        return None
+    if raw.startswith('서울'):
+        return '서울'
+    if raw.startswith('인천'):
+        return '인천'
+    if raw.startswith('부산'):
+        return '부산'
+    if raw.startswith('대구'):
+        return '대구'
+    if raw.startswith('대전'):
+        return '대전'
+    if raw.startswith('광주'):
+        return '광주'
+    if raw.startswith('울산'):
+        return '울산'
+    if raw.startswith('세종'):
+        return '세종'
+    normalized = raw.replace('특별시', '').replace('광역시', '').replace('특별자치시', '').replace('특별자치도', '').replace('자치시', '').replace('자치도', '').strip()
+    return normalized.split()[0] if normalized else raw
+
+
+def _user_region_label(rule: RandomChatRule, user: User) -> str | None:
+    if rule.region_display_mode != 'city_alias_standard':
+        return user.region_code
+    return _city_alias(user.region_code)
 
 
 def _parse_suspend_policy(value: str) -> list[tuple[int, str]]:
@@ -1273,6 +1341,37 @@ def _apply_random_chat_suspension(session: Session, user: User, rule: RandomChat
     session.commit()
     return outcome
 
+def _apply_false_report_sanction(session: Session, user: User, rule: RandomChatRule, score_delta: int = 1) -> dict[str, Any]:
+    user.false_report_count = (user.false_report_count or 0) + 1
+    user.false_report_score = (user.false_report_score or 0) + max(1, score_delta)
+    outcome = {"applied": False, "action": None, "locked_until": None, "member_status": user.member_status, "false_report_count": user.false_report_count, "false_report_score": user.false_report_score}
+    for threshold, action in _parse_suspend_policy(rule.false_report_policy):
+        if (user.false_report_score or 0) < threshold:
+            continue
+        if action == 'warn':
+            outcome = {**outcome, "applied": True, "action": action}
+            continue
+        if action == 'admin_review':
+            user.member_status = 'review_required'
+            outcome = {**outcome, "applied": True, "action": action, "member_status": user.member_status}
+            continue
+        days = 0
+        if action.endswith('d'):
+            try:
+                days = int(action[:-1])
+            except ValueError:
+                days = 0
+        if days > 0:
+            now = utcnow()
+            base_until = user.locked_until if user.locked_until and user.locked_until > now else now
+            user.locked_until = base_until + timedelta(days=days)
+            user.member_status = 'temporarily_suspended'
+            outcome = {**outcome, "applied": True, "action": action, "locked_until": user.locked_until.isoformat(), "member_status": user.member_status}
+    session.add(user)
+    session.commit()
+    return outcome
+
+
 def _serialize_random_rule(rule: RandomChatRule) -> dict[str, Any]:
     return {
         "id": rule.id,
@@ -1310,12 +1409,21 @@ def _serialize_random_rule(rule: RandomChatRule) -> dict[str, Any]:
         "admin_log_enabled": rule.admin_log_enabled,
         "admin_message_access_scope": rule.admin_message_access_scope,
         "report_reason_codes": _normalize_csv(rule.report_reason_codes),
+        "report_score_label": rule.report_score_label,
+        "report_score_weights": _parse_score_weights(rule.report_score_weights),
         "auto_suspend_policy": rule.auto_suspend_policy,
         "auto_suspend_threshold": rule.auto_suspend_threshold,
         "admin_review_sla_hours": rule.admin_review_sla_hours,
         "report_manage_layout": rule.report_manage_layout,
         "permanent_ban_mode": rule.permanent_ban_mode,
         "permanent_ban_keep_threads": rule.permanent_ban_keep_threads,
+        "permanent_ban_thread_access": rule.permanent_ban_thread_access,
+        "region_display_mode": rule.region_display_mode,
+        "websocket_scale_policy": rule.websocket_scale_policy,
+        "duplicate_report_policy": rule.duplicate_report_policy,
+        "report_auto_block_mode": rule.report_auto_block_mode,
+        "false_report_policy": rule.false_report_policy,
+        "self_message_delete_window_minutes": rule.self_message_delete_window_minutes,
     }
 
 
@@ -1464,12 +1572,21 @@ def update_random_rules(payload: RandomRuleUpdateRequest, current_user: User = D
     rule.admin_log_enabled = payload.admin_log_enabled
     rule.admin_message_access_scope = payload.admin_message_access_scope
     rule.report_reason_codes = ",".join(payload.report_reason_codes)
+    rule.report_score_label = payload.report_score_label
+    rule.report_score_weights = payload.report_score_weights
     rule.auto_suspend_policy = payload.auto_suspend_policy
     rule.auto_suspend_threshold = payload.auto_suspend_threshold
     rule.admin_review_sla_hours = payload.admin_review_sla_hours
     rule.report_manage_layout = payload.report_manage_layout
     rule.permanent_ban_mode = payload.permanent_ban_mode
     rule.permanent_ban_keep_threads = payload.permanent_ban_keep_threads
+    rule.permanent_ban_thread_access = payload.permanent_ban_thread_access
+    rule.region_display_mode = payload.region_display_mode
+    rule.websocket_scale_policy = payload.websocket_scale_policy
+    rule.duplicate_report_policy = payload.duplicate_report_policy
+    rule.report_auto_block_mode = payload.report_auto_block_mode
+    rule.false_report_policy = payload.false_report_policy
+    rule.self_message_delete_window_minutes = payload.self_message_delete_window_minutes
     rule.updated_at = utcnow()
     session.add(rule)
     session.commit()
@@ -1556,28 +1673,36 @@ def report_random_chat(payload: RandomReportCreate, current_user: User = Depends
     if not thread:
         raise HTTPException(status_code=404, detail="thread not found")
     _ensure_thread_member(thread, current_user.id or 0)
+    target_user_id = _message_counterparty(thread, current_user.id or 0)
+    existing_user_report = session.exec(select(ModerationReport).where(ModerationReport.reporter_id == (current_user.id or 0), ModerationReport.target_type == "random_chat_user", ModerationReport.target_id == target_user_id)).first()
+    block = session.exec(select(UserBlock).where(UserBlock.blocker_id == (current_user.id or 0), UserBlock.blocked_id == target_user_id)).first()
+    if not block:
+        block = UserBlock(blocker_id=current_user.id or 0, blocked_id=target_user_id, reason_code="auto_report_block", is_active=True, created_at=utcnow())
+    else:
+        block.is_active = True
+        block.reason_code = block.reason_code or "auto_report_block"
+    session.add(block)
+    session.commit()
+    if existing_user_report and rule.duplicate_report_policy == "same_target_once":
+        all_user_reports = session.exec(select(ModerationReport).where(ModerationReport.target_type == "random_chat_user", ModerationReport.target_id == target_user_id)).all()
+        total_reports = len(all_user_reports)
+        total_score = sum(_report_score(rule, item.reason_code or "") for item in all_user_reports)
+        return {"ok": True, "already_reported": True, "report_id": None, "user_report_id": existing_user_report.id, "auto_blocked": True, "threshold": rule.auto_suspend_threshold, "threshold_label": rule.report_score_label, "target_user_report_count": total_reports, "target_user_report_score": total_score, "score_delta": 0, "suspension": {"applied": False, "action": None, "locked_until": None, "member_status": None}}
     report = ModerationReport(reporter_id=current_user.id or 0, target_type="random_chat_thread", target_id=payload.thread_id, reason_code=payload.reason_code, priority="high", status="queued")
     session.add(report)
     session.commit()
-    target_user_id = _message_counterparty(thread, current_user.id or 0)
     user_report = ModerationReport(reporter_id=current_user.id or 0, target_type="random_chat_user", target_id=target_user_id, reason_code=payload.reason_code, priority="high", status="queued")
     session.add(user_report)
     session.commit()
-    total_reports = len(session.exec(select(ModerationReport).where(ModerationReport.target_type == "random_chat_user", ModerationReport.target_id == target_user_id)).all())
-    auto_blocked = total_reports >= rule.auto_suspend_threshold
-    if auto_blocked:
-        block = session.exec(select(UserBlock).where(UserBlock.blocker_id == (current_user.id or 0), UserBlock.blocked_id == target_user_id)).first()
-        if not block:
-            block = UserBlock(blocker_id=current_user.id or 0, blocked_id=target_user_id, reason_code="auto_report_block", is_active=True, created_at=utcnow())
-        else:
-            block.is_active = True
-        session.add(block)
-        session.commit()
+    all_user_reports = session.exec(select(ModerationReport).where(ModerationReport.target_type == "random_chat_user", ModerationReport.target_id == target_user_id)).all()
+    total_reports = len(all_user_reports)
+    total_score = sum(_report_score(rule, item.reason_code or "") for item in all_user_reports)
+    auto_blocked = rule.report_auto_block_mode == "immediate_reporter_block" or total_score >= rule.auto_suspend_threshold
     target_user = session.get(User, target_user_id)
     suspension = {"applied": False, "action": None, "locked_until": None, "member_status": None}
     if target_user:
-        suspension = _apply_random_chat_suspension(session, target_user, rule, total_reports)
-    return {"ok": True, "report_id": report.id, "user_report_id": user_report.id, "auto_blocked": auto_blocked, "threshold": rule.auto_suspend_threshold, "target_user_report_count": total_reports, "suspension": suspension}
+        suspension = _apply_random_chat_suspension(session, target_user, rule, total_score)
+    return {"ok": True, "already_reported": False, "report_id": report.id, "user_report_id": user_report.id, "auto_blocked": auto_blocked, "threshold": rule.auto_suspend_threshold, "threshold_label": rule.report_score_label, "target_user_report_count": total_reports, "target_user_report_score": total_score, "score_delta": _report_score(rule, payload.reason_code), "suspension": suspension}
 
 
 @router.get("/admin/chat-random/report-manage")
@@ -1592,14 +1717,17 @@ def admin_random_report_manage(filter_value: str | None = None, current_user: Us
         bucket = grouped.setdefault(report.target_id, {
             "user_id": report.target_id,
             "report_count": 0,
+            "report_score": 0,
             "report_history": [],
             "last_reported_at": None,
         })
         bucket["report_count"] += 1
+        bucket["report_score"] += _report_score(rule, report.reason_code or "")
         created_at = report.created_at.isoformat() if report.created_at else ""
         bucket["report_history"].append({
             "report_id": report.id,
             "reason_code": report.reason_code,
+            "score": _report_score(rule, report.reason_code or ""),
             "status": report.status,
             "priority": report.priority,
             "created_at": created_at,
@@ -1610,6 +1738,6 @@ def admin_random_report_manage(filter_value: str | None = None, current_user: Us
     return {
         "filter": filter_value or "",
         "sla_hours": rule.admin_review_sla_hours,
-        "columns": ["누적신고수", "고유ID", "신고내역", "최근신고받은일자"],
+        "columns": ["누적신고점수", "누적신고수", "고유ID", "신고내역", "최근신고받은일자"],
         "items": items,
     }

@@ -250,7 +250,7 @@ class RandomRuleUpdateRequest(BaseModel):
     priority_order: list[str] = ["gender_wait", "age", "region"]
     room_open_mode: str = "auto_create_1to1"
     chat_end_rule: str = "manual_or_block"
-    retention_days: int = 180
+    retention_days: int = 1095
     thread_keep_hours_after_block: int = 24
     allow_unblock: bool = True
     unblock_roles: list[str] = ["user", "admin"]
@@ -262,13 +262,22 @@ class RandomRuleUpdateRequest(BaseModel):
     admin_restore_only: bool = True
     admin_log_enabled: bool = True
     admin_message_access_scope: str = "admin_archive_all_threads"
-    report_reason_codes: list[str] = ["욕설", "불법권유", "스팸", "개인정보요구", "음란물전송", "기타"]
+    report_reason_codes: list[str] = ["욕설", "스팸", "개인정보요구", "음란물전송", "불법권유", "기타"]
+    report_score_label: str = "점"
+    report_score_weights: str = "욕설:1,스팸:1,개인정보요구:2,음란물전송:3,불법권유:3,기타:1"
     auto_suspend_policy: str = "5:3d,10:7d,20:30d,21:admin_review"
     auto_suspend_threshold: int = 5
     admin_review_sla_hours: int = 48
     report_manage_layout: str = "filter,count,user_id,report_history,last_reported_at"
     permanent_ban_mode: str = "admin_decision_by_report_history"
     permanent_ban_keep_threads: bool = True
+    permanent_ban_thread_access: str = "read_only_profile_limited_attachment_block_reconnect_block"
+    region_display_mode: str = "city_alias_standard"
+    websocket_scale_policy: str = "railway_only_until_single_instance_limit_then_redis"
+    duplicate_report_policy: str = "same_target_once"
+    report_auto_block_mode: str = "immediate_reporter_block"
+    false_report_policy: str = "3:warn,5:3d,10:7d,15:admin_review"
+    self_message_delete_window_minutes: int = 5
 
 
 class RandomReportCreate(BaseModel):

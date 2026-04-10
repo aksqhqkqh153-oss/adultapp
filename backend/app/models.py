@@ -71,6 +71,8 @@ class User(SQLModel, table=True):
     last_login_at: Optional[datetime] = None
     password_changed_at: Optional[datetime] = None
     reset_required: bool = Field(default=False)
+    false_report_count: int = Field(default=0)
+    false_report_score: int = Field(default=0)
 
 
 class RefreshToken(SQLModel, table=True):
@@ -293,7 +295,7 @@ class RandomChatRule(SQLModel, table=True):
     priority_order: str = Field(default="gender_wait,age,region")
     room_open_mode: str = Field(default="auto_create_1to1")
     chat_end_rule: str = Field(default="manual_or_block")
-    retention_days: int = Field(default=180)
+    retention_days: int = Field(default=1095)
     thread_keep_hours_after_block: int = Field(default=24)
     allow_unblock: bool = Field(default=True)
     unblock_roles: str = Field(default="user,admin")
@@ -305,13 +307,22 @@ class RandomChatRule(SQLModel, table=True):
     admin_restore_only: bool = Field(default=True)
     admin_log_enabled: bool = Field(default=True)
     admin_message_access_scope: str = Field(default="admin_archive_all_threads")
-    report_reason_codes: str = Field(default="욕설,불법권유,스팸,개인정보요구,음란물전송,기타")
+    report_reason_codes: str = Field(default="욕설,스팸,개인정보요구,음란물전송,불법권유,기타")
+    report_score_label: str = Field(default="점")
+    report_score_weights: str = Field(default="욕설:1,스팸:1,개인정보요구:2,음란물전송:3,불법권유:3,기타:1")
     auto_suspend_policy: str = Field(default="5:3d,10:7d,20:30d,21:admin_review")
     auto_suspend_threshold: int = Field(default=5)
     admin_review_sla_hours: int = Field(default=48)
     report_manage_layout: str = Field(default="filter,count,user_id,report_history,last_reported_at")
     permanent_ban_mode: str = Field(default="admin_decision_by_report_history")
     permanent_ban_keep_threads: bool = Field(default=True)
+    permanent_ban_thread_access: str = Field(default="read_only_profile_limited_attachment_block_reconnect_block")
+    region_display_mode: str = Field(default="city_alias_standard")
+    websocket_scale_policy: str = Field(default="railway_only_until_single_instance_limit_then_redis")
+    duplicate_report_policy: str = Field(default="same_target_once")
+    report_auto_block_mode: str = Field(default="immediate_reporter_block")
+    false_report_policy: str = Field(default="3:warn,5:3d,10:7d,15:admin_review")
+    self_message_delete_window_minutes: int = Field(default=5)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 

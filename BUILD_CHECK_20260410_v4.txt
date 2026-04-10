@@ -1,0 +1,6 @@
+[build-check]
+date=2026-04-10
+frontend_build=ok
+backend_python_compile=ok
+database_migration_smoke=ok
+notes=random chat report duplicate prevention + immediate block + false report sanction fields updated

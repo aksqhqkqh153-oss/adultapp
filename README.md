@@ -127,3 +127,12 @@ npx wrangler pages deploy dist --project-name adultapp --branch main --commit-di
 - npm 모듈 누락 오류: `node_modules` 삭제 후 `npm install` 재실행
 - wrangler 인증 오류: `npx wrangler login` 후 `npx wrangler whoami` 재확인
 - 프론트 무한 로딩: `/api/health`, `dist/index.html`, `VITE_API_BASE_URL`, 브라우저 캐시, Cloudflare 재배포 순으로 점검
+
+
+## Random chat policy baseline (2026-04-10)
+- 신고 누적 자동정지 기준은 건수가 아니라 점수 기준입니다.
+- 기본 가중치: 욕설 1점, 스팸 1점, 개인정보요구 2점, 음란물전송 3점, 불법권유 3점, 기타 1점
+- 기본 제재: 5점=3일, 10점=7일, 20점=30일, 21점 이상=관리자 검토
+- 지역 표기는 시 단위 축약 표준(서울특별시→서울, 인천광역시→인천)입니다.
+- SQLite는 로컬 개발 전용이며 staging/production에서는 PostgreSQL만 허용합니다.
+- WebSocket은 Railway 단독으로 운영하고, 단일 인스턴스 한계 또는 다중 인스턴스 확장이 필요할 때 Redis Pub/Sub 구조로 전환합니다.

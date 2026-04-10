@@ -26,3 +26,6 @@ Operational notes
 - Apply Alembic migration before first production launch.
 - Random chat, moderation, and audit data should stay on PostgreSQL as the source of truth.
 - Keep Railway service and Cloudflare Pages API base URL aligned on the same environment.
+
+- SQLite is restricted to local development only. Railway/production must use PostgreSQL DATABASE_URL.
+- WebSocket scale policy: keep Railway single-instance initially; move to Redis Pub/Sub when concurrent websocket load regularly exceeds a single instance or multi-instance deployment is required.
