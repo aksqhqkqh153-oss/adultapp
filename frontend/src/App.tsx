@@ -467,9 +467,9 @@ function LegacyPanel({ section, projectStatus, deployGuide }: { section: LegacyT
       <section className="legacy-panel compact-panel">
         <div className="legacy-grid two">
           <div className="legacy-box"><h3>매칭 규칙</h3><p>같은 카테고리만 매칭 · 성별 조건 선택 가능 · 연령대 선택 가능 · 지역 무관/같은 지역 우선/거리기반 설정</p></div>
-          <div className="legacy-box"><h3>대기/재탐색</h3><p>최소 20초, 최대 5분 탐색 · 실패 시 자동 재탐색 · 과거 차단 유저 제외</p></div>
+          <div className="legacy-box"><h3>대기/재탐색</h3><p>남성 20~40초 / 여성 5~10초 재매칭 쿨다운 · 실패 시 자동 재탐색 · 과거 차단 유저 제외</p></div>
           <div className="legacy-box"><h3>입장/종료</h3><p>매칭 성공 시 1:1 채팅방 자동 생성 · 수동 종료 또는 상대 차단 시 종료</p></div>
-          <div className="legacy-box"><h3>보관/로그</h3><p>대화 저장 6개월 · 관리자 계정에는 로그 기록 · 누적 신고 시 자동 차단 정책 연결 예정</p></div>
+          <div className="legacy-box"><h3>보관/로그</h3><p>텍스트 전용 · 메시지 30분 내 전체 삭제 가능(삭제 표기 유지) · 관리자 전체 열람/보관</p></div>
         </div>
         <div className="legacy-box compact">
           <h3>신고 사유 기본안</h3>
@@ -593,7 +593,7 @@ export default function App() {
   const [matchingRandom, setMatchingRandom] = useState(false);
   const [matchedRandomUser, setMatchedRandomUser] = useState<{ name: string; category: OneToOneRandomCategory; nickname: string } | null>(null);
   const [randomMatchPhase, setRandomMatchPhase] = useState<"idle" | "queueing" | "matched">("idle");
-  const [randomMatchNote, setRandomMatchNote] = useState("카테고리를 고른 뒤 랜덤채팅을 시작할 수 있습니다.");
+  const [randomMatchNote, setRandomMatchNote] = useState("카테고리를 고른 뒤 텍스트 전용 랜덤채팅을 시작할 수 있습니다.");
   const [shopKeyword, setShopKeyword] = useState("");
   const [communityKeyword, setCommunityKeyword] = useState("");
   const [projectStatus, setProjectStatus] = useState<ProjectStatus | null>(null);
@@ -696,7 +696,7 @@ export default function App() {
       const picked = demoMatches[oneToOneCategory];
       setMatchedRandomUser({ ...picked, category: oneToOneCategory });
       setRandomMatchPhase("matched");
-      setRandomMatchNote(`${picked.nickname} 님과 연결되었습니다. 같은 카테고리 우선, 과거 차단 유저 제외, 실패 시 자동 재탐색 규칙이 적용된 데모 매칭입니다.`);
+      setRandomMatchNote(`${picked.nickname} 님과 연결되었습니다. 같은 카테고리 우선, 과거 차단 유저 제외, 신고 시 즉시 상호 대화 숨김 규칙이 적용된 데모 매칭입니다.`);
       setMatchingRandom(false);
     }, 1600);
   };
@@ -705,7 +705,7 @@ export default function App() {
     setMatchingRandom(false);
     setRandomMatchPhase("idle");
     setMatchedRandomUser(null);
-    setRandomMatchNote("랜덤채팅 대기열에서 빠졌습니다. 실제 운영 시에는 같은 카테고리만 매칭하고 6개월 대화 보관 로그를 남기도록 연결하면 됩니다.");
+    setRandomMatchNote("랜덤채팅 대기열에서 빠졌습니다. 실제 운영 시에는 텍스트 전용, 30분 내 삭제, 신고 즉시 차단·숨김 정책을 함께 연결하면 됩니다.");
   };
 
   const openAskFromFeed = (item: FeedItem) => {
@@ -768,7 +768,7 @@ export default function App() {
       setMatchingRandom(false);
       setMatchedRandomUser(null);
       setRandomMatchPhase("idle");
-      setRandomMatchNote("카테고리를 고른 뒤 랜덤채팅을 시작할 수 있습니다.");
+      setRandomMatchNote("카테고리를 고른 뒤 텍스트 전용 랜덤채팅을 시작할 수 있습니다.");
     }
     if (tab !== "프로필") setProfileTab("내정보");
   };
@@ -1007,7 +1007,7 @@ export default function App() {
                   <div className="random-match-result">
                     <span className="random-room-category-chip">{matchedRandomUser.category}</span>
                     <strong>{matchedRandomUser.name}</strong>
-                    <p>{matchedRandomUser.nickname} 닉네임으로 연결된 데모 화면입니다. 다음 단계에서 실제 1:1 채팅방 입장 API를 연결하면 됩니다.</p>
+                    <p>{matchedRandomUser.nickname} 닉네임으로 연결된 데모 화면입니다. 실제 운영은 사진/영상 첨부 없이 텍스트만 허용하고, 종료 시 성별별 재매칭 대기시간을 적용합니다.</p>
                   </div>
                 ) : null}
               </div>

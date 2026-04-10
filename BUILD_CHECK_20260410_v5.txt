@@ -1,0 +1,24 @@
+BUILD CHECK 2026-04-10 v5
+
+Applied changes
+- Random chat policy defaults extended for silent report result, hard-hidden blocked thread, immediate rematch after unblock, text-only media mode, retry limit 4, search timeout 300s.
+- Added dedicated random-chat-only sanction policy fields.
+- Added permanent ban rejoin wait field (365 days) and admin thread-view audit flag.
+- Added updated decision pack markdown/docx.
+
+Verification
+1) Backend compile
+- Command: python -m compileall backend/app
+- Result: PASS
+
+2) Frontend dependency install
+- Command: npm install
+- Result: PASS
+
+3) Frontend production build
+- Command: npm run build
+- Result: PASS
+
+Notes
+- Existing frontend build output regenerated successfully.
+- npm audit reported 2 moderate vulnerabilities but build completed.

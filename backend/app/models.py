@@ -73,6 +73,7 @@ class User(SQLModel, table=True):
     reset_required: bool = Field(default=False)
     false_report_count: int = Field(default=0)
     false_report_score: int = Field(default=0)
+    random_chat_cooldown_until: Optional[datetime] = None
 
 
 class RefreshToken(SQLModel, table=True):
@@ -220,7 +221,11 @@ class DirectMessage(SQLModel, table=True):
     receiver_id: int = Field(index=True)
     purpose_code: str = Field(default="INFO_EXCHANGE")
     message: str
+    original_message_backup: Optional[str] = None
     is_read: bool = Field(default=False)
+    is_deleted_for_all: bool = Field(default=False)
+    deleted_by_id: Optional[int] = Field(default=None, index=True)
+    deleted_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -321,8 +326,25 @@ class RandomChatRule(SQLModel, table=True):
     websocket_scale_policy: str = Field(default="railway_only_until_single_instance_limit_then_redis")
     duplicate_report_policy: str = Field(default="same_target_once")
     report_auto_block_mode: str = Field(default="immediate_reporter_block")
-    false_report_policy: str = Field(default="3:warn,5:3d,10:7d,15:admin_review")
-    self_message_delete_window_minutes: int = Field(default=5)
+    false_report_policy: str = Field(default="3:warn,5:3d,8:7d,15:admin_review")
+    random_chat_only_sanction_enabled: bool = Field(default=True)
+    random_chat_only_sanction_policy: str = Field(default="3:24h,5:72h,8:7d,15:admin_review")
+    permanent_ban_rejoin_after_days: int = Field(default=365)
+    report_result_notice_mode: str = Field(default="silent")
+    blocked_thread_visibility: str = Field(default="hard_hidden")
+    unblock_rematch_mode: str = Field(default="immediate")
+    match_retry_limit: int = Field(default=4)
+    match_search_timeout_seconds: int = Field(default=300)
+    contact_exchange_detection_mode: str = Field(default="terms_only")
+    contact_exchange_warning_mode: str = Field(default="none")
+    media_message_mode: str = Field(default="text_only")
+    thread_view_audit_enabled: bool = Field(default=True)
+    self_message_delete_window_minutes: int = Field(default=30)
+    message_delete_scope: str = Field(default="delete_for_both_masked_archive")
+    male_rematch_min_seconds: int = Field(default=20)
+    male_rematch_max_seconds: int = Field(default=40)
+    female_rematch_min_seconds: int = Field(default=5)
+    female_rematch_max_seconds: int = Field(default=10)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 import csv
+import random
 import re
 import hashlib
 import io
@@ -80,6 +81,7 @@ from ..schemas import (
     FeedPostCreate,
     ContentUpsertRequest,
     DirectMessageCreate,
+    DirectMessageDeleteRequest,
     DirectMessageThreadCreate,
     DeviceSessionRevokeRequest,
     LoginRequest,
@@ -90,6 +92,7 @@ from ..schemas import (
     ProductMediaAttachRequest,
     RandomReportCreate,
     RandomRuleUpdateRequest,
+    RandomThreadEndRequest,
     RandomTicketCreate,
     ProductUpsertRequest,
     RefreshTokenRequest,
@@ -186,6 +189,54 @@ def _ensure_thread_member(thread: DirectMessageThread, user_id: int) -> None:
     if user_id not in {thread.participant_a_id, thread.participant_b_id}:
         raise HTTPException(status_code=403, detail="not a thread participant")
 
+
+
+
+def _ensure_thread_visible(session: Session, thread: DirectMessageThread, user_id: int) -> None:
+    if thread.thread_type != "random_1to1":
+        return
+    other_id = _message_counterparty(thread, user_id)
+    if _is_blocked_pair(session, user_id, other_id):
+        raise HTTPException(status_code=404, detail="thread hidden by block")
+
+
+def _serialize_message(msg: DirectMessage, sender_name: str) -> dict[str, Any]:
+    hidden_text = "삭제된 메시지" if msg.is_deleted_for_all else msg.message
+    return {
+        "id": msg.id,
+        "sender_id": msg.sender_id,
+        "sender_name": sender_name,
+        "receiver_id": msg.receiver_id,
+        "purpose_code": msg.purpose_code,
+        "message": hidden_text,
+        "is_deleted_for_all": bool(msg.is_deleted_for_all),
+        "deleted_at": msg.deleted_at.isoformat() if msg.deleted_at else None,
+        "deleted_by_id": msg.deleted_by_id,
+        "created_at": msg.created_at.isoformat() if msg.created_at else "",
+    }
+
+
+def _random_rematch_window_seconds(rule: RandomChatRule, user: User) -> tuple[int, int]:
+    gender = (user.gender or "").strip()
+    if gender == "남성":
+        return rule.male_rematch_min_seconds, rule.male_rematch_max_seconds
+    if gender == "여성":
+        return rule.female_rematch_min_seconds, rule.female_rematch_max_seconds
+    return rule.min_wait_seconds, min(rule.max_wait_seconds, max(rule.min_wait_seconds, 30))
+
+
+def _apply_random_rematch_cooldown(session: Session, user: User, rule: RandomChatRule) -> dict[str, Any]:
+    min_sec, max_sec = _random_rematch_window_seconds(rule, user)
+    cooldown_seconds = random.randint(min_sec, max_sec)
+    user.random_chat_cooldown_until = utcnow() + timedelta(seconds=cooldown_seconds)
+    session.add(user)
+    session.commit()
+    return {
+        "cooldown_seconds": cooldown_seconds,
+        "cooldown_until": user.random_chat_cooldown_until.isoformat() if user.random_chat_cooldown_until else None,
+        "min_seconds": min_sec,
+        "max_seconds": max_sec,
+    }
 
 def _role_name(grade: Any) -> str:
     return grade.value if hasattr(grade, "value") else str(grade)
@@ -729,6 +780,8 @@ def list_threads(current_user: User = Depends(get_current_user), session: Sessio
     rows = []
     stmt = select(DirectMessageThread).where((DirectMessageThread.participant_a_id == (current_user.id or 0)) | (DirectMessageThread.participant_b_id == (current_user.id or 0))).order_by(DirectMessageThread.updated_at.desc())
     for thread in session.exec(stmt).all():
+        if thread.thread_type == "random_1to1" and _is_blocked_pair(session, current_user.id or 0, _message_counterparty(thread, current_user.id or 0)):
+            continue
         other_id = _message_counterparty(thread, current_user.id or 0)
         other = session.get(User, other_id)
         rows.append({"id": thread.id, "subject": thread.subject, "purpose_code": thread.purpose_code, "thread_type": thread.thread_type, "status": thread.status, "related_post_id": thread.related_post_id, "related_product_id": thread.related_product_id, "other_user_id": other_id, "other_user_name": other.name if other else f"user:{other_id}", "updated_at": thread.updated_at.isoformat() if thread.updated_at else ""})
@@ -757,10 +810,11 @@ def list_messages(thread_id: int, current_user: User = Depends(get_current_user)
     if not thread:
         raise HTTPException(status_code=404, detail="thread not found")
     _ensure_thread_member(thread, current_user.id or 0)
+    _ensure_thread_visible(session, thread, current_user.id or 0)
     rows = []
     for msg in session.exec(select(DirectMessage).where(DirectMessage.thread_id == thread_id).order_by(DirectMessage.created_at)).all():
         sender = session.get(User, msg.sender_id)
-        rows.append({"id": msg.id, "sender_id": msg.sender_id, "sender_name": sender.name if sender else f"user:{msg.sender_id}", "receiver_id": msg.receiver_id, "purpose_code": msg.purpose_code, "message": msg.message, "created_at": msg.created_at.isoformat() if msg.created_at else ""})
+        rows.append(_serialize_message(msg, sender.name if sender else f"user:{msg.sender_id}"))
     return rows
 
 
@@ -770,6 +824,7 @@ def create_message(payload: DirectMessageCreate, current_user: User = Depends(ge
     if not thread:
         raise HTTPException(status_code=404, detail="thread not found")
     _ensure_thread_member(thread, current_user.id or 0)
+    _ensure_thread_visible(session, thread, current_user.id or 0)
     _ensure_dm_policy(current_user, payload.purpose_code)
     validate_exchange_text(payload.message)
     receiver_id = _message_counterparty(thread, current_user.id or 0)
@@ -779,7 +834,36 @@ def create_message(payload: DirectMessageCreate, current_user: User = Depends(ge
     session.add(msg)
     session.commit()
     session.refresh(msg)
-    return msg
+    return _serialize_message(msg, current_user.name)
+
+
+@router.delete("/community/messages/{message_id}")
+def delete_message(message_id: int, payload: DirectMessageDeleteRequest, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    msg = session.get(DirectMessage, message_id)
+    if not msg:
+        raise HTTPException(status_code=404, detail="message not found")
+    if msg.sender_id != (current_user.id or 0):
+        raise HTTPException(status_code=403, detail="only sender can delete message")
+    thread = session.get(DirectMessageThread, msg.thread_id)
+    if not thread:
+        raise HTTPException(status_code=404, detail="thread not found")
+    _ensure_thread_member(thread, current_user.id or 0)
+    rule = _get_or_create_random_rule(session)
+    limit_at = msg.created_at + timedelta(minutes=rule.self_message_delete_window_minutes)
+    now = utcnow()
+    if now > limit_at:
+        raise HTTPException(status_code=400, detail=f"delete window expired ({rule.self_message_delete_window_minutes} minutes)")
+    if not msg.is_deleted_for_all:
+        msg.original_message_backup = msg.original_message_backup or msg.message
+        msg.message = "삭제된 메시지"
+        msg.is_deleted_for_all = True
+        msg.deleted_by_id = current_user.id or 0
+        msg.deleted_at = now
+        thread.updated_at = now
+        session.add(thread)
+        session.add(msg)
+        session.commit()
+    return _serialize_message(msg, current_user.name)
 
 
 @router.post("/contents")
@@ -1224,8 +1308,24 @@ def _apply_random_chat_policy_baseline(rule: RandomChatRule) -> bool:
         "websocket_scale_policy": "railway_only_until_single_instance_limit_then_redis",
         "duplicate_report_policy": "same_target_once",
         "report_auto_block_mode": "immediate_reporter_block",
-        "false_report_policy": "3:warn,5:3d,10:7d,15:admin_review",
-        "self_message_delete_window_minutes": 5,
+        "false_report_policy": "3:warn,5:3d,8:7d,15:admin_review",
+        "random_chat_only_sanction_enabled": True,
+        "random_chat_only_sanction_policy": "3:24h,5:72h,8:7d,15:admin_review",
+        "permanent_ban_rejoin_after_days": 365,
+        "report_result_notice_mode": "silent",
+        "blocked_thread_visibility": "hard_hidden",
+        "unblock_rematch_mode": "immediate",
+        "match_retry_limit": 4,
+        "match_search_timeout_seconds": 300,
+        "contact_exchange_detection_mode": "terms_only",
+        "contact_exchange_warning_mode": "none",
+        "media_message_mode": "text_only",
+        "thread_view_audit_enabled": True,
+        "self_message_delete_window_minutes": 30,
+        "male_rematch_min_seconds": 20,
+        "male_rematch_max_seconds": 40,
+        "female_rematch_min_seconds": 5,
+        "female_rematch_max_seconds": 10,
     }
     for key, value in baseline.items():
         if getattr(rule, key) != value:
@@ -1423,7 +1523,24 @@ def _serialize_random_rule(rule: RandomChatRule) -> dict[str, Any]:
         "duplicate_report_policy": rule.duplicate_report_policy,
         "report_auto_block_mode": rule.report_auto_block_mode,
         "false_report_policy": rule.false_report_policy,
+        "random_chat_only_sanction_enabled": rule.random_chat_only_sanction_enabled,
+        "random_chat_only_sanction_policy": rule.random_chat_only_sanction_policy,
+        "permanent_ban_rejoin_after_days": rule.permanent_ban_rejoin_after_days,
+        "report_result_notice_mode": rule.report_result_notice_mode,
+        "blocked_thread_visibility": rule.blocked_thread_visibility,
+        "unblock_rematch_mode": rule.unblock_rematch_mode,
+        "match_retry_limit": rule.match_retry_limit,
+        "match_search_timeout_seconds": rule.match_search_timeout_seconds,
+        "contact_exchange_detection_mode": rule.contact_exchange_detection_mode,
+        "contact_exchange_warning_mode": rule.contact_exchange_warning_mode,
+        "media_message_mode": rule.media_message_mode,
+        "thread_view_audit_enabled": rule.thread_view_audit_enabled,
         "self_message_delete_window_minutes": rule.self_message_delete_window_minutes,
+        "message_delete_scope": rule.message_delete_scope,
+        "male_rematch_min_seconds": rule.male_rematch_min_seconds,
+        "male_rematch_max_seconds": rule.male_rematch_max_seconds,
+        "female_rematch_min_seconds": rule.female_rematch_min_seconds,
+        "female_rematch_max_seconds": rule.female_rematch_max_seconds,
     }
 
 
@@ -1586,7 +1703,24 @@ def update_random_rules(payload: RandomRuleUpdateRequest, current_user: User = D
     rule.duplicate_report_policy = payload.duplicate_report_policy
     rule.report_auto_block_mode = payload.report_auto_block_mode
     rule.false_report_policy = payload.false_report_policy
+    rule.random_chat_only_sanction_enabled = payload.random_chat_only_sanction_enabled
+    rule.random_chat_only_sanction_policy = payload.random_chat_only_sanction_policy
+    rule.permanent_ban_rejoin_after_days = payload.permanent_ban_rejoin_after_days
+    rule.report_result_notice_mode = payload.report_result_notice_mode
+    rule.blocked_thread_visibility = payload.blocked_thread_visibility
+    rule.unblock_rematch_mode = payload.unblock_rematch_mode
+    rule.match_retry_limit = payload.match_retry_limit
+    rule.match_search_timeout_seconds = payload.match_search_timeout_seconds
+    rule.contact_exchange_detection_mode = payload.contact_exchange_detection_mode
+    rule.contact_exchange_warning_mode = payload.contact_exchange_warning_mode
+    rule.media_message_mode = payload.media_message_mode
+    rule.thread_view_audit_enabled = payload.thread_view_audit_enabled
     rule.self_message_delete_window_minutes = payload.self_message_delete_window_minutes
+    rule.message_delete_scope = payload.message_delete_scope
+    rule.male_rematch_min_seconds = payload.male_rematch_min_seconds
+    rule.male_rematch_max_seconds = payload.male_rematch_max_seconds
+    rule.female_rematch_min_seconds = payload.female_rematch_min_seconds
+    rule.female_rematch_max_seconds = payload.female_rematch_max_seconds
     rule.updated_at = utcnow()
     session.add(rule)
     session.commit()
@@ -1597,6 +1731,9 @@ def update_random_rules(payload: RandomRuleUpdateRequest, current_user: User = D
 @router.post("/chat/random/tickets")
 def create_random_ticket(payload: RandomTicketCreate, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     rule = _get_or_create_random_rule(session)
+    now = utcnow()
+    if current_user.random_chat_cooldown_until and current_user.random_chat_cooldown_until > now:
+        raise HTTPException(status_code=429, detail=f"random rematch cooldown until {current_user.random_chat_cooldown_until.isoformat()}")
     existing = session.exec(select(RandomMatchTicket).where(RandomMatchTicket.user_id == (current_user.id or 0), RandomMatchTicket.status == "queued")).first()
     if existing:
         existing.status = "cancelled"
@@ -1637,7 +1774,8 @@ def create_random_ticket(payload: RandomTicketCreate, current_user: User = Depen
         session.add(best_candidate)
         session.commit()
         return {"ticket_id": ticket.id, "status": "matched", "thread_id": thread.id, "matched_user": _user_public_meta(session, best_candidate.user_id), "match_score": {"total": best_score[0], "gender": best_score[1], "age": best_score[2], "region": best_score[3]}, "rule": _serialize_random_rule(rule)}
-    return {"ticket_id": ticket.id, "status": "queued", "rule": _serialize_random_rule(rule), "match_window": {"min_wait_seconds": rule.min_wait_seconds, "max_wait_seconds": rule.max_wait_seconds, "auto_rematch": rule.auto_rematch}}
+    user_min_wait, user_max_wait = _random_rematch_window_seconds(rule, current_user)
+    return {"ticket_id": ticket.id, "status": "queued", "rule": _serialize_random_rule(rule), "match_window": {"min_wait_seconds": user_min_wait, "max_wait_seconds": user_max_wait, "auto_rematch": rule.auto_rematch}, "cooldown_until": current_user.random_chat_cooldown_until.isoformat() if current_user.random_chat_cooldown_until else None}
 
 
 @router.get("/chat/random/tickets/{ticket_id}")
@@ -1700,9 +1838,30 @@ def report_random_chat(payload: RandomReportCreate, current_user: User = Depends
     auto_blocked = rule.report_auto_block_mode == "immediate_reporter_block" or total_score >= rule.auto_suspend_threshold
     target_user = session.get(User, target_user_id)
     suspension = {"applied": False, "action": None, "locked_until": None, "member_status": None}
+    if thread.thread_type == "random_1to1":
+        thread.status = "blocked_hidden"
+        thread.updated_at = utcnow()
+        session.add(thread)
+        session.commit()
+    cooldown = _apply_random_rematch_cooldown(session, current_user, rule)
     if target_user:
         suspension = _apply_random_chat_suspension(session, target_user, rule, total_score)
-    return {"ok": True, "already_reported": False, "report_id": report.id, "user_report_id": user_report.id, "auto_blocked": auto_blocked, "threshold": rule.auto_suspend_threshold, "threshold_label": rule.report_score_label, "target_user_report_count": total_reports, "target_user_report_score": total_score, "score_delta": _report_score(rule, payload.reason_code), "suspension": suspension}
+    return {"ok": True, "already_reported": False, "report_id": report.id, "user_report_id": user_report.id, "auto_blocked": auto_blocked, "threshold": rule.auto_suspend_threshold, "threshold_label": rule.report_score_label, "target_user_report_count": total_reports, "target_user_report_score": total_score, "score_delta": _report_score(rule, payload.reason_code), "suspension": suspension, "rematch_cooldown": cooldown}
+
+
+@router.post("/chat/random/threads/{thread_id}/end")
+def end_random_thread(thread_id: int, payload: RandomThreadEndRequest, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    thread = session.get(DirectMessageThread, thread_id)
+    if not thread or thread.thread_type != "random_1to1":
+        raise HTTPException(status_code=404, detail="random thread not found")
+    _ensure_thread_member(thread, current_user.id or 0)
+    rule = _get_or_create_random_rule(session)
+    thread.status = "closed"
+    thread.updated_at = utcnow()
+    session.add(thread)
+    session.commit()
+    cooldown = _apply_random_rematch_cooldown(session, current_user, rule)
+    return {"ok": True, "thread_id": thread_id, "status": thread.status, "reason_code": payload.reason_code, "rematch_cooldown": cooldown}
 
 
 @router.get("/admin/chat-random/report-manage")

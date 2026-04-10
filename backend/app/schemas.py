@@ -1,4 +1,5 @@
 from typing import Optional
+from datetime import datetime
 from pydantic import BaseModel
 
 
@@ -276,11 +277,37 @@ class RandomRuleUpdateRequest(BaseModel):
     websocket_scale_policy: str = "railway_only_until_single_instance_limit_then_redis"
     duplicate_report_policy: str = "same_target_once"
     report_auto_block_mode: str = "immediate_reporter_block"
-    false_report_policy: str = "3:warn,5:3d,10:7d,15:admin_review"
-    self_message_delete_window_minutes: int = 5
+    false_report_policy: str = "3:warn,5:3d,8:7d,15:admin_review"
+    random_chat_only_sanction_enabled: bool = True
+    random_chat_only_sanction_policy: str = "3:24h,5:72h,8:7d,15:admin_review"
+    permanent_ban_rejoin_after_days: int = 365
+    report_result_notice_mode: str = "silent"
+    blocked_thread_visibility: str = "hard_hidden"
+    unblock_rematch_mode: str = "immediate"
+    match_retry_limit: int = 4
+    match_search_timeout_seconds: int = 300
+    contact_exchange_detection_mode: str = "terms_only"
+    contact_exchange_warning_mode: str = "none"
+    media_message_mode: str = "text_only"
+    thread_view_audit_enabled: bool = True
+    self_message_delete_window_minutes: int = 30
+    message_delete_scope: str = "delete_for_both_masked_archive"
+    male_rematch_min_seconds: int = 20
+    male_rematch_max_seconds: int = 40
+    female_rematch_min_seconds: int = 5
+    female_rematch_max_seconds: int = 10
 
 
 class RandomReportCreate(BaseModel):
     thread_id: int
     reason_code: str
     detail: Optional[str] = None
+
+
+class DirectMessageDeleteRequest(BaseModel):
+    reason_code: str = "user_delete"
+
+
+class RandomThreadEndRequest(BaseModel):
+    reason_code: str = "user_end"
+

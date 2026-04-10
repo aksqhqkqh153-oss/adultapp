@@ -1,14 +1,14 @@
-[build]
-frontend npm install: ok
-frontend npm run build: ok
-backend python compile: ok
-backend /api/health: 200 ok
-backend /api/chat/random/rules: 200 ok
-backend /api/admin/chat-random/report-manage: 401 without bearer token (expected)
+[BUILD CHECK]
+DATE=2026-04-10
+BACKEND_PY_COMPILE=OK
+FRONTEND_NPM_INSTALL=OK
+FRONTEND_VITE_BUILD=OK
+DB_MIGRATION_SMOKE=OK
 
-[policy baseline]
-report score label: 점
-report score weights: 욕설1 / 스팸1 / 개인정보요구2 / 음란물전송3 / 불법권유3 / 기타1
-auto suspend policy: 5=3d / 10=7d / 20=30d / 21+=admin_review
-retention_days baseline: 1095
-sqlite production restriction: enabled
+[UPDATED RANDOM CHAT POLICY]
+SELF_MESSAGE_DELETE_WINDOW_MINUTES=30
+MALE_REMATCH_SECONDS=20-40
+FEMALE_REMATCH_SECONDS=5-10
+BLOCKED_RANDOM_THREAD_VISIBILITY=HIDDEN
+ADMIN_MESSAGE_ACCESS_SCOPE=ALL_THREADS
+TEXT_ONLY_RANDOM_CHAT=ENABLED_BY_POLICY
