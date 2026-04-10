@@ -1192,11 +1192,39 @@ def _ticket_matches(rule: RandomChatRule, session: Session, source_user: User, s
 
 
 
+def _apply_random_chat_policy_baseline(rule: RandomChatRule) -> bool:
+    changed = False
+    baseline = {
+        "age_match_mode": "exact_then_adjacent",
+        "adjacent_age_pairs": "30대:40대,40대:30대",
+        "region_unit": "시",
+        "distance_score_mode": "band_bonus",
+        "allow_unblock": True,
+        "unblock_roles": "user,admin",
+        "unblock_log_mode": "always_admin_log",
+        "delete_display_mode": "masked_deleted_label_admin_archive",
+        "admin_restore_only": True,
+        "permanent_ban_keep_threads": True,
+        "admin_message_access_scope": "admin_archive_all_threads",
+    }
+    for key, value in baseline.items():
+        if getattr(rule, key) != value:
+            setattr(rule, key, value)
+            changed = True
+    return changed
+
+
 def _get_or_create_random_rule(session: Session) -> RandomChatRule:
     item = session.exec(select(RandomChatRule).where(RandomChatRule.rule_name == "default")).first()
     if item:
+        if _apply_random_chat_policy_baseline(item):
+            item.updated_at = utcnow()
+            session.add(item)
+            session.commit()
+            session.refresh(item)
         return item
     item = RandomChatRule(rule_name="default")
+    _apply_random_chat_policy_baseline(item)
     session.add(item)
     session.commit()
     session.refresh(item)

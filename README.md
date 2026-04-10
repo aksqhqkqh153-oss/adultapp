@@ -68,7 +68,7 @@ npx wrangler pages deploy dist --project-name adultapp --branch main --commit-di
 
 Windows PowerShell helper:
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\cloudflare_manual_deploy.ps1 -BackendApiBaseUrl "https://your-railway-domain.up.railway.app/api" -PagesProjectName "adultapp"
+powershell -ExecutionPolicy Bypass -File .\scripts\windows\cloudflare_pages_manual_deploy.ps1 -BackendApiBaseUrl "https://your-railway-domain.up.railway.app/api" -PagesProjectName "adultapp"
 ```
 
 
@@ -106,3 +106,24 @@ npx wrangler pages deploy dist --project-name adultapp --branch main --commit-di
 - 빌드 산출물 확인: `frontend\dist\index.html` 존재 여부 확인
 - 캐시 확인: 브라우저 강력 새로고침(Ctrl + F5) 또는 시크릿 모드에서 재확인
 - Cloudflare 재배포: `npx wrangler pages deploy dist --project-name adultapp --branch main --commit-dirty=true`
+
+
+## npm install 실패 시 대체 실행
+```powershell
+$repo = "C:\Users\icj24\Downloads\adultapp"
+Set-Location "$repo\frontend"
+$env:VITE_API_BASE_URL = "https://your-railway-domain.up.railway.app/api"
+$env:VITE_APP_REVIEW_MODE = "true"
+$env:VITE_MOBILE_WEB_FALLBACK_URL = "https://adultapp.pages.dev"
+if (-not (Test-Path ".\node_modules")) { throw "node_modules 없음 - npm install 먼저 필요" }
+npm run build
+Test-Path .\dist\index.html
+npx wrangler whoami
+npx wrangler pages deploy dist --project-name adultapp --branch main --commit-dirty=true
+```
+
+## 자주 발생하는 오류 빠른 대응
+- PowerShell Expand-Archive 오류: ZIP 파일이나 대상 폴더 파일이 열려 있으면 실패할 수 있음
+- npm 모듈 누락 오류: `node_modules` 삭제 후 `npm install` 재실행
+- wrangler 인증 오류: `npx wrangler login` 후 `npx wrangler whoami` 재확인
+- 프론트 무한 로딩: `/api/health`, `dist/index.html`, `VITE_API_BASE_URL`, 브라우저 캐시, Cloudflare 재배포 순으로 점검

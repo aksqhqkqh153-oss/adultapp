@@ -169,7 +169,7 @@ def seed_social_chat_tables(session: Session) -> None:
     customer = session.exec(select(User).where(User.grade == MemberGrade.CUSTOMER)).first()
     general_user = session.exec(select(User).where(User.grade == MemberGrade.GENERAL)).first()
     if admin and not session.exec(select(RandomChatRule)).first():
-        session.add(RandomChatRule(rule_name="default"))
+        session.add(RandomChatRule(rule_name="default", region_unit="시", distance_score_mode="band_bonus", allow_unblock=True, unblock_roles="user,admin", unblock_log_mode="always_admin_log", delete_display_mode="masked_deleted_label_admin_archive", admin_restore_only=True, admin_message_access_scope="admin_archive_all_threads", permanent_ban_keep_threads=True, age_match_mode="exact_then_adjacent", adjacent_age_pairs="30대:40대,40대:30대"))
     if admin and not session.exec(select(StoryItem)).first():
         session.add(StoryItem(author_id=admin.id or 0, title="운영 스토리", image_url="/media/sample-story.png", visibility="safe"))
     if seller_user and not session.exec(select(FeedPost)).first():

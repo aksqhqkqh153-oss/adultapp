@@ -236,7 +236,7 @@ class RandomRuleUpdateRequest(BaseModel):
     age_options: list[str] = ["성인 전체", "20대", "30대", "40대", "50대", "60대", "70대"]
     age_match_mode: str = "exact_then_adjacent"
     adjacent_age_pairs: str = "30대:40대,40대:30대"
-    region_unit: str = "시/도"
+    region_unit: str = "시"
     region_options: list[str] = ["무관", "같은 지역 우선", "거리기반"]
     geo_distance_enabled: bool = True
     max_distance_km: int = 600
@@ -258,10 +258,10 @@ class RandomRuleUpdateRequest(BaseModel):
     personal_room_conversion: str = "mutual_consent_only"
     message_storage_mode: str = "full_text"
     message_edit_delete_mask_support: bool = True
-    delete_display_mode: str = "hard_deleted_label_admin_raw"
+    delete_display_mode: str = "masked_deleted_label_admin_archive"
     admin_restore_only: bool = True
     admin_log_enabled: bool = True
-    admin_message_access_scope: str = "all_threads"
+    admin_message_access_scope: str = "admin_archive_all_threads"
     report_reason_codes: list[str] = ["욕설", "불법권유", "스팸", "개인정보요구", "음란물전송", "기타"]
     auto_suspend_policy: str = "5:3d,10:7d,20:30d,21:admin_review"
     auto_suspend_threshold: int = 5
