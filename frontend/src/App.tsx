@@ -174,139 +174,6 @@ type AdminDbManage = {
   };
 };
 
-type InspectorPayload = {
-  exportedAt: string;
-  route: string;
-  viewport: { width: number; height: number };
-  target: {
-    selector: string;
-    tag: string;
-    id: string;
-    className: string;
-    text: string;
-    rect: { x: number; y: number; width: number; height: number };
-    attributes: Record<string, string>;
-    html: string;
-  };
-  parentChain: Array<{ selector: string; tag: string; id: string; className: string; text: string }>;
-};
-
-const HTML_INSPECTOR_STORAGE_KEY = "adultapp_html_inspector_enabled";
-const HTML_INSPECTOR_CLASS = "adult-html-inspector-enabled";
-const RANDOM_ENDED_RETENTION_DAYS = 7;
-const AUDIT_LOG_RETENTION_YEARS = 3;
-
-function escapeSelectorToken(value: string) {
-  const raw = String(value || "");
-  if (!raw) return "";
-  const cssEscape = (globalThis as unknown as { CSS?: { escape?: (input: string) => string } }).CSS?.escape;
-  if (typeof cssEscape === "function") return cssEscape(raw);
-  return raw.replace(/([^a-zA-Z0-9_-])/g, "\\$1");
-}
-
-function buildElementSelector(element: Element | null) {
-  if (!(element instanceof Element)) return "";
-  if (element.id) return `#${escapeSelectorToken(element.id)}`;
-  const parts: string[] = [];
-  let current: Element | null = element;
-  while (current && parts.length < 6) {
-    let part = current.tagName.toLowerCase();
-    const classNames = Array.from(current.classList || []).slice(0, 3).map(escapeSelectorToken);
-    if (classNames.length) part += `.${classNames.join(".")}`;
-    const parent = current.parentElement;
-    if (parent) {
-      const siblings = Array.from(parent.children).filter((node) => node.tagName === current?.tagName);
-      if (siblings.length > 1) part += `:nth-of-type(${siblings.indexOf(current) + 1})`;
-    }
-    parts.unshift(part);
-    current = current.parentElement;
-  }
-  return parts.join(" > ");
-}
-
-function getElementTextPreview(element: Element | null) {
-  if (!(element instanceof Element)) return "";
-  return String(element.textContent || "").replace(/\s+/g, " ").trim().slice(0, 240);
-}
-
-function buildInspectorPayload(element: Element): InspectorPayload {
-  const rect = element.getBoundingClientRect();
-  const parentChain: InspectorPayload["parentChain"] = [];
-  let current = element.parentElement;
-  while (current && parentChain.length < 4) {
-    parentChain.push({
-      selector: buildElementSelector(current),
-      tag: current.tagName.toLowerCase(),
-      id: current.id || "",
-      className: typeof current.className === "string" ? current.className : "",
-      text: getElementTextPreview(current).slice(0, 120),
-    });
-    current = current.parentElement;
-  }
-  return {
-    exportedAt: new Date().toISOString(),
-    route: window.location.pathname || "/",
-    viewport: { width: window.innerWidth, height: window.innerHeight },
-    target: {
-      selector: buildElementSelector(element),
-      tag: element.tagName.toLowerCase(),
-      id: element.id || "",
-      className: typeof element.className === "string" ? element.className : "",
-      text: getElementTextPreview(element),
-      rect: {
-        x: Math.round(rect.x),
-        y: Math.round(rect.y),
-        width: Math.round(rect.width),
-        height: Math.round(rect.height),
-      },
-      attributes: Array.from(element.attributes || []).reduce<Record<string, string>>((acc, attr) => {
-        acc[attr.name] = attr.value;
-        return acc;
-      }, {}),
-      html: element.outerHTML,
-    },
-    parentChain,
-  };
-}
-
-function applyHtmlInspectorMode(enabled: boolean) {
-  if (typeof document === "undefined") return !!enabled;
-  const active = !!enabled;
-  document.body?.classList.toggle(HTML_INSPECTOR_CLASS, active);
-  document.documentElement?.classList.toggle(HTML_INSPECTOR_CLASS, active);
-  return active;
-}
-
-function downloadInspectorFile(filename: string, content: string, mimeType = "text/plain;charset=utf-8") {
-  try {
-    const blob = new Blob([content], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function buildInspectorText(payload: InspectorPayload | null) {
-  if (!payload) return "";
-  return [
-    `[페이지] ${payload.route}`,
-    `[뷰포트] ${payload.viewport.width} x ${payload.viewport.height}`,
-    `[선택요소] ${payload.target.selector || payload.target.tag}`,
-    `[텍스트] ${payload.target.text || "-"}`,
-    `[크기] ${payload.target.rect.width} x ${payload.target.rect.height} @ (${payload.target.rect.x}, ${payload.target.rect.y})`,
-    "",
-    JSON.stringify(payload, null, 2),
-  ].join("\n");
-}
-
 const mobileTabs = ["홈", "쇼핑", "소통", "채팅", "프로필"] as const;
 const legacyMenu = ["운영현황", "주문관리", "보안", "앱심사", "채팅-랜덤 규칙", "배포가이드"] as const;
 const homeTabs = ["피드", "상품"] as const;
@@ -314,14 +181,14 @@ const shoppingTabs = ["목록", "주문", "바구니"] as const;
 const communityTabs = ["커뮤", "후기", "이벤트"] as const;
 const chatTabs = ["채팅", "랜덤", "질문"] as const;
 const profileTabs = ["내정보"] as const;
-const settingsCategories = ["일반", "계정", "알림", "보안", "배포", "운영", "관리자모드"] as const;
+const settingsCategories = ["일반", "계정", "알림", "보안", "배포", "운영", "관리자모드", "DB관리", "신고", "채팅", "기타", "HTML요소"] as const;
 const randomRoomCategories = ["전체", "고민/상담", "정보공유", "일상대화", "취미/관심사", "자유주제"] as const;
 const chatCategories = ["전체", "즐겨찾기", "개인", "단체"] as const;
 const oneToOneRandomCategories = ["고민상담", "자유수다", "아무말대잔치", "도파민수다"] as const;
 const randomGenderOptions = ["무관", "남", "여", "기타"] as const;
 const randomRegionOptions = ["무관", "같은 지역 우선", "거리기반"] as const;
 const randomEntryTabs = ["시작", "목록"] as const;
-const adminModeTabs = ["DB관리", "신고", "채팅", "기타", "HTML요소"] as const;
+const adminModeTabs = ["DB관리", "신고", "채팅", "기타"] as const;
 
 
 type MobileTab = (typeof mobileTabs)[number];
@@ -340,6 +207,16 @@ type RandomRegionOption = (typeof randomRegionOptions)[number];
 type RandomEntryTab = (typeof randomEntryTabs)[number];
 type AdminModeTab = (typeof adminModeTabs)[number];
 type OverlayMode = "search" | "settings" | null;
+
+type HtmlInspectorInfo = {
+  selector: string;
+  tagName: string;
+  id: string;
+  className: string;
+  text: string;
+  html: string;
+  cssText: string;
+};
 
 type HeaderNavItem = {
   label: string;
@@ -740,7 +617,33 @@ function LegacyPanel({ section, projectStatus, deployGuide }: { section: LegacyT
   );
 }
 
-function SettingSection({ category, isAdmin, legacySection, setLegacySection, projectStatus, deployGuide, currentUserRole, adminModeTab, setAdminModeTab, adminDbManage, htmlInspectorEnabled, onToggleHtmlInspector, inspectorPayload, onCloseInspector, onCopyInspector, onDownloadInspectorJson, onDownloadInspectorTxt }: {
+function copyToClipboard(text: string) {
+  if (typeof navigator === "undefined" || !navigator.clipboard) return;
+  navigator.clipboard.writeText(text).catch(() => null);
+}
+
+function buildElementSelector(element: HTMLElement) {
+  if (element.id) return `#${element.id}`;
+  const classList = Array.from(element.classList).slice(0, 3).join(".");
+  const classSelector = classList ? `.${classList}` : "";
+  const parent = element.parentElement;
+  const siblings = parent ? Array.from(parent.children).filter((item) => item.tagName === element.tagName) : [];
+  const index = siblings.length > 1 ? `:nth-of-type(${siblings.indexOf(element) + 1})` : "";
+  return `${element.tagName.toLowerCase()}${classSelector}${index}`;
+}
+
+function buildElementCssText(element: HTMLElement) {
+  const computed = window.getComputedStyle(element);
+  const cssKeys = [
+    "display", "position", "width", "height", "min-width", "min-height", "max-width", "max-height",
+    "margin", "padding", "gap", "grid-template-columns", "grid-template-rows", "flex-direction",
+    "justify-content", "align-items", "font-size", "font-weight", "line-height", "color",
+    "background", "background-color", "border", "border-radius", "box-shadow", "overflow"
+  ];
+  return cssKeys.map((key) => `  ${key}: ${computed.getPropertyValue(key)};`).join("\n");
+}
+
+function SettingSection({ category, isAdmin, legacySection, setLegacySection, projectStatus, deployGuide, currentUserRole, adminModeTab, setAdminModeTab, adminDbManage, htmlInspectorEnabled, setHtmlInspectorEnabled }: {
   category: SettingsCategory;
   isAdmin: boolean;
   legacySection: LegacyTab;
@@ -752,12 +655,7 @@ function SettingSection({ category, isAdmin, legacySection, setLegacySection, pr
   setAdminModeTab: (section: AdminModeTab) => void;
   adminDbManage: AdminDbManage | null;
   htmlInspectorEnabled: boolean;
-  onToggleHtmlInspector: () => void;
-  inspectorPayload: InspectorPayload | null;
-  onCloseInspector: () => void;
-  onCopyInspector: () => void;
-  onDownloadInspectorJson: () => void;
-  onDownloadInspectorTxt: () => void;
+  setHtmlInspectorEnabled: (value: boolean) => void;
 }) {
   if (category === "일반") {
     return (
@@ -799,18 +697,19 @@ function SettingSection({ category, isAdmin, legacySection, setLegacySection, pr
       </div>
     );
   }
-  if (category === "관리자모드") {
+  if (["관리자모드", "DB관리", "신고", "채팅", "기타"].includes(category)) {
     if (!isAdmin) {
-      return <div className="legacy-box compact"><h3>관리자모드</h3><p>관리자 계정에서만 확인할 수 있습니다.</p></div>;
+      return <div className="legacy-box compact"><h3>{category}</h3><p>관리자 계정에서만 확인할 수 있습니다.</p></div>;
     }
+    const normalizedAdminMode = category === "관리자모드" ? adminModeTab : (category as AdminModeTab);
     return (
       <div className="stack-gap">
         <div className="legacy-nav inline">
           {adminModeTabs.map((item) => (
-            <button key={item} className={`legacy-nav-btn ${adminModeTab === item ? "active" : ""}`} onClick={() => setAdminModeTab(item)}>{item}</button>
+            <button key={item} className={`legacy-nav-btn ${normalizedAdminMode === item ? "active" : ""}`} onClick={() => setAdminModeTab(item)}>{item}</button>
           ))}
         </div>
-        {adminModeTab === "DB관리" ? (
+        {normalizedAdminMode === "DB관리" ? (
           <div className="settings-grid settings-two-col">
             <div className="legacy-box compact">
               <h3>신고 DB</h3>
@@ -830,7 +729,7 @@ function SettingSection({ category, isAdmin, legacySection, setLegacySection, pr
             </div>
           </div>
         ) : null}
-        {adminModeTab === "신고" ? (
+        {normalizedAdminMode === "신고" ? (
           <div className="settings-grid settings-two-col">
             <div className="legacy-box compact">
               <h3>신고 정책</h3>
@@ -847,13 +746,13 @@ function SettingSection({ category, isAdmin, legacySection, setLegacySection, pr
             </div>
           </div>
         ) : null}
-        {adminModeTab === "채팅" ? (
+        {normalizedAdminMode === "채팅" ? (
           <div className="settings-grid settings-two-col">
             <div className="legacy-box compact">
               <h3>채팅 정책</h3>
-              <p>차단 후 표시: {adminDbManage?.rule?.blocked_thread_visibility ?? 'list_visible_until_retention_end'} · 삭제 범위: {adminDbManage?.rule?.message_delete_scope ?? 'ended_list_metadata_only'}</p>
-              <p>재시도 {adminDbManage?.rule?.match_retry_limit ?? 4}회 · 최대 탐색 {adminDbManage?.rule?.match_search_timeout_seconds ?? 300}초 · 미디어 {adminDbManage?.rule?.media_message_mode ?? 'text_only'}</p>
-              <p>최근 종료 목록은 {RANDOM_ENDED_RETENTION_DAYS}일 보관 · 신고 후에도 목록은 유지 · 재입장은 현재 불가입니다.</p>
+              <p>차단 후 표시: {adminDbManage?.rule?.blocked_thread_visibility ?? 'hard_hidden'} · 삭제 범위: {adminDbManage?.rule?.message_delete_scope ?? 'delete_for_both_masked_archive'}</p>
+              <p>재시도 {adminDbManage?.rule?.match_retry_limit ?? 0}회 · 최대 탐색 {adminDbManage?.rule?.match_search_timeout_seconds ?? 0}초 · 미디어 {adminDbManage?.rule?.media_message_mode ?? 'text_only'}</p>
+              <p>관리자모드는 현재 조회 전용이며, 실제 수정 기능은 열려 있지 않습니다.</p>
             </div>
             <div className="legacy-box compact">
               <h3>최근 랜덤채팅 스레드</h3>
@@ -865,12 +764,12 @@ function SettingSection({ category, isAdmin, legacySection, setLegacySection, pr
             </div>
           </div>
         ) : null}
-        {adminModeTab === "기타" ? (
+        {normalizedAdminMode === "기타" ? (
           <div className="settings-grid settings-two-col">
             <div className="legacy-box compact">
               <h3>재가입/보존</h3>
               <p>영구정지 재가입 재심사: {adminDbManage?.other?.permanent_ban_rejoin_after_days ?? 365}일 후 가능</p>
-              <p>메시지 자가 삭제 허용: {adminDbManage?.rule?.self_message_delete_window_minutes ?? 30}분 · 감사로그 보관 {AUDIT_LOG_RETENTION_YEARS}년</p>
+              <p>메시지 자가 삭제 허용: {adminDbManage?.rule?.self_message_delete_window_minutes ?? 30}분</p>
             </div>
             <div className="legacy-box compact">
               <h3>최근 관리자 로그</h3>
@@ -882,36 +781,21 @@ function SettingSection({ category, isAdmin, legacySection, setLegacySection, pr
             </div>
           </div>
         ) : null}
-        {adminModeTab === "HTML요소" ? (
-          <div className="settings-grid settings-two-col">
-            <div className="legacy-box compact">
-              <h3>HTML 요소확인</h3>
-              <p>관리자모드 하위에서 ON/OFF 할 수 있으며, ON 상태에서 Ctrl + 클릭하면 현재 화면 요소 정보 패널이 열립니다.</p>
-              <div className="admin-inspector-actions">
-                <button className={`legacy-nav-btn ${htmlInspectorEnabled ? "active" : ""}`} onClick={onToggleHtmlInspector}>{htmlInspectorEnabled ? "현재 ON" : "현재 OFF"}</button>
-                <button className="ghost-btn" onClick={onCopyInspector} disabled={!inspectorPayload}>복사</button>
-              </div>
-              <p>JSON/TXT 다운로드를 지원하며, selector·text·rect·attributes·outerHTML을 함께 추출합니다.</p>
-            </div>
-            <div className="legacy-box compact">
-              <h3>최근 선택 요소</h3>
-              {inspectorPayload ? (
-                <div className="admin-inspector-preview">
-                  <div className="simple-list-row"><strong>{inspectorPayload.target.selector || inspectorPayload.target.tag}</strong></div>
-                  <div className="simple-list-row">text · {inspectorPayload.target.text || "-"}</div>
-                  <div className="simple-list-row">rect · {inspectorPayload.target.rect.width} x {inspectorPayload.target.rect.height} @ ({inspectorPayload.target.rect.x}, {inspectorPayload.target.rect.y})</div>
-                  <div className="admin-inspector-actions">
-                    <button className="ghost-btn" onClick={onDownloadInspectorJson}>JSON 저장</button>
-                    <button className="ghost-btn" onClick={onDownloadInspectorTxt}>TXT 저장</button>
-                    <button className="ghost-btn" onClick={onCloseInspector}>초기화</button>
-                  </div>
-                </div>
-              ) : (
-                <p>아직 선택한 요소가 없습니다. 기능을 ON으로 바꾼 뒤 현재 화면에서 Ctrl + 클릭해 주세요.</p>
-              )}
-            </div>
+      </div>
+    );
+  }
+  if (category === "HTML요소") {
+    return (
+      <div className="settings-grid settings-one-col">
+        <div className="legacy-box compact">
+          <div className="split-row">
+            <h3>HTML 요소 추출</h3>
+            <button type="button" className={`toggle-pill ${htmlInspectorEnabled ? "on" : "off"}`} onClick={() => setHtmlInspectorEnabled(!htmlInspectorEnabled)}>
+              {htmlInspectorEnabled ? "ON" : "OFF"}
+            </button>
           </div>
-        ) : null}
+          <p>ON 상태에서 Ctrl + 마우스 왼쪽 클릭으로 원하는 레이아웃 요소를 선택하면 팝업에서 HTML, selector, 핵심 스타일을 복사할 수 있습니다.</p>
+        </div>
       </div>
     );
   }
@@ -934,6 +818,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<MobileTab>("홈");
   const [legacySection, setLegacySection] = useState<LegacyTab>("운영현황");
   const [overlayMode, setOverlayMode] = useState<OverlayMode>(null);
+  const [htmlInspectorEnabled, setHtmlInspectorEnabled] = useState(false);
+  const [inspectedElement, setInspectedElement] = useState<HtmlInspectorInfo | null>(null);
   const [globalKeyword, setGlobalKeyword] = useState("");
   const [homeTab, setHomeTab] = useState<HomeTab>("피드");
   const [shoppingTab, setShoppingTab] = useState<ShoppingTab>("목록");
@@ -967,11 +853,6 @@ export default function App() {
   const [projectStatus, setProjectStatus] = useState<ProjectStatus | null>(null);
   const [deployGuide, setDeployGuide] = useState<DeployGuide | null>(null);
   const [adminDbManage, setAdminDbManage] = useState<AdminDbManage | null>(null);
-  const [htmlInspectorEnabled, setHtmlInspectorEnabled] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.localStorage.getItem(HTML_INSPECTOR_STORAGE_KEY) === "1";
-  });
-  const [inspectorPayload, setInspectorPayload] = useState<InspectorPayload | null>(null);
   const [randomRooms, setRandomRooms] = useState<RandomRoom[]>(randomRoomSeed);
   const [roomModalOpen, setRoomModalOpen] = useState(false);
   const [newRoomCategory, setNewRoomCategory] = useState<Exclude<RandomRoomCategory, "전체">>("고민/상담");
@@ -1002,32 +883,6 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    applyHtmlInspectorMode(htmlInspectorEnabled);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(HTML_INSPECTOR_STORAGE_KEY, htmlInspectorEnabled ? "1" : "0");
-    }
-  }, [htmlInspectorEnabled]);
-
-  useEffect(() => {
-    if (!htmlInspectorEnabled) return;
-    const handleClick = (event: MouseEvent) => {
-      if (!event.ctrlKey) return;
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      if (target.closest('.overlay-card, .top-header, .bottom-nav')) return;
-      event.preventDefault();
-      event.stopPropagation();
-      setInspectorPayload(buildInspectorPayload(target));
-      setActiveTab((prev) => prev);
-      setOverlayMode("settings");
-      setSettingsCategory("관리자모드");
-      setAdminModeTab("HTML요소");
-    };
-    document.addEventListener("click", handleClick, true);
-    return () => document.removeEventListener("click", handleClick, true);
-  }, [htmlInspectorEnabled]);
-
-  useEffect(() => {
     setRandomRooms((prev) => prev.map((room) => {
       if (room.kind !== "random_1to1" || room.status === "ended" || !room.expiresAt) return room;
       if (room.expiresAt > randomNow) return room;
@@ -1053,7 +908,6 @@ export default function App() {
 
   const visibleRandomMatchRooms = useMemo(() => randomRooms
     .filter((room) => room.kind === "random_1to1")
-    .filter((room) => room.status !== "ended" || !room.endedAt || (randomNow - room.endedAt) <= RANDOM_ENDED_RETENTION_DAYS * 24 * 60 * 60 * 1000)
     .sort((a, b) => {
       if ((a.status ?? "active") !== (b.status ?? "active")) return (a.status ?? "active") === "active" ? -1 : 1;
       const aTime = a.status === "ended" ? (a.endedAt ?? 0) : (a.expiresAt ?? 0);
@@ -1115,11 +969,37 @@ export default function App() {
 
   const homeProducts = useMemo(() => productsSeed.slice(0, 4), []);
   const currentScreenTitle = activeTab;
+  const showBaseTabContent = overlayMode === null;
 
   const openOverlay = (mode: Exclude<OverlayMode, null>) => {
     setOverlayMode((prev) => (prev === mode ? null : mode));
     setRoomModalOpen(false);
   };
+
+  useEffect(() => {
+    if (!htmlInspectorEnabled) return undefined;
+    const handleCtrlClick = (event: MouseEvent) => {
+      if (!event.ctrlKey || event.button !== 0) return;
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (target.closest('.html-inspector-modal') || target.closest('.settings-category-nav')) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const textContent = (target.innerText || target.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 300);
+      const html = target.outerHTML.slice(0, 5000);
+      setInspectedElement({
+        selector: buildElementSelector(target),
+        tagName: target.tagName.toLowerCase(),
+        id: target.id || '-',
+        className: target.className || '-',
+        text: textContent || '-',
+        html,
+        cssText: buildElementCssText(target),
+      });
+    };
+    document.addEventListener('click', handleCtrlClick, true);
+    return () => document.removeEventListener('click', handleCtrlClick, true);
+  }, [htmlInspectorEnabled]);
 
   const startRandomMatch = () => {
     if (matchingRandom) return;
@@ -1162,7 +1042,7 @@ export default function App() {
       setRandomRooms((prev) => [createdRoom, ...prev]);
       setMatchedRandomUser({ ...picked, category: oneToOneCategory });
       setRandomMatchPhase("matched");
-      setRandomMatchNote(`${picked.nickname} 님과 연결되었습니다. 채팅방은 자동 생성되었고, 목록 탭에서 선택해야 입장됩니다. 1:1 채팅방 유지시간은 ${randomRoomLifetimeMinutes}분 고정이며 종료된 방은 최근 종료 목록으로 ${RANDOM_ENDED_RETENTION_DAYS}일간 보관되며 재입장은 현재 허용되지 않습니다.`);
+      setRandomMatchNote(`${picked.nickname} 님과 연결되었습니다. 채팅방은 자동 생성되었고, 목록 탭에서 선택해야 입장됩니다. 1:1 채팅방 유지시간은 ${randomRoomLifetimeMinutes}분 고정이며 종료된 방은 최근 종료 목록으로 남습니다.`);
       setRandomEntryTab("목록");
       setMatchingRandom(false);
     }, 1600);
@@ -1172,7 +1052,7 @@ export default function App() {
     setMatchingRandom(false);
     setRandomMatchPhase("idle");
     setMatchedRandomUser(null);
-    setRandomMatchNote(`랜덤채팅 대기열에서 빠졌습니다. 실제 운영 기준은 텍스트 전용 · 최근 종료 목록 ${RANDOM_ENDED_RETENTION_DAYS}일 보관 · 재입장 불가 · 감사로그 ${AUDIT_LOG_RETENTION_YEARS}년 보관입니다.`);
+    setRandomMatchNote("랜덤채팅 대기열에서 빠졌습니다. 실제 운영 시에는 텍스트 전용, 30분 내 삭제, 신고 즉시 차단·숨김 정책을 함께 연결하면 됩니다.");
   };
 
   const openRandomRoom = (roomId: number) => {
@@ -1187,12 +1067,12 @@ export default function App() {
   };
 
   const endRandomRoom = (roomId: number) => {
-    setRandomRooms((prev) => prev.map((room) => room.id === roomId ? { ...room, status: "ended", endedAt: Date.now(), latestMessage: `채팅이 종료되어 최근 종료 목록으로 이동했습니다. ${RANDOM_ENDED_RETENTION_DAYS}일 후 자동 삭제됩니다.` } : room));
+    setRandomRooms((prev) => prev.map((room) => room.id === roomId ? { ...room, status: "ended", endedAt: Date.now(), latestMessage: "채팅이 종료되어 최근 종료 목록으로 이동했습니다." } : room));
     setActiveRandomRoomId((prev) => (prev === roomId ? null : prev));
   };
 
   const reportRandomRoom = (room: RandomRoom) => {
-    window.alert(`${room.partnerNickname ?? room.title} 채팅 신고가 접수되었습니다. 현재 기준은 채팅방 목록은 유지하고, 최근 종료 목록 메타정보만 ${RANDOM_ENDED_RETENTION_DAYS}일 보관 후 자동 삭제합니다.`);
+    window.alert(`${room.partnerNickname ?? room.title} 채팅에 대한 신고 접수 데모입니다. 실제 운영에서는 결과 비공개, 신고 즉시 차단/숨김 정책과 연동합니다.`);
   };
 
   const openAskFromFeed = (item: FeedItem) => {
@@ -1241,39 +1121,14 @@ export default function App() {
     return profileTabs.map((tab) => ({ label: tab, active: profileTab === tab, onClick: () => setProfileTab(tab) }));
   }, [activeTab, homeTab, shoppingTab, communityTab, chatTab, profileTab]);
 
-  const settingsNavItems = useMemo<SettingsCategory[]>(() => settingsCategories.filter((item) => (item !== "운영" && item !== "관리자모드") || isAdmin), [isAdmin]);
-
-  const toggleHtmlInspector = () => {
-    setHtmlInspectorEnabled((prev) => !prev);
-  };
-
-  const closeInspector = () => setInspectorPayload(null);
-
-  const copyInspector = async () => {
-    if (!inspectorPayload) return;
-    const text = buildInspectorText(inspectorPayload);
-    try {
-      await navigator.clipboard.writeText(text);
-      window.alert("HTML 요소 정보가 클립보드에 복사되었습니다.");
-    } catch {
-      window.alert("클립보드 복사에 실패했습니다.");
-    }
-  };
-
-  const downloadInspectorJson = () => {
-    if (!inspectorPayload) return;
-    downloadInspectorFile(`adult_html_inspector_${Date.now()}.json`, JSON.stringify(inspectorPayload, null, 2), "application/json;charset=utf-8");
-  };
-
-  const downloadInspectorTxt = () => {
-    if (!inspectorPayload) return;
-    downloadInspectorFile(`adult_html_inspector_${Date.now()}.txt`, buildInspectorText(inspectorPayload));
-  };
+  const settingsNavItems = useMemo<SettingsCategory[]>(() => settingsCategories.filter((item) => (["운영", "관리자모드", "DB관리", "신고", "채팅", "기타"].includes(item) ? isAdmin : true)), [isAdmin]);
 
   const selectBottomTab = (tab: MobileTab) => {
     setActiveTab(tab);
     setOverlayMode(null);
     setRoomModalOpen(false);
+    setHtmlInspectorEnabled(false);
+    setInspectedElement(null);
     if (tab !== "홈") setHomeTab("피드");
     if (tab !== "쇼핑") setShoppingTab("목록");
     if (tab !== "소통") setCommunityTab("커뮤");
@@ -1331,10 +1186,23 @@ export default function App() {
 
             {overlayMode === "settings" ? (
               <div className="stack-gap">
-                <div className="legacy-nav inline settings-category-nav">
-                  {settingsNavItems.map((item) => (
-                    <button key={item} className={`legacy-nav-btn ${settingsCategory === item ? "active" : ""}`} onClick={() => setSettingsCategory(item)}>{item}</button>
-                  ))}
+                <div className="settings-category-nav">
+                  {settingsNavItems.map((item) => {
+                    const isHtmlToggle = item === "HTML요소";
+                    return (
+                      <button
+                        key={item}
+                        className={`settings-category-btn ${settingsCategory === item ? "active" : ""} ${isHtmlToggle && htmlInspectorEnabled ? "inspector-on" : ""}`}
+                        onClick={() => {
+                          setSettingsCategory(item);
+                          if (isHtmlToggle) setHtmlInspectorEnabled((prev) => !prev);
+                        }}
+                      >
+                        <span>{item}</span>
+                        {isHtmlToggle ? <b>{htmlInspectorEnabled ? "ON" : "OFF"}</b> : null}
+                      </button>
+                    );
+                  })}
                 </div>
                 <SettingSection
                   category={settingsCategory}
@@ -1348,19 +1216,14 @@ export default function App() {
                   setAdminModeTab={setAdminModeTab}
                   adminDbManage={adminDbManage}
                   htmlInspectorEnabled={htmlInspectorEnabled}
-                  onToggleHtmlInspector={toggleHtmlInspector}
-                  inspectorPayload={inspectorPayload}
-                  onCloseInspector={closeInspector}
-                  onCopyInspector={copyInspector}
-                  onDownloadInspectorJson={downloadInspectorJson}
-                  onDownloadInspectorTxt={downloadInspectorTxt}
+                  setHtmlInspectorEnabled={setHtmlInspectorEnabled}
                 />
               </div>
             ) : null}
           </section>
         ) : null}
 
-        {activeTab === "홈" ? (
+        {showBaseTabContent && activeTab === "홈" ? (
           <section className="tab-pane fill-pane home-feed-pane">
             {homeTab === "피드" ? (
               <>
@@ -1392,7 +1255,7 @@ export default function App() {
           </section>
         ) : null}
 
-        {activeTab === "쇼핑" ? (
+        {showBaseTabContent && activeTab === "쇼핑" ? (
           <section className="tab-pane fill-pane">
             {shoppingTab === "목록" ? (
               <>
@@ -1460,7 +1323,7 @@ export default function App() {
           </section>
         ) : null}
 
-        {activeTab === "소통" ? (
+        {showBaseTabContent && activeTab === "소통" ? (
           <section className="tab-pane fill-pane">
             <div className="section-head compact-head">
               <div><h2>소통</h2><p>{communityTab === "커뮤" ? "커뮤니티 글과 공지, 정보공유를 확인합니다." : communityTab === "후기" ? "후기 글 모음을 확인합니다." : "이벤트 공지를 확인합니다."}</p></div>
@@ -1487,7 +1350,7 @@ export default function App() {
           </section>
         ) : null}
 
-        {activeTab === "채팅" ? (
+        {showBaseTabContent && activeTab === "채팅" ? (
           <section className="tab-pane fill-pane">
             {chatTab === "랜덤" ? (
               <div className="random-match-pane">
@@ -1727,7 +1590,7 @@ export default function App() {
           </section>
         ) : null}
 
-        {activeTab === "프로필" ? (
+        {showBaseTabContent && activeTab === "프로필" ? (
           <section className="tab-pane fill-pane">
             <div className="section-head compact-head"><div><h2>프로필</h2><p>내정보와 활동 통계를 확인합니다.</p></div></div>
             <div className="profile-shell compact-scroll-list">
@@ -1750,9 +1613,40 @@ export default function App() {
         ) : null}
       </main>
 
+      {inspectedElement ? (
+        <section className="overlay-card html-inspector-modal">
+          <div className="overlay-head">
+            <strong>HTML 요소 복사</strong>
+            <button className="ghost-btn" onClick={() => setInspectedElement(null)}>닫기</button>
+          </div>
+          <div className="stack-gap html-inspector-body">
+            <div className="legacy-box compact">
+              <div className="simple-list-row"><b>selector</b><span>{inspectedElement.selector}</span></div>
+              <div className="simple-list-row"><b>tag</b><span>{inspectedElement.tagName}</span></div>
+              <div className="simple-list-row"><b>id</b><span>{inspectedElement.id}</span></div>
+              <div className="simple-list-row"><b>class</b><span>{inspectedElement.className}</span></div>
+              <div className="simple-list-row"><b>text</b><span>{inspectedElement.text}</span></div>
+            </div>
+            <div className="copy-action-row">
+              <button className="ghost-btn" onClick={() => copyToClipboard(inspectedElement.selector)}>selector 복사</button>
+              <button className="ghost-btn" onClick={() => copyToClipboard(inspectedElement.cssText)}>style 복사</button>
+              <button className="ghost-btn" onClick={() => copyToClipboard(inspectedElement.html)}>html 복사</button>
+            </div>
+            <div className="legacy-box compact">
+              <h3>핵심 스타일</h3>
+              <pre>{inspectedElement.cssText}</pre>
+            </div>
+            <div className="legacy-box compact">
+              <h3>선택 요소 HTML</h3>
+              <pre>{inspectedElement.html}</pre>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       <nav className="bottom-nav">
         {mobileTabs.map((tab) => (
-          <button key={tab} className={`bottom-nav-btn ${activeTab === tab ? "active" : ""}`} onClick={() => selectBottomTab(tab)}>
+          <button key={tab} className={`bottom-nav-btn ${overlayMode === null && activeTab === tab ? "active" : ""}`} onClick={() => selectBottomTab(tab)}>
             <span>{tab}</span>
           </button>
         ))}

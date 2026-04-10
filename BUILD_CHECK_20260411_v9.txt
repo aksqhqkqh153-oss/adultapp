@@ -1,0 +1,13 @@
+[adultapp build check]
+Date: 2026-04-11
+Scope:
+- Search overlay now renders independently from base bottom-tab content.
+- Settings overlay now renders independently from base bottom-tab content.
+- Settings category list expanded to 일반/계정/알림/보안/배포/운영/관리자모드/DB관리/신고/채팅/기타/HTML요소.
+- HTML요소 category supports ON/OFF toggle.
+- Ctrl + left click inspector popup added for selector/style/html copy.
+
+Build result:
+- frontend npm install: success
+- frontend npm run build: success
+- dist refreshed: success
