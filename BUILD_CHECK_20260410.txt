@@ -1,0 +1,14 @@
+Build verification - 2026-04-10
+
+Frontend
+- npm install: success
+- npm run build: success
+- dist/index.html generated: yes
+
+Backend
+- python compileall app: success
+- FastAPI TestClient GET /api/health: 200 OK
+
+Notes
+- Production Railway DB policy is PostgreSQL.
+- Local SQLite is retained only as a local fallback/runtime-repair path.

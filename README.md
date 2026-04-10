@@ -70,3 +70,39 @@ Windows PowerShell helper:
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\cloudflare_manual_deploy.ps1 -BackendApiBaseUrl "https://your-railway-domain.up.railway.app/api" -PagesProjectName "adultapp"
 ```
+
+
+## Windows PowerShell 5.1 ZIP 반영
+```powershell
+$repo = "C:\Users\icj24\Downloads\adultapp"
+$zip = "C:\Users\icj24\Downloads\adultapp_randomchat_postgres_update_20260410.zip"
+
+Set-Location $repo
+git fetch origin
+git checkout main
+git reset --hard origin/main
+git clean -fd
+Expand-Archive -LiteralPath $zip -DestinationPath $repo -Force
+git status --short
+```
+
+## Windows PowerShell 5.1 Cloudflare Pages 수동 업로드
+```powershell
+$repo = "C:\Users\icj24\Downloads\adultapp"
+Set-Location "$repo\frontend"
+$env:VITE_API_BASE_URL = "https://your-railway-domain.up.railway.app/api"
+$env:VITE_APP_REVIEW_MODE = "true"
+$env:VITE_MOBILE_WEB_FALLBACK_URL = "https://adultapp.pages.dev"
+npm install
+npm run build
+Test-Path .\dist\index.html
+npx wrangler whoami
+npx wrangler pages deploy dist --project-name adultapp --branch main --commit-dirty=true
+```
+
+## 프론트 무한 로딩 점검
+- API 확인: 브라우저에서 `https://your-railway-domain.up.railway.app/api/health` 가 `{"status":"ok"}` 를 반환하는지 확인
+- 배포 환경변수 확인: `VITE_API_BASE_URL` 이 실제 Railway `/api` 주소를 가리키는지 확인
+- 빌드 산출물 확인: `frontend\dist\index.html` 존재 여부 확인
+- 캐시 확인: 브라우저 강력 새로고침(Ctrl + F5) 또는 시크릿 모드에서 재확인
+- Cloudflare 재배포: `npx wrangler pages deploy dist --project-name adultapp --branch main --commit-dirty=true`
