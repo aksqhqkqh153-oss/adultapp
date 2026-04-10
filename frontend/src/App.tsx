@@ -83,6 +83,8 @@ type RandomRoom = {
   distanceMaxKm?: number;
   genderOption?: string;
   regionOption?: string;
+  status?: "active" | "ended";
+  endedAt?: number;
 };
 
 type QuestionCard = {
@@ -313,6 +315,51 @@ const profileStats: ProfileItem[] = [
   { label: "피드", value: "94" },
   { label: "상품", value: "26" },
 ];
+
+
+
+function DualRangeSlider({ min, max, valueMin, valueMax, step = 1, leftLabel, rightLabel, onChangeMin, onChangeMax }: {
+  min: number;
+  max: number;
+  valueMin: number;
+  valueMax: number;
+  step?: number;
+  leftLabel: string;
+  rightLabel: string;
+  onChangeMin: (value: number) => void;
+  onChangeMax: (value: number) => void;
+}) {
+  const leftPercent = ((valueMin - min) / (max - min)) * 100;
+  const rightPercent = ((valueMax - min) / (max - min)) * 100;
+
+  return (
+    <div className="dual-range-box">
+      <div className="random-range-values"><b>{leftLabel}</b><b>{rightLabel}</b></div>
+      <div className="dual-range-slider">
+        <div className="dual-range-track" />
+        <div className="dual-range-fill" style={{ left: `${leftPercent}%`, width: `${Math.max(0, rightPercent - leftPercent)}%` }} />
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={valueMin}
+          onChange={(e) => onChangeMin(Math.min(Number(e.target.value), valueMax))}
+          aria-label={`${leftLabel} 최소값`}
+        />
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={valueMax}
+          onChange={(e) => onChangeMax(Math.max(Number(e.target.value), valueMin))}
+          aria-label={`${rightLabel} 최대값`}
+        />
+      </div>
+    </div>
+  );
+}
 
 function FeedPoster({ item, onAsk }: { item: FeedItem; onAsk: (item: FeedItem) => void }) {
   return (
@@ -666,6 +713,7 @@ function SettingSection({ category, isAdmin, legacySection, setLegacySection, pr
               <h3>채팅 정책</h3>
               <p>차단 후 표시: {adminDbManage?.rule?.blocked_thread_visibility ?? 'hard_hidden'} · 삭제 범위: {adminDbManage?.rule?.message_delete_scope ?? 'delete_for_both_masked_archive'}</p>
               <p>재시도 {adminDbManage?.rule?.match_retry_limit ?? 0}회 · 최대 탐색 {adminDbManage?.rule?.match_search_timeout_seconds ?? 0}초 · 미디어 {adminDbManage?.rule?.media_message_mode ?? 'text_only'}</p>
+              <p>관리자모드는 현재 조회 전용이며, 실제 수정 기능은 열려 있지 않습니다.</p>
             </div>
             <div className="legacy-box compact">
               <h3>최근 랜덤채팅 스레드</h3>
@@ -743,6 +791,7 @@ export default function App() {
   const [matchedRandomUser, setMatchedRandomUser] = useState<{ name: string; category: OneToOneRandomCategory; nickname: string } | null>(null);
   const [randomMatchPhase, setRandomMatchPhase] = useState<"idle" | "queueing" | "matched">("idle");
   const [randomMatchNote, setRandomMatchNote] = useState("카테고리를 고른 뒤 텍스트 전용 랜덤채팅을 시작할 수 있습니다.");
+  const randomRoomLifetimeMinutes = 20;
   const [shopKeyword, setShopKeyword] = useState("");
   const [communityKeyword, setCommunityKeyword] = useState("");
   const [projectStatus, setProjectStatus] = useState<ProjectStatus | null>(null);
@@ -777,14 +826,38 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    setRandomRooms((prev) => prev.map((room) => {
+      if (room.kind !== "random_1to1" || room.status === "ended" || !room.expiresAt) return room;
+      if (room.expiresAt > randomNow) return room;
+      return { ...room, status: "ended", endedAt: room.expiresAt, latestMessage: "채팅방 유지시간 20분이 종료되어 최근 종료 목록으로 이동했습니다." };
+    }));
+  }, [randomNow]);
+
   const randomRoomRemainMinutes = (room: RandomRoom) => {
     if (!room.expiresAt) return null;
     return Math.max(0, Math.ceil((room.expiresAt - randomNow) / 60000));
   };
 
+  const randomRoomAlertLabel = (room: RandomRoom) => {
+    const remain = randomRoomRemainMinutes(room);
+    if (room.status === "ended") return "최근 종료";
+    if (remain === null) return null;
+    if (remain <= 1) return "1분 전 종료 알림";
+    if (remain <= 3) return "3분 전 종료 알림";
+    return null;
+  };
+
   const activeRandomRoom = useMemo(() => randomRooms.find((room) => room.id === activeRandomRoomId) ?? null, [activeRandomRoomId, randomRooms]);
 
-  const visibleRandomMatchRooms = useMemo(() => randomRooms.filter((room) => room.kind === "random_1to1"), [randomRooms]);
+  const visibleRandomMatchRooms = useMemo(() => randomRooms
+    .filter((room) => room.kind === "random_1to1")
+    .sort((a, b) => {
+      if ((a.status ?? "active") !== (b.status ?? "active")) return (a.status ?? "active") === "active" ? -1 : 1;
+      const aTime = a.status === "ended" ? (a.endedAt ?? 0) : (a.expiresAt ?? 0);
+      const bTime = b.status === "ended" ? (b.endedAt ?? 0) : (b.expiresAt ?? 0);
+      return bTime - aTime;
+    }), [randomRooms]);
 
   const visibleFeed = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
@@ -870,24 +943,24 @@ export default function App() {
         maxPeople: 2,
         currentPeople: 2,
         password: "",
-        latestMessage: `${picked.nickname} 님과 랜덤채팅이 시작되었습니다.`,
+        latestMessage: `${picked.nickname} 님과 랜덤채팅이 연결되었습니다. 목록에서 선택하면 채팅방으로 들어갑니다.`,
         anonymous: true,
         kind: "random_1to1",
         partnerName: picked.name,
         partnerNickname: picked.nickname,
-        expiresAt: Date.now() + (30 * 60 * 1000),
+        expiresAt: Date.now() + (randomRoomLifetimeMinutes * 60 * 1000),
         ageMin: randomAgeMin,
         ageMax: randomAgeMax,
         distanceMinKm: randomDistanceMinKm,
         distanceMaxKm: randomDistanceMaxKm,
         genderOption: randomGenderOption,
         regionOption: randomRegionOption,
+        status: "active",
       };
       setRandomRooms((prev) => [createdRoom, ...prev]);
       setMatchedRandomUser({ ...picked, category: oneToOneCategory });
       setRandomMatchPhase("matched");
-      setRandomMatchNote(`${picked.nickname} 님과 연결되었습니다. 채팅방이 개설되어 바로 입장합니다. 차단/신고 시 즉시 숨김, 메시지 삭제는 30분 이내 양측 삭제 표기 기준입니다.`);
-      setActiveRandomRoomId(roomId);
+      setRandomMatchNote(`${picked.nickname} 님과 연결되었습니다. 채팅방은 자동 생성되었고, 목록 탭에서 선택해야 입장됩니다. 1:1 채팅방 유지시간은 ${randomRoomLifetimeMinutes}분 고정이며 종료된 방은 최근 종료 목록으로 남습니다.`);
       setRandomEntryTab("목록");
       setMatchingRandom(false);
     }, 1600);
@@ -901,12 +974,23 @@ export default function App() {
   };
 
   const openRandomRoom = (roomId: number) => {
+    const room = randomRooms.find((item) => item.id === roomId);
+    if (!room || room.status === "ended") return;
     setActiveRandomRoomId(roomId);
     setRandomEntryTab("목록");
   };
 
   const leaveRandomRoom = () => {
     setActiveRandomRoomId(null);
+  };
+
+  const endRandomRoom = (roomId: number) => {
+    setRandomRooms((prev) => prev.map((room) => room.id === roomId ? { ...room, status: "ended", endedAt: Date.now(), latestMessage: "채팅이 종료되어 최근 종료 목록으로 이동했습니다." } : room));
+    setActiveRandomRoomId((prev) => (prev === roomId ? null : prev));
+  };
+
+  const reportRandomRoom = (room: RandomRoom) => {
+    window.alert(`${room.partnerNickname ?? room.title} 채팅에 대한 신고 접수 데모입니다. 실제 운영에서는 결과 비공개, 신고 즉시 차단/숨김 정책과 연동합니다.`);
   };
 
   const openAskFromFeed = (item: FeedItem) => {
@@ -1186,18 +1270,26 @@ export default function App() {
                       <div>
                         <span className="random-room-category-chip">{activeRandomRoom.category}</span>
                         <strong>{activeRandomRoom.title}</strong>
-                        <p>{activeRandomRoom.partnerNickname ?? "익명 사용자"} 님과 연결됨 · 남은 유지시간 {randomRoomRemainMinutes(activeRandomRoom) ?? 0}분</p>
+                        <p>{activeRandomRoom.partnerNickname ?? "익명 사용자"} 님과 연결됨 · 남은 유지시간 {randomRoomRemainMinutes(activeRandomRoom) ?? 0}분 · 채팅방 유지시간 20분 고정</p>
                       </div>
-                      <button type="button" className="ghost-btn" onClick={leaveRandomRoom}>목록으로</button>
+                      <div className="random-chat-room-head-actions">
+                        <button type="button" className="report-mini-btn" onClick={() => reportRandomRoom(activeRandomRoom)}>신고</button>
+                        <button type="button" className="ghost-btn" onClick={leaveRandomRoom}>목록으로</button>
+                      </div>
                     </div>
+                    {randomRoomAlertLabel(activeRandomRoom) ? <div className="random-alert-banner">{randomRoomAlertLabel(activeRandomRoom)}</div> : null}
                     <div className="random-chat-bubble-list">
-                      <div className="random-chat-bubble other">안녕하세요. 방금 매칭된 랜덤채팅방입니다.</div>
-                      <div className="random-chat-bubble mine">네, 텍스트만 가능한 1:1 채팅방으로 입장된 상태예요.</div>
-                      <div className="random-chat-bubble system">메시지 삭제는 30분 이내 양측 삭제 표기 유지 · 신고 결과는 비공개</div>
+                      <div className="random-chat-bubble other">안녕하세요. 목록에서 눌러 들어온 1:1 랜덤채팅방입니다.</div>
+                      <div className="random-chat-bubble mine">네, 텍스트만 가능한 상태이고 거리 오차 허용범위는 없습니다.</div>
+                      <div className="random-chat-bubble system">메시지 삭제는 30분 이내 양측 삭제 표기 유지 · 신고 결과는 비공개 · 종료 시 최근 종료 목록 유지</div>
                     </div>
                     <div className="random-chat-input-row">
                       <input value="" readOnly placeholder="텍스트 입력창 예시 (데모 화면)" />
                       <button type="button">전송</button>
+                    </div>
+                    <div className="random-room-actions random-room-actions-between">
+                      <button type="button" className="ghost-btn" onClick={leaveRandomRoom}>목록만 보기</button>
+                      <button type="button" onClick={() => endRandomRoom(activeRandomRoom.id)}>채팅 종료</button>
                     </div>
                   </div>
                 ) : null}
@@ -1218,14 +1310,12 @@ export default function App() {
                     </div>
                     <div className="random-filter-grid">
                       <label className="random-filter-field"><span>성별 조건</span><select value={randomGenderOption} onChange={(e) => setRandomGenderOption(e.target.value as RandomGenderOption)}>{randomGenderOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
-                      <label className="random-filter-field random-range-field"><span>연령 조건</span><div className="random-range-box"><div className="random-range-values"><b>{randomAgeMin}세</b><b>{randomAgeMax}세</b></div><input type="range" min={20} max={99} value={randomAgeMin} onChange={(e) => setRandomAgeMin(Math.min(Number(e.target.value), randomAgeMax))} /><input type="range" min={20} max={99} value={randomAgeMax} onChange={(e) => setRandomAgeMax(Math.max(Number(e.target.value), randomAgeMin))} /></div></label>
+                      <label className="random-filter-field random-range-field"><span>연령 조건</span><div className="random-range-box"><DualRangeSlider min={20} max={99} valueMin={randomAgeMin} valueMax={randomAgeMax} leftLabel={`${randomAgeMin}세`} rightLabel={`${randomAgeMax}세`} onChangeMin={setRandomAgeMin} onChangeMax={setRandomAgeMax} /></div></label>
                       <label className="random-filter-field"><span>지역 조건</span><select value={randomRegionOption} onChange={(e) => setRandomRegionOption(e.target.value as RandomRegionOption)}>{randomRegionOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
                     </div>
                     {randomRegionOption === "거리기반" ? (
                       <div className="random-distance-panel">
-                        <div className="random-range-values"><b>{randomDistanceMinKm}km</b><b>{randomDistanceMaxKm}km</b></div>
-                        <input type="range" min={0} max={600} value={randomDistanceMinKm} onChange={(e) => setRandomDistanceMinKm(Math.min(Number(e.target.value), randomDistanceMaxKm))} />
-                        <input type="range" min={0} max={600} value={randomDistanceMaxKm} onChange={(e) => setRandomDistanceMaxKm(Math.max(Number(e.target.value), randomDistanceMinKm))} />
+                        <DualRangeSlider min={0} max={600} valueMin={randomDistanceMinKm} valueMax={randomDistanceMaxKm} leftLabel={`${randomDistanceMinKm}km`} rightLabel={`${randomDistanceMaxKm}km`} onChangeMin={setRandomDistanceMinKm} onChangeMax={setRandomDistanceMaxKm} />
                       </div>
                     ) : null}
                     <div className="random-match-center">
@@ -1252,26 +1342,29 @@ export default function App() {
                       <div className="random-match-result">
                         <span className="random-room-category-chip">{matchedRandomUser.category}</span>
                         <strong>{matchedRandomUser.name}</strong>
-                        <p>{matchedRandomUser.nickname} 님과 연결된 뒤 채팅방이 자동 개설되는 흐름으로 반영했습니다. 목록 탭에서 방별 남은 유지시간도 함께 확인할 수 있습니다.</p>
+                        <p>{matchedRandomUser.nickname} 님과 연결되어 채팅 목록 상단에 새 방이 추가되었습니다. 목록에서 해당 방을 눌러야 채팅방 화면으로 이동합니다.</p>
                       </div>
                     ) : null}
                   </>
                 ) : (
                   <div className="random-room-list compact-scroll-list random-match-room-list">
                     {visibleRandomMatchRooms.length === 0 ? (
-                      <div className="random-skeleton-card"><p>아직 개설된 1:1 랜덤채팅방이 없습니다. 시작 탭에서 매칭을 진행하면 방이 생성됩니다.</p></div>
+                      <div className="random-skeleton-card"><p>아직 생성된 1:1 랜덤채팅방이 없습니다. 시작 탭에서 매칭을 진행하면 목록에 채팅이 추가됩니다.</p></div>
                     ) : visibleRandomMatchRooms.map((room) => (
-                      <article key={room.id} className={`random-room-card random-match-room-card ${activeRandomRoomId === room.id ? "active" : ""}`}>
+                      <article key={room.id} className={`random-room-card random-match-room-card ${activeRandomRoomId === room.id ? "active" : ""} ${room.status === "ended" ? "ended" : ""}`} onClick={() => openRandomRoom(room.id)}>
                         <div className="random-room-topline">
                           <span className="random-room-category-chip">{room.category}</span>
-                          <div className="random-room-occupancy">남은 {randomRoomRemainMinutes(room) ?? 0}분</div>
+                          <div className="random-room-topline-actions">
+                            {randomRoomAlertLabel(room) ? <span className="random-room-occupancy alert">{randomRoomAlertLabel(room)}</span> : <div className="random-room-occupancy">{room.status === "ended" ? "최근 종료" : `남은 ${randomRoomRemainMinutes(room) ?? 0}분`}</div>}
+                            <button type="button" className="report-mini-btn" onClick={(e) => { e.stopPropagation(); reportRandomRoom(room); }}>신고</button>
+                          </div>
                         </div>
                         <div className="random-room-middleline grouped-room-title-line">
                           <strong>{room.title}</strong>
                           <b>{room.currentPeople}/{room.maxPeople}</b>
                         </div>
                         <p>{room.partnerNickname ?? "익명 사용자"} · 성별 {room.genderOption ?? "무관"} · 나이 {room.ageMin ?? 20}~{room.ageMax ?? 99}세{room.regionOption === "거리기반" ? ` · 거리 ${room.distanceMinKm ?? 0}~${room.distanceMaxKm ?? 600}km` : ""}</p>
-                        <div className="random-room-actions"><button type="button" onClick={() => openRandomRoom(room.id)}>입장</button></div>
+                        <div className="random-room-actions"><button type="button" onClick={(e) => { e.stopPropagation(); openRandomRoom(room.id); }} disabled={room.status === "ended"}>입장</button></div>
                       </article>
                     ))}
                   </div>
