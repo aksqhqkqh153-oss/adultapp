@@ -313,9 +313,9 @@ const mobileTabs = ["홈", "쇼핑", "소통", "채팅", "프로필"] as const;
 const legacyMenu = ["운영현황", "주문관리", "보안", "앱심사", "포럼 분리 정책", "배포가이드"] as const;
 const homeTabs = ["피드", "상품", "보관함"] as const;
 const shoppingTabs = ["목록", "주문", "바구니", "등록관리"] as const;
-const communityTabs = ["커뮤", "후기", "이벤트"] as const;
-const chatTabs = ["채팅", "랜덤", "질문"] as const;
-const chatTabLabels: Record<ChatTab, string> = { "채팅": "채팅", "랜덤": "포럼", "질문": "질문" };
+const communityTabs = ["커뮤", "포럼", "후기", "이벤트"] as const;
+const chatTabs = ["채팅", "질문"] as const;
+const chatTabLabels: Record<ChatTab, string> = { "채팅": "채팅", "질문": "질문" };
 const profileTabs = ["내정보"] as const;
 const settingsCategories = ["일반", "계정", "알림", "보안", "배포", "운영", "관리자모드", "DB관리", "신고", "채팅", "기타", "HTML요소"] as const;
 const randomRoomCategories = ["전체", "관계역할/고민", "동의/경계설정", "안전수칙", "일상/취미", "자유대화"] as const;
@@ -332,6 +332,14 @@ const profileAgeBandOptions = ["", "20대", "30대", "40대", "50대", "60대+"]
 const profileRegionOptions = ["", "서울", "경기", "인천", "강원", "충청", "전라", "경상", "제주"] as const;
 const interestCategoryOptions = ["뷰티", "케어", "건강", "커뮤니티", "브랜드", "이벤트"] as const;
 
+const defaultHeaderFavorites: HeaderFavoriteMap = {
+  "홈": ["피드", "상품", "보관함"],
+  "쇼핑": ["목록", "주문", "바구니", "등록관리"],
+  "소통": ["커뮤", "포럼", "후기"],
+  "채팅": ["채팅", "질문"],
+  "프로필": ["내정보"],
+};
+
 
 type MobileTab = (typeof mobileTabs)[number];
 type LegacyTab = (typeof legacyMenu)[number];
@@ -339,6 +347,7 @@ type HomeTab = (typeof homeTabs)[number];
 type ShoppingTab = (typeof shoppingTabs)[number];
 type CommunityTab = (typeof communityTabs)[number];
 type ChatTab = (typeof chatTabs)[number];
+type HeaderFavoriteMap = Record<MobileTab, string[]>;
 type ProfileTab = (typeof profileTabs)[number];
 type SettingsCategory = (typeof settingsCategories)[number];
 type RandomRoomCategory = (typeof randomRoomCategories)[number];
@@ -508,14 +517,14 @@ const dmRuleNoticeItems = [
   "반복 접촉 금지",
 ];
 
-const forumStarterTopics = ["제품 이야기", "경계설정 이야기", "초보 고민", "일상 대화", "성향 고민"] as const;
+const forumStarterTopics = ["제품 이야기", "경계설정 이야기", "초보 고민", "일상 대화", "역할 고민"] as const;
 
 const forumStarterUsers: ForumStarterUser[] = [
   { id: 301, name: "boundary_note", role: "경계설정 대화", topic: "경계설정 이야기", intro: "그룹방에서 대화하던 내용을 1:1로 차분히 이어가고 싶을 때 요청할 수 있습니다.", followsMe: true },
   { id: 302, name: "starter_helper", role: "초보 고민", topic: "초보 고민", intro: "입문자용 안전 질문과 기본 커뮤니케이션 기준을 함께 정리합니다.", followsMe: false },
   { id: 303, name: "daily_wave", role: "일상 대화", topic: "일상 대화", intro: "취향 이야기보다 일상과 관심사 위주로 대화를 시작하는 예시 계정입니다.", followsMe: true },
   { id: 304, name: "care_lab", role: "제품 이야기", topic: "제품 이야기", intro: "제품 사용/보관/세척 관련 질문을 먼저 나눈 뒤 상호 팔로우 시 DM 요청이 가능합니다.", followsMe: true },
-  { id: 305, name: "role_balance", role: "성향 고민", topic: "성향 고민", intro: "성향 고민은 가능하지만, 만남 제안·연락처 교환·사진 전송은 계속 금지됩니다.", followsMe: false },
+  { id: 305, name: "role_balance", role: "역할 고민", topic: "역할 고민", intro: "역할 고민은 가능하지만, 사람 찾기·만남 제안·연락처 교환·사진 전송은 계속 금지됩니다.", followsMe: false },
 ];
 
 
@@ -1310,6 +1319,23 @@ export default function App() {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem("adultapp_account_private") === "1";
   });
+  const [headerFavorites, setHeaderFavorites] = useState<HeaderFavoriteMap>(() => {
+    if (typeof window === "undefined") return defaultHeaderFavorites;
+    try {
+      const raw = window.localStorage.getItem("adultapp_header_favorites");
+      if (!raw) return defaultHeaderFavorites;
+      const parsed = JSON.parse(raw) as Partial<HeaderFavoriteMap>;
+      return {
+        "홈": parsed["홈"]?.length ? parsed["홈"] : defaultHeaderFavorites["홈"],
+        "쇼핑": parsed["쇼핑"]?.length ? parsed["쇼핑"] : defaultHeaderFavorites["쇼핑"],
+        "소통": parsed["소통"]?.length ? parsed["소통"] : defaultHeaderFavorites["소통"],
+        "채팅": parsed["채팅"]?.length ? parsed["채팅"] : defaultHeaderFavorites["채팅"],
+        "프로필": parsed["프로필"]?.length ? parsed["프로필"] : defaultHeaderFavorites["프로필"],
+      };
+    } catch {
+      return defaultHeaderFavorites;
+    }
+  });
   const [savedFeedIds, setSavedFeedIds] = useState<number[]>(() => {
     if (typeof window === "undefined") return [];
     try { return JSON.parse(window.localStorage.getItem("adultapp_saved_feed_ids") ?? "[]"); } catch { return []; }
@@ -1465,6 +1491,11 @@ export default function App() {
     if (typeof window === "undefined") return;
     window.localStorage.setItem("adultapp_account_private", accountPrivate ? "1" : "0");
   }, [accountPrivate]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_header_favorites", JSON.stringify(headerFavorites));
+  }, [headerFavorites]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1973,6 +2004,11 @@ export default function App() {
   };
 
   const createRandomRoom = () => {
+    if (!adultVerified) {
+      window.alert("성인인증 완료 회원만 단체 톡방을 개설할 수 있습니다.");
+      setAdultPromptOpen(true);
+      return;
+    }
     const parsedMax = Math.max(2, Math.min(20, Number(newRoomMaxPeople) || 8));
     const safeTitle = newRoomTitle.trim() || `${newRoomCategory} 채팅방`;
     const nextRoom: RandomRoom = {
@@ -1997,7 +2033,7 @@ export default function App() {
     setRoomModalOpen(false);
   };
 
-  const headerNavItems = useMemo<HeaderNavItem[]>(() => {
+  const currentTabMenuItems = useMemo<HeaderNavItem[]>(() => {
     if (activeTab === "홈") {
       return homeTabs.map((tab) => ({ label: tab, active: homeTab === tab, onClick: () => setHomeTab(tab) }));
     }
@@ -2013,11 +2049,38 @@ export default function App() {
     return profileTabs.map((tab) => ({ label: tab, active: profileTab === tab, onClick: () => setProfileTab(tab) }));
   }, [activeTab, homeTab, shoppingTab, communityTab, chatTab, profileTab]);
 
+  const favoriteCandidates = useMemo(() => currentTabMenuItems.map((item) => item.label), [currentTabMenuItems]);
+
+  const headerNavItems = useMemo<HeaderNavItem[]>(() => {
+    const favoriteLabels = headerFavorites[activeTab] ?? [];
+    const itemsByLabel = new Map(currentTabMenuItems.map((item) => [item.label, item]));
+    const orderedFavorites = favoriteLabels
+      .map((label) => itemsByLabel.get(label))
+      .filter((item): item is HeaderNavItem => Boolean(item));
+    const fallbackItems = currentTabMenuItems.filter((item) => !favoriteLabels.includes(item.label));
+    return [...orderedFavorites, ...fallbackItems].slice(0, Math.max(1, orderedFavorites.length || 0));
+  }, [activeTab, currentTabMenuItems, headerFavorites]);
+
+  const toggleHeaderFavorite = (label: string) => {
+    setHeaderFavorites((prev) => {
+      const current = prev[activeTab] ?? [];
+      const next = current.includes(label)
+        ? current.filter((item) => item !== label)
+        : [...current, label];
+      return {
+        ...prev,
+        [activeTab]: next.length ? next : [label],
+      };
+    });
+  };
+
+  const resetHeaderFavorites = () => {
+    setHeaderFavorites((prev) => ({ ...prev, [activeTab]: defaultHeaderFavorites[activeTab] }));
+  };
+
   const settingsNavItems = useMemo<SettingsCategory[]>(() => settingsCategories.filter((item) => (["운영", "관리자모드", "DB관리", "신고", "채팅", "기타"].includes(item) ? isAdmin : true)), [isAdmin]);
   const visibleHeaderNavItems = overlayMode === null ? headerNavItems : [];
-  const currentMenuItems = activeTab === "홈"
-    ? homeMenuItems
-    : headerNavItems.map((item) => ({ label: item.label, onClick: () => { item.onClick?.(); setOverlayMode(null); } }));
+  const currentMenuItems = (activeTab === "홈" ? homeMenuItems : currentTabMenuItems.map((item) => ({ label: item.label, onClick: item.onClick }))).map((item) => ({ label: item.label, onClick: () => { item.onClick?.(); setOverlayMode(null); } }));
 
   const notificationSections = useMemo(() => ({
     notices: notificationSeed.filter((item) => item.section === "공지"),
@@ -2040,7 +2103,7 @@ export default function App() {
       setMatchingRandom(false);
       setMatchedRandomUser(null);
       setRandomMatchPhase("idle");
-      setRandomMatchNote("카테고리를 고른 뒤 익명 정보교류용 텍스트 채팅을 시작할 수 있습니다. 외부연락, 만남유도, 사진/영상 교환은 금지됩니다.");
+      setRandomMatchNote("카테고리를 고른 뒤 익명 정보교류용 텍스트 채팅을 시작할 수 있습니다. 외부연락, 사람 찾기, 만남유도, 사진/영상 교환은 금지됩니다.");
     }
     if (tab !== "프로필") setProfileTab("내정보");
   };
@@ -2237,6 +2300,25 @@ export default function App() {
 
             {overlayMode === "menu" ? (
               <div className="stack-gap">
+                <div className="legacy-box compact">
+                  <div className="split-row"><h3>상단바 즐겨찾기</h3><button type="button" className="ghost-btn" onClick={resetHeaderFavorites}>기본값</button></div>
+                  <p>{activeTab} 화면 상단바에 고정할 버튼을 선택합니다. 선택한 버튼만 상단에 우선 노출됩니다.</p>
+                  <div className="copy-action-row wrap-row">
+                    {(headerFavorites[activeTab] ?? []).map((label) => (
+                      <button key={`fav-${label}`} type="button" className="header-inline-btn active" onClick={() => toggleHeaderFavorite(label)}>{label} ×</button>
+                    ))}
+                  </div>
+                  <div className="copy-action-row wrap-row">
+                    {favoriteCandidates.map((label) => {
+                      const selected = (headerFavorites[activeTab] ?? []).includes(label);
+                      return (
+                        <button key={`candidate-${label}`} type="button" className={selected ? "" : "ghost-btn"} onClick={() => toggleHeaderFavorite(label)}>
+                          {selected ? `${label} 제거` : `${label} 추가`}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
                 <div className="menu-overlay-list">
                   {currentMenuItems.map((item) => (
                     <button key={item.label} type="button" className="settings-category-btn menu-overlay-btn" onClick={item.onClick}>
@@ -2657,59 +2739,12 @@ export default function App() {
 
         {showAppTabContent && activeTab === "소통" ? (
           <section className="tab-pane fill-pane">
-            <div className="section-head compact-head">
-              <div><h2>소통</h2><p>{communityTab === "커뮤" ? "커뮤니티 글과 공지, 정보공유를 확인합니다." : communityTab === "후기" ? "후기 글 모음을 확인합니다." : "이벤트 공지를 확인합니다."}</p></div>
-              <div className="section-tools slim-tools"><input value={communityKeyword} onChange={(e) => setCommunityKeyword(e.target.value)} placeholder="게시글 검색" /></div>
-            </div>
-            <div className="legacy-box compact">
-              <h3>앱 내 구매자 활성화용 소통 구조</h3>
-              <div className="consent-record-list">
-                {safeCommunityIdeas.map((item, idx) => <div key={item} className="simple-list-row"><b>{idx + 1}</b><span>{item}</span></div>)}
-              </div>
-            </div>
-            <div className="split-layout mobile-split">
-              <aside className="left-menu always-open slim-left-menu">
-                <button className={`left-link ${selectedCommunityCategory === "전체" ? "active" : ""}`} onClick={() => setSelectedCommunityCategory("전체")}>전체 글</button>
-                {communityCategories.map((category) => (
-                  <button key={category} className={`left-link ${selectedCommunityCategory === category ? "active" : ""}`} onClick={() => setSelectedCommunityCategory(category)}>{category}</button>
-                ))}
-              </aside>
-              <div className="community-list compact-scroll-list">
-                {filteredCommunity.map((post) => (
-                  <article key={post.id} className="community-card">
-                    <span className="community-chip">{post.category}</span>
-                    <strong>{post.title}</strong>
-                    <p>{post.summary}</p>
-                    <div className="community-meta">{post.meta}</div>
-                  </article>
-                ))}
-              </div>
-            </div>
-          </section>
-        ) : null}
-
-        {showAppTabContent && activeTab === "채팅" ? (
-          <section className="tab-pane fill-pane">
-            {chatTab === "랜덤" ? (
+            {communityTab === "포럼" ? (
               <div className="stack-gap compact-scroll-list">
-                <div className="section-head compact-head"><div><h2>성향/관심사 그룹대화 운영</h2><p>앱 공개영역에서는 주제형 그룹대화를 허용하고, 1:1 대화는 그룹대화 참여 후 상호 수락이 완료된 경우에만 열리도록 운영합니다.</p></div></div>
-                <div className="legacy-grid three">
-                  <div className="legacy-box compact"><h3>허용되는 구조</h3><p>관계 역할 고민, 동의/경계설정, 안전수칙, 일상/취미, 자유대화처럼 정보·소통 중심 주제방만 운영합니다.</p></div>
-                  <div className="legacy-box compact"><h3>1:1 대화 기준</h3><p>성인인증 완료, 신고 이력 없음, 그룹대화 참여 이력, 상호 수락이 완료된 경우에만 1:1이 열립니다. 자유 개시는 허용하지 않습니다.</p></div>
-                  <div className="legacy-box compact"><h3>기본 차단 항목</h3><p>외부 연락처 교환, 사진/영상 전송, 오프라인 제안, 대가성 제안, 반복 접촉, 미성년/비동의/강압 표현은 자동 차단합니다.</p></div>
-                </div>
-                <div className="legacy-box compact">
-                  <h3>운영 기준 요약</h3>
-                  <div className="consent-record-list">
-                    <div className="simple-list-row"><b>허용</b><span>성향/관심사 정보 교류 · 관계 역할 고민 · 동의와 경계설정 · 안전수칙 · 일상 대화</span></div>
-                    <div className="simple-list-row"><b>제한</b><span>1:1은 상호 수락 후만 가능 · 이미지/영상/파일 전송 금지 · 방 개설은 운영자만 허용</span></div>
-                    <div className="simple-list-row"><b>금지</b><span>파트너 모집 · 만남 유도 · 외부 연락처 교환 · 사진/영상 공유 · 역할극/행위 제안</span></div>
-                    <div className="simple-list-row"><b>기록</b><span>신고, 차단, 블라인드, 관리자 감사로그, 반복 위반 제재를 의무화합니다.</span></div>
-                  </div>
-                </div>
+                <div className="section-head compact-head"><div><h2>포럼</h2><p>주제형 그룹방 참여를 시작점으로 정보 교류와 고민 대화를 이어갑니다.</p></div></div>
                 <div className="legacy-box compact">
                   <h3>포럼 기반 1:1 시작점</h3>
-                  <div className="copy-action-row">
+                  <div className="copy-action-row wrap-row">
                     {forumStarterTopics.map((item) => (
                       <button key={item} type="button" className={forumTopic === item ? "" : "ghost-btn"} onClick={() => setForumTopic(item)}>{item}</button>
                     ))}
@@ -2733,19 +2768,71 @@ export default function App() {
                       );
                     })}
                   </div>
-                  <p className="muted-mini">포럼에서 같은 주제로 대화한 뒤 상호 팔로우 상태가 되면 1:1 요청을 보낼 수 있습니다. 요청 단계에서는 대화 규칙 동의가 필요하고, 수락 후 채팅방 상단에 금지 안내가 고정됩니다.</p>
                 </div>
-                <div className="random-skeleton-card">
-                  <div className="random-skeleton-row"><span className="random-skeleton-label">현재 앱 정책</span><strong>그룹대화 허용 · 1:1 상호수락형</strong></div>
-                  <div className="random-skeleton-row"><span className="random-skeleton-label">대화 범위</span><span>성향/관심사 정보 교류 · 관계/안전/소통 중심</span></div>
-                  <p>자유로운 성향 소통은 허용하되, 대화 구조가 만남 주선이나 외부 이동으로 변질되지 않도록 입장조건, 수락절차, 신고기록, 금칙어 차단을 함께 적용합니다.</p>
-                  <div className="random-skeleton-actions">
-                    <button type="button" className="ghost-btn" onClick={() => setSettingsCategory("보안")}>보안 기준 보기</button>
-                    <button type="button" onClick={() => setSettingsCategory("관리자모드")}>운영자 점검 보기</button>
+                <div className="legacy-box compact">
+                  <h3>단체 톡방</h3>
+                  <p>성인인증 완료 회원은 자유롭게 주제형 단체 톡방을 개설할 수 있습니다. 단, 이 공간은 정보 교류와 고민상담용이며 사람 찾기, 만남, 주선은 허용하지 않습니다. 방 제목과 최근 메시지는 자동 필터링되고, 사진/영상/외부 연락처/오프라인 제안은 차단 대상으로 유지합니다.</p>
+                  <div className="random-room-toolbar grouped-room-toolbar">
+                    <select className="random-room-select" value={randomRoomCategory} onChange={(e) => setRandomRoomCategory(e.target.value as RandomRoomCategory)}>
+                      {randomRoomCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+                    </select>
+                    <button className="random-room-create-btn" onClick={() => setRoomModalOpen(true)}>개설</button>
+                  </div>
+                  <div className="random-room-list compact-scroll-list">
+                    {filteredRandomRooms.map((room) => (
+                      <article key={room.id} className="random-room-card grouped-room-card">
+                        <div className="random-room-topline">
+                          <span className="random-room-category-chip">{room.category}</span>
+                          <div className="random-room-occupancy">현원</div>
+                        </div>
+                        <div className="random-room-middleline grouped-room-title-line">
+                          <strong>{room.title}</strong>
+                          <b>{room.currentPeople}/{room.maxPeople}</b>
+                        </div>
+                        <p>{room.latestMessage}{room.password ? " · 비밀번호 있음" : ""}{room.anonymous ? " · 익명방" : ""}</p>
+                      </article>
+                    ))}
                   </div>
                 </div>
               </div>
-            ) : chatTab === "질문" ? (
+            ) : (
+              <>
+                <div className="section-head compact-head">
+                  <div><h2>소통</h2><p>{communityTab === "커뮤" ? "커뮤니티 글과 공지, 정보공유를 확인합니다." : communityTab === "후기" ? "후기 글 모음을 확인합니다." : "이벤트 공지를 확인합니다."}</p></div>
+                  <div className="section-tools slim-tools"><input value={communityKeyword} onChange={(e) => setCommunityKeyword(e.target.value)} placeholder="게시글 검색" /></div>
+                </div>
+                <div className="legacy-box compact">
+                  <h3>앱 내 구매자 활성화용 소통 구조</h3>
+                  <div className="consent-record-list">
+                    {safeCommunityIdeas.map((item, idx) => <div key={item} className="simple-list-row"><b>{idx + 1}</b><span>{item}</span></div>)}
+                  </div>
+                </div>
+                <div className="split-layout mobile-split">
+                  <aside className="left-menu always-open slim-left-menu">
+                    <button className={`left-link ${selectedCommunityCategory === "전체" ? "active" : ""}`} onClick={() => setSelectedCommunityCategory("전체")}>전체 글</button>
+                    {communityCategories.map((category) => (
+                      <button key={category} className={`left-link ${selectedCommunityCategory === category ? "active" : ""}`} onClick={() => setSelectedCommunityCategory(category)}>{category}</button>
+                    ))}
+                  </aside>
+                  <div className="community-list compact-scroll-list">
+                    {filteredCommunity.map((post) => (
+                      <article key={post.id} className="community-card">
+                        <span className="community-chip">{post.category}</span>
+                        <strong>{post.title}</strong>
+                        <p>{post.summary}</p>
+                        <div className="community-meta">{post.meta}</div>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </section>
+        ) : null}
+
+        {showAppTabContent && activeTab === "채팅" ? (
+          <section className="tab-pane fill-pane">
+            {chatTab === "질문" ? (
               <div className="question-board compact-scroll-list">
                 <div className="section-head compact-head"><div><h2>질문</h2><p>historyprofile 질문 화면 흐름을 참고한 카드형 질문/답변 화면입니다.</p></div></div>
                 <div className="question-profile-hero">
@@ -2800,13 +2887,14 @@ export default function App() {
               </div>
             ) : (
               <>
-                <div className="chat-category-strip">
-                  <div className="chat-category-bar">
+                <div className="section-head compact-head"><div><h2>채팅</h2><p>요청 → 수락 이후 시작되는 1:1과 운영 문의/주문 문의 채팅을 확인합니다.</p></div></div>
+                <div className="chat-toolbar kakao-toolbar">
+                  <div className="chat-category-scroll">
                     {chatCategories.map((category) => (
                       <button
                         key={category}
                         type="button"
-                        className={`chat-category-btn ${chatCategory === category ? "active" : ""}`}
+                        className={`category-chip ${chatCategory === category ? "active" : ""}`}
                         onClick={() => setChatCategory(category)}
                       >
                         {category}
@@ -2815,63 +2903,29 @@ export default function App() {
                   </div>
                 </div>
                 {chatCategory === "단체" ? (
-                  <>
-                    <div className="random-room-toolbar grouped-room-toolbar">
-                      <select className="random-room-select" value={randomRoomCategory} onChange={(e) => setRandomRoomCategory(e.target.value as RandomRoomCategory)}>
-                        {randomRoomCategories.map((category) => <option key={category} value={category}>{category}</option>)}
-                      </select>
-                      <button className="random-room-create-btn" onClick={() => setRoomModalOpen(true)}>개설</button>
-                    </div>
-                    <div className="random-room-list compact-scroll-list">
-                      {filteredRandomRooms.map((room) => (
-                        <article key={room.id} className="random-room-card grouped-room-card">
-                          <div className="random-room-topline">
-                            <span className="random-room-category-chip">{room.category}</span>
-                            <div className="random-room-occupancy">현원</div>
+                  <div className="legacy-box compact"><p>단체 톡방은 소통 {">"} 포럼으로 이동되었습니다. 상단 메뉴에서 포럼을 열어 주세요.</p></div>
+                ) : null}
+                <div className="chat-list compact-scroll-list kakao-chat-list">
+                  {filteredThreads.map((thread) => (
+                    <article key={thread.id} className="chat-row kakao-chat-row">
+                      <div className="avatar-circle kakao-avatar">{thread.avatar}</div>
+                      <div className="chat-copy kakao-chat-copy">
+                        <div className="kakao-chat-head">
+                          <strong>{thread.name}</strong>
+                          <div className="kakao-chat-badges">
+                            <span>{thread.purpose}</span>
+                            {thread.status ? <em>{thread.status}</em> : null}
                           </div>
-                          <div className="random-room-middleline grouped-room-title-line">
-                            <strong>{room.title}</strong>
-                            <b>{room.currentPeople}/{room.maxPeople}</b>
-                          </div>
-                          <p>{room.latestMessage}{room.password ? " · 비밀번호 있음" : ""}{room.anonymous ? " · 익명방" : ""}</p>
-                        </article>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                  <div className="legacy-box compact">
-                    <h3>1:1 채팅 운영 기준</h3>
-                    <div className="consent-record-list">
-                      <div className="simple-list-row"><b>개설</b><span>요청 → 수락 → 대화 시작 2단계 구조 유지</span></div>
-                      <div className="simple-list-row"><b>조건</b><span>상호 팔로우 상태에서만 1:1 요청 가능</span></div>
-                      <div className="simple-list-row"><b>상단 공지</b><span>{dmRuleNoticeItems.slice(1).join(' · ')}</span></div>
-                      <div className="simple-list-row"><b>금지</b><span>사진/영상/파일 전송 기능 비활성화 유지</span></div>
-                    </div>
-                  </div>
-                  <div className="chat-list compact-scroll-list kakao-chat-list">
-                    {filteredThreads.map((thread) => (
-                      <article key={thread.id} className="chat-row kakao-chat-row">
-                        <div className="avatar-circle kakao-avatar">{thread.avatar}</div>
-                        <div className="chat-copy kakao-chat-copy">
-                          <div className="kakao-chat-head">
-                            <strong>{thread.name}</strong>
-                            <div className="kakao-chat-badges">
-                              <span>{thread.purpose}</span>
-                              {thread.status ? <em>{thread.status}</em> : null}
-                            </div>
-                          </div>
-                          <p>{thread.preview}</p>{thread.purpose.includes("상호수락 1:1") ? <span className="muted-mini">외부 연락처 교환 금지 · 사진/영상 전송 금지 · 반복 접촉 금지</span> : null}
                         </div>
-                        <div className="chat-meta kakao-chat-meta">
-                          <span>{thread.time}</span>
-                          {thread.unread > 0 ? <b>{thread.unread}</b> : null}
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                  </>
-                )}
+                        <p>{thread.preview}</p>{thread.purpose.includes("상호수락 1:1") ? <span className="muted-mini">외부 연락처 교환 금지 · 사진/영상 전송 금지 · 반복 접촉 금지</span> : null}
+                      </div>
+                      <div className="chat-meta kakao-chat-meta">
+                        <span>{thread.time}</span>
+                        {thread.unread > 0 ? <b>{thread.unread}</b> : null}
+                      </div>
+                    </article>
+                  ))}
+                </div>
               </>
             )}
           </section>
@@ -3030,6 +3084,7 @@ export default function App() {
               <strong>단체 채팅방 개설</strong>
               <span className="modal-spacer" />
             </div>
+            <div className="legacy-box compact"><p>성인인증 완료 회원만 개설할 수 있습니다. 이 공간은 주제형 정보교류/고민상담용이며 사람 찾기, 만남, 주선은 허용하지 않습니다.</p></div>
             <div className="modal-form-grid modal-form-grid-top">
               <select value={newRoomCategory} onChange={(e) => setNewRoomCategory(e.target.value as Exclude<RandomRoomCategory, "전체">)}>
                 {randomRoomCategories.filter((item) => item !== "전체").map((item) => <option key={item} value={item}>{item}</option>)}
