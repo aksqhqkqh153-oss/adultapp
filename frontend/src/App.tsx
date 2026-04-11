@@ -448,6 +448,41 @@ const productsSeed: ProductCard[] = [
   { id: 6, category: "입문 액세서리", name: "안전 가이드 번들", subtitle: "콘텐츠+상품 동시 노출 예시", price: "₩24,000", badge: "콘텐츠 연동" },
 ];
 
+const sponsoredFeedProducts = [
+  { id: 101, label: '추천노출', title: '피드 사이 추천 상품 01', subtitle: '정보 피드 흐름 안에서 자연스럽게 노출되는 유료 상품 슬롯 예시', price: '₩19,800' },
+  { id: 102, label: '추천노출', title: '피드 사이 추천 상품 02', subtitle: '운영 검수 후 홈 피드 카드 사이에 들어가는 스폰서드 상품 카드 예시', price: '₩27,500' },
+  { id: 103, label: '추천노출', title: '피드 사이 추천 상품 03', subtitle: '콘텐츠 피드 톤을 유지하면서 클릭 시 상품 상세로 이동하는 구조', price: '₩31,000' },
+];
+
+const premiumMemberBenefits = [
+  '익명포장 보장 옵션',
+  '빠른 출고 옵션',
+  '재포장/보호포장 옵션',
+  '프리미엄 CS 응답 옵션',
+];
+
+const sellerB2BTools = [
+  '월별 정산 리포트',
+  '반품/환불 이력 리포트',
+  '판매자 분쟁 대응 로그',
+  '증빙 요청/다운로드 기능',
+  '사업자용 대시보드',
+  'SKU 승인 상태 리포트',
+];
+
+const safeCommunityIdeas = [
+  '안전수칙 요약 토론방',
+  '동의와 경계설정 체크인',
+  '초보 입문 Q&A',
+  '익명 고민상담 게시판',
+  '일상/취미 라운지',
+  '제품 사용/보관 팁 교류',
+  '구매 전 질문 스레드',
+  '후기형 짧은 댓글 토론',
+  '운영진 진행형 AMA',
+  '주간 주제 토크방',
+];
+
 const communityCategories = ["공지", "정보공유", "후기", "판매자소식", "이벤트"] as const;
 
 const communitySeed: CommunityPost[] = [
@@ -458,6 +493,7 @@ const communitySeed: CommunityPost[] = [
   { id: 5, category: "이벤트", title: "앱 심사 safe UI 점검 이벤트", summary: "모바일 노출 점검과 신고 흐름 확인용 공지입니다.", meta: "프로덕트팀 · 어제" },
   { id: 6, category: "공지", title: "이용약관 및 개인정보 처리방침 안내", summary: "앱 내 약관, 개인정보 처리방침, 청소년 보호정책, 환불정책은 알림 > 공지사항과 커뮤니티 공지 카테고리에서 확인할 수 있습니다.", meta: "운영공지 · 오늘" },
   { id: 7, category: "공지", title: "청소년 보호정책 및 제한 웹 포럼 운영 기준", summary: "앱 공개영역에서는 랜덤채팅을 열지 않고, 제한 웹 영역에서만 안전·동의·세척/보관 정보 포럼을 승인제로 운영합니다.", meta: "안전운영팀 · 오늘" },
+  { id: 8, category: "정보공유", title: "구매자 활성화를 위한 앱 내 소통 기능 10선", summary: "안전수칙 토론, 초보 Q&A, 익명 고민상담, 주간 토크방처럼 법적 리스크가 낮은 소통 구조를 정리했습니다.", meta: "기획팀 · 오늘" },
 ];
 
 const notificationSeed: NotificationItem[] = [
@@ -586,6 +622,19 @@ function FeedPoster({ item, onAsk }: { item: FeedItem; onAsk: (item: FeedItem) =
         <button type="button">댓글</button>
         <button type="button" onClick={() => onAsk(item)}>질문하기</button>
       </div>
+    </article>
+  );
+}
+
+function SponsoredFeedProductCard({ item }: { item: { id: number; label: string; title: string; subtitle: string; price: string } }) {
+  return (
+    <article className="product-card sponsored-feed-product">
+      <div className="product-thumb" />
+      <span className="product-badge">{item.label}</span>
+      <strong>{item.title}</strong>
+      <p>{item.subtitle}</p>
+      <div className="product-meta"><span>피드 사이 자연노출</span><b>{item.price}</b></div>
+      <button type="button">상품 보기</button>
     </article>
   );
 }
@@ -2205,7 +2254,7 @@ export default function App() {
                     <p>{storyPreviewText[selectedStory.name] ?? "선택한 스토리의 요약입니다."}</p>
                   </section>
                 ) : null}
-                <div className="feed-post-list compact-scroll-list">{visibleFeed.map((item) => <FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} />)}</div>
+                <div className="feed-post-list compact-scroll-list">{visibleFeed.map((item, idx) => (<><FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} />{(idx + 1) % 4 === 0 ? <SponsoredFeedProductCard key={`sponsored-${item.id}`} item={sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length]} /> : null}</>))}</div>
               </>
             ) : (
               <>
@@ -2238,6 +2287,11 @@ export default function App() {
                   </div>
                 </div>
                 {reconsentWriteRestricted ? <div className="legacy-box compact"><p>재동의 유예가 끝난 계정은 주문·문의·상품등록 같은 쓰기 기능이 제한됩니다. 먼저 재동의 화면에서 최신 필수 문서에 동의해야 합니다.</p></div> : null}
+                <div className="legacy-grid three">
+                  <div className="legacy-box compact"><h3>추천노출 수익화</h3><p>브랜드관/기획전 대신 홈 피드와 질문 피드 사이에 자연스럽게 제품이 노출되는 추천 슬롯만 운영합니다.</p><p>운영 검수 후 문구·이미지·노출 위치를 통제하는 방식으로 설계합니다.</p></div>
+                  <div className="legacy-box compact"><h3>프리미엄 배송 멤버십</h3><p>구매자 회원제 기준으로 익명포장, 빠른 출고, 보호포장, 프리미엄 CS를 묶어 제공합니다.</p><ul className="compact-bullet-list">{premiumMemberBenefits.map((item) => <li key={item}>{item}</li>)}</ul></div>
+                  <div className="legacy-box compact"><h3>앱 내 안전 소통 구조</h3><p>사람을 직접 찾게 하기보다 정보교류와 질문 흐름을 강화해 구매자 유입을 만듭니다.</p><ul className="compact-bullet-list">{safeCommunityIdeas.slice(0, 4).map((item) => <li key={item}>{item}</li>)}</ul></div>
+                </div>
                 <div className="split-layout mobile-split">
                   <aside className="left-menu always-open">
                     <button className={`left-link ${selectedShopCategory === "전체" ? "active" : ""}`} onClick={() => setSelectedShopCategory("전체")}>전체 보기</button>
@@ -2307,6 +2361,11 @@ export default function App() {
                   <div className="legacy-box compact"><h3>사업자 인증 상태</h3><p>{sellerVerification.status === 'approved' ? '관리자 승인 완료' : sellerVerification.status === 'pending' ? '승인 대기 중' : '신청 전'}</p><p>필수 입력: 사업자번호, CS 연락처, 반품 주소, 사업자 등록 인증 사진 URL</p></div>
                   <div className="legacy-box compact"><h3>등록 가능 여부</h3><p>{sellerApprovalReady ? '상품 등록 가능' : '사업자 인증 및 관리자 승인이 필요합니다.'}</p><p>최초에는 내부 승인 문서 + 감사로그 방식으로 운영하고, 이후 전용 백오피스 승인 화면으로 전환합니다.</p></div>
                   <div className="legacy-box compact"><h3>PG/결제 준비</h3><p>PortOne 기반 PASS 통합 연동과 별도로 PG 연동은 결제 직전 준비 상태까지 구현합니다.</p><p>남은 핵심: PG사 확정, 가맹점 심사, 환불/취소 webhook, 정산 정책.</p></div>
+                </div>
+                <div className="legacy-grid three">
+                  <div className="legacy-box compact"><h3>판매자 과금 방향</h3><p>입점과 상품 등록은 자유롭게 유지하고, 판매자 월 구독은 두지 않습니다.</p><p>대신 판매중개 수수료 + 추천노출 + B2B 리포트/대시보드 유료화로 수익을 만듭니다.</p></div>
+                  <div className="legacy-box compact"><h3>프리미엄 배송 연동 판매자</h3><p>익명포장, 빠른 출고, 보호포장, 프리미엄 CS 조건을 충족하는 판매자 상품만 멤버십 배지를 부여합니다.</p><p>쿠팡 와우처럼 구매자 회원제 혜택과 연결하는 구조를 가정합니다.</p></div>
+                  <div className="legacy-box compact"><h3>B2B 운영툴 유료화</h3><ul className="compact-bullet-list">{sellerB2BTools.map((item) => <li key={item}>{item}</li>)}</ul></div>
                 </div>
                 <div className="legacy-box compact">
                   <h3>사업자 인증 신청</h3>
@@ -2380,6 +2439,12 @@ export default function App() {
             <div className="section-head compact-head">
               <div><h2>소통</h2><p>{communityTab === "커뮤" ? "커뮤니티 글과 공지, 정보공유를 확인합니다." : communityTab === "후기" ? "후기 글 모음을 확인합니다." : "이벤트 공지를 확인합니다."}</p></div>
               <div className="section-tools slim-tools"><input value={communityKeyword} onChange={(e) => setCommunityKeyword(e.target.value)} placeholder="게시글 검색" /></div>
+            </div>
+            <div className="legacy-box compact">
+              <h3>앱 내 구매자 활성화용 소통 구조</h3>
+              <div className="consent-record-list">
+                {safeCommunityIdeas.map((item, idx) => <div key={item} className="simple-list-row"><b>{idx + 1}</b><span>{item}</span></div>)}
+              </div>
             </div>
             <div className="split-layout mobile-split">
               <aside className="left-menu always-open slim-left-menu">

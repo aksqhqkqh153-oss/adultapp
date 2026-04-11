@@ -101,6 +101,14 @@ class Settings(BaseSettings):
     community_external_contact_exchange_allowed: bool = False
     community_policy_reference_path: str = "./docs/adultapp_aragon_policy_comparison_20260412.md"
 
+    monetization_seller_subscription_enabled: bool = False
+    monetization_feed_sponsored_slots_enabled: bool = True
+    monetization_premium_member_enabled: bool = True
+    monetization_b2b_report_tools_enabled: bool = True
+    monetization_sponsored_slot_policy: str = "브랜드관/기획전 대신 홈·질문 피드 사이에 검수형 추천노출 상품 슬롯만 허용"
+    monetization_premium_member_policy: str = "구매자 회원제 기반으로 익명포장·빠른출고·보호포장·프리미엄CS 옵션 제공"
+    monetization_b2b_tool_policy: str = "판매자 월 구독 없이 월별 정산·반품환불 이력·분쟁로그·증빙·대시보드·SKU 승인 상태 리포트만 유료화"
+
     seller_approval_requirements: str = "사업자등록증,정산계좌 확인,반품지,CS 연락처,판매자 약관 동의 완료 시 승인"
     product_review_visibility_policy: str = "승인 전 비공개"
     product_review_editable_statuses: str = "draft,pending_review,rejected"

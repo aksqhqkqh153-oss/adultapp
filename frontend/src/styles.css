@@ -2044,3 +2044,7 @@ pre {
     grid-template-columns: 1fr;
   }
 }
+
+
+.sponsored-feed-product { border-style: dashed; }
+.sponsored-feed-product .product-thumb { min-height: 132px; background: linear-gradient(135deg, #1f2937, #6b7280); }

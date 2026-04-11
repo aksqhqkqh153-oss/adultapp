@@ -1579,6 +1579,59 @@ def cloudflare_pages_manual():
     return CLOUDFLARE_MANUAL_DEPLOY
 
 
+@router.get("/monetization/summary")
+def monetization_summary() -> dict[str, Any]:
+    return {
+        "seller_subscription_enabled": settings.monetization_seller_subscription_enabled,
+        "feed_sponsored_slots_enabled": settings.monetization_feed_sponsored_slots_enabled,
+        "premium_member_enabled": settings.monetization_premium_member_enabled,
+        "b2b_report_tools_enabled": settings.monetization_b2b_report_tools_enabled,
+        "strategy": {
+            "base_revenue": "판매중개 수수료",
+            "sponsored_slots": settings.monetization_sponsored_slot_policy,
+            "premium_member": settings.monetization_premium_member_policy,
+            "b2b_tools": settings.monetization_b2b_tool_policy,
+        },
+        "premium_member_benefits": [
+            "익명포장 보장 옵션",
+            "빠른 출고 옵션",
+            "재포장/보호포장 옵션",
+            "프리미엄 CS 응답 옵션",
+        ],
+        "seller_b2b_tools": [
+            "월별 정산 리포트",
+            "반품/환불 이력 리포트",
+            "판매자 분쟁 대응 로그",
+            "증빙 요청/다운로드 기능",
+            "사업자용 대시보드",
+            "SKU 승인 상태 리포트",
+        ],
+    }
+
+@router.get("/community/safe-activation-ideas")
+def community_safe_activation_ideas() -> dict[str, Any]:
+    return {
+        "items": [
+            "안전수칙 요약 토론방",
+            "동의와 경계설정 체크인",
+            "초보 입문 Q&A",
+            "익명 고민상담 게시판",
+            "일상/취미 라운지",
+            "제품 사용/보관 팁 교류",
+            "구매 전 질문 스레드",
+            "후기형 짧은 댓글 토론",
+            "운영진 진행형 AMA",
+            "주간 주제 토크방",
+        ],
+        "guardrails": [
+            "오프라인 만남 제안 금지",
+            "외부 연락처 교환 금지",
+            "사진·영상 전송 금지",
+            "성매매·대가성 제안 금지",
+            "지역·거리 기반 탐색 금지",
+        ],
+    }
+
 @router.get("/dashboard")
 def dashboard(session: Session = Depends(get_session)) -> dict[str, Any]:
     users = session.exec(select(User)).all()
