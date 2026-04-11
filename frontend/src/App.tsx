@@ -1518,7 +1518,6 @@ export default function App() {
   };
 
   const savedFeedItems = useMemo(() => feedSeed.filter((item) => savedFeedIds.includes(item.id)), [savedFeedIds]);
-  const savedProductItems = useMemo(() => [...productsSeed, ...homeProducts.map((item) => ({ ...item, subtitle: item.subtitle ?? "", badge: item.badge ?? "" }))].filter((item, index, arr) => arr.findIndex((row) => row.id === item.id) === index && savedProductIds.includes(item.id)), [savedProductIds]);
 
   const openMenuOverlay = () => setOverlayMode("menu");
 
@@ -1590,6 +1589,7 @@ export default function App() {
   }, [globalKeyword, randomRoomCategory, randomRooms]);
 
   const homeProducts = useMemo(() => productsSeed.slice(0, 4), []);
+  const savedProductItems = useMemo(() => [...productsSeed, ...homeProducts.map((item) => ({ ...item, subtitle: item.subtitle ?? "", badge: item.badge ?? "" }))].filter((item, index, arr) => arr.findIndex((row) => row.id === item.id) === index && savedProductIds.includes(item.id)), [savedProductIds, homeProducts]);
   const homeSearchResults = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
     if (!keyword) return [];
