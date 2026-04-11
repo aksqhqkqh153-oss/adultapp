@@ -814,8 +814,30 @@ def _save_seller_submission_payload(session: Session, user_id: int, payload: dic
 
 
 def _seller_submission_complete(payload: dict[str, Any]) -> bool:
-    required = ["business_number", "cs_contact", "return_address", "business_document_url", "settlement_bank", "settlement_account_number", "settlement_account_holder"]
-    return all(str(payload.get(key) or "").strip() for key in required)
+    required = [
+        "company_name",
+        "representative_name",
+        "business_number",
+        "ecommerce_number",
+        "business_address",
+        "cs_contact",
+        "return_address",
+        "youth_protection_officer",
+        "business_document_url",
+        "settlement_bank",
+        "settlement_account_number",
+        "settlement_account_holder",
+        "handled_categories",
+    ]
+    for key in required:
+        value = payload.get(key)
+        if isinstance(value, list):
+            if not value:
+                return False
+            continue
+        if not str(value or "").strip():
+            return False
+    return True
 
 
 def _product_publicly_visible(item: Product | None) -> bool:
@@ -1886,12 +1908,18 @@ def seller_verification_apply(payload: SellerVerificationRequest, SellerApproval
     _assert_can_access_adult(current_user)
     profile = session.exec(select(SellerProfile).where(SellerProfile.user_id == (current_user.id or 0))).first()
     submission_payload = {
+        "company_name": payload.company_name,
+        "representative_name": payload.representative_name,
         "business_number": payload.business_number,
+        "ecommerce_number": payload.ecommerce_number,
+        "business_address": payload.business_address,
         "cs_contact": payload.cs_contact,
         "return_address": payload.return_address,
+        "youth_protection_officer": payload.youth_protection_officer,
         "settlement_bank": payload.settlement_bank,
         "settlement_account_number": payload.settlement_account_number,
         "settlement_account_holder": payload.settlement_account_holder,
+        "handled_categories": payload.handled_categories,
         "seller_contract_agreed": payload.seller_contract_agreed,
         "business_document_url": payload.business_document_url,
         "submitted_at": utcnow().isoformat(),
@@ -1933,7 +1961,11 @@ def admin_seller_approvals(current_user: User = Depends(require_grade(MemberGrad
             "email": user.email,
             "name": user.name,
             "status": (user.seller_onboarding_status.value if hasattr(user.seller_onboarding_status, "value") else user.seller_onboarding_status) or "pending",
+            "company_name": submission.get("company_name"),
+            "representative_name": submission.get("representative_name"),
             "business_number": profile.business_number if profile else submission.get("business_number"),
+            "ecommerce_number": submission.get("ecommerce_number"),
+            "handled_categories": submission.get("handled_categories") or [],
             "settlement_account_verified": bool(profile.settlement_account_verified) if profile else False,
             "return_address": profile.return_address if profile else submission.get("return_address"),
             "cs_contact": profile.cs_contact if profile else submission.get("cs_contact"),
@@ -1956,9 +1988,15 @@ def admin_seller_approval_detail(user_id: int, current_user: User = Depends(requ
         "status": (user.seller_onboarding_status.value if hasattr(user.seller_onboarding_status, "value") else user.seller_onboarding_status) or "pending",
         "requirements": settings.seller_approval_requirements,
         "profile": {
+            "company_name": submission.get("company_name"),
+            "representative_name": submission.get("representative_name"),
             "business_number": profile.business_number if profile else submission.get("business_number"),
+            "ecommerce_number": submission.get("ecommerce_number"),
+            "business_address": submission.get("business_address"),
             "return_address": profile.return_address if profile else submission.get("return_address"),
             "cs_contact": profile.cs_contact if profile else submission.get("cs_contact"),
+            "youth_protection_officer": submission.get("youth_protection_officer"),
+            "handled_categories": submission.get("handled_categories") or [],
             "settlement_account_verified": bool(profile.settlement_account_verified) if profile else False,
             "seller_contract_agreed": bool(profile.seller_contract_agreed) if profile else bool(submission.get("seller_contract_agreed")),
         },
@@ -3564,8 +3602,106 @@ def seller_required_fields() -> dict[str, Any]:
             "settlement_account_number",
             "settlement_account_holder",
             "business_document_url",
+            "handled_categories",
         ],
-        "note": "판매자별 사업자/통신판매/CS/정산 정보 입력이 완료되어야 신청 접수 기준을 충족합니다.",
+        "validation_rules": {
+            "business_number": "숫자만 입력, 사업자등록번호 형식 검증 필요",
+            "ecommerce_number": "통신판매업 신고번호 형식 입력",
+            "cs_contact": "운영 연락 가능한 번호 또는 이메일 필수",
+            "handled_categories": "최소 1개 이상 입력 또는 선택",
+            "business_document_url": "사업자증빙 파일 경로 또는 업로드 URL 필수",
+        },
+        "marketplace_direction": "통신판매중개",
+        "note": "판매자별 사업자/통신판매/CS/정산 정보 입력이 완료되어야 PG 신청 접수 기준을 충족합니다.",
+    }
+
+
+@router.get("/pg/submission-package")
+def pg_submission_package() -> dict[str, Any]:
+    return {
+        "direction": "통신판매중개",
+        "ready_for": ["사전 상담", "사전심사 접수", "테스트 채널 연동 시작"],
+        "package_items": [
+            "플랫폼 사업자 정보",
+            "서비스 소개서",
+            "거래 구조 설명서",
+            "상품 카테고리 설명",
+            "금지상품/SKU 정책",
+            "환불/취소/정산 기준",
+            "판매자 입점 시 수집하는 필수 정보",
+            "청소년 차단/성인인증 방식",
+            "고객센터 정보",
+            "약관/개인정보처리방침/청소년보호정책",
+        ],
+        "pending_items": [
+            "webhook 서명 검증",
+            "운영 MID/merchant 실제값 입력",
+            "취소/환불 상태머신 완성",
+            "판매자 필수 입력값 서버 검증",
+            "금지상품/SKU 정책 확정",
+            "정산 기준 문서 확정",
+            "운영용 사업자/판매자 고지 화면 정리",
+        ],
+    }
+
+
+@router.get("/payments/integration-checklist")
+def payments_integration_checklist() -> dict[str, Any]:
+    return {
+        "official_order": [
+            "포트원 콘솔 가입 및 비즈니스 인증",
+            "전자결제 신청",
+            "테스트 채널 추가",
+            "Store ID / V2 API Secret 발급",
+            "테스트 결제/취소/환불/webhook 검증",
+            "판매자 필수 입력값 서버 검증 추가",
+            "금지상품/SKU 표 확정",
+            "환불/정산/프리미엄 배송 기준 문서 확정",
+            "운영 MID 발급 후 실연동 채널 등록",
+            "운영 최종 점검 후 심사 제출",
+        ],
+        "must_verify": [
+            "결제 성공 후 서버 재조회",
+            "webhook 서명/출처 검증",
+            "주문 상태머신",
+            "취소/부분취소",
+            "환불 실패 재시도",
+            "timeout/중복 처리",
+            "정산 기준과 주문 상태 연결",
+            "미인증 사용자의 구매 진입 차단",
+        ],
+    }
+
+
+@router.get("/policy/refund-settlement")
+def policy_refund_settlement() -> dict[str, Any]:
+    return {
+        "direction": "통신판매중개",
+        "cancel_refund_flow": [
+            "결제 전 취소",
+            "배송 전 취소",
+            "배송 후 환불 제한",
+            "단순변심/하자/오배송 구분",
+            "프리미엄 배송 옵션 환불 기준",
+            "판매자 책임 vs 플랫폼 책임",
+        ],
+        "marketplace_responsibility": {
+            "platform": ["결제 흐름 제공", "분쟁 중재", "정산 데이터 제공"],
+            "seller": ["상품 정보", "배송", "반품지", "하자/오배송 1차 책임", "증빙 발급"],
+        },
+    }
+
+
+@router.get("/policy/store-metadata-safe")
+def policy_store_metadata_safe() -> dict[str, Any]:
+    return {
+        "safe_copy_rules": [
+            "매칭/만남/파트너 찾기 표현 제거",
+            "그룹방은 정보교류/고민상담용으로만 표시",
+            "단체 톡방 공지에 사람 찾기/주선 금지 명시",
+            "상품 이미지는 노골적 표현 최소화",
+            "스토어 메타데이터도 보수적으로 유지",
+        ]
     }
 
 

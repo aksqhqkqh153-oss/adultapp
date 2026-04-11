@@ -241,6 +241,7 @@ type SellerVerificationState = {
   settlementBank: string;
   settlementAccountNumber: string;
   settlementAccountHolder: string;
+  handledCategories: string;
   status: "draft" | "pending" | "approved";
 };
 
@@ -573,9 +574,50 @@ const storeSafeMetadataGuide = [
 ];
 
 const pgSubmissionReadiness = [
-  '현재 프론트/백엔드 골격은 신청 접수 설명용 데모 수준으로 가능',
+  '현재 프론트/백엔드 골격은 사전 상담/사전심사 접수와 테스트 채널 연동 설명용 수준으로 가능',
   '실운영 신청 전 webhook 서명 검증, 취소/환불 상태머신, 정산 기준 문서 고정 필요',
   '가맹점/업종 심사 전 금지상품 SKU 정책, 환불정책, 익명포장 SLA 문서 첨부 권장',
+];
+
+const pgSubmissionPackageItems = [
+  '플랫폼 사업자 정보',
+  '서비스 소개서',
+  '거래 구조 설명서',
+  '상품 카테고리 설명',
+  '금지상품/SKU 정책',
+  '환불/취소/정산 기준',
+  '판매자 입점 시 수집하는 필수 정보',
+  '청소년 차단/성인인증 방식',
+  '고객센터 정보',
+  '약관/개인정보처리방침/청소년보호정책',
+];
+
+const refundSettlementPolicySeed = [
+  '결제 전 취소는 즉시 취소 가능, 결제 성공 후 서버 검증 전 단계에서는 주문 확정 전 상태 유지',
+  '배송 전 취소는 판매자 승인 없이 접수 가능하되 이미 포장/출고 준비에 들어간 경우 상태값으로 구분',
+  '배송 후는 단순변심/하자/오배송을 구분해 환불 사유코드와 증빙을 함께 저장',
+  '프리미엄 배송 옵션은 실제 미이행 시 옵션금 환불 기준을 별도 문서로 고정',
+  '중개형 구조에서 판매자 책임과 플랫폼 중재 책임을 주문/환불 화면에 함께 표시',
+];
+
+const pgExecutionSteps = [
+  '포트원 콘솔 가입 및 비즈니스 인증',
+  '전자결제 신청',
+  '테스트 채널 추가',
+  'Store ID / V2 API Secret 발급',
+  '테스트 결제/취소/환불/webhook 검증',
+  '판매자 필수 입력값 서버 검증 추가',
+  '금지상품/SKU 표 확정',
+  '환불/정산/프리미엄 배송 기준 문서 확정',
+  '운영 MID 발급 후 실연동 채널 등록',
+  '운영 최종 점검 후 심사 제출',
+];
+
+const marketplaceDirectionCards = [
+  { title: '통신판매중개 구조', body: '플랫폼은 통신판매중개자로 고지하고, 판매자별 사업자·CS·반품·정산 책임을 분리 표시합니다.' },
+  { title: '판매자 필수 입력 서버검증', body: '상호/법인명, 대표자명, 사업자번호, 통신판매업 신고번호, 주소, CS, 반품지, 정산계좌, 청소년보호책임자, 취급 카테고리를 서버 기준으로 저장·검증합니다.' },
+  { title: 'PG 심사 제출 패키지', body: '포트원/PG 심사 시 제출할 사업 정보 묶음, 거래 구조 설명, 금지상품/SKU 정책, 환불/정산 기준을 한 세트로 준비합니다.' },
+  { title: '운영 전환 체크', body: '테스트 MID, webhook, 환불 상태머신, 성인인증 분리 검증, 운영 메타데이터 보수화까지 완료 후 운영 전환합니다.' },
 ];
 const dmRuleNoticeItems = [
   "오프라인 만남 제안 금지",
@@ -1368,7 +1410,7 @@ export default function App() {
     try { return { gender: "", ageBand: "", regionCode: "", interests: [], marketingOptIn: false, ...JSON.parse(raw) }; } catch { return { gender: "", ageBand: "", regionCode: "", interests: [], marketingOptIn: false }; }
   });
   const [sellerVerification, setSellerVerification] = useState<SellerVerificationState>(() => {
-    const fallback = { companyName: "", representativeName: "", businessNumber: "", ecommerceNumber: "", businessAddress: "", csContact: "", returnAddress: "", youthProtectionOfficer: "", businessDocumentUrl: "", settlementBank: "", settlementAccountNumber: "", settlementAccountHolder: "", status: "draft" as const };
+    const fallback = { companyName: "", representativeName: "", businessNumber: "", ecommerceNumber: "", businessAddress: "", csContact: "", returnAddress: "", youthProtectionOfficer: "", businessDocumentUrl: "", settlementBank: "", settlementAccountNumber: "", settlementAccountHolder: "", handledCategories: "", status: "draft" as const };
     if (typeof window === "undefined") return fallback;
     const raw = window.localStorage.getItem("adultapp_seller_verification");
     if (!raw) return fallback;
@@ -1768,6 +1810,7 @@ export default function App() {
     && sellerVerification.settlementBank.trim()
     && sellerVerification.settlementAccountNumber.trim()
     && sellerVerification.settlementAccountHolder.trim()
+    && sellerVerification.handledCategories.trim()
   );
   const productDraftReady = Boolean(productRegistrationDraft.category && productRegistrationDraft.name.trim() && productRegistrationDraft.description.trim() && productRegistrationDraft.price.trim() && productRegistrationDraft.stockQty.trim() && productRegistrationDraft.skuCode.trim() && productRegistrationDraft.imageUrls.filter(Boolean).length > 0);
   const consentRecordsPreview = [
@@ -1862,6 +1905,7 @@ export default function App() {
         settlement_bank: sellerVerification.settlementBank,
         settlement_account_number: sellerVerification.settlementAccountNumber,
         settlement_account_holder: sellerVerification.settlementAccountHolder,
+        handled_categories: sellerVerification.handledCategories.split(',').map((item) => item.trim()).filter(Boolean),
         seller_contract_agreed: true,
         business_document_url: sellerVerification.businessDocumentUrl,
         approval_note: '사업자 인증 신청',
@@ -2760,9 +2804,12 @@ export default function App() {
                   <div><h2>상품 등록 / 사업자 승인</h2><p>사업자 인증 계정만 상품 등록이 가능하며, 사업자 등록 인증 사진 제출과 관리자 승인 후 등록 권한이 활성화됩니다.</p></div>
                 </div>
                 <div className="legacy-grid three">
-                  <div className="legacy-box compact"><h3>사업자 인증 상태</h3><p>{sellerVerification.status === 'approved' ? '관리자 승인 완료' : sellerVerification.status === 'pending' ? '승인 대기 중' : '신청 전'}</p><p>필수 입력: 사업자번호, CS 연락처, 반품 주소, 사업자 등록 인증 사진 URL</p></div>
+                  <div className="legacy-box compact"><h3>사업자 인증 상태</h3><p>{sellerVerification.status === 'approved' ? '관리자 승인 완료' : sellerVerification.status === 'pending' ? '승인 대기 중' : '신청 전'}</p><p>필수 입력: 상호/법인명, 대표자명, 사업자번호, 통신판매업 신고번호, CS, 반품지, 정산계좌, 청소년보호책임자, 취급 카테고리</p></div>
                   <div className="legacy-box compact"><h3>등록 가능 여부</h3><p>{sellerApprovalReady ? '상품 등록 가능' : '사업자 인증 및 관리자 승인이 필요합니다.'}</p><p>최초에는 내부 승인 문서 + 감사로그 방식으로 운영하고, 이후 전용 백오피스 승인 화면으로 전환합니다.</p></div>
-                  <div className="legacy-box compact"><h3>PG/결제 준비</h3><p>PortOne 기반 PASS 통합 연동과 별도로 PG 연동은 결제 직전 준비 상태까지 구현합니다.</p><p>남은 핵심: PG사 확정, 가맹점 심사, 환불/취소 webhook, 정산 정책.</p></div>
+                  <div className="legacy-box compact"><h3>PG/결제 준비</h3><p>PortOne 기반 PASS 통합 연동과 별도로 PG 연동은 통신판매중개 구조 기준으로 준비합니다.</p><p>남은 핵심: PG사 확정, webhook 서명 검증, 취소/환불 상태머신, 정산 정책.</p></div>
+                </div>
+                <div className="legacy-grid three">
+                  {marketplaceDirectionCards.map((item) => <div key={item.title} className="legacy-box compact"><h3>{item.title}</h3><p>{item.body}</p></div>)}
                 </div>
                 <div className="legacy-grid three">
                   <div className="legacy-box compact"><h3>판매자 과금 방향</h3><p>입점과 상품 등록은 자유롭게 유지하고, 판매자 월 구독은 두지 않습니다.</p><p>대신 판매중개 수수료 + 추천노출 + B2B 리포트/대시보드 유료화로 수익을 만듭니다.</p></div>
@@ -2783,6 +2830,7 @@ export default function App() {
                     <label><span>정산 은행</span><input value={sellerVerification.settlementBank} onChange={(e) => setSellerVerification((prev) => ({ ...prev, settlementBank: e.target.value }))} placeholder="은행명" /></label>
                     <label><span>정산 계좌번호</span><input value={sellerVerification.settlementAccountNumber} onChange={(e) => setSellerVerification((prev) => ({ ...prev, settlementAccountNumber: e.target.value }))} placeholder="계좌번호" /></label>
                     <label><span>예금주명</span><input value={sellerVerification.settlementAccountHolder} onChange={(e) => setSellerVerification((prev) => ({ ...prev, settlementAccountHolder: e.target.value }))} placeholder="예금주명" /></label>
+                    <label className="wide"><span>취급 상품 카테고리</span><input value={sellerVerification.handledCategories} onChange={(e) => setSellerVerification((prev) => ({ ...prev, handledCategories: e.target.value }))} placeholder="위생/보관, 바디/케어, 입문 액세서리" /></label>
                     <label className="wide"><span>사업자 등록 인증 사진 URL</span><input value={sellerVerification.businessDocumentUrl} onChange={(e) => setSellerVerification((prev) => ({ ...prev, businessDocumentUrl: e.target.value }))} placeholder="/media/business-doc.jpg 또는 외부 저장 URL" /></label>
                   </div>
                   <div className="copy-action-row">
@@ -2822,9 +2870,21 @@ export default function App() {
                   </div>
                 </div>
                 <div className="legacy-box compact">
+                  <h3>PG 심사 제출용 사업 정보 패키지</h3>
+                  <div className="consent-record-list">
+                    {pgSubmissionPackageItems.map((item) => <div key={item} className="simple-list-row"><b>제출</b><span>{item}</span></div>)}
+                  </div>
+                </div>
+                <div className="legacy-box compact">
                   <h3>SKU 정책 뼈대</h3>
                   <div className="consent-record-list">
                     {skuPolicySeed.map((item) => <div key={item.category} className="simple-list-row multi-line"><div><b>{item.category}</b><span>{item.note}</span></div><div><span>{item.grade}</span></div></div>)}
+                  </div>
+                </div>
+                <div className="legacy-box compact">
+                  <h3>환불/취소/정산 기준</h3>
+                  <div className="consent-record-list">
+                    {refundSettlementPolicySeed.map((item) => <div key={item} className="simple-list-row"><b>기준</b><span>{item}</span></div>)}
                   </div>
                 </div>
                 <div className="legacy-box compact">
@@ -2837,6 +2897,12 @@ export default function App() {
                   <h3>스토어 제출용 보수 메타데이터 가이드</h3>
                   <div className="consent-record-list">
                     {storeSafeMetadataGuide.map((item) => <div key={item} className="simple-list-row"><b>SAFE</b><span>{item}</span></div>)}
+                  </div>
+                </div>
+                <div className="legacy-box compact">
+                  <h3>다음 진행 순서</h3>
+                  <div className="consent-record-list">
+                    {pgExecutionSteps.map((item, index) => <div key={item} className="simple-list-row"><b>{index + 1}순서</b><span>{item}</span></div>)}
                   </div>
                 </div>
                 <div className="legacy-box compact">

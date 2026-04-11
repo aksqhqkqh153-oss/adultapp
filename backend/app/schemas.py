@@ -168,12 +168,18 @@ class ModerationTextRequest(BaseModel):
 
 
 class SellerVerificationRequest(BaseModel):
+    company_name: str
+    representative_name: str
     business_number: str
+    ecommerce_number: str
+    business_address: str
     cs_contact: str
     return_address: str
+    youth_protection_officer: str
     settlement_bank: str = ""
     settlement_account_number: str = ""
     settlement_account_holder: str = ""
+    handled_categories: list[str] = []
     seller_contract_agreed: bool = True
     business_document_url: str = ""
     approval_note: str = "사업자 인증 신청"
