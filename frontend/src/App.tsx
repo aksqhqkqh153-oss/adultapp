@@ -51,6 +51,17 @@ type CommunityPost = {
   meta: string;
 };
 
+
+type NotificationItem = {
+  id: number;
+  section: "공지" | "주문" | "소통";
+  title: string;
+  body: string;
+  meta: string;
+  unread?: boolean;
+  ctaLabel?: string;
+};
+
 type ThreadItem = {
   id: number;
   name: string;
@@ -327,7 +338,7 @@ type RandomGenderOption = (typeof randomGenderOptions)[number];
 type RandomRegionOption = (typeof randomRegionOptions)[number];
 type RandomEntryTab = (typeof randomEntryTabs)[number];
 type AdminModeTab = (typeof adminModeTabs)[number];
-type OverlayMode = "search" | "settings" | null;
+type OverlayMode = "search" | "settings" | "notifications" | null;
 type DemoLoginProvider = "PASS" | "휴대폰" | "카카오";
 type AdultGateView = "intro" | "success" | "failed" | "minor";
 type SignupStep = "consent" | "account" | "profile";
@@ -368,6 +379,16 @@ function SettingsIcon() {
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <path d="M19.14 12.94a7.4 7.4 0 0 0 .05-.94 7.4 7.4 0 0 0-.05-.94l2.03-1.58a.6.6 0 0 0 .15-.77l-1.92-3.32a.6.6 0 0 0-.73-.26l-2.39.96a7.78 7.78 0 0 0-1.63-.94l-.36-2.54a.6.6 0 0 0-.59-.51H10.3a.6.6 0 0 0-.59.51l-.36 2.54c-.58.22-1.13.54-1.63.94l-2.39-.96a.6.6 0 0 0-.73.26L2.68 8.71a.6.6 0 0 0 .15.77l2.03 1.58a7.4 7.4 0 0 0-.05.94c0 .32.02.63.05.94L2.83 14.52a.6.6 0 0 0-.15.77l1.92 3.32c.16.28.49.39.79.26l2.39-.96c.5.4 1.05.72 1.63.94l.36 2.54c.05.29.3.51.59.51h3.4c.3 0 .55-.22.59-.51l.36-2.54c.58-.22 1.13-.54 1.63-.94l2.39.96c.3.12.63.01.79-.26l1.92-3.32a.6.6 0 0 0-.15-.77l-2.03-1.58Z" fill="none" stroke="currentColor" strokeWidth="2.05" strokeLinejoin="round" />
       <circle cx="12" cy="12" r="3.1" fill="none" stroke="currentColor" strokeWidth="2.05" />
+    </svg>
+  );
+}
+
+
+function BellIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M12 3.5a4.2 4.2 0 0 0-4.2 4.2v1.1c0 1.3-.42 2.56-1.2 3.6l-1.18 1.57c-.42.56-.02 1.36.68 1.36h12.84c.7 0 1.1-.8.68-1.36l-1.18-1.57a5.98 5.98 0 0 1-1.2-3.6V7.7A4.2 4.2 0 0 0 12 3.5Z" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round"/>
+      <path d="M9.5 18.5a2.7 2.7 0 0 0 5 0" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"/>
     </svg>
   );
 }
@@ -434,6 +455,17 @@ const communitySeed: CommunityPost[] = [
   { id: 3, category: "후기", title: "사진 피드형 상품 리뷰 구성 예시", summary: "사진·짧은 영상·요약문이 결합된 소통 공간 예시입니다.", meta: "brand_note · 4시간 전" },
   { id: 4, category: "판매자소식", title: "신규 카테고리 승인 대기 상품 현황", summary: "판매자센터에서 확인 중인 상품들을 카테고리별로 묶어서 보여줍니다.", meta: "seller_studio · 어제" },
   { id: 5, category: "이벤트", title: "앱 심사 safe UI 점검 이벤트", summary: "모바일 노출 점검과 신고 흐름 확인용 공지입니다.", meta: "프로덕트팀 · 어제" },
+  { id: 6, category: "공지", title: "이용약관 및 개인정보 처리방침 안내", summary: "앱 내 약관, 개인정보 처리방침, 청소년 보호정책, 환불정책은 알림 > 공지사항과 커뮤니티 공지 카테고리에서 확인할 수 있습니다.", meta: "운영공지 · 오늘" },
+  { id: 7, category: "공지", title: "청소년 보호정책 및 랜덤채팅 운영 기준", summary: "랜덤채팅은 고민상담/정보교류 전용 텍스트 채팅만 허용되며 사진·영상·파일 업로드와 외부 연락처 교환은 금지됩니다.", meta: "안전운영팀 · 오늘" },
+];
+
+const notificationSeed: NotificationItem[] = [
+  { id: 1, section: "공지", title: "앱 공지사항", body: "이용약관, 개인정보 처리방침, 청소년 보호정책, 환불정책을 알림에서 바로 확인할 수 있도록 이동했습니다.", meta: "정책 공지 · 오늘", unread: true, ctaLabel: "정책 확인" },
+  { id: 2, section: "공지", title: "앱 업데이트 안내", body: "우측 상단 알림 버튼이 추가되었고, 공지/주문/채팅 알림을 한 화면에서 구분해 확인할 수 있습니다.", meta: "앱 업데이트 · 오늘", unread: true, ctaLabel: "업데이트 보기" },
+  { id: 3, section: "주문", title: "주문한 제품 발송 준비중", body: "주문번호 A-240412-001 상품이 발송 준비 단계로 변경되었습니다.", meta: "쇼핑 주문 · 10분 전", unread: true, ctaLabel: "주문 보기" },
+  { id: 4, section: "주문", title: "배송 상태 변경", body: "익명포장 배송 건이 택배사에 인계되었습니다. 상세 추적은 주문 목록에서 확인하세요.", meta: "배송 알림 · 1시간 전", ctaLabel: "배송 조회" },
+  { id: 5, section: "소통", title: "커뮤니티 댓글 알림", body: "공지 카테고리 게시글에 새 댓글이 등록되었습니다.", meta: "커뮤니티 · 2시간 전", unread: true, ctaLabel: "댓글 보기" },
+  { id: 6, section: "소통", title: "익명 정보채팅 안내", body: "랜덤채팅은 고민상담/정보교류 목적의 텍스트만 허용됩니다. 사진·영상·파일 업로드는 영구 금지입니다.", meta: "채팅 안내 · 오늘", ctaLabel: "운영 기준" },
 ];
 
 const threadSeed: ThreadItem[] = [
@@ -1610,9 +1642,11 @@ export default function App() {
 
   const currentScreenTitle = overlayMode === "search"
     ? `${activeTab}검색`
-    : overlayMode === "settings"
+     : overlayMode === "settings"
       ? "설정"
-      : activeTab;
+      : overlayMode === "notifications"
+        ? "알림"
+        : activeTab;
 
   const openOverlay = (mode: Exclude<OverlayMode, null>) => {
     setOverlayMode((prev) => (prev === mode ? null : mode));
@@ -1774,6 +1808,13 @@ export default function App() {
   const settingsNavItems = useMemo<SettingsCategory[]>(() => settingsCategories.filter((item) => (["운영", "관리자모드", "DB관리", "신고", "채팅", "기타"].includes(item) ? isAdmin : true)), [isAdmin]);
   const visibleHeaderNavItems = overlayMode === null ? headerNavItems : [];
 
+  const notificationSections = useMemo(() => ({
+    notices: notificationSeed.filter((item) => item.section === "공지"),
+    orders: notificationSeed.filter((item) => item.section === "주문"),
+    community: notificationSeed.filter((item) => item.section === "소통"),
+  }), []);
+  const unreadNotificationCount = useMemo(() => notificationSeed.filter((item) => item.unread).length, []);
+
   const selectBottomTab = (tab: MobileTab) => {
     setActiveTab(tab);
     setOverlayMode(null);
@@ -1832,6 +1873,10 @@ export default function App() {
               <button className={`header-inline-btn header-icon-btn ${overlayMode === "search" ? "active" : ""}`} onClick={() => openOverlay("search")} aria-label="검색">
                 <SearchIcon />
               </button>
+              <button className={`header-inline-btn header-icon-btn header-notification-btn ${overlayMode === "notifications" ? "active" : ""}`} onClick={() => openOverlay("notifications")} aria-label="알림">
+                <BellIcon />
+                {unreadNotificationCount > 0 ? <span className="header-badge">{unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}</span> : null}
+              </button>
               <button className={`header-inline-btn header-icon-btn ${overlayMode === "settings" ? "active" : ""}`} onClick={() => openOverlay("settings")} aria-label="설정">
                 <SettingsIcon />
               </button>
@@ -1857,7 +1902,7 @@ export default function App() {
         {overlayMode ? (
           <section className="overlay-card">
             <div className="overlay-head">
-              <strong>{overlayMode === "search" ? "통합 검색" : "설정 카테고리"}</strong>
+              <strong>{overlayMode === "search" ? "통합 검색" : overlayMode === "notifications" ? "알림" : "설정 카테고리"}</strong>
               <button className="ghost-btn" onClick={() => setOverlayMode(null)}>닫기</button>
             </div>
 
@@ -1911,6 +1956,68 @@ export default function App() {
                     <div className="legacy-box compact"><p>연관 검색 결과가 없습니다.</p></div>
                   ) : null}
                 </div>
+              </div>
+            ) : null}
+
+            {overlayMode === "notifications" ? (
+              <div className="stack-gap notification-overlay-body compact-scroll-list">
+                <section className="notification-section-card">
+                  <div className="notification-section-head">
+                    <div><strong>앱 공지사항</strong><p>약관/정책/업데이트 공지를 알림에서 확인합니다.</p></div>
+                  </div>
+                  <div className="notification-list">
+                    {notificationSections.notices.map((item) => (
+                      <article key={item.id} className={`notification-item ${item.unread ? "unread" : ""}`}>
+                        <div className="notification-item-copy">
+                          <div className="notification-item-topline"><span className="notification-chip">공지</span><span>{item.meta}</span></div>
+                          <strong>{item.title}</strong>
+                          <p>{item.body}</p>
+                        </div>
+                        {item.ctaLabel ? <button type="button" className="ghost-btn">{item.ctaLabel}</button> : null}
+                      </article>
+                    ))}
+                    <div className="notification-policy-links">
+                      <a className="ghost-link-btn" href={`${getApiBase()}/legal/terms-of-service`} target="_blank" rel="noreferrer">이용약관</a>
+                      <a className="ghost-link-btn" href={`${getApiBase()}/legal/privacy-policy`} target="_blank" rel="noreferrer">개인정보 처리방침</a>
+                      <a className="ghost-link-btn" href={`${getApiBase()}/legal/youth-policy`} target="_blank" rel="noreferrer">청소년 보호정책</a>
+                      <a className="ghost-link-btn" href={`${getApiBase()}/legal/refund-policy`} target="_blank" rel="noreferrer">환불정책</a>
+                    </div>
+                  </div>
+                </section>
+                <section className="notification-section-card">
+                  <div className="notification-section-head">
+                    <div><strong>쇼핑 주문 · 배송 관련 알림</strong><p>주문한 제품 발송 진행 여부와 배송 상태를 분리해 표시합니다.</p></div>
+                  </div>
+                  <div className="notification-list">
+                    {notificationSections.orders.map((item) => (
+                      <article key={item.id} className={`notification-item ${item.unread ? "unread" : ""}`}>
+                        <div className="notification-item-copy">
+                          <div className="notification-item-topline"><span className="notification-chip order">주문</span><span>{item.meta}</span></div>
+                          <strong>{item.title}</strong>
+                          <p>{item.body}</p>
+                        </div>
+                        {item.ctaLabel ? <button type="button" className="ghost-btn">{item.ctaLabel}</button> : null}
+                      </article>
+                    ))}
+                  </div>
+                </section>
+                <section className="notification-section-card">
+                  <div className="notification-section-head">
+                    <div><strong>커뮤니티 · 댓글 · 채팅 · 기타</strong><p>댓글, 채팅, 운영기준 공지 등 기타 알림을 하단에 배치합니다.</p></div>
+                  </div>
+                  <div className="notification-list">
+                    {notificationSections.community.map((item) => (
+                      <article key={item.id} className={`notification-item ${item.unread ? "unread" : ""}`}>
+                        <div className="notification-item-copy">
+                          <div className="notification-item-topline"><span className="notification-chip community">소통</span><span>{item.meta}</span></div>
+                          <strong>{item.title}</strong>
+                          <p>{item.body}</p>
+                        </div>
+                        {item.ctaLabel ? <button type="button" className="ghost-btn">{item.ctaLabel}</button> : null}
+                      </article>
+                    ))}
+                  </div>
+                </section>
               </div>
             ) : null}
 
@@ -2652,20 +2759,6 @@ export default function App() {
           </div>
         </div>
       ) : null}
-
-
-      <div className="legal-fixed-links">
-        <a className="ghost-link-btn" href={`${getApiBase()}/legal/terms-of-service`} target="_blank" rel="noreferrer">이용약관</a>
-        <a className="ghost-link-btn" href={`${getApiBase()}/legal/privacy-policy`} target="_blank" rel="noreferrer">개인정보 처리방침</a>
-        <a className="ghost-link-btn" href={`${getApiBase()}/legal/youth-policy`} target="_blank" rel="noreferrer">청소년 보호정책</a>
-        <a className="ghost-link-btn" href={`${getApiBase()}/legal/refund-policy`} target="_blank" rel="noreferrer">환불정책</a>
-      </div>
-      <div className="business-info-footer">
-        <span>{businessInfo?.business_info?.operator_brand_name ?? 'adultapp'} · {businessInfo?.business_info?.operator_legal_name ?? '법인명 미정'}</span>
-        <span>사업자등록번호 {businessInfo?.business_info?.business_registration_no ?? '미정'}</span>
-        <span>통신판매업 신고 {businessInfo?.business_info?.mail_order_report_no ?? '미정'}</span>
-        <span>청소년보호책임자 {businessInfo?.business_info?.youth_protection_officer ?? '미정'}</span>
-      </div>
 
       <nav className="bottom-nav">        {mobileTabs.map((tab) => (
           <button key={tab} className={`bottom-nav-btn ${overlayMode === null && activeTab === tab ? "active" : ""}`} onClick={() => selectBottomTab(tab)}>

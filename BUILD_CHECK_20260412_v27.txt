@@ -1,0 +1,5 @@
+BUILD CHECK v27
+- frontend: npm install 완료
+- frontend: npm run build 통과
+- backend: python -m compileall backend/app 통과
+- changed: notification button, legal footer removal, home feed overflow clamp, community notice seed update
