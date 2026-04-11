@@ -345,6 +345,34 @@ def _assert_can_access_adult(user: User) -> None:
         raise HTTPException(status_code=403, detail="adult verification required")
 
 
+def _assert_random_chat_entry_allowed(user: User, session: Session) -> dict[str, Any]:
+    _assert_can_access_adult(user)
+    _assert_reconsent_write_allowed(user, session)
+    if user.member_status != "active":
+        raise HTTPException(status_code=403, detail="random chat available for active members only")
+    missing: list[str] = []
+    if not user.gender:
+        missing.append("gender")
+    if not user.age_band:
+        missing.append("age_band")
+    if not user.region_code:
+        missing.append("region_code")
+    if missing:
+        raise HTTPException(status_code=403, detail={
+            "code": "random_chat_profile_required",
+            "message": "gender, age band, and region are required for random chat",
+            "missing_fields": missing,
+        })
+    return {
+        "service_mode": "anonymous_info_exchange",
+        "media_upload_allowed": False,
+        "external_contact_allowed": False,
+        "offline_meeting_allowed": False,
+        "identity_verified": bool(user.identity_verified),
+        "adult_verified": bool(user.adult_verified),
+    }
+
+
 def _assert_reconsent_write_allowed(user: User, session: Session) -> None:
     if user.grade == MemberGrade.ADMIN:
         return
@@ -2073,6 +2101,8 @@ def create_message(payload: DirectMessageCreate, request: Request, current_user:
     thread = session.get(DirectMessageThread, payload.thread_id)
     if not thread:
         raise HTTPException(status_code=404, detail="thread not found")
+    if thread.thread_type != "random_1to1":
+        raise HTTPException(status_code=400, detail="random report only allowed for random_1to1 thread")
     _ensure_thread_member(thread, current_user.id or 0)
     _ensure_thread_visible(session, thread, current_user.id or 0)
     _ensure_dm_policy(current_user, payload.purpose_code)
@@ -2930,7 +2960,44 @@ def unblock_user(blocked_id: int, current_user: User = Depends(get_current_user)
 
 @router.get("/chat/random/rules")
 def get_random_rules(session: Session = Depends(get_session)):
-    return _serialize_random_rule(_get_or_create_random_rule(session))
+    rule = _get_or_create_random_rule(session)
+    return {
+        **_serialize_random_rule(rule),
+        "service_mode": "anonymous_info_exchange",
+        "feature_scope": "adult_shop_info_community_addon",
+        "media_upload_allowed": False,
+        "allowed_topics": [
+            "제품 사용 안전수칙",
+            "소재/보관/세척/사용 가이드",
+            "익명포장/환불/배송 경험",
+            "제품 비교",
+            "브랜드 후기",
+            "운영공지 및 FAQ",
+        ],
+        "prohibited_topics": [
+            "외부 연락처 유도",
+            "오프라인 만남",
+            "신체 노출 요청",
+            "사진/영상 교환",
+            "역할극/행위 제안",
+            "위치/숙소/주소 제안",
+        ],
+        "entry_requirements": [
+            "identity_verified",
+            "adult_verified",
+            "gender",
+            "age_band",
+            "region_code",
+            "member_status=active",
+        ],
+        "safety_controls": [
+            "report",
+            "block",
+            "rematch_cooldown",
+            "admin_action_log",
+            "dispute_log_retention",
+        ],
+    }
 
 
 @router.put("/chat/random/rules")
@@ -3009,8 +3076,9 @@ def update_random_rules(payload: RandomRuleUpdateRequest, current_user: User = D
 
 
 @router.post("/chat/random/tickets")
-def create_random_ticket(payload: RandomTicketCreate, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+def create_random_ticket(payload: RandomTicketCreate, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     rule = _get_or_create_random_rule(session)
+    eligibility = _assert_random_chat_entry_allowed(current_user, session)
     now = utcnow()
     if current_user.random_chat_cooldown_until and current_user.random_chat_cooldown_until > now:
         raise HTTPException(status_code=429, detail=f"random rematch cooldown until {current_user.random_chat_cooldown_until.isoformat()}")
@@ -3053,9 +3121,11 @@ def create_random_ticket(payload: RandomTicketCreate, current_user: User = Depen
         session.add(ticket)
         session.add(best_candidate)
         session.commit()
-        return {"ticket_id": ticket.id, "status": "matched", "thread_id": thread.id, "matched_user": _user_public_meta(session, best_candidate.user_id), "match_score": {"total": best_score[0], "gender": best_score[1], "age": best_score[2], "region": best_score[3]}, "rule": _serialize_random_rule(rule)}
+        write_admin_log(session, current_user, "random_chat_match", "random_ticket", str(ticket.id or 0), "익명 정보교류 랜덤채팅 매칭", after_state=f"thread:{thread.id}", ip=request.client.host if request.client else "127.0.0.1", device=request.headers.get("user-agent"))
+        return {"ticket_id": ticket.id, "status": "matched", "thread_id": thread.id, "matched_user": _user_public_meta(session, best_candidate.user_id), "match_score": {"total": best_score[0], "gender": best_score[1], "age": best_score[2], "region": best_score[3]}, "rule": _serialize_random_rule(rule), "eligibility": eligibility}
     user_min_wait, user_max_wait = _random_rematch_window_seconds(rule, current_user)
-    return {"ticket_id": ticket.id, "status": "queued", "rule": _serialize_random_rule(rule), "match_window": {"min_wait_seconds": user_min_wait, "max_wait_seconds": user_max_wait, "auto_rematch": rule.auto_rematch}, "cooldown_until": current_user.random_chat_cooldown_until.isoformat() if current_user.random_chat_cooldown_until else None}
+    write_admin_log(session, current_user, "random_chat_queue", "random_ticket", str(ticket.id or 0), "익명 정보교류 랜덤채팅 대기열 진입", ip=request.client.host if request.client else "127.0.0.1", device=request.headers.get("user-agent"))
+    return {"ticket_id": ticket.id, "status": "queued", "rule": _serialize_random_rule(rule), "match_window": {"min_wait_seconds": user_min_wait, "max_wait_seconds": user_max_wait, "auto_rematch": rule.auto_rematch}, "cooldown_until": current_user.random_chat_cooldown_until.isoformat() if current_user.random_chat_cooldown_until else None, "eligibility": eligibility}
 
 
 @router.get("/chat/random/tickets/{ticket_id}")
@@ -3073,7 +3143,7 @@ def get_random_ticket(ticket_id: int, current_user: User = Depends(get_current_u
 
 
 @router.post("/chat/random/tickets/{ticket_id}/cancel")
-def cancel_random_ticket(ticket_id: int, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+def cancel_random_ticket(ticket_id: int, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     item = session.get(RandomMatchTicket, ticket_id)
     if not item or item.user_id != (current_user.id or 0):
         raise HTTPException(status_code=404, detail="ticket not found")
@@ -3081,15 +3151,18 @@ def cancel_random_ticket(ticket_id: int, current_user: User = Depends(get_curren
     item.updated_at = utcnow()
     session.add(item)
     session.commit()
+    write_admin_log(session, current_user, "random_chat_cancel", "random_ticket", str(ticket_id), "익명 정보교류 랜덤채팅 취소", after_state=item.status, ip=request.client.host if request.client else "127.0.0.1", device=request.headers.get("user-agent"))
     return {"ok": True, "status": item.status}
 
 
 @router.post("/chat/random/report")
-def report_random_chat(payload: RandomReportCreate, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+def report_random_chat(payload: RandomReportCreate, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     rule = _get_or_create_random_rule(session)
     thread = session.get(DirectMessageThread, payload.thread_id)
     if not thread:
         raise HTTPException(status_code=404, detail="thread not found")
+    if thread.thread_type != "random_1to1":
+        raise HTTPException(status_code=400, detail="random report only allowed for random_1to1 thread")
     _ensure_thread_member(thread, current_user.id or 0)
     target_user_id = _message_counterparty(thread, current_user.id or 0)
     existing_user_report = session.exec(select(ModerationReport).where(ModerationReport.reporter_id == (current_user.id or 0), ModerationReport.target_type == "random_chat_user", ModerationReport.target_id == target_user_id)).first()
@@ -3126,11 +3199,12 @@ def report_random_chat(payload: RandomReportCreate, current_user: User = Depends
     cooldown = _apply_random_rematch_cooldown(session, current_user, rule)
     if target_user:
         suspension = _apply_random_chat_suspension(session, target_user, rule, total_score)
+    write_admin_log(session, current_user, "random_chat_report", "random_thread", str(payload.thread_id), f"랜덤채팅 신고:{payload.reason_code}", after_state=f"target_user:{target_user_id}", ip=request.client.host if request.client else "127.0.0.1", device=request.headers.get("user-agent"))
     return {"ok": True, "already_reported": False, "report_id": report.id, "user_report_id": user_report.id, "auto_blocked": auto_blocked, "threshold": rule.auto_suspend_threshold, "threshold_label": rule.report_score_label, "target_user_report_count": total_reports, "target_user_report_score": total_score, "score_delta": _report_score(rule, payload.reason_code), "suspension": suspension, "rematch_cooldown": cooldown}
 
 
 @router.post("/chat/random/threads/{thread_id}/end")
-def end_random_thread(thread_id: int, payload: RandomThreadEndRequest, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+def end_random_thread(thread_id: int, payload: RandomThreadEndRequest, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     thread = session.get(DirectMessageThread, thread_id)
     if not thread or thread.thread_type != "random_1to1":
         raise HTTPException(status_code=404, detail="random thread not found")
@@ -3140,6 +3214,7 @@ def end_random_thread(thread_id: int, payload: RandomThreadEndRequest, current_u
     thread.updated_at = utcnow()
     session.add(thread)
     session.commit()
+    write_admin_log(session, current_user, "random_chat_end", "random_thread", str(thread_id), payload.reason_code or "랜덤채팅 종료", after_state=thread.status, ip=request.client.host if request.client else "127.0.0.1", device=request.headers.get("user-agent"))
     cooldown = _apply_random_rematch_cooldown(session, current_user, rule)
     return {"ok": True, "thread_id": thread_id, "status": thread.status, "reason_code": payload.reason_code, "rematch_cooldown": cooldown}
 

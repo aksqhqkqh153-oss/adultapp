@@ -1079,7 +1079,7 @@ export default function App() {
   const [matchingRandom, setMatchingRandom] = useState(false);
   const [matchedRandomUser, setMatchedRandomUser] = useState<{ name: string; category: OneToOneRandomCategory; nickname: string } | null>(null);
   const [randomMatchPhase, setRandomMatchPhase] = useState<"idle" | "queueing" | "matched">("idle");
-  const [randomMatchNote, setRandomMatchNote] = useState("카테고리를 고른 뒤 텍스트 전용 랜덤채팅을 시작할 수 있습니다.");
+  const [randomMatchNote, setRandomMatchNote] = useState("카테고리를 고른 뒤 익명 정보교류용 텍스트 채팅을 시작할 수 있습니다. 외부연락, 만남유도, 사진/영상 교환은 금지됩니다.");
   const randomRoomLifetimeMinutes = 20;
   const [shopKeyword, setShopKeyword] = useState("");
   const [communityKeyword, setCommunityKeyword] = useState("");
@@ -1661,7 +1661,7 @@ export default function App() {
     setMatchingRandom(true);
     window.setTimeout(() => {
       const demoMatches: Record<OneToOneRandomCategory, { name: string; nickname: string }> = {
-        고민상담: { name: "익명 상담 파트너", nickname: "달빛고민러" },
+        고민상담: { name: "익명 상담 사용자", nickname: "달빛고민러" },
         자유수다: { name: "자유수다 메이트", nickname: "수다한잔" },
         아무말대잔치: { name: "아무말 메이트", nickname: "말풍선친구" },
         도파민수다: { name: "도파민 토커", nickname: "텐션부스터" },
@@ -1670,12 +1670,12 @@ export default function App() {
       const roomId = Date.now();
       const createdRoom: RandomRoom = {
         id: roomId,
-        title: `${oneToOneCategory} · 1:1랜덤채팅`,
+        title: `${oneToOneCategory} · 1:1익명 정보채팅`,
         category: oneToOneCategory,
         maxPeople: 2,
         currentPeople: 2,
         password: "",
-        latestMessage: `${picked.nickname} 님과 랜덤채팅이 연결되었습니다. 목록에서 선택하면 채팅방으로 들어갑니다.`,
+        latestMessage: `${picked.nickname} 님과 익명 정보교류 채팅이 연결되었습니다. 목록에서 선택하면 채팅방으로 들어갑니다.`,
         anonymous: true,
         kind: "random_1to1",
         partnerName: picked.name,
@@ -1702,7 +1702,7 @@ export default function App() {
     setMatchingRandom(false);
     setRandomMatchPhase("idle");
     setMatchedRandomUser(null);
-    setRandomMatchNote("랜덤채팅 대기열에서 빠졌습니다. 실제 운영 시에는 텍스트 전용, 30분 내 삭제, 신고 즉시 차단·숨김 정책을 함께 연결하면 됩니다.");
+    setRandomMatchNote("익명 정보교류 채팅 대기열에서 빠졌습니다. 텍스트 전용, 신고 즉시 차단·숨김, 재매칭 제한 정책이 함께 적용됩니다.");
   };
 
   const openRandomRoom = (roomId: number) => {
@@ -1788,7 +1788,7 @@ export default function App() {
       setMatchingRandom(false);
       setMatchedRandomUser(null);
       setRandomMatchPhase("idle");
-      setRandomMatchNote("카테고리를 고른 뒤 텍스트 전용 랜덤채팅을 시작할 수 있습니다.");
+      setRandomMatchNote("카테고리를 고른 뒤 익명 정보교류용 텍스트 채팅을 시작할 수 있습니다. 외부연락, 만남유도, 사진/영상 교환은 금지됩니다.");
     }
     if (tab !== "프로필") setProfileTab("내정보");
   };
@@ -2043,8 +2043,8 @@ export default function App() {
                 <div className="stack-gap">
                   <div className="legacy-box compact signup-optional-note">
                     <h3>선택 정보 입력</h3>
-                    <p>이 단계는 건너뛸 수 있습니다. 다만 성별, 연령대, 지역을 입력하지 않으면 앱 내 전체 기능, 특히 추천/탐색/랜덤채팅 사용에 불편함과 어려움이 있을 수 있습니다.</p>
-                    <p>랜덤채팅 기능은 성별, 연령대, 지역 입력이 모두 완료되어야 사용할 수 있도록 설정했습니다.</p>
+                    <p>이 단계는 건너뛸 수 있습니다. 다만 성별, 연령대, 지역을 입력하지 않으면 앱 내 전체 기능, 특히 추천/탐색/익명 정보채팅 사용에 제한이 생길 수 있습니다.</p>
+                    <p>익명 정보채팅 기능은 성인인증·본인확인 및 성별, 연령대, 지역 입력이 모두 완료되어야 사용할 수 있도록 설정했습니다.</p>
                   </div>
                   <div className="signup-form-grid">
                     <label><span>성별</span><select value={demoProfile.gender} onChange={(e) => setDemoProfile((prev) => ({ ...prev, gender: e.target.value }))}>{profileGenderOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
@@ -2323,7 +2323,7 @@ export default function App() {
                     </div>
                     {randomRoomAlertLabel(activeRandomRoom) ? <div className="random-alert-banner">{randomRoomAlertLabel(activeRandomRoom)}</div> : null}
                     <div className="random-chat-bubble-list">
-                      <div className="random-chat-bubble other">안녕하세요. 목록에서 눌러 들어온 1:1 랜덤채팅방입니다.</div>
+                      <div className="random-chat-bubble other">안녕하세요. 이 공간은 제품/안전/배송 경험 중심의 익명 정보교류 채팅방입니다.</div>
                       <div className="random-chat-bubble mine">네, 텍스트만 가능한 상태이고 거리 오차 허용범위는 없습니다.</div>
                       <div className="random-chat-bubble system">메시지 삭제는 30분 이내 양측 삭제 표기 유지 · 신고 결과는 비공개 · 종료 시 최근 종료 목록 유지</div>
                     </div>
@@ -2364,7 +2364,7 @@ export default function App() {
                     ) : null}
                     <div className="random-match-center">
                       <button className={`random-start-btn ${matchingRandom ? "loading" : ""}`} onClick={startRandomMatch}>
-                        {matchingRandom ? "랜덤채팅찾는중" : "1:1랜덤채팅"}
+                        {matchingRandom ? "정보채팅 연결중" : "1:1정보채팅"}
                       </button>
                     </div>
                     <div className="random-skeleton-card">
@@ -2393,7 +2393,7 @@ export default function App() {
                 ) : (
                   <div className="random-room-list compact-scroll-list random-match-room-list">
                     {visibleRandomMatchRooms.length === 0 ? (
-                      <div className="random-skeleton-card"><p>아직 생성된 1:1 랜덤채팅방이 없습니다. 시작 탭에서 매칭을 진행하면 목록에 채팅이 추가됩니다.</p></div>
+                      <div className="random-skeleton-card"><p>아직 생성된 1:1 익명 정보채팅방이 없습니다. 시작 탭에서 매칭을 진행하면 목록에 채팅이 추가됩니다.</p></div>
                     ) : visibleRandomMatchRooms.map((room) => (
                       <article key={room.id} className={`random-room-card random-match-room-card ${activeRandomRoomId === room.id ? "active" : ""} ${room.status === "ended" ? "ended" : ""}`} onClick={() => openRandomRoom(room.id)}>
                         <div className="random-room-topline">
@@ -2416,8 +2416,8 @@ export default function App() {
               </div>
                           ) : (
                 <div className="legacy-box compact random-profile-gate">
-                  <h3>랜덤채팅 사용 전 프로필 입력 필요</h3>
-                  <p>랜덤채팅 기능은 본인의 성별, 연령대, 지역 입력이 모두 완료되어야 사용할 수 있습니다.</p>
+                  <h3>익명 정보채팅 사용 전 프로필 입력 필요</h3>
+                  <p>이 기능은 성인인증·본인확인 완료 후 성별, 연령대, 지역 입력이 모두 완료되어야 사용할 수 있습니다.</p>
                   <p>현재 미입력 항목: {randomProfileMissing.join(", ")}</p>
                   <div className="copy-action-row">
                     <button type="button" onClick={() => setActiveTab("프로필")}>프로필로 이동</button>
@@ -2576,14 +2576,14 @@ export default function App() {
               </div>
               <div className="profile-card auth-status-card">
                 <strong>선택 프로필 / 랜덤채팅 필수값</strong>
-                <span>성별, 연령대, 지역은 일반 가입 단계에서는 선택 입력이지만, 랜덤채팅 기능 사용 시에는 필수로 검사합니다.</span>
+                <span>성별, 연령대, 지역은 일반 가입 단계에서는 선택 입력이지만, 익명 정보채팅 기능 사용 시에는 필수로 검사합니다.</span>
                 <div className="signup-form-grid profile-edit-grid">
                   <label><span>성별</span><select value={demoProfile.gender} onChange={(e) => setDemoProfile((prev) => ({ ...prev, gender: e.target.value }))}>{profileGenderOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
                   <label><span>연령대</span><select value={demoProfile.ageBand} onChange={(e) => setDemoProfile((prev) => ({ ...prev, ageBand: e.target.value }))}>{profileAgeBandOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
                   <label><span>지역</span><select value={demoProfile.regionCode} onChange={(e) => setDemoProfile((prev) => ({ ...prev, regionCode: e.target.value }))}>{profileRegionOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
                   <label className="wide"><span>관심 카테고리</span><div className="chip-checklist">{interestCategoryOptions.map((item) => <button key={item} type="button" className={`chip-check ${demoProfile.interests.includes(item) ? "active" : ""}`} onClick={() => toggleInterestCategory(item)}>{item}</button>)}</div></label>
                 </div>
-                {!randomProfileReady ? <p>미입력 항목: {randomProfileMissing.join(", ")} · 미입력 시 랜덤채팅 기능은 사용할 수 없습니다.</p> : <p>랜덤채팅 필수 프로필 입력이 완료되었습니다.</p>}
+                {!randomProfileReady ? <p>미입력 항목: {randomProfileMissing.join(", ")} · 미입력 시 익명 정보채팅 기능은 사용할 수 없습니다.</p> : <p>익명 정보채팅 필수 프로필 입력이 완료되었습니다.</p>}
               </div>
               <div className="profile-card auth-status-card">
                 <strong>동의 이력 저장 예시</strong>
