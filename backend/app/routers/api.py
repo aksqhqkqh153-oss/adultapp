@@ -68,6 +68,7 @@ from ..models import (
     RandomMatchTicket,
     StoryItem,
     UserBlock,
+    UserFollow,
     RefundCase,
     SlaEvent,
     SellerPenalty,
@@ -602,6 +603,33 @@ def _ensure_thread_visible(session: Session, thread: DirectMessageThread, user_i
         raise HTTPException(status_code=404, detail="thread hidden by block")
 
 
+def _is_mutual_follow(session: Session, user_a: int, user_b: int) -> bool:
+    a_to_b = session.exec(select(UserFollow).where(UserFollow.follower_id == user_a, UserFollow.followee_id == user_b, UserFollow.is_active == True)).first()  # noqa: E712
+    b_to_a = session.exec(select(UserFollow).where(UserFollow.follower_id == user_b, UserFollow.followee_id == user_a, UserFollow.is_active == True)).first()  # noqa: E712
+    return bool(a_to_b and b_to_a)
+
+
+def _dm_notice_lines() -> list[str]:
+    return [
+        "오프라인 만남 제안 금지",
+        "외부 연락처 교환 금지",
+        "사진/영상 전송 금지",
+        "반복 접촉 금지",
+    ]
+
+
+def _ensure_dm_request_requirements(session: Session, requester: User, target: User, payload: DirectMessageThreadCreate) -> None:
+    if not payload.requester_consented_rules:
+        raise HTTPException(status_code=400, detail="dm rules consent required")
+    if payload.thread_type == "mutual_follow_dm":
+        if not requester.adult_verified or not requester.identity_verified:
+            raise HTTPException(status_code=403, detail="adult and identity verification required")
+        if not _is_mutual_follow(session, requester.id or 0, target.id or 0):
+            raise HTTPException(status_code=403, detail="mutual follow required")
+        if payload.purpose_code not in {"FEED_REPLY", "SUPPORT"}:
+            raise HTTPException(status_code=400, detail="unsupported mutual dm purpose")
+
+
 def _serialize_message(msg: DirectMessage, sender_name: str) -> dict[str, Any]:
     hidden_text = "삭제된 메시지" if msg.is_deleted_for_all else msg.message
     return {
@@ -1016,8 +1044,9 @@ def community_policy_summary():
     return {
         "mode": settings.community_forum_mode,
         "reference_path": settings.community_policy_reference_path,
-        "allowed": ["안전수칙", "동의/경계설정", "세척/보관/배송", "제품 정보 Q&A", "운영 공지"],
-        "blocked": ["랜덤채팅", "사용자간 자유 DM", "모임 주선", "오프라인 만남 유도", "외부 연락처 교환", "사진/영상 기반 성적 교류"],
+        "allowed": ["안전수칙", "동의/경계설정", "세척/보관/배송", "제품 정보 Q&A", "운영 공지", "포럼 주제 버튼을 통한 1:1 요청", "상호 팔로우 후 요청-수락형 1:1"],
+        "blocked": ["랜덤채팅", "모임 주선", "오프라인 만남 유도", "외부 연락처 교환", "사진/영상 기반 성적 교류", "반복 접촉", "상호 팔로우 없는 자유 DM"],
+        "dm_notice": _dm_notice_lines(),
         "feature_flags": _community_feature_flags(),
     }
 
@@ -2149,6 +2178,42 @@ def create_community_post(payload: CommunityPostCreate, request: Request, curren
     return post
 
 
+@router.get("/community/follows/summary")
+def community_follow_summary(current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    following_rows = session.exec(select(UserFollow).where(UserFollow.follower_id == (current_user.id or 0), UserFollow.is_active == True)).all()  # noqa: E712
+    follower_rows = session.exec(select(UserFollow).where(UserFollow.followee_id == (current_user.id or 0), UserFollow.is_active == True)).all()  # noqa: E712
+    following_ids = sorted({row.followee_id for row in following_rows})
+    follower_ids = sorted({row.follower_id for row in follower_rows})
+    mutual_ids = sorted(set(following_ids).intersection(follower_ids))
+    return {
+        "following_ids": following_ids,
+        "follower_ids": follower_ids,
+        "mutual_ids": mutual_ids,
+        "dm_notice": _dm_notice_lines(),
+    }
+
+
+@router.post("/community/follows/{target_id}")
+def toggle_follow(target_id: int, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    if target_id == (current_user.id or 0):
+        raise HTTPException(status_code=400, detail="cannot follow self")
+    target = session.get(User, target_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="target user not found")
+    row = session.exec(select(UserFollow).where(UserFollow.follower_id == (current_user.id or 0), UserFollow.followee_id == target_id)).first()
+    if row:
+        row.is_active = not bool(row.is_active)
+    else:
+        row = UserFollow(follower_id=current_user.id or 0, followee_id=target_id, is_active=True)
+    session.add(row)
+    session.commit()
+    return {
+        "target_id": target_id,
+        "following": bool(row.is_active),
+        "mutual": _is_mutual_follow(session, current_user.id or 0, target_id),
+    }
+
+
 @router.get("/community/threads")
 def list_threads(current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     rows = []
@@ -2158,7 +2223,7 @@ def list_threads(current_user: User = Depends(get_current_user), session: Sessio
             continue
         other_id = _message_counterparty(thread, current_user.id or 0)
         other = session.get(User, other_id)
-        rows.append({"id": thread.id, "subject": thread.subject, "purpose_code": thread.purpose_code, "thread_type": thread.thread_type, "status": thread.status, "related_post_id": thread.related_post_id, "related_product_id": thread.related_product_id, "other_user_id": other_id, "other_user_name": other.name if other else f"user:{other_id}", "updated_at": thread.updated_at.isoformat() if thread.updated_at else ""})
+        rows.append({"id": thread.id, "subject": thread.subject, "purpose_code": thread.purpose_code, "thread_type": thread.thread_type, "status": thread.status, "related_post_id": thread.related_post_id, "related_product_id": thread.related_product_id, "other_user_id": other_id, "other_user_name": other.name if other else f"user:{other_id}", "updated_at": thread.updated_at.isoformat() if thread.updated_at else "", "dm_notice": _dm_notice_lines()})
     return rows
 
 
@@ -2169,15 +2234,43 @@ def create_thread(payload: DirectMessageThreadCreate, request: Request, current_
     if payload.participant_b_id == (current_user.id or 0):
         raise HTTPException(status_code=400, detail="cannot message self")
     validate_exchange_text(payload.subject)
+    if payload.starter_topic:
+        validate_exchange_text(payload.starter_topic)
     _ensure_dm_policy(current_user, payload.purpose_code)
     target = session.get(User, payload.participant_b_id)
     if not target:
         raise HTTPException(status_code=404, detail="target user not found")
-    thread = DirectMessageThread(subject=payload.subject, purpose_code=payload.purpose_code, thread_type=payload.thread_type, created_by=current_user.id or 0, participant_a_id=current_user.id or 0, participant_b_id=payload.participant_b_id, related_post_id=payload.related_post_id, related_product_id=payload.related_product_id, status="open", created_at=utcnow(), updated_at=utcnow())
+    _ensure_dm_request_requirements(session, current_user, target, payload)
+    existing = session.exec(select(DirectMessageThread).where(
+        (((DirectMessageThread.participant_a_id == (current_user.id or 0)) & (DirectMessageThread.participant_b_id == payload.participant_b_id)) | ((DirectMessageThread.participant_a_id == payload.participant_b_id) & (DirectMessageThread.participant_b_id == (current_user.id or 0))))
+        & (DirectMessageThread.thread_type == payload.thread_type)
+        & (DirectMessageThread.status != "closed")
+    ).order_by(DirectMessageThread.updated_at.desc())).first()
+    if existing:
+        return {"id": existing.id, "status": existing.status, "dm_notice": _dm_notice_lines(), "starter_topic": payload.starter_topic}
+    thread_status = "pending_acceptance" if payload.thread_type == "mutual_follow_dm" else "open"
+    thread = DirectMessageThread(subject=payload.subject, purpose_code=payload.purpose_code, thread_type=payload.thread_type, created_by=current_user.id or 0, participant_a_id=current_user.id or 0, participant_b_id=payload.participant_b_id, related_post_id=payload.related_post_id, related_product_id=payload.related_product_id, status=thread_status, created_at=utcnow(), updated_at=utcnow())
     session.add(thread)
     session.commit()
     session.refresh(thread)
-    return thread
+    return {"id": thread.id, "status": thread.status, "dm_notice": _dm_notice_lines(), "starter_topic": payload.starter_topic}
+
+
+@router.post("/community/threads/{thread_id}/accept")
+def accept_thread(thread_id: int, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    thread = session.get(DirectMessageThread, thread_id)
+    if not thread:
+        raise HTTPException(status_code=404, detail="thread not found")
+    _ensure_thread_member(thread, current_user.id or 0)
+    if thread.thread_type != "mutual_follow_dm":
+        raise HTTPException(status_code=400, detail="accept only allowed for mutual follow dm")
+    if thread.participant_b_id != (current_user.id or 0):
+        raise HTTPException(status_code=403, detail="only recipient can accept")
+    thread.status = "open"
+    thread.updated_at = utcnow()
+    session.add(thread)
+    session.commit()
+    return {"id": thread.id, "status": thread.status, "dm_notice": _dm_notice_lines()}
 
 
 @router.get("/community/threads/{thread_id}/messages")
@@ -2201,10 +2294,10 @@ def create_message(payload: DirectMessageCreate, request: Request, current_user:
     thread = session.get(DirectMessageThread, payload.thread_id)
     if not thread:
         raise HTTPException(status_code=404, detail="thread not found")
-    if thread.thread_type != "random_1to1":
-        raise HTTPException(status_code=400, detail="random report only allowed for random_1to1 thread")
     _ensure_thread_member(thread, current_user.id or 0)
     _ensure_thread_visible(session, thread, current_user.id or 0)
+    if thread.status != "open":
+        raise HTTPException(status_code=409, detail="thread not accepted yet")
     _ensure_dm_policy(current_user, payload.purpose_code)
     validate_exchange_text(payload.message)
     receiver_id = _message_counterparty(thread, current_user.id or 0)

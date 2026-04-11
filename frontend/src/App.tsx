@@ -75,6 +75,15 @@ type ThreadItem = {
   status?: string;
 };
 
+type ForumStarterUser = {
+  id: number;
+  name: string;
+  role: string;
+  topic: string;
+  intro: string;
+  followsMe?: boolean;
+};
+
 type RandomRoom = {
   id: number;
   title: string;
@@ -302,7 +311,7 @@ type AdminDbManage = {
 
 const mobileTabs = ["홈", "쇼핑", "소통", "채팅", "프로필"] as const;
 const legacyMenu = ["운영현황", "주문관리", "보안", "앱심사", "포럼 분리 정책", "배포가이드"] as const;
-const homeTabs = ["피드", "상품"] as const;
+const homeTabs = ["피드", "상품", "보관함"] as const;
 const shoppingTabs = ["목록", "주문", "바구니", "등록관리"] as const;
 const communityTabs = ["커뮤", "후기", "이벤트"] as const;
 const chatTabs = ["채팅", "랜덤", "질문"] as const;
@@ -339,7 +348,7 @@ type RandomGenderOption = (typeof randomGenderOptions)[number];
 type RandomRegionOption = (typeof randomRegionOptions)[number];
 type RandomEntryTab = (typeof randomEntryTabs)[number];
 type AdminModeTab = (typeof adminModeTabs)[number];
-type OverlayMode = "search" | "settings" | "notifications" | null;
+type OverlayMode = "search" | "settings" | "notifications" | "menu" | null;
 type DemoLoginProvider = "PASS" | "휴대폰" | "카카오";
 type AdultGateView = "intro" | "success" | "failed" | "minor";
 type SignupStep = "consent" | "account" | "profile";
@@ -384,6 +393,16 @@ function SettingsIcon() {
   );
 }
 
+
+function MenuIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+      <path d="M4 7h16" />
+      <path d="M4 12h16" />
+      <path d="M4 17h16" />
+    </svg>
+  );
+}
 
 function BellIcon() {
   return (
@@ -482,6 +501,23 @@ const safeCommunityIdeas = [
   '운영진 진행형 AMA',
   '주간 주제 토크방',
 ];
+const dmRuleNoticeItems = [
+  "오프라인 만남 제안 금지",
+  "외부 연락처 교환 금지",
+  "사진/영상 전송 금지",
+  "반복 접촉 금지",
+];
+
+const forumStarterTopics = ["제품 이야기", "경계설정 이야기", "초보 고민", "일상 대화", "성향 고민"] as const;
+
+const forumStarterUsers: ForumStarterUser[] = [
+  { id: 301, name: "boundary_note", role: "경계설정 대화", topic: "경계설정 이야기", intro: "그룹방에서 대화하던 내용을 1:1로 차분히 이어가고 싶을 때 요청할 수 있습니다.", followsMe: true },
+  { id: 302, name: "starter_helper", role: "초보 고민", topic: "초보 고민", intro: "입문자용 안전 질문과 기본 커뮤니케이션 기준을 함께 정리합니다.", followsMe: false },
+  { id: 303, name: "daily_wave", role: "일상 대화", topic: "일상 대화", intro: "취향 이야기보다 일상과 관심사 위주로 대화를 시작하는 예시 계정입니다.", followsMe: true },
+  { id: 304, name: "care_lab", role: "제품 이야기", topic: "제품 이야기", intro: "제품 사용/보관/세척 관련 질문을 먼저 나눈 뒤 상호 팔로우 시 DM 요청이 가능합니다.", followsMe: true },
+  { id: 305, name: "role_balance", role: "성향 고민", topic: "성향 고민", intro: "성향 고민은 가능하지만, 만남 제안·연락처 교환·사진 전송은 계속 금지됩니다.", followsMe: false },
+];
+
 
 const communityCategories = ["공지", "정보공유", "후기", "판매자소식", "이벤트"] as const;
 
@@ -588,7 +624,7 @@ function DualRangeSlider({ min, max, valueMin, valueMax, step = 1, leftLabel, ri
   );
 }
 
-function FeedPoster({ item, onAsk }: { item: FeedItem; onAsk: (item: FeedItem) => void }) {
+function FeedPoster({ item, onAsk, saved, onToggleSave }: { item: FeedItem; onAsk: (item: FeedItem) => void; saved: boolean; onToggleSave: (feedId: number) => void }) {
   return (
     <article className={`feed-card history-feed-card ${item.accent}`}>
       <div className="history-feed-head">
@@ -621,12 +657,13 @@ function FeedPoster({ item, onAsk }: { item: FeedItem; onAsk: (item: FeedItem) =
         <button type="button">좋아요</button>
         <button type="button">댓글</button>
         <button type="button" onClick={() => onAsk(item)}>질문하기</button>
+        <button type="button" className="ghost-btn" onClick={() => onToggleSave(item.id)}>{saved ? "보관해제" : "보관함"}</button>
       </div>
     </article>
   );
 }
 
-function SponsoredFeedProductCard({ item }: { item: { id: number; label: string; title: string; subtitle: string; price: string } }) {
+function SponsoredFeedProductCard({ item, saved, onToggleSave }: { item: { id: number; label: string; title: string; subtitle: string; price: string }; saved: boolean; onToggleSave: (productId: number) => void }) {
   return (
     <article className="product-card sponsored-feed-product">
       <div className="product-thumb" />
@@ -634,7 +671,10 @@ function SponsoredFeedProductCard({ item }: { item: { id: number; label: string;
       <strong>{item.title}</strong>
       <p>{item.subtitle}</p>
       <div className="product-meta"><span>피드 사이 자연노출</span><b>{item.price}</b></div>
-      <button type="button">상품 보기</button>
+      <div className="product-card-actions">
+        <button type="button">상품 보기</button>
+        <button type="button" className="ghost-btn" onClick={() => onToggleSave(item.id)}>{saved ? "보관해제" : "보관함"}</button>
+      </div>
     </article>
   );
 }
@@ -882,7 +922,7 @@ function buildInspectorModalStyle(target: HTMLElement): CSSProperties {
   return { left: `${left}px`, top: `${top}px`, width: `${width}px`, maxHeight: `${maxHeight}px` };
 }
 
-function SettingSection({ category, isAdmin, legacySection, setLegacySection, projectStatus, deployGuide, legalDocuments, authSummary, businessInfo, releaseReadiness, paymentProviderStatus, minorPurgePreview, currentUserRole, adminModeTab, setAdminModeTab, adminDbManage, sellerApprovalQueue, productApprovalQueue, settlementPreview, htmlInspectorEnabled, setHtmlInspectorEnabled, adminDecideSeller, adminDecideProduct }: {
+function SettingSection({ category, isAdmin, legacySection, setLegacySection, projectStatus, deployGuide, legalDocuments, authSummary, businessInfo, releaseReadiness, paymentProviderStatus, minorPurgePreview, currentUserRole, adminModeTab, setAdminModeTab, adminDbManage, sellerApprovalQueue, productApprovalQueue, settlementPreview, htmlInspectorEnabled, setHtmlInspectorEnabled, adminDecideSeller, adminDecideProduct, accountPrivate, setAccountPrivate }: {
   category: SettingsCategory;
   isAdmin: boolean;
   legacySection: LegacyTab;
@@ -906,6 +946,8 @@ function SettingSection({ category, isAdmin, legacySection, setLegacySection, pr
   setHtmlInspectorEnabled: (value: boolean) => void;
   adminDecideSeller: (userId: number, decision: string) => void;
   adminDecideProduct: (productId: number, decision: string) => void;
+  accountPrivate: boolean;
+  setAccountPrivate: (value: boolean | ((prev: boolean) => boolean)) => void;
 }) {
   if (category === "일반") {
     return (
@@ -925,6 +967,15 @@ function SettingSection({ category, isAdmin, legacySection, setLegacySection, pr
       <div className="settings-grid settings-two-col">
         <div className="legacy-box compact"><h3>현재 역할</h3><p>{currentUserRole}</p></div>
         <div className="legacy-box compact"><h3>프로필 접근</h3><p>내정보, 작성 글, 업로드 상품, 통계 카드를 확인할 수 있습니다.</p></div>
+        <div className="legacy-box compact">
+          <h3>계정비공개</h3>
+          <p>ON으로 할 경우 상호 팔로잉한 계정 외에는 계정이 비공개됩니다.</p>
+          <div className="toggle-row">
+            <button type="button" className={`toggle-btn ${accountPrivate ? "active" : ""}`} onClick={() => setAccountPrivate(true)}>ON</button>
+            <button type="button" className={`toggle-btn ${!accountPrivate ? "active" : ""}`} onClick={() => setAccountPrivate(false)}>OFF</button>
+          </div>
+          <p className="muted-mini">현재 상태: {accountPrivate ? "상호 팔로잉 외 비공개" : "공개"}</p>
+        </div>
       </div>
     );
   }
@@ -1249,8 +1300,73 @@ export default function App() {
   const [productApprovalQueue, setProductApprovalQueue] = useState<ProductApprovalItem[]>([]);
   const [sellerProducts, setSellerProducts] = useState<SellerProductItem[]>([]);
   const [settlementPreview, setSettlementPreview] = useState<SettlementPreviewResponse | null>(null);
+  const [threadItems, setThreadItems] = useState<ThreadItem[]>(threadSeed);
+  const [forumTopic, setForumTopic] = useState<(typeof forumStarterTopics)[number]>("제품 이야기");
+  const [followingUserIds, setFollowingUserIds] = useState<number[]>([301, 303, 304]);
+  const [followerUserIds] = useState<number[]>(forumStarterUsers.filter((item) => item.followsMe).map((item) => item.id));
+  const [pendingDmUser, setPendingDmUser] = useState<ForumStarterUser | null>(null);
+  const [dmRuleChecks, setDmRuleChecks] = useState<Record<string, boolean>>({});
+  const [accountPrivate, setAccountPrivate] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("adultapp_account_private") === "1";
+  });
+  const [savedFeedIds, setSavedFeedIds] = useState<number[]>(() => {
+    if (typeof window === "undefined") return [];
+    try { return JSON.parse(window.localStorage.getItem("adultapp_saved_feed_ids") ?? "[]"); } catch { return []; }
+  });
+  const [savedProductIds, setSavedProductIds] = useState<number[]>(() => {
+    if (typeof window === "undefined") return [];
+    try { return JSON.parse(window.localStorage.getItem("adultapp_saved_product_ids") ?? "[]"); } catch { return []; }
+  });
+  const [savedTab, setSavedTab] = useState<"피드" | "상품">("피드");
 
   const isAdmin = ["ADMIN", "1", "GRADE_1"].includes(currentUserRole);
+  const mutualFollowIds = useMemo(() => followingUserIds.filter((id) => followerUserIds.includes(id)), [followingUserIds, followerUserIds]);
+  const forumVisibleUsers = useMemo(() => forumStarterUsers.filter((item) => item.topic === forumTopic), [forumTopic]);
+
+  const toggleFollowUser = (userId: number) => {
+    setFollowingUserIds((prev) => prev.includes(userId) ? prev.filter((item) => item !== userId) : [...prev, userId]);
+  };
+
+  const openDmRequest = (user: ForumStarterUser) => {
+    if (!adultVerified) {
+      setAdultPromptOpen(true);
+      return;
+    }
+    if (!mutualFollowIds.includes(user.id)) {
+      window.alert("상호 팔로우(팔로잉/팔로우) 상태에서만 1:1 요청이 가능합니다.");
+      return;
+    }
+    setDmRuleChecks(Object.fromEntries(dmRuleNoticeItems.map((item) => [item, false])));
+    setPendingDmUser(user);
+  };
+
+  const submitDmRequest = () => {
+    if (!pendingDmUser) return;
+    const allChecked = dmRuleNoticeItems.every((item) => dmRuleChecks[item]);
+    if (!allChecked) {
+      window.alert("대화 규칙 동의를 모두 체크해야 요청할 수 있습니다.");
+      return;
+    }
+    const existing = threadItems.find((item) => item.name === pendingDmUser.name && item.kind === "개인");
+    if (!existing) {
+      setThreadItems((prev) => [{
+        id: Date.now(),
+        name: pendingDmUser.name,
+        purpose: `${pendingDmUser.topic} · 상호수락 1:1`,
+        preview: `대화 요청이 전송되었습니다. 상대 수락 후 대화가 시작되며, 채팅방 상단에 ${dmRuleNoticeItems.slice(1).join(' · ')} 안내가 고정 표시됩니다.`,
+        time: "방금",
+        unread: 0,
+        avatar: pendingDmUser.name.slice(0,1).toUpperCase(),
+        kind: "개인",
+        favorite: true,
+        status: "요청전송",
+      }, ...prev]);
+    }
+    setPendingDmUser(null);
+    setChatTab("채팅");
+    setChatCategory("개인");
+  };
 
   useEffect(() => {
     getJson<ProjectStatus>("/project-status").then(setProjectStatus).catch(() => null);
@@ -1346,6 +1462,21 @@ export default function App() {
   }, [sellerVerification]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_account_private", accountPrivate ? "1" : "0");
+  }, [accountPrivate]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_saved_feed_ids", JSON.stringify(savedFeedIds));
+  }, [savedFeedIds]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_saved_product_ids", JSON.stringify(savedProductIds));
+  }, [savedProductIds]);
+
+  useEffect(() => {
     setRandomRooms((prev) => prev.map((room) => {
       if (room.kind !== "random_1to1" || room.status === "ended" || !room.expiresAt) return room;
       if (room.expiresAt > randomNow) return room;
@@ -1378,6 +1509,33 @@ export default function App() {
       return bTime - aTime;
     }), [randomRooms]);
 
+  const toggleSavedFeed = (feedId: number) => {
+    setSavedFeedIds((prev) => prev.includes(feedId) ? prev.filter((item) => item !== feedId) : [feedId, ...prev]);
+  };
+
+  const toggleSavedProduct = (productId: number) => {
+    setSavedProductIds((prev) => prev.includes(productId) ? prev.filter((item) => item !== productId) : [productId, ...prev]);
+  };
+
+  const savedFeedItems = useMemo(() => feedSeed.filter((item) => savedFeedIds.includes(item.id)), [savedFeedIds]);
+  const savedProductItems = useMemo(() => [...productsSeed, ...homeProducts.map((item) => ({ ...item, subtitle: item.subtitle ?? "", badge: item.badge ?? "" }))].filter((item, index, arr) => arr.findIndex((row) => row.id === item.id) === index && savedProductIds.includes(item.id)), [savedProductIds]);
+
+  const openMenuOverlay = () => setOverlayMode("menu");
+
+  const goToSavedBox = () => {
+    setActiveTab("홈");
+    setHomeTab("보관함");
+    setSavedTab("피드");
+    setOverlayMode(null);
+  };
+
+  const homeMenuItems = [
+    { label: "피드", onClick: () => { setHomeTab("피드"); setOverlayMode(null); } },
+    { label: "상품", onClick: () => { setHomeTab("상품"); setOverlayMode(null); } },
+    { label: "보관함", onClick: goToSavedBox },
+  ];
+
+
   const visibleFeed = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
     return !keyword ? feedSeed : feedSeed.filter((item) => `${item.title} ${item.caption} ${item.category} ${item.author}`.toLowerCase().includes(keyword));
@@ -1404,7 +1562,7 @@ export default function App() {
 
   const filteredThreads = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
-    return threadSeed.filter((thread) => {
+    return threadItems.filter((thread) => {
       const categoryMatch = chatCategory === "전체"
         || (chatCategory === "즐겨찾기" && !!thread.favorite)
         || (chatCategory === "개인" && thread.kind === "개인")
@@ -1413,7 +1571,7 @@ export default function App() {
       const keywordMatch = !keyword || `${thread.name} ${thread.preview} ${thread.purpose}`.toLowerCase().includes(keyword);
       return categoryMatch && keywordMatch;
     });
-  }, [globalKeyword, chatCategory]);
+  }, [globalKeyword, chatCategory, threadItems]);
 
   const filteredQuestions = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
@@ -1857,6 +2015,9 @@ export default function App() {
 
   const settingsNavItems = useMemo<SettingsCategory[]>(() => settingsCategories.filter((item) => (["운영", "관리자모드", "DB관리", "신고", "채팅", "기타"].includes(item) ? isAdmin : true)), [isAdmin]);
   const visibleHeaderNavItems = overlayMode === null ? headerNavItems : [];
+  const currentMenuItems = activeTab === "홈"
+    ? homeMenuItems
+    : headerNavItems.map((item) => ({ label: item.label, onClick: () => { item.onClick?.(); setOverlayMode(null); } }));
 
   const notificationSections = useMemo(() => ({
     notices: notificationSeed.filter((item) => item.section === "공지"),
@@ -1910,6 +2071,9 @@ export default function App() {
         <div className="topbar-row">
           <div className="topbar-side topbar-left">
             <div className="topbar-inline-actions topbar-inline-actions-left">
+              <button className={`header-inline-btn header-icon-btn ${overlayMode === "menu" ? "active" : ""}`} onClick={openMenuOverlay} aria-label="메뉴">
+                <MenuIcon />
+              </button>
               {visibleHeaderNavItems.map((item) => (
                 <button key={item.label} type="button" className={`header-inline-btn ${item.active ? "active" : ""}`} onClick={item.onClick} disabled={!item.onClick}>
                   {item.label}
@@ -1952,7 +2116,7 @@ export default function App() {
         {overlayMode ? (
           <section className="overlay-card">
             <div className="overlay-head">
-              <strong>{overlayMode === "search" ? "통합 검색" : overlayMode === "notifications" ? "알림" : "설정 카테고리"}</strong>
+              <strong>{overlayMode === "search" ? "통합 검색" : overlayMode === "notifications" ? "알림" : overlayMode === "menu" ? `${activeTab} 메뉴` : "설정 카테고리"}</strong>
               <button className="ghost-btn" onClick={() => setOverlayMode(null)}>닫기</button>
             </div>
 
@@ -2071,6 +2235,26 @@ export default function App() {
               </div>
             ) : null}
 
+            {overlayMode === "menu" ? (
+              <div className="stack-gap">
+                <div className="menu-overlay-list">
+                  {currentMenuItems.map((item) => (
+                    <button key={item.label} type="button" className="settings-category-btn menu-overlay-btn" onClick={item.onClick}>
+                      <span>{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+                {activeTab === "홈" ? (
+                  <div className="legacy-box compact">
+                    <h3>보관함</h3>
+                    <p>피드와 상품에서 보관함 버튼을 눌러 저장한 항목을 한곳에서 확인할 수 있습니다.</p>
+                    <div className="simple-list-row"><b>저장된 피드</b><span>{savedFeedIds.length}개</span></div>
+                    <div className="simple-list-row"><b>저장된 상품</b><span>{savedProductIds.length}개</span></div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
             {overlayMode === "settings" ? (
               <div className="stack-gap">
                 <div className="settings-category-nav">
@@ -2115,6 +2299,8 @@ export default function App() {
                   setHtmlInspectorEnabled={setHtmlInspectorEnabled}
                   adminDecideSeller={adminDecideSeller}
                   adminDecideProduct={adminDecideProduct}
+                  accountPrivate={accountPrivate}
+                  setAccountPrivate={setAccountPrivate}
                 />
               </div>
             ) : null}
@@ -2254,9 +2440,9 @@ export default function App() {
                     <p>{storyPreviewText[selectedStory.name] ?? "선택한 스토리의 요약입니다."}</p>
                   </section>
                 ) : null}
-                <div className="feed-post-list compact-scroll-list">{visibleFeed.map((item, idx) => (<><FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} />{(idx + 1) % 4 === 0 ? <SponsoredFeedProductCard key={`sponsored-${item.id}`} item={sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length]} /> : null}</>))}</div>
+                <div className="feed-post-list compact-scroll-list">{visibleFeed.map((item, idx) => (<><FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} saved={savedFeedIds.includes(item.id)} onToggleSave={toggleSavedFeed} />{(idx + 1) % 4 === 0 ? <SponsoredFeedProductCard key={`sponsored-${item.id}`} item={sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length]} saved={savedProductIds.includes(sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length].id)} onToggleSave={toggleSavedProduct} /> : null}</>))}</div>
               </>
-            ) : (
+            ) : homeTab === "상품" ? (
               <>
                 <div className="section-head compact-head"><div><h2>추천 상품</h2><p>홈에서 바로 진입하는 추천 상품 카드 모음입니다.</p></div></div>
                 <div className="content-grid product-grid compact-scroll-list">
@@ -2267,10 +2453,42 @@ export default function App() {
                       <strong>{product.name}</strong>
                       <p>{product.subtitle}</p>
                       <div className="product-meta"><span>{product.category}</span><b>{product.price}</b></div>
+                      <div className="product-card-actions">
+                        <button type="button" className="ghost-btn" onClick={() => toggleSavedProduct(product.id)}>{savedProductIds.includes(product.id) ? "보관해제" : "보관함"}</button>
+                      </div>
                     </article>
                   ))}
                 </div>
               </>
+            ) : (
+              <div className="stack-gap compact-scroll-list">
+                <div className="section-head compact-head"><div><h2>보관함</h2><p>피드와 상품에서 보관함 버튼을 눌러 저장한 항목을 구분해서 확인합니다.</p></div></div>
+                <div className="legacy-nav inline">
+                  {["피드", "상품"].map((tab) => (
+                    <button key={tab} type="button" className={`legacy-nav-btn ${savedTab === tab ? "active" : ""}`} onClick={() => setSavedTab(tab as "피드" | "상품")}>{tab}</button>
+                  ))}
+                </div>
+                {savedTab === "피드" ? (
+                  <div className="feed-post-list compact-scroll-list">
+                    {savedFeedItems.length ? savedFeedItems.map((item) => <FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} saved={true} onToggleSave={toggleSavedFeed} />) : <div className="legacy-box compact"><p>보관한 피드가 없습니다.</p></div>}
+                  </div>
+                ) : (
+                  <div className="content-grid product-grid compact-scroll-list">
+                    {savedProductItems.length ? savedProductItems.map((product) => (
+                      <article key={product.id} className="product-card">
+                        <div className="product-thumb" />
+                        <span className="product-badge">{product.badge}</span>
+                        <strong>{product.name}</strong>
+                        <p>{product.subtitle}</p>
+                        <div className="product-meta"><span>{product.category}</span><b>{product.price}</b></div>
+                        <div className="product-card-actions">
+                          <button type="button" className="ghost-btn" onClick={() => toggleSavedProduct(product.id)}>보관해제</button>
+                        </div>
+                      </article>
+                    )) : <div className="legacy-box compact"><p>보관한 상품이 없습니다.</p></div>}
+                  </div>
+                )}
+              </div>
             )}
           </section>
         ) : null}
@@ -2315,7 +2533,10 @@ export default function App() {
                         <strong>{product.name}</strong>
                         <p>{product.subtitle}</p>
                         <div className="product-meta"><span>{product.category}</span><b>{product.price}</b></div>
-                        <button>장바구니 담기</button>
+                        <div className="product-card-actions">
+                          <button>장바구니 담기</button>
+                          <button type="button" className="ghost-btn" onClick={() => toggleSavedProduct(product.id)}>{savedProductIds.includes(product.id) ? "보관해제" : "보관함"}</button>
+                        </div>
                       </article>
                     ))}
                   </div>
@@ -2486,6 +2707,34 @@ export default function App() {
                     <div className="simple-list-row"><b>기록</b><span>신고, 차단, 블라인드, 관리자 감사로그, 반복 위반 제재를 의무화합니다.</span></div>
                   </div>
                 </div>
+                <div className="legacy-box compact">
+                  <h3>포럼 기반 1:1 시작점</h3>
+                  <div className="copy-action-row">
+                    {forumStarterTopics.map((item) => (
+                      <button key={item} type="button" className={forumTopic === item ? "" : "ghost-btn"} onClick={() => setForumTopic(item)}>{item}</button>
+                    ))}
+                  </div>
+                  <div className="consent-record-list">
+                    {forumVisibleUsers.map((user) => {
+                      const following = followingUserIds.includes(user.id);
+                      const mutual = mutualFollowIds.includes(user.id);
+                      return (
+                        <div key={user.id} className="simple-list-row multi-line">
+                          <div>
+                            <b>{user.name}</b>
+                            <span>{user.role} · {user.topic}</span>
+                            <span>{accountPrivate && !mutual ? "이 계정은 상호 팔로잉한 계정 외에는 비공개입니다." : user.intro}</span>
+                          </div>
+                          <div className="copy-action-row">
+                            <button type="button" className={following ? "ghost-btn" : ""} onClick={() => toggleFollowUser(user.id)}>{following ? "팔로잉" : "친구 추가"}</button>
+                            <button type="button" className="ghost-btn" onClick={() => openDmRequest(user)} disabled={!mutual}>1:1 요청</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="muted-mini">포럼에서 같은 주제로 대화한 뒤 상호 팔로우 상태가 되면 1:1 요청을 보낼 수 있습니다. 요청 단계에서는 대화 규칙 동의가 필요하고, 수락 후 채팅방 상단에 금지 안내가 고정됩니다.</p>
+                </div>
                 <div className="random-skeleton-card">
                   <div className="random-skeleton-row"><span className="random-skeleton-label">현재 앱 정책</span><strong>그룹대화 허용 · 1:1 상호수락형</strong></div>
                   <div className="random-skeleton-row"><span className="random-skeleton-label">대화 범위</span><span>성향/관심사 정보 교류 · 관계/안전/소통 중심</span></div>
@@ -2590,6 +2839,16 @@ export default function App() {
                     </div>
                   </>
                 ) : (
+                  <>
+                  <div className="legacy-box compact">
+                    <h3>1:1 채팅 운영 기준</h3>
+                    <div className="consent-record-list">
+                      <div className="simple-list-row"><b>개설</b><span>요청 → 수락 → 대화 시작 2단계 구조 유지</span></div>
+                      <div className="simple-list-row"><b>조건</b><span>상호 팔로우 상태에서만 1:1 요청 가능</span></div>
+                      <div className="simple-list-row"><b>상단 공지</b><span>{dmRuleNoticeItems.slice(1).join(' · ')}</span></div>
+                      <div className="simple-list-row"><b>금지</b><span>사진/영상/파일 전송 기능 비활성화 유지</span></div>
+                    </div>
+                  </div>
                   <div className="chat-list compact-scroll-list kakao-chat-list">
                     {filteredThreads.map((thread) => (
                       <article key={thread.id} className="chat-row kakao-chat-row">
@@ -2602,7 +2861,7 @@ export default function App() {
                               {thread.status ? <em>{thread.status}</em> : null}
                             </div>
                           </div>
-                          <p>{thread.preview}</p>
+                          <p>{thread.preview}</p>{thread.purpose.includes("상호수락 1:1") ? <span className="muted-mini">외부 연락처 교환 금지 · 사진/영상 전송 금지 · 반복 접촉 금지</span> : null}
                         </div>
                         <div className="chat-meta kakao-chat-meta">
                           <span>{thread.time}</span>
@@ -2611,6 +2870,7 @@ export default function App() {
                       </article>
                     ))}
                   </div>
+                  </>
                 )}
               </>
             )}
@@ -2732,6 +2992,35 @@ export default function App() {
       </nav>
 
       {selectedAskProfile ? <AskProfileScreen profile={selectedAskProfile} onClose={() => setSelectedAskProfile(null)} /> : null}
+
+      {pendingDmUser ? (
+        <div className="modal-backdrop">
+          <div className="modal-card">
+            <div className="modal-header-row">
+              <strong>1:1 대화 요청</strong>
+              <button className="ghost-btn" onClick={() => setPendingDmUser(null)}>닫기</button>
+            </div>
+            <div className="stack-gap">
+              <div className="legacy-box compact">
+                <p><b>{pendingDmUser.name}</b> 님에게 <b>{pendingDmUser.topic}</b> 주제로 1:1 대화를 요청합니다.</p>
+                <p>요청 전에 아래 대화 규칙 동의가 필요합니다.</p>
+              </div>
+              <div className="consent-checklist">
+                {dmRuleNoticeItems.map((item) => (
+                  <label key={item} className="consent-row">
+                    <input type="checkbox" checked={!!dmRuleChecks[item]} onChange={(e) => setDmRuleChecks((prev) => ({ ...prev, [item]: e.target.checked }))} />
+                    <span>{item}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="copy-action-row">
+                <button type="button" onClick={submitDmRequest}>규칙 동의 후 요청 전송</button>
+                <button type="button" className="ghost-btn" onClick={() => setPendingDmUser(null)}>취소</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {roomModalOpen ? (
         <div className="modal-backdrop">

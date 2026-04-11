@@ -2048,3 +2048,31 @@ pre {
 
 .sponsored-feed-product { border-style: dashed; }
 .sponsored-feed-product .product-thumb { min-height: 132px; background: linear-gradient(135deg, #1f2937, #6b7280); }
+
+.toggle-row,
+.product-card-actions,
+.menu-overlay-list {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.toggle-btn {
+  min-width: 72px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: #0f141c;
+  color: #d8e1ee;
+}
+
+.toggle-btn.active {
+  background: rgba(245, 158, 11, 0.16);
+  border-color: rgba(245, 158, 11, 0.35);
+  color: #ffe9be;
+}
+
+.menu-overlay-btn {
+  justify-content: space-between;
+  text-align: left;
+}

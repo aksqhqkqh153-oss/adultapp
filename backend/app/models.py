@@ -300,6 +300,16 @@ class UserBlock(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+
+
+class UserFollow(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("follower_id", "followee_id", name="uq_user_follow_pair"),)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    follower_id: int = Field(index=True)
+    followee_id: int = Field(index=True)
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
 class RandomChatRule(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     rule_name: str = Field(default="default", index=True, unique=True)

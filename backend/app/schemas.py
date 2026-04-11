@@ -262,6 +262,9 @@ class DirectMessageThreadCreate(BaseModel):
     thread_type: str = "feed_reply"
     related_post_id: Optional[int] = None
     related_product_id: Optional[int] = None
+    starter_topic: Optional[str] = None
+    requester_consented_rules: bool = False
+    consent_notice_version: str = "dm_rules_v1"
 
 
 class DirectMessageCreate(BaseModel):
