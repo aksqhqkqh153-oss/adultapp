@@ -301,11 +301,12 @@ type AdminDbManage = {
 };
 
 const mobileTabs = ["홈", "쇼핑", "소통", "채팅", "프로필"] as const;
-const legacyMenu = ["운영현황", "주문관리", "보안", "앱심사", "채팅-랜덤 규칙", "배포가이드"] as const;
+const legacyMenu = ["운영현황", "주문관리", "보안", "앱심사", "포럼 분리 정책", "배포가이드"] as const;
 const homeTabs = ["피드", "상품"] as const;
 const shoppingTabs = ["목록", "주문", "바구니", "등록관리"] as const;
 const communityTabs = ["커뮤", "후기", "이벤트"] as const;
 const chatTabs = ["채팅", "랜덤", "질문"] as const;
+const chatTabLabels: Record<ChatTab, string> = { "채팅": "채팅", "랜덤": "포럼", "질문": "질문" };
 const profileTabs = ["내정보"] as const;
 const settingsCategories = ["일반", "계정", "알림", "보안", "배포", "운영", "관리자모드", "DB관리", "신고", "채팅", "기타", "HTML요소"] as const;
 const randomRoomCategories = ["전체", "고민/상담", "정보공유", "일상대화", "취미/관심사", "자유주제"] as const;
@@ -456,7 +457,7 @@ const communitySeed: CommunityPost[] = [
   { id: 4, category: "판매자소식", title: "신규 카테고리 승인 대기 상품 현황", summary: "판매자센터에서 확인 중인 상품들을 카테고리별로 묶어서 보여줍니다.", meta: "seller_studio · 어제" },
   { id: 5, category: "이벤트", title: "앱 심사 safe UI 점검 이벤트", summary: "모바일 노출 점검과 신고 흐름 확인용 공지입니다.", meta: "프로덕트팀 · 어제" },
   { id: 6, category: "공지", title: "이용약관 및 개인정보 처리방침 안내", summary: "앱 내 약관, 개인정보 처리방침, 청소년 보호정책, 환불정책은 알림 > 공지사항과 커뮤니티 공지 카테고리에서 확인할 수 있습니다.", meta: "운영공지 · 오늘" },
-  { id: 7, category: "공지", title: "청소년 보호정책 및 랜덤채팅 운영 기준", summary: "랜덤채팅은 고민상담/정보교류 전용 텍스트 채팅만 허용되며 사진·영상·파일 업로드와 외부 연락처 교환은 금지됩니다.", meta: "안전운영팀 · 오늘" },
+  { id: 7, category: "공지", title: "청소년 보호정책 및 제한 웹 포럼 운영 기준", summary: "앱 공개영역에서는 랜덤채팅을 열지 않고, 제한 웹 영역에서만 안전·동의·세척/보관 정보 포럼을 승인제로 운영합니다.", meta: "안전운영팀 · 오늘" },
 ];
 
 const notificationSeed: NotificationItem[] = [
@@ -465,7 +466,7 @@ const notificationSeed: NotificationItem[] = [
   { id: 3, section: "주문", title: "주문한 제품 발송 준비중", body: "주문번호 A-240412-001 상품이 발송 준비 단계로 변경되었습니다.", meta: "쇼핑 주문 · 10분 전", unread: true, ctaLabel: "주문 보기" },
   { id: 4, section: "주문", title: "배송 상태 변경", body: "익명포장 배송 건이 택배사에 인계되었습니다. 상세 추적은 주문 목록에서 확인하세요.", meta: "배송 알림 · 1시간 전", ctaLabel: "배송 조회" },
   { id: 5, section: "소통", title: "커뮤니티 댓글 알림", body: "공지 카테고리 게시글에 새 댓글이 등록되었습니다.", meta: "커뮤니티 · 2시간 전", unread: true, ctaLabel: "댓글 보기" },
-  { id: 6, section: "소통", title: "익명 정보채팅 안내", body: "랜덤채팅은 고민상담/정보교류 목적의 텍스트만 허용됩니다. 사진·영상·파일 업로드는 영구 금지입니다.", meta: "채팅 안내 · 오늘", ctaLabel: "운영 기준" },
+  { id: 6, section: "소통", title: "제한 웹 포럼 안내", body: "앱에서는 직접 소통 매칭을 열지 않습니다. 민감한 정보교류는 성인인증·승인제 기반 제한 웹 포럼으로만 분리 운영합니다.", meta: "채팅 안내 · 오늘", ctaLabel: "운영 기준" },
 ];
 
 const threadSeed: ThreadItem[] = [
@@ -753,7 +754,7 @@ function LegacyPanel({ section, projectStatus, deployGuide }: { section: LegacyT
     );
   }
 
-  if (section === "채팅-랜덤 규칙") {
+  if (section === "포럼 분리 정책") {
     return (
       <section className="legacy-panel compact-panel">
         <div className="legacy-grid two">
@@ -882,7 +883,7 @@ function SettingSection({ category, isAdmin, legacySection, setLegacySection, pr
     return (
       <div className="settings-grid settings-two-col">
         <div className="legacy-box compact"><h3>주문/결제 알림</h3><p>주문상태, 결제대기, 환불 요청을 목록 기준으로 묶어 표시합니다.</p></div>
-        <div className="legacy-box compact"><h3>채팅 알림</h3><p>채팅 미확인 수, 랜덤방, 질문응답 알림을 분리해서 보여줍니다.</p></div>
+        <div className="legacy-box compact"><h3>채팅 알림</h3><p>운영문의 채팅, 주문/판매자 응답, 질문응답 알림을 분리해서 보여줍니다.</p></div>
       </div>
     );
   }
@@ -891,7 +892,7 @@ function SettingSection({ category, isAdmin, legacySection, setLegacySection, pr
       <div className="settings-grid settings-two-col">
         <div className="legacy-box compact"><h3>권한 가드</h3><p>관리자 전용 운영 항목은 관리자 계정일 때만 노출됩니다.</p></div>
         <div className="legacy-box compact"><h3>API 연결</h3><p>Production API timeout/fallback과 재시도를 유지합니다.</p></div>
-        <div className="legacy-box compact"><h3>인증 상태</h3><p>본인확인 {authSummary?.identity_verified ? '완료' : '미완료'} · 성인인증 {authSummary?.adult_verified ? '완료' : '미완료'} · 랜덤채팅 프로필 {authSummary?.random_chat_profile_ready ? '준비됨' : '추가 입력 필요'}</p></div>
+        <div className="legacy-box compact"><h3>인증 상태</h3><p>본인확인 {authSummary?.identity_verified ? '완료' : '미완료'} · 성인인증 {authSummary?.adult_verified ? '완료' : '미완료'} · 제한 포럼 권한 {authSummary?.adult_verified ? '심사 가능' : '성인인증 필요'}</p></div>
         <div className="legacy-box compact"><h3>운영 보호장치</h3><p>로그인·채팅·신고·주문 API는 서버 기준 rate limit, 감사로그, 성인 가드, 텍스트 필터를 적용하는 방향으로 정리했습니다.</p></div>
         <div className="legacy-box compact"><h3>미성년 차단 파기 배치</h3><p>{minorPurgePreview?.enabled ? '배치 정책 활성' : '배치 정책 비활성'} · cron {minorPurgePreview?.cron ?? '-'}</p><p>현재 파기 후보 {minorPurgePreview?.candidate_count ?? 0}건 · 보관 {minorPurgePreview?.retention_days ?? 365}일</p></div>
       </div>
@@ -1111,7 +1112,7 @@ export default function App() {
   const [matchingRandom, setMatchingRandom] = useState(false);
   const [matchedRandomUser, setMatchedRandomUser] = useState<{ name: string; category: OneToOneRandomCategory; nickname: string } | null>(null);
   const [randomMatchPhase, setRandomMatchPhase] = useState<"idle" | "queueing" | "matched">("idle");
-  const [randomMatchNote, setRandomMatchNote] = useState("카테고리를 고른 뒤 익명 정보교류용 텍스트 채팅을 시작할 수 있습니다. 외부연락, 만남유도, 사진/영상 교환은 금지됩니다.");
+  const [randomMatchNote, setRandomMatchNote] = useState("앱 공개영역에서는 직접 매칭을 제공하지 않습니다. 민감한 정보교류는 성인인증·승인제 제한 웹 포럼으로만 분리합니다.");
   const randomRoomLifetimeMinutes = 20;
   const [shopKeyword, setShopKeyword] = useState("");
   const [communityKeyword, setCommunityKeyword] = useState("");
@@ -1800,7 +1801,7 @@ export default function App() {
       return communityTabs.map((tab) => ({ label: tab, active: communityTab === tab, onClick: () => setCommunityTab(tab) }));
     }
     if (activeTab === "채팅") {
-      return chatTabs.map((tab) => ({ label: tab, active: chatTab === tab, onClick: () => setChatTab(tab) }));
+      return chatTabs.map((tab) => ({ label: chatTabLabels[tab], active: chatTab === tab, onClick: () => setChatTab(tab) }));
     }
     return profileTabs.map((tab) => ({ label: tab, active: profileTab === tab, onClick: () => setProfileTab(tab) }));
   }, [activeTab, homeTab, shoppingTab, communityTab, chatTab, profileTab]);
@@ -2150,8 +2151,8 @@ export default function App() {
                 <div className="stack-gap">
                   <div className="legacy-box compact signup-optional-note">
                     <h3>선택 정보 입력</h3>
-                    <p>이 단계는 건너뛸 수 있습니다. 다만 성별, 연령대, 지역을 입력하지 않으면 앱 내 전체 기능, 특히 추천/탐색/익명 정보채팅 사용에 제한이 생길 수 있습니다.</p>
-                    <p>익명 정보채팅 기능은 성인인증·본인확인 및 성별, 연령대, 지역 입력이 모두 완료되어야 사용할 수 있도록 설정했습니다.</p>
+                    <p>이 단계는 건너뛸 수 있습니다. 다만 성별, 연령대, 지역을 입력하지 않으면 추천/탐색 정확도가 낮아질 수 있고, 제한 웹 포럼 승인 심사 시 추가 보완 요청이 생길 수 있습니다.</p>
+                    <p>앱 공개영역에서는 직접 소통 매칭 기능을 열지 않고, 제한 웹 포럼은 성인인증·운영정책 동의·승인제 심사를 거쳐 별도 운영합니다.</p>
                   </div>
                   <div className="signup-form-grid">
                     <label><span>성별</span><select value={demoProfile.gender} onChange={(e) => setDemoProfile((prev) => ({ ...prev, gender: e.target.value }))}>{profileGenderOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
@@ -2404,134 +2405,31 @@ export default function App() {
         {showAppTabContent && activeTab === "채팅" ? (
           <section className="tab-pane fill-pane">
             {chatTab === "랜덤" ? (
-              randomProfileReady ? (
-              <div className="random-match-pane">
-                <div className="chat-category-strip">
-                  <div className="chat-category-bar">
-                    {randomEntryTabs.map((tab) => (
-                      <button key={tab} type="button" className={`chat-category-btn ${randomEntryTab === tab ? "active" : ""}`} onClick={() => setRandomEntryTab(tab)}>
-                        {tab}
-                      </button>
-                    ))}
+              <div className="stack-gap compact-scroll-list">
+                <div className="section-head compact-head"><div><h2>제한 웹 포럼 분리 운영</h2><p>앱 공개영역에서는 직접 매칭·랜덤채팅·오프라인 모임 기능을 제공하지 않고, 제한 웹 영역에서만 정보형 포럼을 승인제로 운영합니다.</p></div></div>
+                <div className="legacy-grid three">
+                  <div className="legacy-box compact"><h3>앱에서 허용하지 않는 기능</h3><p>랜덤채팅, 사용자간 자유 DM, 친구/인연찾기, 모임 개설, 외부 연락처 교환은 앱에서 기본 비활성화합니다.</p></div>
+                  <div className="legacy-box compact"><h3>제한 웹 포럼 허용 범위</h3><p>안전수칙, 동의/경계설정, 세척·보관, 배송/환불 경험, 제품 정보 Q&A만 텍스트 중심으로 허용합니다.</p></div>
+                  <div className="legacy-box compact"><h3>입장 조건</h3><p>성인인증 완료, 운영정책 동의, 승인제 심사, 이미지 업로드 금지, 외부 연락처 차단을 기본값으로 둡니다.</p></div>
+                </div>
+                <div className="legacy-box compact">
+                  <h3>운영 기준 요약</h3>
+                  <div className="consent-record-list">
+                    <div className="simple-list-row"><b>허용</b><span>안전 가이드 · 관계 경계설정 · 세척/보관 · 배송/환불 정보 · 운영 공지</span></div>
+                    <div className="simple-list-row"><b>금지</b><span>파트너 모집 · 만남 유도 · 외부 연락처 교환 · 사진/영상 공유 · 역할극/행위 제안</span></div>
+                    <div className="simple-list-row"><b>기록</b><span>신고, 차단, 블라인드, 관리자 감사로그, 반복 위반 제재를 의무화합니다.</span></div>
                   </div>
                 </div>
-                {activeRandomRoom ? (
-                  <div className="random-chat-room-card">
-                    <div className="random-chat-room-head">
-                      <div>
-                        <span className="random-room-category-chip">{activeRandomRoom.category}</span>
-                        <strong>{activeRandomRoom.title}</strong>
-                        <p>{activeRandomRoom.partnerNickname ?? "익명 사용자"} 님과 연결됨 · 남은 유지시간 {randomRoomRemainMinutes(activeRandomRoom) ?? 0}분 · 채팅방 유지시간 20분 고정</p>
-                      </div>
-                      <div className="random-chat-room-head-actions">
-                        <button type="button" className="report-mini-btn" onClick={() => reportRandomRoom(activeRandomRoom)}>신고</button>
-                        <button type="button" className="ghost-btn" onClick={leaveRandomRoom}>목록으로</button>
-                      </div>
-                    </div>
-                    {randomRoomAlertLabel(activeRandomRoom) ? <div className="random-alert-banner">{randomRoomAlertLabel(activeRandomRoom)}</div> : null}
-                    <div className="random-chat-bubble-list">
-                      <div className="random-chat-bubble other">안녕하세요. 이 공간은 제품/안전/배송 경험 중심의 익명 정보교류 채팅방입니다.</div>
-                      <div className="random-chat-bubble mine">네, 텍스트만 가능한 상태이고 거리 오차 허용범위는 없습니다.</div>
-                      <div className="random-chat-bubble system">메시지 삭제는 30분 이내 양측 삭제 표기 유지 · 신고 결과는 비공개 · 종료 시 최근 종료 목록 유지</div>
-                    </div>
-                    <div className="random-chat-input-row">
-                      <input value="" readOnly placeholder="텍스트 입력창 예시 (데모 화면)" />
-                      <button type="button">전송</button>
-                    </div>
-                    <div className="random-room-actions random-room-actions-between">
-                      <button type="button" className="ghost-btn" onClick={leaveRandomRoom}>목록만 보기</button>
-                      <button type="button" onClick={() => endRandomRoom(activeRandomRoom.id)}>채팅 종료</button>
-                    </div>
+                <div className="random-skeleton-card">
+                  <div className="random-skeleton-row"><span className="random-skeleton-label">현재 앱 정책</span><strong>직접 소통 기능 비활성화</strong></div>
+                  <div className="random-skeleton-row"><span className="random-skeleton-label">분리 채널</span><span>승인제 제한 웹 포럼</span></div>
+                  <p>{randomMatchNote}</p>
+                  <div className="random-skeleton-actions">
+                    <button type="button" className="ghost-btn" onClick={() => setSettingsCategory("보안")}>보안 기준 보기</button>
+                    <button type="button" onClick={() => setSettingsCategory("관리자모드")}>운영자 점검 보기</button>
                   </div>
-                ) : null}
-                {randomEntryTab === "시작" ? (
-                  <>
-                    <div className="random-match-toolbar random-match-toolbar-primary">
-                      <select className="random-room-select" value={oneToOneCategory} onChange={(e) => setOneToOneCategory(e.target.value as OneToOneRandomCategory)}>
-                        {oneToOneRandomCategories.map((category) => <option key={category} value={category}>{category}</option>)}
-                      </select>
-                      <div className="random-match-settings-wrap">
-                        <button className={`random-room-create-btn ${randomSettingsOpen ? "active" : ""}`} onClick={() => setRandomSettingsOpen((prev) => !prev)}>설정</button>
-                        {randomSettingsOpen ? (
-                          <div className="random-settings-menu">
-                            <button type="button" className="random-settings-item">건의(카테고리)</button>
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                    <div className="random-filter-grid">
-                      <label className="random-filter-field"><span>성별 조건</span><select value={randomGenderOption} onChange={(e) => setRandomGenderOption(e.target.value as RandomGenderOption)}>{randomGenderOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
-                      <label className="random-filter-field random-range-field"><span>연령 조건</span><div className="random-range-box"><DualRangeSlider min={20} max={99} valueMin={randomAgeMin} valueMax={randomAgeMax} leftLabel={`${randomAgeMin}세`} rightLabel={`${randomAgeMax}세`} onChangeMin={setRandomAgeMin} onChangeMax={setRandomAgeMax} /></div></label>
-                      <label className="random-filter-field"><span>지역 조건</span><select value={randomRegionOption} onChange={(e) => setRandomRegionOption(e.target.value as RandomRegionOption)}>{randomRegionOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
-                    </div>
-                    {randomRegionOption === "거리기반" ? (
-                      <div className="random-distance-panel">
-                        <DualRangeSlider min={0} max={600} valueMin={randomDistanceMinKm} valueMax={randomDistanceMaxKm} leftLabel={`${randomDistanceMinKm}km`} rightLabel={`${randomDistanceMaxKm}km`} onChangeMin={setRandomDistanceMinKm} onChangeMax={setRandomDistanceMaxKm} />
-                      </div>
-                    ) : null}
-                    <div className="random-match-center">
-                      <button className={`random-start-btn ${matchingRandom ? "loading" : ""}`} onClick={startRandomMatch}>
-                        {matchingRandom ? "정보채팅 연결중" : "1:1정보채팅"}
-                      </button>
-                    </div>
-                    <div className="random-skeleton-card">
-                      <div className="random-skeleton-row">
-                        <span className="random-skeleton-label">현재 상태</span>
-                        <strong>{randomMatchPhase === "idle" ? "대기 전" : randomMatchPhase === "queueing" ? "대기열 참여중" : "매칭 완료"}</strong>
-                      </div>
-                      <div className="random-skeleton-row">
-                        <span className="random-skeleton-label">선택 카테고리</span>
-                        <span>{oneToOneCategory}</span>
-                      </div>
-                      <p>{randomMatchNote}</p>
-                      <div className="random-skeleton-actions">
-                        <button type="button" className="ghost-btn" onClick={cancelRandomMatch}>대기취소</button>
-                        <button type="button" onClick={() => setRandomEntryTab("목록")}>목록 보기</button>
-                      </div>
-                    </div>
-                    {matchedRandomUser ? (
-                      <div className="random-match-result">
-                        <span className="random-room-category-chip">{matchedRandomUser.category}</span>
-                        <strong>{matchedRandomUser.name}</strong>
-                        <p>{matchedRandomUser.nickname} 님과 연결되어 채팅 목록 상단에 새 방이 추가되었습니다. 목록에서 해당 방을 눌러야 채팅방 화면으로 이동합니다.</p>
-                      </div>
-                    ) : null}
-                  </>
-                ) : (
-                  <div className="random-room-list compact-scroll-list random-match-room-list">
-                    {visibleRandomMatchRooms.length === 0 ? (
-                      <div className="random-skeleton-card"><p>아직 생성된 1:1 익명 정보채팅방이 없습니다. 시작 탭에서 매칭을 진행하면 목록에 채팅이 추가됩니다.</p></div>
-                    ) : visibleRandomMatchRooms.map((room) => (
-                      <article key={room.id} className={`random-room-card random-match-room-card ${activeRandomRoomId === room.id ? "active" : ""} ${room.status === "ended" ? "ended" : ""}`} onClick={() => openRandomRoom(room.id)}>
-                        <div className="random-room-topline">
-                          <span className="random-room-category-chip">{room.category}</span>
-                          <div className="random-room-topline-actions">
-                            {randomRoomAlertLabel(room) ? <span className="random-room-occupancy alert">{randomRoomAlertLabel(room)}</span> : <div className="random-room-occupancy">{room.status === "ended" ? "최근 종료" : `남은 ${randomRoomRemainMinutes(room) ?? 0}분`}</div>}
-                            <button type="button" className="report-mini-btn" onClick={(e) => { e.stopPropagation(); reportRandomRoom(room); }}>신고</button>
-                          </div>
-                        </div>
-                        <div className="random-room-middleline grouped-room-title-line">
-                          <strong>{room.title}</strong>
-                          <b>{room.currentPeople}/{room.maxPeople}</b>
-                        </div>
-                        <p>{room.partnerNickname ?? "익명 사용자"} · 성별 {room.genderOption ?? "무관"} · 나이 {room.ageMin ?? 20}~{room.ageMax ?? 99}세{room.regionOption === "거리기반" ? ` · 거리 ${room.distanceMinKm ?? 0}~${room.distanceMaxKm ?? 600}km` : ""}</p>
-                        <div className="random-room-actions"><button type="button" onClick={(e) => { e.stopPropagation(); openRandomRoom(room.id); }} disabled={room.status === "ended"}>입장</button></div>
-                      </article>
-                    ))}
-                  </div>
-                )}
+                </div>
               </div>
-                          ) : (
-                <div className="legacy-box compact random-profile-gate">
-                  <h3>익명 정보채팅 사용 전 프로필 입력 필요</h3>
-                  <p>이 기능은 성인인증·본인확인 완료 후 성별, 연령대, 지역 입력이 모두 완료되어야 사용할 수 있습니다.</p>
-                  <p>현재 미입력 항목: {randomProfileMissing.join(", ")}</p>
-                  <div className="copy-action-row">
-                    <button type="button" onClick={() => setActiveTab("프로필")}>프로필로 이동</button>
-                    <button type="button" className="ghost-btn" onClick={() => setChatTab("채팅")}>일반 채팅 보기</button>
-                  </div>
-                </div>
-              )
             ) : chatTab === "질문" ? (
               <div className="question-board compact-scroll-list">
                 <div className="section-head compact-head"><div><h2>질문</h2><p>historyprofile 질문 화면 흐름을 참고한 카드형 질문/답변 화면입니다.</p></div></div>
@@ -2672,7 +2570,7 @@ export default function App() {
                 <div className="profile-stats">
                   <div><b>{adultFailCount}</b><span>실패횟수</span></div>
                   <div><b>{adultCooldownRemainMinutes > 0 ? `${adultCooldownRemainMinutes}분` : "없음"}</b><span>쿨타임</span></div>
-                  <div><b>{randomProfileReady ? "완료" : "보완필요"}</b><span>랜덤채팅 프로필</span></div>
+                  <div><b>{randomProfileReady ? "완료" : "보완필요"}</b><span>포럼 심사 참고값</span></div>
                 </div>
                 <div className="copy-action-row">
                   <button type="button" className="ghost-btn" onClick={() => startIdentitySignup("PASS")}>PASS 인증</button>
@@ -2682,15 +2580,15 @@ export default function App() {
                 </div>
               </div>
               <div className="profile-card auth-status-card">
-                <strong>선택 프로필 / 랜덤채팅 필수값</strong>
-                <span>성별, 연령대, 지역은 일반 가입 단계에서는 선택 입력이지만, 익명 정보채팅 기능 사용 시에는 필수로 검사합니다.</span>
+                <strong>선택 프로필 / 제한 포럼 심사용 참고값</strong>
+                <span>성별, 연령대, 지역은 일반 가입 단계에서는 선택 입력이며, 제한 웹 포럼 운영 시에는 내부 심사/안전 운영 참고 정보로만 사용합니다.</span>
                 <div className="signup-form-grid profile-edit-grid">
                   <label><span>성별</span><select value={demoProfile.gender} onChange={(e) => setDemoProfile((prev) => ({ ...prev, gender: e.target.value }))}>{profileGenderOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
                   <label><span>연령대</span><select value={demoProfile.ageBand} onChange={(e) => setDemoProfile((prev) => ({ ...prev, ageBand: e.target.value }))}>{profileAgeBandOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
                   <label><span>지역</span><select value={demoProfile.regionCode} onChange={(e) => setDemoProfile((prev) => ({ ...prev, regionCode: e.target.value }))}>{profileRegionOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
                   <label className="wide"><span>관심 카테고리</span><div className="chip-checklist">{interestCategoryOptions.map((item) => <button key={item} type="button" className={`chip-check ${demoProfile.interests.includes(item) ? "active" : ""}`} onClick={() => toggleInterestCategory(item)}>{item}</button>)}</div></label>
                 </div>
-                {!randomProfileReady ? <p>미입력 항목: {randomProfileMissing.join(", ")} · 미입력 시 익명 정보채팅 기능은 사용할 수 없습니다.</p> : <p>익명 정보채팅 필수 프로필 입력이 완료되었습니다.</p>}
+                {!randomProfileReady ? <p>미입력 항목: {randomProfileMissing.join(", ")} · 미입력 시에도 앱 공개영역 이용은 가능하지만, 제한 웹 포럼 승인 심사 시 보완 요청이 발생할 수 있습니다.</p> : <p>제한 웹 포럼 심사용 선택 프로필 입력이 완료되었습니다.</p>}
               </div>
               <div className="profile-card auth-status-card">
                 <strong>동의 이력 저장 예시</strong>
@@ -2774,7 +2672,7 @@ export default function App() {
           <div className="modal-card">
             <div className="modal-header-row">
               <button className="header-inline-btn modal-back-btn" onClick={() => setRoomModalOpen(false)}>←</button>
-              <strong>랜덤방 개설</strong>
+              <strong>단체 채팅방 개설</strong>
               <span className="modal-spacer" />
             </div>
             <div className="modal-form-grid modal-form-grid-top">

@@ -91,6 +91,16 @@ class Settings(BaseSettings):
     location_privacy_notice_required: bool = True
     seller_product_preapproval_required: bool = True
 
+    community_private_web_enabled: bool = True
+    community_forum_mode: str = "gated_information_forum"
+    random_chat_enabled: bool = False
+    direct_user_dm_enabled: bool = False
+    offline_meeting_enabled: bool = False
+    friend_finding_enabled: bool = False
+    community_image_upload_enabled: bool = False
+    community_external_contact_exchange_allowed: bool = False
+    community_policy_reference_path: str = "./docs/adultapp_aragon_policy_comparison_20260412.md"
+
     seller_approval_requirements: str = "사업자등록증,정산계좌 확인,반품지,CS 연락처,판매자 약관 동의 완료 시 승인"
     product_review_visibility_policy: str = "승인 전 비공개"
     product_review_editable_statuses: str = "draft,pending_review,rejected"

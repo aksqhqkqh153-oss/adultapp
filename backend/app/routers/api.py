@@ -178,6 +178,24 @@ CLOUDFLARE_MANUAL_DEPLOY = {
 
 ALLOWED_UPLOAD_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".mp4", ".mov", ".webm"}
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+
+
+def _ensure_random_chat_enabled() -> None:
+    if not settings.random_chat_enabled:
+        raise HTTPException(status_code=403, detail="random chat disabled by safe community policy")
+
+
+def _community_feature_flags() -> dict[str, Any]:
+    return {
+        "private_web_enabled": settings.community_private_web_enabled,
+        "forum_mode": settings.community_forum_mode,
+        "random_chat_enabled": settings.random_chat_enabled,
+        "direct_user_dm_enabled": settings.direct_user_dm_enabled,
+        "offline_meeting_enabled": settings.offline_meeting_enabled,
+        "friend_finding_enabled": settings.friend_finding_enabled,
+        "community_image_upload_enabled": settings.community_image_upload_enabled,
+        "external_contact_exchange_allowed": settings.community_external_contact_exchange_allowed,
+    }
 SAFE_COMMUNITY_BLOCKLIST = ["만남", "조건만남", "오프라인", "카카오톡", "카톡", "텔레그램", "텔레", "라인", "whatsapp", "wechat", "숙소", "010-"]
 COMMUNITY_ALLOWED_CATEGORIES = {"안전수칙", "소재/보관/세척/사용 가이드", "익명포장/환불/배송 후기", "제품 비교", "브랜드 후기", "운영공지", "FAQ", "정보공유"}
 COMMUNITY_BANNED_PATTERNS = [
@@ -955,6 +973,16 @@ def legal_release_readiness(session: Session = Depends(get_session)):
     if settings.seller_product_preapproval_required:
         warnings.append({"key": "seller_preapproval", "title": "상품 공개 전 관리자 승인 유지 권장", "action": "초기 공개 출시 단계에서는 사업자 승인 + 상품 사전 승인 상태 유지"})
 
+    if settings.random_chat_enabled:
+        blockers.append({"key": "random_chat_enabled", "title": "랜덤채팅 기능이 안전모드 기준으로 비활성화되지 않음", "action": "국내 공개 출시 전에는 랜덤채팅/익명 1:1 매칭을 제거하거나 폐쇄형 비공개 웹 영역으로 분리"})
+    else:
+        ready_items.append({"key": "random_chat_disabled", "title": "앱 내 랜덤채팅 기능 기본 비활성화"})
+
+    if settings.direct_user_dm_enabled or settings.offline_meeting_enabled or settings.friend_finding_enabled:
+        blockers.append({"key": "high_risk_social_features", "title": "고위험 소셜 기능이 공개 앱 기준으로 남아 있음", "action": "사용자간 자유 DM, 모임/인연찾기, 오프라인 만남 연계 기능은 앱에서 제거하고 제한 웹 영역으로 분리"})
+    else:
+        ready_items.append({"key": "high_risk_social_features_disabled", "title": "고위험 소셜 기능 기본 비활성화"})
+
     preview = _minor_block_purge_preview(session)
     warnings.append({"key": "minor_purge_job", "title": "미성년 차단 계정 자동 파기 배치 필요", "action": f"cron={settings.minor_block_purge_cron}, 후보={preview['candidate_count']}명. 차단 이력 1년 보관 후 파기하는 배치 작업 운영 반영"})
     if settings.ops_alert_slack_enabled or settings.ops_alert_email_enabled:
@@ -972,7 +1000,25 @@ def legal_release_readiness(session: Session = Depends(get_session)):
             "ops_alert_channels": [channel for channel, enabled in [("slack", settings.ops_alert_slack_enabled), ("email", settings.ops_alert_email_enabled)] if enabled],
             "business_info_source": source,
             "location_feature_mode": settings.location_feature_mode,
+            "community_policy_mode": settings.community_forum_mode,
+            "feature_flags": _community_feature_flags(),
         },
+    }
+
+
+@router.get("/community/feature-flags")
+def community_feature_flags():
+    return _community_feature_flags()
+
+
+@router.get("/community/policy-summary")
+def community_policy_summary():
+    return {
+        "mode": settings.community_forum_mode,
+        "reference_path": settings.community_policy_reference_path,
+        "allowed": ["안전수칙", "동의/경계설정", "세척/보관/배송", "제품 정보 Q&A", "운영 공지"],
+        "blocked": ["랜덤채팅", "사용자간 자유 DM", "모임 주선", "오프라인 만남 유도", "외부 연락처 교환", "사진/영상 기반 성적 교류"],
+        "feature_flags": _community_feature_flags(),
     }
 
 
@@ -1403,7 +1449,8 @@ def auth_me(user: User = Depends(get_current_user), session: Session = Depends(g
         "reconsent_required": _user_requires_reconsent(session, user.id or 0),
         "consent_status": _consent_status_payload(session, user.id or 0),
         "reconsent_enforcement_mode": settings.reconsent_enforcement_mode,
-        "random_chat_profile_ready": bool(user.gender and user.age_band and user.region_code),
+        "random_chat_profile_ready": bool(settings.random_chat_enabled and user.gender and user.age_band and user.region_code),
+        "feature_flags": _community_feature_flags(),
         "admin_2fa_confirmed": user.admin_2fa_confirmed,
         "backup_codes_remaining": backup_count,
         "locked_until": user.locked_until.isoformat() if user.locked_until else "",
@@ -3002,6 +3049,7 @@ def get_random_rules(session: Session = Depends(get_session)):
 
 @router.put("/chat/random/rules")
 def update_random_rules(payload: RandomRuleUpdateRequest, current_user: User = Depends(require_grade(MemberGrade.ADMIN)), session: Session = Depends(get_session)):
+    _ensure_random_chat_enabled()
     rule = _get_or_create_random_rule(session)
     rule.same_category_only = payload.same_category_only
     rule.gender_standard = ",".join(payload.gender_standard)
@@ -3077,6 +3125,7 @@ def update_random_rules(payload: RandomRuleUpdateRequest, current_user: User = D
 
 @router.post("/chat/random/tickets")
 def create_random_ticket(payload: RandomTicketCreate, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    _ensure_random_chat_enabled()
     rule = _get_or_create_random_rule(session)
     eligibility = _assert_random_chat_entry_allowed(current_user, session)
     now = utcnow()
@@ -3130,6 +3179,7 @@ def create_random_ticket(payload: RandomTicketCreate, request: Request, current_
 
 @router.get("/chat/random/tickets/{ticket_id}")
 def get_random_ticket(ticket_id: int, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    _ensure_random_chat_enabled()
     item = session.get(RandomMatchTicket, ticket_id)
     if not item or item.user_id != (current_user.id or 0):
         raise HTTPException(status_code=404, detail="ticket not found")
@@ -3144,6 +3194,7 @@ def get_random_ticket(ticket_id: int, current_user: User = Depends(get_current_u
 
 @router.post("/chat/random/tickets/{ticket_id}/cancel")
 def cancel_random_ticket(ticket_id: int, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    _ensure_random_chat_enabled()
     item = session.get(RandomMatchTicket, ticket_id)
     if not item or item.user_id != (current_user.id or 0):
         raise HTTPException(status_code=404, detail="ticket not found")
@@ -3157,6 +3208,7 @@ def cancel_random_ticket(ticket_id: int, request: Request, current_user: User = 
 
 @router.post("/chat/random/report")
 def report_random_chat(payload: RandomReportCreate, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    _ensure_random_chat_enabled()
     rule = _get_or_create_random_rule(session)
     thread = session.get(DirectMessageThread, payload.thread_id)
     if not thread:
@@ -3205,6 +3257,7 @@ def report_random_chat(payload: RandomReportCreate, request: Request, current_us
 
 @router.post("/chat/random/threads/{thread_id}/end")
 def end_random_thread(thread_id: int, payload: RandomThreadEndRequest, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    _ensure_random_chat_enabled()
     thread = session.get(DirectMessageThread, thread_id)
     if not thread or thread.thread_type != "random_1to1":
         raise HTTPException(status_code=404, detail="random thread not found")
@@ -3223,6 +3276,7 @@ def end_random_thread(thread_id: int, payload: RandomThreadEndRequest, request: 
 
 @router.get("/admin/chat-random/db-manage")
 def admin_random_db_manage(current_user: User = Depends(require_grade(MemberGrade.ADMIN)), session: Session = Depends(get_session)):
+    _ensure_random_chat_enabled()
     rule = _get_or_create_random_rule(session)
     random_reports = session.exec(select(ModerationReport).where(ModerationReport.target_type == "random_chat_user").order_by(ModerationReport.created_at.desc())).all()
     random_threads = session.exec(select(DirectMessageThread).where(DirectMessageThread.thread_type == "random_1to1").order_by(DirectMessageThread.updated_at.desc())).all()
@@ -3310,6 +3364,7 @@ def admin_random_db_manage(current_user: User = Depends(require_grade(MemberGrad
 
 @router.get("/admin/chat-random/report-manage")
 def admin_random_report_manage(filter_value: str | None = None, current_user: User = Depends(require_grade(MemberGrade.ADMIN)), session: Session = Depends(get_session)):
+    _ensure_random_chat_enabled()
     rule = _get_or_create_random_rule(session)
     stmt = select(ModerationReport).where(ModerationReport.target_type == "random_chat_user")
     reports = session.exec(stmt).all()

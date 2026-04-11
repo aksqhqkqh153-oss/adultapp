@@ -1,5 +1,5 @@
-BUILD CHECK v27
-- frontend: npm install 완료
-- frontend: npm run build 통과
-- backend: python -m compileall backend/app 통과
-- changed: notification button, legal footer removal, home feed overflow clamp, community notice seed update
+[adultapp build check]
+- frontend npm run build: PASS
+- backend py_compile(app/config.py, app/routers/api.py, app/main.py): PASS
+- random chat API: safe-mode default disabled
+- docs added: aragon policy comparison, operator decision checklist, docx safety pack
