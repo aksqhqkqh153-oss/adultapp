@@ -171,7 +171,12 @@ class SellerVerificationRequest(BaseModel):
     business_number: str
     cs_contact: str
     return_address: str
+    settlement_bank: str = ""
+    settlement_account_number: str = ""
+    settlement_account_holder: str = ""
     seller_contract_agreed: bool = True
+    business_document_url: str = ""
+    approval_note: str = "사업자 인증 신청"
 
 
 class ProductUpsertRequest(BaseModel):
@@ -188,6 +193,23 @@ class ProductUpsertRequest(BaseModel):
     payment_scope: str = "card_transfer"
     status: str = "draft"
     thumbnail_url: Optional[str] = None
+    image_urls: list[str] = []
+
+
+
+
+class SellerApprovalDecisionRequest(BaseModel):
+    decision: str = "approved"
+    note: str = ""
+
+
+class ProductApprovalDecisionRequest(BaseModel):
+    decision: str = "approved"
+    note: str = ""
+
+
+class ProductSubmitReviewRequest(BaseModel):
+    note: str = "승인대기 제출"
 
 
 class ProductMediaAttachRequest(BaseModel):

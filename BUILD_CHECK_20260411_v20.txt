@@ -1,0 +1,6 @@
+BUILD CHECK v20
+- backend/app compileall: OK
+- backend import smoke: OK
+- frontend npm install: OK
+- frontend npm run build: OK
+- dist assets: index-Dcnic2Vk.css / index-ObAAyif0.js

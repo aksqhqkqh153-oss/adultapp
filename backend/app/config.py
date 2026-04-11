@@ -30,12 +30,75 @@ class Settings(BaseSettings):
     pg_secondary_api_key: str = "change-me"
     pg_secondary_webhook_secret: str = "change-me"
 
-    adult_verification_provider: str = "pass"
+    pg_portone_store_id: str = "change-me-pg-store-id"
+    pg_portone_channel_key: str = "change-me-pg-channel-key"
+    pg_webhook_path: str = "/api/payments/webhooks/pg"
+    pg_refund_webhook_path: str = "/api/payments/webhooks/refund"
+    pg_settlement_basis_note: str = "초기에는 관리자 승인형 판매자/상품 공개 구조로 운영하며, 관리자 직접판매와 사업자 판매물품 중개를 병행"
+
+
+    adult_verification_provider: str = "portone_pass"
+    adult_verification_provider_label: str = "PortOne 기반 PASS/휴대폰 본인확인"
     adult_verification_client_id: str = "change-me"
     adult_verification_client_secret: str = "change-me"
+    adult_verification_webhook_secret: str = "change-me-webhook"
     adult_verification_callback_web: str = "https://example.com/auth/adult/callback"
     adult_verification_callback_app: str = "adultapp://auth/adult/callback"
+    adult_verification_callback_identity_web: str = "https://example.com/auth/identity/callback"
+    adult_verification_callback_identity_app: str = "adultapp://auth/identity/callback"
     adult_verification_test_mode: bool = True
+    adult_verification_prod_enabled: bool = False
+    adult_verification_allowed_providers: str = "PASS,휴대폰"
+    adult_verification_rollout_strategy: str = "1차는 PortOne 기반 PASS 통합 연동으로 시작하고, 운영 안정화 후 NICE 또는 Danal 직접 전환 여부를 검토"
+
+    adult_verification_portone_store_id: str = "change-me-portone-store-id"
+    adult_verification_portone_channel_key: str = "change-me-portone-channel-key"
+    adult_verification_webhook_path: str = "/api/auth/verification/webhook"
+    adult_verification_error_code_map: str = "INVALID_IDENTITY:본인확인 실패,MINOR_BLOCKED:미성년 차단,SIGNATURE_ERROR:콜백 서명 오류,PROVIDER_TIMEOUT:공급사 응답 지연"
+
+    adult_verification_prod_cutover_checklist: str = "본인확인 실연동,콜백 검증,서버 저장,장애 알림,운영 점검표 완료 후 운영키 전환"
+    reconsent_grace_days: int = 7
+    reconsent_enforcement_mode: str = "limited_access"
+    reconsent_redirect_path: str = "/reconsent"
+    minor_block_retention_days: int = 365
+    minor_block_retention_scope: str = "최소 식별값과 차단 이력만 분쟁 대응 범위에서 1년 보관 후 파기"
+
+    ops_alert_slack_enabled: bool = True
+    ops_alert_slack_webhook_url: str = "change-me-slack"
+    ops_alert_email_enabled: bool = True
+    ops_alert_email_to: str = "ops@example.com"
+    ops_checklist_document_path: str = "./docs/ops_preflight_checklist.md"
+    beta_business_info_db_override_enabled: bool = True
+    minor_block_purge_cron: str = "0 4 * * *"
+    minor_block_purge_batch_enabled: bool = True
+    minor_block_purge_runbook_path: str = "./docs/ops_minor_block_purge.md"
+
+    operator_legal_name: str = "미정-법인명입력필요"
+    operator_brand_name: str = "adultapp"
+    operator_business_registration_no: str = "미정-사업자번호입력필요"
+    operator_mail_order_report_no: str = "미정-통신판매업신고번호입력필요"
+    operator_business_address: str = "미정-사업장주소입력필요"
+    operator_support_email: str = "support@example.com"
+    operator_support_phone: str = "000-0000-0000"
+    operator_hosting_provider: str = "Railway + Cloudflare"
+    operator_youth_protection_officer: str = "미정-청소년보호책임자입력필요"
+    operator_dispute_contact_url: str = "https://example.com/support"
+    operator_privacy_contact_email: str = "privacy@example.com"
+    location_based_features_enabled: bool = True
+    location_feature_mode: str = "region_band_only"
+    location_realtime_sharing_enabled: bool = False
+    location_distance_band_labels: str = "0-3km,3-10km,10-30km,30km+"
+    location_privacy_notice_required: bool = True
+    seller_product_preapproval_required: bool = True
+
+    seller_approval_requirements: str = "사업자등록증,정산계좌 확인,반품지,CS 연락처,판매자 약관 동의 완료 시 승인"
+    product_review_visibility_policy: str = "승인 전 비공개"
+    product_review_editable_statuses: str = "draft,pending_review,rejected"
+    settlement_cycle_policy: str = "환불 리스크와 CS 처리 안정화 후 주별 정산"
+    tax_invoice_responsibility_direct: str = "platform"
+    tax_invoice_responsibility_marketplace: str = "seller"
+    cash_receipt_responsibility_direct: str = "platform"
+    cash_receipt_responsibility_marketplace: str = "seller"
 
     tax_invoice_provider: str = "hometax_or_vendor"
     tax_invoice_api_key: str = "change-me"
@@ -47,6 +110,8 @@ class Settings(BaseSettings):
     admin_ip_allowlist: str = "127.0.0.1,10.0.0.0/8"
     dual_approval_enabled: bool = True
     audit_log_hash_chain: bool = True
+    admin_exception_approval_mode: str = "초기에는 내부 승인 문서 + 감사로그 방식, 이후 백오피스 승인 화면으로 전환"
+    admin_exception_audit_required: bool = True
 
     uploads_dir: str = "./uploads"
     media_base_url: str = "https://adultapp-production.up.railway.app/media"

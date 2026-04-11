@@ -5,6 +5,7 @@ import csv
 import random
 import re
 import hashlib
+import hmac
 import io
 import json
 from pathlib import Path
@@ -71,6 +72,7 @@ from ..models import (
     SlaEvent,
     SellerPenalty,
     SellerProfile,
+    SellerOnboardingStatus,
     User,
 )
 from ..services.realtime import thread_connection_manager
@@ -117,7 +119,7 @@ from ..schemas import (
     ReportResolveRequest,
     ReconsentRequest,
     ModerationTextRequest,
-    SellerVerificationRequest,
+    SellerVerificationRequest, SellerApprovalDecisionRequest, ProductApprovalDecisionRequest, ProductSubmitReviewRequest,
 )
 from ..services.seed_loader import load_project_status, load_seed
 
@@ -177,20 +179,39 @@ CLOUDFLARE_MANUAL_DEPLOY = {
 ALLOWED_UPLOAD_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".mp4", ".mov", ".webm"}
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 SAFE_COMMUNITY_BLOCKLIST = ["만남", "조건만남", "오프라인", "카카오톡", "카톡", "텔레그램", "텔레", "라인", "whatsapp", "wechat", "숙소", "010-"]
+COMMUNITY_ALLOWED_CATEGORIES = {"안전수칙", "소재/보관/세척/사용 가이드", "익명포장/환불/배송 후기", "제품 비교", "브랜드 후기", "운영공지", "FAQ", "정보공유"}
+COMMUNITY_BANNED_PATTERNS = [
+    ("external_contact", re.compile(r"(카톡|카카오톡|오픈채팅|텔레|텔레그램|라인|디스코드|인스타|wechat|whatsapp|open\.kakao|t\.me)", re.IGNORECASE), "외부 연락처 유도 금지"),
+    ("offline_meetup", re.compile(r"(직거래|직만남|오프(라인)?\s?만남|만나서|보자|숙소|호텔|모텔|자취방|주소 보내)", re.IGNORECASE), "오프라인 만남 유도 금지"),
+    ("sexual_solicitation", re.compile(r"(역할극|플레이\s?제안|인증샷|노출|벗은|벗어|몸\s?사진|사진\s?교환|영상\s?교환|후기\s?인증)", re.IGNORECASE), "성적 유도/사진 교환 금지"),
+    ("review_like_solicitation", re.compile(r"(후기처럼|리뷰처럼|사용후기.*연락|만족하면.*개인연락|구매후.*개인문의)", re.IGNORECASE), "후기 위장 유도 금지"),
+    ("repeated_private_contact", re.compile(r"(계속\s?개인(연락|톡)|개인으로\s?넘어가|밖에서\s?얘기|1:1로\s?따로)", re.IGNORECASE), "반복적 사적 접촉 유도 금지"),
+]
 PHONE_RE = re.compile(r"01[016789][-\s]?\d{3,4}[-\s]?\d{4}")
 HANDLE_RE = re.compile(r"(?:@|https?://)(?:t\.me|open\.kakao|instagram\.com|line\.me|discord\.gg)", re.IGNORECASE)
 LEGAL_DOC_VERSIONS = {
-    "terms_of_service": "2026-04-11.v2",
-    "privacy_policy": "2026-04-11.v2",
-    "adult_service_notice": "2026-04-11.v2",
-    "identity_notice": "2026-04-11.v2",
+    "terms_of_service": "2026-04-11.v4",
+    "privacy_policy": "2026-04-11.v4",
+    "adult_service_notice": "2026-04-11.v4",
+    "identity_notice": "2026-04-11.v4",
     "marketing_opt_in": "2026-04-11.v1",
     "profile_optional_opt_in": "2026-04-11.v1",
-    "youth_policy": "2026-04-11.v2",
-    "refund_policy": "2026-04-11.v2",
+    "youth_policy": "2026-04-11.v4",
+    "refund_policy": "2026-04-11.v4",
     "seller_terms": "2026-04-11.v1",
 }
 REQUIRED_SIGNUP_CONSENT_TYPES = ["terms_of_service", "privacy_policy", "adult_service_notice", "identity_notice"]
+LEGAL_DOC_RELEASED_AT = {
+    "terms_of_service": datetime(2026, 4, 11),
+    "privacy_policy": datetime(2026, 4, 11),
+    "adult_service_notice": datetime(2026, 4, 11),
+    "identity_notice": datetime(2026, 4, 11),
+    "marketing_opt_in": datetime(2026, 4, 11),
+    "profile_optional_opt_in": datetime(2026, 4, 11),
+    "youth_policy": datetime(2026, 4, 11),
+    "refund_policy": datetime(2026, 4, 11),
+    "seller_terms": datetime(2026, 4, 11),
+}
 LEGAL_TEMPLATE_FILES = {
     "terms_of_service": Path("docs/legal_templates/terms_of_service_final.md"),
     "privacy_policy": Path("docs/legal_templates/privacy_policy_final.md"),
@@ -198,8 +219,48 @@ LEGAL_TEMPLATE_FILES = {
     "refund_policy": Path("docs/legal_templates/refund_policy_final.md"),
     "seller_terms": Path("docs/legal_templates/seller_terms_final.md"),
 }
+VERIFICATION_ALLOWED_PROVIDERS = [item.strip() for item in settings.adult_verification_allowed_providers.split(",") if item.strip()]
 
 
+
+
+
+def _normalize_verification_provider(provider: str | None) -> str:
+    requested = (provider or settings.adult_verification_provider or "PASS").strip()
+    if not requested:
+        requested = "PASS"
+    normalized = requested.upper() if requested.upper() == "PASS" else requested
+    if normalized not in VERIFICATION_ALLOWED_PROVIDERS:
+        raise HTTPException(status_code=400, detail=f"unsupported verification provider: {normalized}")
+    return normalized
+
+
+def _verification_signature(prefix: str, provider: str, tx_id: str) -> str:
+    payload = f"{prefix}:{provider}:{tx_id}".encode("utf-8")
+    secret = settings.adult_verification_webhook_secret.encode("utf-8")
+    return hmac.new(secret, payload, hashlib.sha256).hexdigest()
+
+
+def _verification_provider_payload(provider: str) -> dict[str, Any]:
+    normalized = _normalize_verification_provider(provider)
+    return {
+        "provider": normalized,
+        "label": settings.adult_verification_provider_label,
+        "policy_note": "1차 오픈은 PortOne 기반 PASS/휴대폰 본인확인으로 시작하고, 카카오는 로그인 편의 수단으로만 사용",
+        "rollout_strategy": settings.adult_verification_rollout_strategy,
+        "prod_cutover_checklist": settings.adult_verification_prod_cutover_checklist,
+        "mode": "test" if settings.adult_verification_test_mode else "production",
+        "prod_enabled": settings.adult_verification_prod_enabled,
+        "client_id_configured": settings.adult_verification_client_id != "change-me",
+        "portone_store_id_configured": settings.adult_verification_portone_store_id != "change-me-portone-store-id",
+        "portone_channel_key_configured": settings.adult_verification_portone_channel_key != "change-me-portone-channel-key",
+        "webhook_path": settings.adult_verification_webhook_path,
+        "error_code_map": _verification_error_map(),
+        "callback_identity_web": settings.adult_verification_callback_identity_web,
+        "callback_identity_app": settings.adult_verification_callback_identity_app,
+        "callback_adult_web": settings.adult_verification_callback_web,
+        "callback_adult_app": settings.adult_verification_callback_app,
+    }
 
 def _read_legal_markdown(doc_key: str) -> str:
     path = LEGAL_TEMPLATE_FILES.get(doc_key)
@@ -228,28 +289,49 @@ def _latest_user_consents(session: Session, user_id: int) -> dict[str, ConsentRe
 
 def _user_requires_reconsent(session: Session, user_id: int) -> bool:
     latest = _latest_user_consents(session, user_id)
+    now = utcnow()
     for consent_type in REQUIRED_SIGNUP_CONSENT_TYPES:
         row = latest.get(consent_type)
-        if not row or not row.agreed or row.version != LEGAL_DOC_VERSIONS.get(consent_type, row.version):
+        current_version = LEGAL_DOC_VERSIONS.get(consent_type, row.version if row else "v1")
+        if not row or not row.agreed:
             return True
+        if row.version != current_version:
+            released_at = LEGAL_DOC_RELEASED_AT.get(consent_type, now)
+            grace_deadline = released_at + timedelta(days=settings.reconsent_grace_days)
+            if now >= grace_deadline:
+                return True
     return False
 
 
 def _consent_status_payload(session: Session, user_id: int) -> dict[str, Any]:
     latest = _latest_user_consents(session, user_id)
+    now = utcnow()
     items: dict[str, Any] = {}
+    grace_deadlines: list[datetime] = []
     for consent_type, version in LEGAL_DOC_VERSIONS.items():
         row = latest.get(consent_type)
+        released_at = LEGAL_DOC_RELEASED_AT.get(consent_type, now)
+        grace_deadline = released_at + timedelta(days=settings.reconsent_grace_days)
+        version_changed = bool(row and row.version != version)
+        pending_grace = version_changed and consent_type in REQUIRED_SIGNUP_CONSENT_TYPES and now < grace_deadline
+        if pending_grace:
+            grace_deadlines.append(grace_deadline)
         items[consent_type] = {
             "required": consent_type in REQUIRED_SIGNUP_CONSENT_TYPES,
             "current_version": version,
             "agreed": bool(row.agreed) if row else False,
             "agreed_version": row.version if row else None,
             "agreed_at": row.agreed_at.isoformat() if row and row.agreed_at else None,
-            "needs_update": (not row or not row.agreed or row.version != version) if consent_type in REQUIRED_SIGNUP_CONSENT_TYPES else False,
+            "released_at": released_at.isoformat(),
+            "grace_deadline": grace_deadline.isoformat() if consent_type in REQUIRED_SIGNUP_CONSENT_TYPES else None,
+            "pending_grace": pending_grace,
+            "needs_update": (not row or not row.agreed or (version_changed and now >= grace_deadline)) if consent_type in REQUIRED_SIGNUP_CONSENT_TYPES else False,
         }
+    next_deadline = min(grace_deadlines).isoformat() if grace_deadlines else None
     return {
         "reconsent_required": _user_requires_reconsent(session, user_id),
+        "grace_period_days": settings.reconsent_grace_days,
+        "next_reconsent_deadline": next_deadline,
         "items": items,
     }
 
@@ -261,6 +343,35 @@ def _assert_can_access_adult(user: User) -> None:
         raise HTTPException(status_code=403, detail="identity verification required")
     if not user.adult_verified:
         raise HTTPException(status_code=403, detail="adult verification required")
+
+
+def _assert_reconsent_write_allowed(user: User, session: Session) -> None:
+    if user.grade == MemberGrade.ADMIN:
+        return
+    if not _user_requires_reconsent(session, user.id or 0):
+        return
+    if settings.reconsent_enforcement_mode == "login_block":
+        raise HTTPException(status_code=403, detail="reconsent required before login")
+    raise HTTPException(status_code=403, detail="reconsent required before write actions")
+
+
+def _seller_can_register_products(user: User, session: Session) -> tuple[bool, str]:
+    if user.grade == MemberGrade.ADMIN:
+        return True, "admin override"
+    profile = session.exec(select(SellerProfile).where(SellerProfile.user_id == (user.id or 0))).first()
+    if not profile:
+        return False, "seller verification profile missing"
+    eligible = all([
+        user.grade in {MemberGrade.SELLER, MemberGrade.SUB_ADMIN},
+        bool(user.adult_verified),
+        bool(profile.business_number),
+        bool(profile.return_address),
+        bool(profile.cs_contact),
+        bool(profile.seller_contract_agreed),
+        bool(profile.settlement_account_verified),
+        user.seller_onboarding_status == SellerOnboardingStatus.ACTIVE,
+    ])
+    return eligible, "eligible" if eligible else "business verification and admin approval required"
 
 
 def _enforce_route_rate_limit(request: Request, route_key: str, session: Session) -> None:
@@ -301,6 +412,99 @@ def _user_can_view_adult(user: User | None) -> bool:
     return bool(user and user.adult_verified)
 
 
+def _is_admin_like(user: User) -> bool:
+    return user.grade in {MemberGrade.ADMIN, MemberGrade.SUB_ADMIN, MemberGrade.MANAGER}
+
+
+def _is_moderator_like(user: User) -> bool:
+    return user.grade in {MemberGrade.ADMIN, MemberGrade.SUB_ADMIN, MemberGrade.MANAGER}
+
+
+def _can_manage_content(user: User, author_id: int) -> bool:
+    return _is_admin_like(user) or (user.id or 0) == author_id
+
+
+def _can_manage_product(user: User, product: Product) -> bool:
+    return _is_admin_like(user) or (user.id or 0) == product.seller_id
+
+
+def _can_view_order(user: User, order: Order) -> bool:
+    return _is_admin_like(user) or (user.id or 0) in {order.member_id, order.seller_id}
+
+
+def _require_admin(user: User) -> None:
+    if user.grade != MemberGrade.ADMIN:
+        raise HTTPException(status_code=403, detail="admin only")
+
+
+def _require_moderator(user: User) -> None:
+    if not _is_moderator_like(user):
+        raise HTTPException(status_code=403, detail="moderator or admin only")
+
+
+def _scan_upload_content(file_name: str, content_type: str | None, content: bytes) -> dict[str, Any]:
+    lowered_name = (file_name or '').lower()
+    lowered_type = (content_type or '').lower()
+    blocked_ext = {'.exe', '.dll', '.js', '.vbs', '.bat', '.cmd', '.ps1', '.scr', '.zip', '.7z', '.rar', '.apk'}
+    if any(lowered_name.endswith(ext) for ext in blocked_ext):
+        raise HTTPException(status_code=400, detail='executable/archive upload is not allowed')
+    if content.startswith(b'MZ') or b'<script' in content[:4096].lower():
+        raise HTTPException(status_code=400, detail='malicious file signature detected')
+    mime_allowed = {
+        '.png': {'image/png'}, '.jpg': {'image/jpeg'}, '.jpeg': {'image/jpeg'}, '.webp': {'image/webp'},
+        '.mp4': {'video/mp4'}, '.mov': {'video/quicktime', 'video/mp4'}, '.webm': {'video/webm'},
+    }
+    suffix = Path(file_name or '').suffix.lower()
+    allowed_types = mime_allowed.get(suffix, set())
+    if allowed_types and lowered_type and lowered_type not in allowed_types:
+        raise HTTPException(status_code=400, detail=f'mime mismatch: {content_type}')
+    return {'mime_ok': True, 'malware_scan': 'pass'}
+
+
+def _presigned_upload_payload(saved_name: str, media_type: str) -> dict[str, Any]:
+    public_url = f"{settings.media_base_url.rstrip('/')}/{saved_name}"
+    return {
+        'storage_mode': 'server_presigned_stub',
+        'upload_key': saved_name,
+        'upload_url': f'/api/upload?key={quote(saved_name)}',
+        'public_url': public_url,
+        'media_type': media_type,
+        'expires_in_seconds': 900,
+    }
+
+
+def _validate_community_information_post(category: str, title: str, body: str) -> None:
+    if category not in COMMUNITY_ALLOWED_CATEGORIES:
+        raise HTTPException(status_code=400, detail='community category not allowed')
+    merged = f"{title}\n{body}"
+    for _, pattern, reason in COMMUNITY_BANNED_PATTERNS:
+        if pattern.search(merged):
+            raise HTTPException(status_code=400, detail=reason)
+
+
+def _moderation_text_findings(text_value: str) -> list[dict[str, str]]:
+    findings: list[dict[str, str]] = []
+    lowered = (text_value or '').lower()
+    for token in SAFE_COMMUNITY_BLOCKLIST:
+        if token.lower() in lowered:
+            findings.append({'code': 'token_block', 'reason': f'blocked token: {token}'})
+    if PHONE_RE.search(text_value or ''):
+        findings.append({'code': 'phone', 'reason': 'phone/contact exchange is not allowed'})
+    if HANDLE_RE.search(text_value or ''):
+        findings.append({'code': 'handle', 'reason': 'external contact/share link is not allowed'})
+    for code, pattern, reason in COMMUNITY_BANNED_PATTERNS:
+        if pattern.search(text_value or ''):
+            findings.append({'code': code, 'reason': reason})
+    deduped = []
+    seen = set()
+    for item in findings:
+        key = (item['code'], item['reason'])
+        if key not in seen:
+            seen.add(key)
+            deduped.append(item)
+    return deduped
+
+
 def _adult_lock_payload(user: User) -> dict[str, Any]:
     return {
         "adult_verified": bool(user.adult_verified),
@@ -312,7 +516,8 @@ def _adult_lock_payload(user: User) -> dict[str, Any]:
 
 
 def _build_identity_tx(prefix: str, provider: str) -> str:
-    safe_provider = re.sub(r"[^a-z0-9]+", "-", provider.lower())
+    normalized = _normalize_verification_provider(provider)
+    safe_provider = re.sub(r"[^a-z0-9]+", "-", normalized.lower())
     return f"{prefix}_{safe_provider}_{int(datetime.utcnow().timestamp())}_{random.randint(1000,9999)}"
 
 
@@ -327,14 +532,9 @@ def _register_adult_verification_failure(user: User, session: Session) -> None:
 
 
 def validate_exchange_text(text_value: str) -> None:
-    lowered = (text_value or "").lower()
-    for token in SAFE_COMMUNITY_BLOCKLIST:
-        if token.lower() in lowered:
-            raise HTTPException(status_code=400, detail=f"blocked community/dm token: {token}")
-    if PHONE_RE.search(text_value or ""):
-        raise HTTPException(status_code=400, detail="phone/contact exchange is not allowed in this starter")
-    if HANDLE_RE.search(text_value or ""):
-        raise HTTPException(status_code=400, detail="external contact/share link is not allowed in this starter")
+    findings = _moderation_text_findings(text_value)
+    if findings:
+        raise HTTPException(status_code=400, detail=findings[0]['reason'])
 
 
 def _message_counterparty(thread: DirectMessageThread, user_id: int) -> int:
@@ -497,6 +697,153 @@ def read_seed() -> dict[str, Any]:
     return load_seed()
 
 
+def _parse_key_value_map(raw: str | None) -> dict[str, str]:
+    items: dict[str, str] = {}
+    for piece in [x.strip() for x in (raw or "").split(",") if x.strip()]:
+        if ":" in piece:
+            key, value = piece.split(":", 1)
+            items[key.strip()] = value.strip()
+    return items
+
+
+def _app_asset_json(session: Session, store: str, asset_name: str) -> dict[str, Any] | None:
+    row = session.exec(select(AppAsset).where(AppAsset.store == store, AppAsset.asset_name == asset_name)).first()
+    if not row or not row.note:
+        return None
+    try:
+        return json.loads(row.note)
+    except Exception:
+        return None
+
+
+def _save_app_asset_json(session: Session, store: str, asset_name: str, payload: dict[str, Any], status: str = "configured") -> AppAsset:
+    row = session.exec(select(AppAsset).where(AppAsset.store == store, AppAsset.asset_name == asset_name)).first()
+    if not row:
+        row = AppAsset(store=store, asset_name=asset_name, asset_type="metadata")
+    row.status = status
+    row.note = json.dumps(payload, ensure_ascii=False, indent=2)
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return row
+
+
+
+
+def _seller_submission_payload(session: Session, user_id: int) -> dict[str, Any]:
+    return _app_asset_json(session, "seller_submission", str(user_id)) or {}
+
+
+def _save_seller_submission_payload(session: Session, user_id: int, payload: dict[str, Any], status: str = "pending") -> AppAsset:
+    return _save_app_asset_json(session, "seller_submission", str(user_id), payload, status=status)
+
+
+def _seller_submission_complete(payload: dict[str, Any]) -> bool:
+    required = ["business_number", "cs_contact", "return_address", "business_document_url", "settlement_bank", "settlement_account_number", "settlement_account_holder"]
+    return all(str(payload.get(key) or "").strip() for key in required)
+
+
+def _product_publicly_visible(item: Product | None) -> bool:
+    if not item:
+        return False
+    return bool(item.is_active) and str(item.status) in {"approved", "published", "active"}
+
+
+def _product_can_edit_by_seller(item: Product | None, seller_id: int) -> bool:
+    if not item or item.seller_id != seller_id:
+        return False
+    return str(item.status) in {x.strip() for x in settings.product_review_editable_statuses.split(",") if x.strip()}
+
+def _business_info_payload(session: Session) -> tuple[dict[str, str], list[str], bool, str]:
+    base = {
+        "operator_legal_name": settings.operator_legal_name,
+        "operator_brand_name": settings.operator_brand_name,
+        "business_registration_no": settings.operator_business_registration_no,
+        "mail_order_report_no": settings.operator_mail_order_report_no,
+        "business_address": settings.operator_business_address,
+        "support_email": settings.operator_support_email,
+        "support_phone": settings.operator_support_phone,
+        "hosting_provider": settings.operator_hosting_provider,
+        "youth_protection_officer": settings.operator_youth_protection_officer,
+        "dispute_contact_url": settings.operator_dispute_contact_url,
+        "privacy_contact_email": settings.operator_privacy_contact_email,
+    }
+    source = "settings"
+    if settings.beta_business_info_db_override_enabled:
+        override = _app_asset_json(session, "business_info", "current") or {}
+        if override:
+            source = "db_override"
+            for key, value in override.items():
+                if key in base and str(value).strip():
+                    base[key] = str(value).strip()
+    placeholders = {k: (not str(v).strip() or "미정" in str(v) or "example.com" in str(v) or v == "000-0000-0000") for k, v in base.items()}
+    return base, [k for k, v in placeholders.items() if v], (not any(placeholders.values())), source
+
+
+def _verification_error_map() -> dict[str, str]:
+    return _parse_key_value_map(settings.adult_verification_error_code_map)
+
+
+def _minor_block_purge_preview(session: Session) -> dict[str, Any]:
+    threshold = utcnow() - timedelta(days=settings.minor_block_retention_days)
+    users = session.exec(select(User).where(User.member_status.in_(["minor_blocked", "blocked_minor", "login_blocked_minor"]))).all()
+    candidates = [u for u in users if ((u.identity_verified_at and u.identity_verified_at <= threshold) or (u.adult_verified_at and u.adult_verified_at <= threshold) or (u.last_login_at and u.last_login_at <= threshold) or (u.identity_verified_at is None and u.adult_verified_at is None and u.last_login_at is None))]
+    return {
+        "retention_days": settings.minor_block_retention_days,
+        "cron": settings.minor_block_purge_cron,
+        "enabled": settings.minor_block_purge_batch_enabled,
+        "candidate_count": len(candidates),
+        "candidate_user_ids": [u.id for u in candidates[:20]],
+    }
+
+
+def _run_minor_block_purge(session: Session, actor: User | None = None) -> dict[str, Any]:
+    threshold = utcnow() - timedelta(days=settings.minor_block_retention_days)
+    users = session.exec(select(User).where(User.member_status.in_(["minor_blocked", "blocked_minor", "login_blocked_minor"]))).all()
+    purged = 0
+    purged_ids: list[int] = []
+    for user in users:
+        pivot = user.identity_verified_at or user.adult_verified_at or user.last_login_at
+        if pivot and pivot > threshold:
+            continue
+        user.email = f"minor-blocked-{user.id}@purged.local"
+        user.name = "미성년 차단 계정(파기 처리)"
+        user.password_hash = ""
+        user.login_provider = None
+        user.identity_verification_method = None
+        user.identity_verification_token = None
+        user.identity_verified = False
+        user.adult_verified = False
+        user.gender = None
+        user.age_band = None
+        user.region_code = None
+        user.latitude = None
+        user.longitude = None
+        user.member_status = "minor_blocked_purged"
+        user.reset_required = True
+        session.add(user)
+        purged += 1
+        if user.id is not None:
+            purged_ids.append(user.id)
+    session.commit()
+    if actor and purged_ids:
+        write_admin_log(session, actor, "minor_block_purge", "user", ",".join(map(str, purged_ids[:20])), f"minor blocked purge run ({purged} users)")
+    return {"ok": True, "purged_count": purged, "purged_user_ids": purged_ids[:20], "retention_days": settings.minor_block_retention_days}
+
+
+def _payment_provider_status() -> dict[str, Any]:
+    return {
+        "primary_provider": settings.pg_primary_provider,
+        "secondary_provider": settings.pg_secondary_provider,
+        "portone_store_id_configured": settings.pg_portone_store_id != "change-me-pg-store-id",
+        "portone_channel_key_configured": settings.pg_portone_channel_key != "change-me-pg-channel-key",
+        "primary_merchant_configured": settings.pg_primary_merchant_id != "change-me",
+        "secondary_merchant_configured": settings.pg_secondary_merchant_id != "change-me",
+        "webhook_paths": {"payment": settings.pg_webhook_path, "refund": settings.pg_refund_webhook_path},
+        "settlement_basis_note": settings.pg_settlement_basis_note,
+    }
+
+
 @router.get("/legal/documents")
 def legal_documents():
     items = {}
@@ -515,6 +862,198 @@ def legal_documents():
 def legal_document(doc_slug: str):
     normalized = doc_slug.replace('-', '_')
     return {"doc_key": normalized, "version": LEGAL_DOC_VERSIONS.get(normalized, "2026-04-11.v1"), "content": _read_legal_markdown(normalized)}
+
+
+@router.get("/legal/public-links")
+def legal_public_links():
+    return {
+        "items": {
+            "terms_of_service": {"version": LEGAL_DOC_VERSIONS["terms_of_service"], "url": "/api/legal/terms-of-service", "label": "이용약관"},
+            "privacy_policy": {"version": LEGAL_DOC_VERSIONS["privacy_policy"], "url": "/api/legal/privacy-policy", "label": "개인정보 처리방침"},
+            "youth_policy": {"version": LEGAL_DOC_VERSIONS["youth_policy"], "url": "/api/legal/youth-policy", "label": "청소년 보호정책"},
+            "refund_policy": {"version": LEGAL_DOC_VERSIONS["refund_policy"], "url": "/api/legal/refund-policy", "label": "환불정책"},
+        }
+    }
+
+
+@router.get("/legal/business-info")
+def legal_business_info(session: Session = Depends(get_session)):
+    business_info, placeholder_fields, complete, source = _business_info_payload(session)
+    return {"business_info": business_info, "placeholder_fields": placeholder_fields, "complete": complete, "source": source, "beta_db_override_enabled": settings.beta_business_info_db_override_enabled}
+
+
+@router.get("/admin/business-info")
+def admin_business_info(current_user: User = Depends(require_grade(MemberGrade.ADMIN)), session: Session = Depends(get_session)):
+    business_info, placeholder_fields, complete, source = _business_info_payload(session)
+    return {"business_info": business_info, "placeholder_fields": placeholder_fields, "complete": complete, "source": source}
+
+
+@router.post("/admin/business-info")
+def admin_business_info_update(payload: dict[str, Any], request: Request, current_user: User = Depends(require_grade(MemberGrade.ADMIN)), session: Session = Depends(get_session)):
+    allowed = {"operator_legal_name", "operator_brand_name", "business_registration_no", "mail_order_report_no", "business_address", "support_email", "support_phone", "hosting_provider", "youth_protection_officer", "dispute_contact_url", "privacy_contact_email"}
+    normalized = {k: str(v).strip() for k, v in payload.items() if k in allowed}
+    row = _save_app_asset_json(session, "business_info", "current", normalized, status="beta_configured")
+    write_admin_log(session, current_user, "business_info_update", "app_asset", str(row.id or 0), "베타 사업자 표시정보 업데이트", ip=request.client.host if request.client else "127.0.0.1", device=request.headers.get("user-agent"))
+    business_info, placeholder_fields, complete, source = _business_info_payload(session)
+    return {"ok": True, "business_info": business_info, "placeholder_fields": placeholder_fields, "complete": complete, "source": source}
+
+
+@router.get("/legal/release-readiness")
+def legal_release_readiness(session: Session = Depends(get_session)):
+    blockers: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    ready_items: list[dict[str, Any]] = []
+
+    if settings.adult_verification_test_mode or not settings.adult_verification_prod_enabled or settings.adult_verification_client_id == "change-me":
+        blockers.append({"key": "adult_verification_live", "title": "성인/본인확인 운영 연동 미완료", "action": "PortOne PASS 운영키, 콜백 검증, webhook secret, 오류코드 매핑 완료 후 공개 출시"})
+    else:
+        ready_items.append({"key": "adult_verification_live", "title": "성인/본인확인 운영 연동 준비"})
+
+    if settings.pg_primary_merchant_id == "change-me" or settings.pg_primary_api_key == "change-me":
+        blockers.append({"key": "pg_live", "title": "PG 운영 연동 미완료", "action": "승인/취소/환불 webhook 포함 운영 계정 반영 후 쇼핑 결제 공개"})
+    else:
+        ready_items.append({"key": "pg_live", "title": "PG 연동 정보 설정됨"})
+
+    _, placeholder_fields, complete, source = _business_info_payload(session)
+    business_placeholder = not complete
+    if business_placeholder:
+        blockers.append({"key": "business_disclosure", "title": "국내 전자상거래/앱 고지 사업자 정보 미확정", "action": f"베타 DB 연동 또는 설정으로 실제 사업자 정보 입력 필요: {', '.join(placeholder_fields)}"})
+    else:
+        ready_items.append({"key": "business_disclosure", "title": "사업자 표시 정보 확정"})
+
+    if settings.location_based_features_enabled and settings.location_privacy_notice_required:
+        warnings.append({"key": "location_notice", "title": "위치/지역 기반 기능 고지 추가 필요", "action": f"현재 모드={settings.location_feature_mode}, 실시간 위치공유={settings.location_realtime_sharing_enabled}. 지역 선택형/거리 대역형 고지와 동의 문구 확정 필요"})
+
+    if settings.seller_product_preapproval_required:
+        warnings.append({"key": "seller_preapproval", "title": "상품 공개 전 관리자 승인 유지 권장", "action": "초기 공개 출시 단계에서는 사업자 승인 + 상품 사전 승인 상태 유지"})
+
+    preview = _minor_block_purge_preview(session)
+    warnings.append({"key": "minor_purge_job", "title": "미성년 차단 계정 자동 파기 배치 필요", "action": f"cron={settings.minor_block_purge_cron}, 후보={preview['candidate_count']}명. 차단 이력 1년 보관 후 파기하는 배치 작업 운영 반영"})
+    if settings.ops_alert_slack_enabled or settings.ops_alert_email_enabled:
+        ready_items.append({"key": "ops_alert_channels", "title": "장애 알림 채널 정책 설정됨 (Slack + 운영 메일)"})
+
+    return {
+        "status": "blocked" if blockers else "warning" if warnings else "ready",
+        "blockers": blockers,
+        "warnings": warnings,
+        "ready_items": ready_items,
+        "decisions": {
+            "adult_verification_provider": settings.adult_verification_provider_label,
+            "reconsent_mode": settings.reconsent_enforcement_mode,
+            "minor_retention_days": settings.minor_block_retention_days,
+            "ops_alert_channels": [channel for channel, enabled in [("slack", settings.ops_alert_slack_enabled), ("email", settings.ops_alert_email_enabled)] if enabled],
+            "business_info_source": source,
+            "location_feature_mode": settings.location_feature_mode,
+        },
+    }
+
+
+@router.get("/ops/preflight-checklist")
+def ops_preflight_checklist():
+    path = Path(settings.ops_checklist_document_path)
+    content = path.read_text(encoding="utf-8") if path.exists() else "# 운영 전 점검표\n\n문서가 아직 배치되지 않았습니다."
+    return {
+        "slack_enabled": settings.ops_alert_slack_enabled,
+        "email_enabled": settings.ops_alert_email_enabled,
+        "email_to": settings.ops_alert_email_to,
+        "checklist_document_path": settings.ops_checklist_document_path,
+        "content": content,
+    }
+
+
+@router.get("/payments/provider-status")
+def payments_provider_status():
+    return _payment_provider_status()
+
+
+@router.post("/payments/webhooks/pg")
+def payments_webhook_pg(payload: dict[str, Any], request: Request, session: Session = Depends(get_session)):
+    signature = str(payload.get("signature") or "")
+    event_type = str(payload.get("event_type") or "payment.approved")
+    merchant_uid = str(payload.get("merchant_uid") or payload.get("order_no") or "")
+    status = str(payload.get("status") or "approved")
+    if not merchant_uid:
+        raise HTTPException(status_code=400, detail="merchant_uid required")
+    expected = hmac.new(settings.pg_primary_webhook_secret.encode("utf-8"), f"{event_type}:{merchant_uid}:{status}".encode("utf-8"), hashlib.sha256).hexdigest()
+    if settings.pg_primary_webhook_secret != "change-me" and signature and not hmac.compare_digest(signature, expected):
+        raise HTTPException(status_code=400, detail="invalid pg webhook signature")
+    order = session.exec(select(Order).where(Order.order_no == merchant_uid)).first()
+    if not order:
+        return {"ok": True, "message": "order not found; ignored"}
+    if status in {"approved", "paid"}:
+        order.order_status = "paid"
+        order.approved_at = utcnow()
+    elif status in {"cancelled", "canceled"}:
+        order.order_status = "cancelled"
+        order.cancel_at = utcnow()
+    elif status in {"refunded", "refund_completed"}:
+        order.order_status = "refunded"
+        order.cancel_at = utcnow()
+    session.add(order)
+    session.commit()
+    return {"ok": True, "order_no": order.order_no, "status": order.order_status}
+
+
+@router.post("/payments/webhooks/refund")
+def payments_webhook_refund(payload: dict[str, Any], request: Request, session: Session = Depends(get_session)):
+    signature = str(payload.get("signature") or "")
+    refund_id = str(payload.get("refund_id") or payload.get("case_id") or "")
+    status = str(payload.get("status") or "approved")
+    expected = hmac.new(settings.pg_primary_webhook_secret.encode("utf-8"), f"refund:{refund_id}:{status}".encode("utf-8"), hashlib.sha256).hexdigest()
+    if settings.pg_primary_webhook_secret != "change-me" and signature and not hmac.compare_digest(signature, expected):
+        raise HTTPException(status_code=400, detail="invalid refund webhook signature")
+    if not refund_id:
+        return {"ok": True, "message": "refund id missing; ignored"}
+    return {"ok": True, "refund_id": refund_id, "status": status}
+
+
+@router.get("/ops/minor-purge/preview")
+def ops_minor_purge_preview(current_user: User = Depends(require_grade(MemberGrade.ADMIN)), session: Session = Depends(get_session)):
+    return _minor_block_purge_preview(session)
+
+
+@router.post("/ops/minor-purge/run")
+def ops_minor_purge_run(request: Request, current_user: User = Depends(require_grade(MemberGrade.ADMIN)), session: Session = Depends(get_session)):
+    return _run_minor_block_purge(session, current_user)
+
+
+@router.post("/auth/verification/webhook")
+def auth_verification_webhook(payload: dict[str, Any], request: Request, session: Session = Depends(get_session)):
+    provider = _normalize_verification_provider(str(payload.get("provider") or settings.adult_verification_provider))
+    tx_id = str(payload.get("tx_id") or "").strip()
+    signature = str(payload.get("signature") or "").strip()
+    flow = str(payload.get("flow") or "adult").strip()
+    result = str(payload.get("result") or "verified_adult").strip()
+    if not tx_id or not signature:
+        raise HTTPException(status_code=400, detail="webhook payload incomplete")
+    expected = _verification_signature("identity" if flow == "identity" else "adult", provider, tx_id)
+    if not hmac.compare_digest(signature, expected):
+        raise HTTPException(status_code=400, detail="invalid verification webhook signature")
+    user = session.exec(select(User).where(User.adult_verification_tx_id == tx_id)).first() if flow != "identity" else session.exec(select(User).where(User.identity_verification_token.contains(tx_id))).first()
+    if flow == "identity":
+        return {"ok": True, "provider": provider, "tx_id": tx_id, "result": result}
+    if not user:
+        return {"ok": True, "provider": provider, "tx_id": tx_id, "result": result, "message": "user not linked yet"}
+    if result == "verified_minor":
+        user.member_status = "minor_blocked"
+        user.adult_verified = False
+        user.adult_verification_status = "verified_minor"
+    elif result == "verified_adult":
+        user.adult_verified = True
+        user.adult_verified_at = utcnow()
+        user.adult_verification_status = "verified_adult"
+    else:
+        user.adult_verification_status = "failed"
+    session.add(user)
+    session.commit()
+    return {"ok": True, "user_id": user.id, "result": user.adult_verification_status, "provider": provider}
+
+
+@router.get("/auth/verification/providers")
+def auth_verification_providers():
+    default_provider = _normalize_verification_provider(settings.adult_verification_provider)
+    providers = [_verification_provider_payload(item) for item in VERIFICATION_ALLOWED_PROVIDERS]
+    return {"default_provider": default_provider, "items": providers}
 
 
 @router.get("/legal/status")
@@ -577,30 +1116,34 @@ def signup(payload: SignupRequest, request: Request, session: Session = Depends(
 
 @router.post("/auth/identity/start")
 def start_identity_verification(payload: IdentityVerificationStartRequest):
-    provider = payload.provider.strip() or settings.adult_verification_provider
+    provider = _normalize_verification_provider(payload.provider)
     tx_id = _build_identity_tx("identity", provider)
     return {
         "ok": True,
-        "provider": provider,
+        **_verification_provider_payload(provider),
         "tx_id": tx_id,
         "next_action": "open_provider_popup",
         "verification_code_hint": "000000" if settings.adult_verification_test_mode else None,
-        "callback_web": settings.adult_verification_callback_web,
+        "callback_web": settings.adult_verification_callback_identity_web,
+        "callback_signature": _verification_signature("identity", provider, tx_id),
+        "vendor": "PortOne",
     }
 
 
 @router.post("/auth/identity/confirm")
 def confirm_identity_verification(payload: IdentityVerificationConfirmRequest):
+    provider = _normalize_verification_provider(payload.provider)
     expected = "000000" if settings.adult_verification_test_mode else settings.adult_verification_client_secret
     if payload.verification_code != expected:
         raise HTTPException(status_code=400, detail="identity verification failed")
     return {
         "ok": True,
-        "provider": payload.provider,
+        "provider": provider,
         "tx_id": payload.tx_id,
-        "identity_verification_token": f"idv::{payload.provider}::{payload.tx_id}",
+        "identity_verification_token": f"idv::{provider}::{payload.tx_id}",
         "identity_verified": True,
         "adult_verification_status": "pending",
+        "provider_profile": _verification_provider_payload(provider),
     }
 
 
@@ -610,14 +1153,14 @@ def start_adult_verification(payload: AdultVerificationStartRequest, user: User 
         raise HTTPException(status_code=403, detail="identity verification required")
     if user.adult_verification_locked_until and user.adult_verification_locked_until > utcnow():
         raise HTTPException(status_code=423, detail=f"adult verification locked until {user.adult_verification_locked_until.isoformat()}")
-    provider = payload.provider.strip() or settings.adult_verification_provider
+    provider = _normalize_verification_provider(payload.provider)
     tx_id = _build_identity_tx("adult", provider)
     user.adult_verification_provider = provider
     user.adult_verification_tx_id = tx_id
     user.adult_verification_status = "started"
     session.add(user)
     session.commit()
-    return {"ok": True, "provider": provider, "tx_id": tx_id, "verification_code_hint": "000000" if settings.adult_verification_test_mode else None}
+    return {"ok": True, **_verification_provider_payload(provider), "tx_id": tx_id, "verification_code_hint": "000000" if settings.adult_verification_test_mode else None, "callback_signature": _verification_signature("adult", provider, tx_id), "vendor": "PortOne"}
 
 
 @router.post("/auth/adult/confirm")
@@ -628,7 +1171,18 @@ def confirm_adult_verification(payload: AdultVerificationConfirmRequest, user: U
         raise HTTPException(status_code=423, detail=f"adult verification locked until {user.adult_verification_locked_until.isoformat()}")
     if user.adult_verification_tx_id and payload.tx_id != user.adult_verification_tx_id:
         raise HTTPException(status_code=400, detail="adult verification transaction mismatch")
+    provider = _normalize_verification_provider(user.adult_verification_provider or payload.tx_id.split("_")[1] if "_" in payload.tx_id else settings.adult_verification_provider)
     expected = "000000" if settings.adult_verification_test_mode else settings.adult_verification_client_secret
+    if payload.verification_code == "MINOR":
+        user.adult_verified = False
+        user.adult_verified_at = None
+        user.adult_verification_status = "verified_minor"
+        user.member_status = "minor_blocked"
+        user.adult_verification_fail_count = 0
+        user.adult_verification_locked_until = None
+        session.add(user)
+        session.commit()
+        raise HTTPException(status_code=403, detail="minor account blocked")
     if payload.verification_code != expected:
         user.adult_verification_status = "failed"
         session.add(user)
@@ -642,7 +1196,7 @@ def confirm_adult_verification(payload: AdultVerificationConfirmRequest, user: U
     user.adult_verification_locked_until = None
     session.add(user)
     session.commit()
-    return {"ok": True, **_adult_lock_payload(user)}
+    return {"ok": True, **_adult_lock_payload(user), "provider_profile": _verification_provider_payload(provider)}
 
 
 @router.get("/auth/adult/status")
@@ -655,14 +1209,71 @@ def adult_verification_status(user: User = Depends(get_current_user), session: S
     }
 
 
+@router.post("/auth/identity/callback")
+def identity_verification_callback(payload: dict[str, Any]):
+    provider = _normalize_verification_provider(str(payload.get("provider") or settings.adult_verification_provider))
+    tx_id = str(payload.get("tx_id") or "").strip()
+    signature = str(payload.get("signature") or "").strip()
+    if not tx_id or not signature:
+        raise HTTPException(status_code=400, detail="callback payload incomplete")
+    expected = _verification_signature("identity", provider, tx_id)
+    if not hmac.compare_digest(signature, expected):
+        raise HTTPException(status_code=400, detail="invalid callback signature")
+    return {"ok": True, "provider": provider, "tx_id": tx_id, "identity_verification_token": f"idv::{provider}::{tx_id}", "identity_verified": True}
+
+
+@router.post("/auth/adult/callback")
+def adult_verification_callback(payload: dict[str, Any], current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    provider = _normalize_verification_provider(str(payload.get("provider") or current_user.adult_verification_provider or settings.adult_verification_provider))
+    tx_id = str(payload.get("tx_id") or "").strip()
+    signature = str(payload.get("signature") or "").strip()
+    result = str(payload.get("result") or "verified_adult").strip()
+    if not tx_id or not signature:
+        raise HTTPException(status_code=400, detail="callback payload incomplete")
+    expected = _verification_signature("adult", provider, tx_id)
+    if not hmac.compare_digest(signature, expected):
+        raise HTTPException(status_code=400, detail="invalid callback signature")
+    if tx_id != (current_user.adult_verification_tx_id or tx_id):
+        raise HTTPException(status_code=400, detail="adult verification transaction mismatch")
+    if result == "verified_minor":
+        current_user.adult_verified = False
+        current_user.adult_verified_at = None
+        current_user.adult_verification_status = "verified_minor"
+        current_user.member_status = "minor_blocked"
+        current_user.adult_verification_fail_count = 0
+        current_user.adult_verification_locked_until = None
+        session.add(current_user)
+        session.commit()
+        raise HTTPException(status_code=403, detail="minor account blocked")
+    if result != "verified_adult":
+        current_user.adult_verification_status = "failed"
+        session.add(current_user)
+        session.commit()
+        _register_adult_verification_failure(current_user, session)
+        return {"ok": False, **_adult_lock_payload(current_user)}
+    current_user.adult_verified = True
+    current_user.adult_verified_at = utcnow()
+    current_user.adult_verification_status = "verified_adult"
+    current_user.adult_verification_fail_count = 0
+    current_user.adult_verification_locked_until = None
+    current_user.adult_verification_provider = provider
+    current_user.adult_verification_tx_id = tx_id
+    session.add(current_user)
+    session.commit()
+    return {"ok": True, **_adult_lock_payload(current_user), "provider_profile": _verification_provider_payload(provider)}
+
+
 @router.post("/moderation/check-text")
 def moderation_check_text(payload: ModerationTextRequest):
     value = payload.text
-    try:
-        validate_exchange_text(value)
-    except HTTPException as exc:
-        return {"ok": False, "blocked": True, "reason": exc.detail, "target_type": payload.target_type}
-    return {"ok": True, "blocked": False, "reason": None, "target_type": payload.target_type}
+    findings = _moderation_text_findings(value)
+    return {
+        "ok": len(findings) == 0,
+        "blocked": len(findings) > 0,
+        "reason": findings[0]["reason"] if findings else None,
+        "findings": findings,
+        "target_type": payload.target_type,
+    }
 
 
 @router.post("/auth/login", response_model=TokenResponse)
@@ -677,8 +1288,12 @@ def login(payload: LoginRequest, request: Request, session: Session = Depends(ge
     if not verify_password(payload.password, user.password_hash):
         register_login_failure(user, session)
         raise HTTPException(status_code=401, detail="invalid credentials")
+    if user.grade != MemberGrade.ADMIN and user.member_status in {"minor_blocked", "blocked_minor", "login_blocked_minor"}:
+        raise HTTPException(status_code=403, detail="minor account blocked")
     if user.grade != MemberGrade.ADMIN and not user.identity_verified:
         raise HTTPException(status_code=403, detail="identity verification required")
+    if user.grade != MemberGrade.ADMIN and settings.reconsent_enforcement_mode == "login_block" and _user_requires_reconsent(session, user.id or 0):
+        raise HTTPException(status_code=403, detail="reconsent required before login")
     clear_login_failures(user, session)
     device_session = create_device_session(user, session, payload.device_name, request.headers.get("user-agent"), client_ip)
     if user.grade == MemberGrade.ADMIN and settings.admin_2fa_enabled and user.admin_2fa_confirmed:
@@ -758,6 +1373,8 @@ def auth_me(user: User = Depends(get_current_user), session: Session = Depends(g
         "adult_verification_fail_count": user.adult_verification_fail_count,
         "adult_verification_locked_until": user.adult_verification_locked_until.isoformat() if user.adult_verification_locked_until else None,
         "reconsent_required": _user_requires_reconsent(session, user.id or 0),
+        "consent_status": _consent_status_payload(session, user.id or 0),
+        "reconsent_enforcement_mode": settings.reconsent_enforcement_mode,
         "random_chat_profile_ready": bool(user.gender and user.age_band and user.region_code),
         "admin_2fa_confirmed": user.admin_2fa_confirmed,
         "backup_codes_remaining": backup_count,
@@ -766,6 +1383,8 @@ def auth_me(user: User = Depends(get_current_user), session: Session = Depends(g
         "last_login_at": user.last_login_at.isoformat() if user.last_login_at else "",
         "password_changed_at": user.password_changed_at.isoformat() if user.password_changed_at else "",
         "session_count": len(sessions),
+        "member_status": user.member_status,
+        "location_feature_mode": settings.location_feature_mode,
     }
 
 
@@ -992,7 +1611,20 @@ def pg_providers():
 
 @router.get("/adult-verification/providers")
 def adult_verification_providers():
-    return {"providers": [{"provider": settings.adult_verification_provider, "client_id": mask(settings.adult_verification_client_id), "configured": settings.adult_verification_client_id != "change-me", "callback_web": settings.adult_verification_callback_web}]}
+    return {
+        "providers": [{
+            "provider": settings.adult_verification_provider,
+            "provider_label": settings.adult_verification_provider_label,
+            "client_id": mask(settings.adult_verification_client_id),
+            "configured": settings.adult_verification_client_id != "change-me",
+            "callback_web": settings.adult_verification_callback_web,
+            "rollout_strategy": settings.adult_verification_rollout_strategy,
+            "prod_cutover_checklist": settings.adult_verification_prod_cutover_checklist,
+        }],
+        "minor_block_retention": {"days": settings.minor_block_retention_days, "scope": settings.minor_block_retention_scope},
+        "admin_exception": {"approval_mode": settings.admin_exception_approval_mode, "audit_required": settings.admin_exception_audit_required},
+        "ops_alerts": {"slack_enabled": settings.ops_alert_slack_enabled, "email_enabled": settings.ops_alert_email_enabled},
+    }
 
 
 @router.get("/tax/dashboard")
@@ -1008,9 +1640,51 @@ def integrations_overview():
     return {
         "security": {"argon2": True, "refresh_token": True, "backup_code_2fa": True, "ip_rate_limit": True, "db_migration": True},
         "pg": {"primary_provider": settings.pg_primary_provider, "primary_merchant_id": mask(settings.pg_primary_merchant_id), "secondary_provider": settings.pg_secondary_provider},
-        "adult_verification": {"provider": settings.adult_verification_provider, "client_id": mask(settings.adult_verification_client_id), "test_mode": settings.adult_verification_test_mode},
+        "adult_verification": {"provider": settings.adult_verification_provider, "provider_label": settings.adult_verification_provider_label, "client_id": mask(settings.adult_verification_client_id), "test_mode": settings.adult_verification_test_mode, "rollout_strategy": settings.adult_verification_rollout_strategy, "prod_cutover_checklist": settings.adult_verification_prod_cutover_checklist},
+        "policy": {"minor_block_retention_days": settings.minor_block_retention_days, "minor_block_retention_scope": settings.minor_block_retention_scope, "admin_exception_approval_mode": settings.admin_exception_approval_mode, "admin_exception_audit_required": settings.admin_exception_audit_required, "reconsent_enforcement_mode": settings.reconsent_enforcement_mode},
+        "ops_alerts": {"slack_enabled": settings.ops_alert_slack_enabled, "email_enabled": settings.ops_alert_email_enabled, "email_to": settings.ops_alert_email_to, "checklist_document_path": settings.ops_checklist_document_path},
     }
 
+
+
+
+@router.get("/policy/decisions")
+def policy_decisions():
+    return {
+        "adult_verification": {
+            "provider": settings.adult_verification_provider,
+            "rollout_strategy": settings.adult_verification_rollout_strategy,
+            "prod_cutover_checklist": settings.adult_verification_prod_cutover_checklist,
+        },
+        "minor_block": {
+            "login_allowed": False,
+            "access_allowed": False,
+            "retention_days": settings.minor_block_retention_days,
+            "retention_scope": settings.minor_block_retention_scope,
+        },
+        "admin_exception": {
+            "scope": "최상위 관리자만 예외 검토 가능",
+            "approval_mode": settings.admin_exception_approval_mode,
+            "audit_required": settings.admin_exception_audit_required,
+        },
+        "reconsent": {
+            "grace_days": settings.reconsent_grace_days,
+            "enforcement_mode": settings.reconsent_enforcement_mode,
+            "redirect_path": settings.reconsent_redirect_path,
+            "meaning": "필수 문서 버전이 바뀌었을 때 기존 동의 사용자에게 즉시 차단 대신 일정 기간 재동의 유예를 부여",
+            "post_grace_restrictions": ["글쓰기", "채팅", "주문", "문의", "프로필 수정"],
+        },
+        "ops_alerts": {
+            "slack_enabled": settings.ops_alert_slack_enabled,
+            "email_enabled": settings.ops_alert_email_enabled,
+            "email_to": settings.ops_alert_email_to,
+        },
+        "operator_disclosure": {
+            "legal_name": settings.operator_legal_name,
+            "mail_order_report_no": settings.operator_mail_order_report_no,
+            "youth_protection_officer": settings.operator_youth_protection_officer,
+        },
+    }
 
 @router.get("/sku-policy")
 def sku_policy() -> dict[str, Any]:
@@ -1026,48 +1700,263 @@ def ui_category_groups():
     return {"items": CATEGORY_GROUPS}
 
 
+@router.get("/seller/me/verification-status")
+def seller_me_verification_status(current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    profile = session.exec(select(SellerProfile).where(SellerProfile.user_id == (current_user.id or 0))).first()
+    eligible, reason = _seller_can_register_products(current_user, session)
+    return {
+        "user_id": current_user.id,
+        "grade": current_user.grade,
+        "seller_onboarding_status": current_user.seller_onboarding_status,
+        "adult_verified": current_user.adult_verified,
+        "identity_verified": current_user.identity_verified,
+        "eligible_for_product_registration": eligible,
+        "reason": reason,
+        "profile": {
+            "business_number": profile.business_number if profile else None,
+            "settlement_account_verified": profile.settlement_account_verified if profile else False,
+            "return_address": profile.return_address if profile else None,
+            "cs_contact": profile.cs_contact if profile else None,
+            "seller_contract_agreed": profile.seller_contract_agreed if profile else False,
+        },
+    }
+
+
+@router.post("/seller/verification/apply")
+def seller_verification_apply(payload: SellerVerificationRequest, SellerApprovalDecisionRequest, ProductApprovalDecisionRequest, ProductSubmitReviewRequest, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    _enforce_route_rate_limit(request, "seller_verification_apply", session)
+    _assert_can_access_adult(current_user)
+    profile = session.exec(select(SellerProfile).where(SellerProfile.user_id == (current_user.id or 0))).first()
+    submission_payload = {
+        "business_number": payload.business_number,
+        "cs_contact": payload.cs_contact,
+        "return_address": payload.return_address,
+        "settlement_bank": payload.settlement_bank,
+        "settlement_account_number": payload.settlement_account_number,
+        "settlement_account_holder": payload.settlement_account_holder,
+        "seller_contract_agreed": payload.seller_contract_agreed,
+        "business_document_url": payload.business_document_url,
+        "submitted_at": utcnow().isoformat(),
+    }
+    if not profile:
+        profile = SellerProfile(user_id=current_user.id or 0, business_number=payload.business_number, cs_contact=payload.cs_contact, return_address=payload.return_address, seller_contract_agreed=payload.seller_contract_agreed, settlement_account_verified=False)
+    else:
+        profile.business_number = payload.business_number
+        profile.cs_contact = payload.cs_contact
+        profile.return_address = payload.return_address
+        profile.seller_contract_agreed = payload.seller_contract_agreed
+    current_user.grade = MemberGrade.SELLER if current_user.grade == MemberGrade.GENERAL else current_user.grade
+    current_user.seller_onboarding_status = SellerOnboardingStatus.PENDING
+    session.add(profile)
+    session.add(current_user)
+    session.commit()
+    _save_seller_submission_payload(session, current_user.id or 0, submission_payload, status="pending")
+    write_admin_log(session, current_user, "seller_verification_apply", "seller_profile", str(current_user.id or 0), payload.approval_note, after_state=f"document={payload.business_document_url};business_number={payload.business_number}", ip=request.client.host if request.client else "127.0.0.1", device=request.headers.get("user-agent"))
+    return {"ok": True, "status": "pending_admin_review", "next_step": "관리자 승인 후 상품 등록 가능"}
+
+
+
+
+@router.get("/seller/products/mine")
+def seller_products_mine(current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    rows = session.exec(select(Product).where(Product.seller_id == (current_user.id or 0)).order_by(Product.updated_at.desc())).all()
+    return rows
+
+
+@router.get("/admin/seller-approvals")
+def admin_seller_approvals(current_user: User = Depends(require_grade(MemberGrade.ADMIN)), session: Session = Depends(get_session)):
+    rows: list[dict[str, Any]] = []
+    users = session.exec(select(User).where(User.grade.in_([MemberGrade.SELLER, MemberGrade.GENERAL]), User.seller_onboarding_status.is_not(None))).all()
+    for user in users:
+        profile = session.exec(select(SellerProfile).where(SellerProfile.user_id == (user.id or 0))).first()
+        submission = _seller_submission_payload(session, user.id or 0)
+        rows.append({
+            "user_id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "status": (user.seller_onboarding_status.value if hasattr(user.seller_onboarding_status, "value") else user.seller_onboarding_status) or "pending",
+            "business_number": profile.business_number if profile else submission.get("business_number"),
+            "settlement_account_verified": bool(profile.settlement_account_verified) if profile else False,
+            "return_address": profile.return_address if profile else submission.get("return_address"),
+            "cs_contact": profile.cs_contact if profile else submission.get("cs_contact"),
+            "seller_contract_agreed": bool(profile.seller_contract_agreed) if profile else bool(submission.get("seller_contract_agreed")),
+            "submission_complete": _seller_submission_complete(submission),
+            "submitted_at": submission.get("submitted_at"),
+        })
+    return {"items": rows, "requirements": settings.seller_approval_requirements}
+
+
+@router.get("/admin/seller-approvals/{user_id}")
+def admin_seller_approval_detail(user_id: int, current_user: User = Depends(require_grade(MemberGrade.ADMIN)), session: Session = Depends(get_session)):
+    user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="seller not found")
+    profile = session.exec(select(SellerProfile).where(SellerProfile.user_id == user_id)).first()
+    submission = _seller_submission_payload(session, user_id)
+    return {
+        "user_id": user.id, "email": user.email, "name": user.name,
+        "status": (user.seller_onboarding_status.value if hasattr(user.seller_onboarding_status, "value") else user.seller_onboarding_status) or "pending",
+        "requirements": settings.seller_approval_requirements,
+        "profile": {
+            "business_number": profile.business_number if profile else submission.get("business_number"),
+            "return_address": profile.return_address if profile else submission.get("return_address"),
+            "cs_contact": profile.cs_contact if profile else submission.get("cs_contact"),
+            "settlement_account_verified": bool(profile.settlement_account_verified) if profile else False,
+            "seller_contract_agreed": bool(profile.seller_contract_agreed) if profile else bool(submission.get("seller_contract_agreed")),
+        },
+        "submission": submission,
+    }
+
+
+@router.post("/admin/seller-approvals/{user_id}/decision")
+def admin_seller_approval_decision(user_id: int, payload: SellerApprovalDecisionRequest, request: Request, current_user: User = Depends(require_grade(MemberGrade.ADMIN)), session: Session = Depends(get_session)):
+    user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="seller not found")
+    profile = session.exec(select(SellerProfile).where(SellerProfile.user_id == user_id)).first()
+    submission = _seller_submission_payload(session, user_id)
+    decision = (payload.decision or "").strip()
+    if decision == "approved":
+        if not profile or not submission or not _seller_submission_complete(submission):
+            raise HTTPException(status_code=400, detail="seller submission incomplete")
+        profile.settlement_account_verified = True
+        user.seller_onboarding_status = SellerOnboardingStatus.ACTIVE
+    elif decision in {"hold", "pending"}:
+        user.seller_onboarding_status = SellerOnboardingStatus.PENDING
+    else:
+        user.seller_onboarding_status = SellerOnboardingStatus.PENDING
+    session.add(user)
+    if profile:
+        session.add(profile)
+    session.commit()
+    write_admin_log(session, current_user, "seller_approval_decision", "user", str(user_id), payload.note or decision, after_state=decision, ip=request.client.host if request.client else "127.0.0.1", device=request.headers.get("user-agent"))
+    return {"ok": True, "user_id": user_id, "decision": decision, "seller_onboarding_status": (user.seller_onboarding_status.value if hasattr(user.seller_onboarding_status, "value") else user.seller_onboarding_status)}
+
+
+@router.get("/admin/product-approvals")
+def admin_product_approvals(current_user: User = Depends(require_grade(MemberGrade.ADMIN)), session: Session = Depends(get_session)):
+    rows = session.exec(select(Product).order_by(Product.updated_at.desc())).all()
+    data=[]
+    for item in rows:
+        data.append({"id": item.id, "seller_id": item.seller_id, "name": item.name, "sku_code": item.sku_code, "category": item.category, "status": item.status, "price": item.price, "stock_qty": item.stock_qty, "updated_at": item.updated_at.isoformat() if item.updated_at else ""})
+    return {"items": data, "visibility_policy": settings.product_review_visibility_policy}
+
+
+@router.get("/admin/product-approvals/{product_id}")
+def admin_product_approval_detail(product_id: int, current_user: User = Depends(require_grade(MemberGrade.ADMIN)), session: Session = Depends(get_session)):
+    item = session.get(Product, product_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="product not found")
+    media = session.exec(select(ProductMedia).where(ProductMedia.product_id == product_id).order_by(ProductMedia.sort_order)).all()
+    return {"product": item, "media": media, "visibility_policy": settings.product_review_visibility_policy}
+
+
+@router.post("/admin/product-approvals/{product_id}/decision")
+def admin_product_approval_decision(product_id: int, payload: ProductApprovalDecisionRequest, request: Request, current_user: User = Depends(require_grade(MemberGrade.ADMIN)), session: Session = Depends(get_session)):
+    item = session.get(Product, product_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="product not found")
+    decision=(payload.decision or "").strip()
+    if decision == "approved":
+        item.status = "approved"
+        item.is_active = True
+    elif decision in {"hold", "pending"}:
+        item.status = "pending_review"
+        item.is_active = False
+    else:
+        item.status = "rejected"
+        item.is_active = False
+    item.updated_at = utcnow()
+    session.add(item)
+    session.commit()
+    write_admin_log(session, current_user, "product_approval_decision", "product", str(product_id), payload.note or decision, after_state=decision, ip=request.client.host if request.client else "127.0.0.1", device=request.headers.get("user-agent"))
+    return {"ok": True, "product_id": product_id, "decision": decision, "status": item.status}
+
+
+@router.post("/products/{product_id}/submit-review")
+def submit_product_review(product_id: int, payload: ProductSubmitReviewRequest, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    item = session.get(Product, product_id)
+    if not _product_can_edit_by_seller(item, current_user.id or 0):
+        raise HTTPException(status_code=403, detail="product cannot be submitted")
+    eligible, reason = _seller_can_register_products(current_user, session)
+    if not eligible:
+        raise HTTPException(status_code=403, detail=reason)
+    item.status = "pending_review"
+    item.is_active = False
+    item.updated_at = utcnow()
+    session.add(item)
+    session.commit()
+    write_admin_log(session, current_user, "product_submit_review", "product", str(product_id), payload.note, after_state="pending_review", ip=request.client.host if request.client else "127.0.0.1", device=request.headers.get("user-agent"))
+    return {"ok": True, "product_id": product_id, "status": item.status}
+
 @router.get("/products")
 def list_products(request: Request, session: Session = Depends(get_session)):
     viewer = _extract_optional_user(session, request)
-    stmt = select(Product).order_by(Product.created_at.desc())
-    rows = session.exec(stmt).all()
-    if _user_can_view_adult(viewer):
-        return rows
-    return [item for item in rows if str(getattr(item, "review_visibility", "safe")) == "safe"]
+    rows = session.exec(select(Product).order_by(Product.created_at.desc())).all()
+    visible: list[Product] = []
+    for item in rows:
+        if not _product_publicly_visible(item):
+            continue
+        if not _user_can_view_adult(viewer) and str(getattr(item, "review_visibility", "safe")) != "safe":
+            continue
+        visible.append(item)
+    return visible
 
 
 @router.post("/products")
 def upsert_product(payload: ProductUpsertRequest, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     _enforce_route_rate_limit(request, "products_upsert", session)
     _assert_can_access_adult(current_user)
+    _assert_reconsent_write_allowed(current_user, session)
+    eligible, reason = _seller_can_register_products(current_user, session)
+    if not eligible:
+        raise HTTPException(status_code=403, detail=reason)
     validate_exchange_text(payload.name)
     validate_exchange_text(payload.description or "")
     if payload.id:
         product = session.get(Product, payload.id)
         if not product:
             raise HTTPException(status_code=404, detail="product not found")
+        if not _product_can_edit_by_seller(product, current_user.id or 0):
+            raise HTTPException(status_code=403, detail="approved product cannot be edited here")
     else:
-        product = Product(seller_id=payload.seller_id, name=payload.name, sku_code=payload.sku_code, category=payload.category)
+        product = Product(seller_id=current_user.id or 0, name=payload.name, sku_code=payload.sku_code, category=payload.category, status="draft", is_active=False)
     for field, value in payload.model_dump().items():
-        if field != "id":
+        if field not in {"id", "seller_id", "status"}:
             setattr(product, field, value)
+    product.seller_id = current_user.id or 0
+    if not payload.id:
+        product.status = "draft"
+        product.is_active = False
     product.updated_at = utcnow()
     session.add(product)
     session.commit()
     session.refresh(product)
+    if payload.image_urls:
+        existing = session.exec(select(ProductMedia).where(ProductMedia.product_id == (product.id or 0)).order_by(ProductMedia.sort_order)).all()
+        if not existing:
+            for idx, url in enumerate(payload.image_urls[:5], start=1):
+                if not url:
+                    continue
+                media = ProductMedia(product_id=product.id or 0, file_name=f"image_{idx}.jpg", file_url=url, media_type="image", sort_order=idx)
+                session.add(media)
+            session.commit()
     return product
 
 
 @router.post("/products/{product_id}/delete")
-def delete_product(product_id: int, session: Session = Depends(get_session)):
+def delete_product(product_id: int, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     product = session.get(Product, product_id)
     if not product:
         raise HTTPException(status_code=404, detail="product not found")
+    if not _can_manage_product(current_user, product):
+        raise HTTPException(status_code=403, detail="author or admin only")
     medias = session.exec(select(ProductMedia).where(ProductMedia.product_id == product_id)).all()
     for media in medias:
         session.delete(media)
     session.delete(product)
     session.commit()
+    write_admin_log(session, current_user, "product_delete", "product", str(product_id), "상품 삭제", ip=request.client.host if request.client else "127.0.0.1", device=request.headers.get("user-agent"))
     return {"ok": True}
 
 
@@ -1077,7 +1966,12 @@ def list_product_media(product_id: int, session: Session = Depends(get_session))
 
 
 @router.post("/products/media")
-def attach_product_media(payload: ProductMediaAttachRequest, session: Session = Depends(get_session)):
+def attach_product_media(payload: ProductMediaAttachRequest, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    product = session.get(Product, payload.product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="product not found")
+    if not _can_manage_product(current_user, product):
+        raise HTTPException(status_code=403, detail="seller/admin only")
     media = ProductMedia(**payload.model_dump())
     session.add(media)
     session.commit()
@@ -1087,6 +1981,7 @@ def attach_product_media(payload: ProductMediaAttachRequest, session: Session = 
         product.thumbnail_url = payload.file_url
         session.add(product)
         session.commit()
+    write_admin_log(session, current_user, "product_media_attach", "product", str(payload.product_id), payload.file_name, ip=request.client.host if request.client else "127.0.0.1", device=request.headers.get("user-agent"))
     return media
 
 
@@ -1114,8 +2009,10 @@ def list_community_posts(request: Request, session: Session = Depends(get_sessio
 @router.post("/community/posts")
 def create_community_post(payload: CommunityPostCreate, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     _enforce_route_rate_limit(request, "community_posts_create", session)
+    _assert_reconsent_write_allowed(current_user, session)
     validate_exchange_text(payload.title)
     validate_exchange_text(payload.body)
+    _validate_community_information_post(payload.category, payload.title, payload.body)
     _ensure_post_visibility(current_user, payload.visibility)
     post = CommunityPost(author_id=current_user.id or 0, author_grade=_role_name(current_user.grade), category=payload.category, title=payload.title, body=payload.body, visibility=payload.visibility, purpose=payload.purpose, allow_dm=payload.allow_dm, status="published", created_at=utcnow(), updated_at=utcnow())
     session.add(post)
@@ -1140,6 +2037,7 @@ def list_threads(current_user: User = Depends(get_current_user), session: Sessio
 @router.post("/community/threads")
 def create_thread(payload: DirectMessageThreadCreate, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     _enforce_route_rate_limit(request, "community_threads_create", session)
+    _assert_reconsent_write_allowed(current_user, session)
     if payload.participant_b_id == (current_user.id or 0):
         raise HTTPException(status_code=400, detail="cannot message self")
     validate_exchange_text(payload.subject)
@@ -1171,6 +2069,7 @@ def list_messages(thread_id: int, current_user: User = Depends(get_current_user)
 @router.post("/community/messages")
 def create_message(payload: DirectMessageCreate, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     _enforce_route_rate_limit(request, "community_messages_create", session)
+    _assert_reconsent_write_allowed(current_user, session)
     thread = session.get(DirectMessageThread, payload.thread_id)
     if not thread:
         raise HTTPException(status_code=404, detail="thread not found")
@@ -1220,6 +2119,7 @@ def delete_message(message_id: int, payload: DirectMessageDeleteRequest, current
 @router.post("/contents")
 def upsert_content(payload: ContentUpsertRequest, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     _enforce_route_rate_limit(request, "contents_upsert", session)
+    _assert_reconsent_write_allowed(current_user, session)
     if payload.visibility != "safe":
         _assert_can_access_adult(current_user)
     validate_exchange_text(payload.title)
@@ -1228,11 +2128,14 @@ def upsert_content(payload: ContentUpsertRequest, request: Request, current_user
         item = session.get(ContentItem, payload.id)
         if not item:
             raise HTTPException(status_code=404, detail="content not found")
+        if not _can_manage_content(current_user, item.author_id):
+            raise HTTPException(status_code=403, detail="author or admin only")
     else:
-        item = ContentItem(author_id=payload.author_id, title=payload.title)
+        item = ContentItem(author_id=current_user.id or 0, title=payload.title)
     for field, value in payload.model_dump().items():
-        if field != "id":
+        if field not in {"id", "author_id"}:
             setattr(item, field, value)
+    item.author_id = current_user.id or item.author_id
     item.updated_at = utcnow()
     session.add(item)
     session.commit()
@@ -1241,17 +2144,21 @@ def upsert_content(payload: ContentUpsertRequest, request: Request, current_user
 
 
 @router.post("/contents/{content_id}/delete")
-def delete_content(content_id: int, session: Session = Depends(get_session)):
+def delete_content(content_id: int, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     item = session.get(ContentItem, content_id)
     if not item:
         raise HTTPException(status_code=404, detail="content not found")
+    if not _can_manage_content(current_user, item.author_id):
+        raise HTTPException(status_code=403, detail="author or admin only")
     session.delete(item)
     session.commit()
+    write_admin_log(session, current_user, "content_delete", "content", str(content_id), "콘텐츠 삭제", ip=request.client.host if request.client else "127.0.0.1", device=request.headers.get("user-agent"))
     return {"ok": True}
 
 
 @router.post("/upload")
-async def upload_media(file: UploadFile = File(...)):
+async def upload_media(request: Request, file: UploadFile = File(...), current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    _assert_reconsent_write_allowed(current_user, session)
     suffix, media_type = _ensure_upload_file(file)
     safe_name = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}{suffix}"
     upload_dir = Path(settings.uploads_dir)
@@ -1260,8 +2167,11 @@ async def upload_media(file: UploadFile = File(...)):
     content = await file.read()
     if len(content) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=400, detail=f"file too large: {len(content)} bytes")
+    scan_result = _scan_upload_content(file.filename or safe_name, file.content_type, content)
     out_path.write_bytes(content)
-    return {"file_name": file.filename, "saved_name": safe_name, "file_url": f"/media/{safe_name}", "media_type": media_type, "size": len(content)}
+    presigned = _presigned_upload_payload(safe_name, media_type)
+    write_admin_log(session, current_user, 'upload_media', 'upload', safe_name, file.filename or safe_name, after_state=file.content_type or media_type, ip=request.client.host if request.client else '127.0.0.1', device=request.headers.get('user-agent'))
+    return {"file_name": file.filename, "saved_name": safe_name, "file_url": f"/media/{safe_name}", "public_url": presigned["public_url"], "media_type": media_type, "size": len(content), "content_type": file.content_type, "scan": scan_result, "presigned": presigned}
 
 
 @router.post("/reports")
@@ -1276,9 +2186,11 @@ def create_report(payload: SimpleReportCreate, request: Request, current_user: U
 
 
 @router.get("/orders")
-def list_orders(session: Session = Depends(get_session)):
+def list_orders(current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     rows = []
     for order in session.exec(select(Order)).all():
+        if not _can_view_order(current_user, order):
+            continue
         items = session.exec(select(OrderItem).where(OrderItem.order_id == order.id)).all()
         rows.append(
             {
@@ -1300,6 +2212,7 @@ def list_orders(session: Session = Depends(get_session)):
 @router.post("/orders")
 def create_order(payload: OrderCreateRequest, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     _enforce_route_rate_limit(request, "orders_create", session)
+    _assert_reconsent_write_allowed(current_user, session)
     _assert_can_access_adult(current_user)
     product = session.get(Product, payload.product_id)
     if not product:
@@ -1313,14 +2226,14 @@ def create_order(payload: OrderCreateRequest, request: Request, current_user: Us
         order_no=f"ORD-{utcnow().strftime('%Y%m%d%H%M%S')}",
         member_id=current_user.id or 0,
         seller_id=product.seller_id,
-        order_status="paid",
+        order_status="payment_pending",
         payment_method=payload.payment_method,
-        payment_pg=payload.payment_pg,
-        approved_at=utcnow(),
+        payment_pg=settings.pg_primary_provider,
+        approved_at=None,
         supply_amount=supply_amount,
         vat_amount=vat_amount,
         total_amount=total_amount,
-        fee_rate=payload.fee_rate,
+        fee_rate=0.08,
         settlement_status="open",
     )
     session.add(order)
@@ -1334,23 +2247,25 @@ def create_order(payload: OrderCreateRequest, request: Request, current_user: Us
         unit_price=unit_price,
         supply_amount=supply_amount,
         vat_amount=vat_amount,
-        fee_rate=payload.fee_rate,
+        fee_rate=0.08,
         coupon_burden_owner=payload.coupon_burden_owner,
         refund_status=None,
     )
     session.add(item)
     session.commit()
     write_admin_log(session, current_user, "order_create", "order", str(order.id), "스타터 주문 생성", after_state=f"total={total_amount}")
-    return {"ok": True, "order_id": order.id, "order_no": order.order_no, "total_amount": total_amount}
+    return {"ok": True, "order_id": order.id, "order_no": order.order_no, "total_amount": total_amount, "payment_provider": settings.pg_primary_provider, "payment_init": {"merchant_uid": order.order_no, "store_id_configured": settings.pg_portone_store_id != "change-me-pg-store-id", "channel_key_configured": settings.pg_portone_channel_key != "change-me-pg-channel-key", "webhook_path": settings.pg_webhook_path}}
 
 
 @router.get("/settlements/preview")
-def settlement_preview(session: Session = Depends(get_session)):
+def settlement_preview(current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     lines = []
     for item in session.exec(select(OrderItem)).all():
         order = session.get(Order, item.order_id)
         product = session.get(Product, item.product_id)
         if not order:
+            continue
+        if not (_is_admin_like(current_user) or (current_user.id or 0) == order.seller_id):
             continue
         platform_fee = int(round((order.total_amount or 0) * float(item.fee_rate or 0)))
         pg_fee = int(round((order.total_amount or 0) * 0.03))
@@ -1368,12 +2283,14 @@ def settlement_preview(session: Session = Depends(get_session)):
                 "coupon_burden_owner": item.coupon_burden_owner,
             }
         )
-    return {"items": lines, "summary": {"count": len(lines), "gross_amount": sum(int(x["seller_receivable"]) + int(x["platform_fee"]) + int(x["pg_fee"]) for x in lines), "seller_receivable_total": sum(int(x["seller_receivable"]) for x in lines)}}
+    return {"items": lines, "summary": {"count": len(lines), "gross_amount": sum(int(x["seller_receivable"]) + int(x["platform_fee"]) + int(x["pg_fee"]) for x in lines), "seller_receivable_total": sum(int(x["seller_receivable"]) for x in lines)}, "policy": {"settlement_cycle": settings.settlement_cycle_policy, "tax_invoice_direct": settings.tax_invoice_responsibility_direct, "tax_invoice_marketplace": settings.tax_invoice_responsibility_marketplace, "cash_receipt_direct": settings.cash_receipt_responsibility_direct, "cash_receipt_marketplace": settings.cash_receipt_responsibility_marketplace}}
 
 
 @router.get("/reports")
-def list_reports(session: Session = Depends(get_session)):
+def list_reports(current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    _require_moderator(current_user)
     rows = []
+    rule = _get_or_create_random_rule(session)
     for report in session.exec(select(ModerationReport)).all():
         rows.append(
             {
@@ -1394,6 +2311,7 @@ def list_reports(session: Session = Depends(get_session)):
 
 @router.post("/reports/{report_id}/resolve")
 def resolve_report(report_id: int, payload: ReportResolveRequest, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    _require_moderator(current_user)
     report = session.get(ModerationReport, report_id)
     if not report:
         raise HTTPException(status_code=404, detail="report not found")
@@ -1414,7 +2332,8 @@ def resolve_report(report_id: int, payload: ReportResolveRequest, current_user: 
 
 
 @router.get("/admin-action-logs")
-def list_admin_action_logs(session: Session = Depends(get_session)):
+def list_admin_action_logs(current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    _require_admin(current_user)
     rows = []
     for row in session.exec(select(AdminActionLog)).all():
         rows.append(
@@ -1455,7 +2374,8 @@ def legal_document_files():
 
 
 @router.get("/tax/month-close.csv")
-def tax_month_close_csv(session: Session = Depends(get_session)):
+def tax_month_close_csv(current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    _require_admin(current_user)
     orders = session.exec(select(Order)).all()
     output = io.StringIO()
     writer = csv.writer(output)
@@ -1466,7 +2386,8 @@ def tax_month_close_csv(session: Session = Depends(get_session)):
 
 
 @router.get("/tax/month-close.pdf")
-def tax_month_close_pdf(session: Session = Depends(get_session)):
+def tax_month_close_pdf(current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    _require_admin(current_user)
     orders = session.exec(select(Order)).all()
     lines = ["Adult Commerce Platform - Month Close", ""]
     for o in orders:
