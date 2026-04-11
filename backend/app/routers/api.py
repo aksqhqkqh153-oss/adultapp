@@ -197,7 +197,7 @@ def _community_feature_flags() -> dict[str, Any]:
         "community_image_upload_enabled": settings.community_image_upload_enabled,
         "external_contact_exchange_allowed": settings.community_external_contact_exchange_allowed,
     }
-SAFE_COMMUNITY_BLOCKLIST = ["만남", "조건만남", "오프라인", "카카오톡", "카톡", "텔레그램", "텔레", "라인", "whatsapp", "wechat", "숙소", "010-"]
+SAFE_COMMUNITY_BLOCKLIST = ["만남", "조건만남", "오프라인", "카카오톡", "카톡", "텔레그램", "텔레", "라인", "whatsapp", "wechat", "숙소", "010-", "금전거래", "조건제안", "오픈채팅"]
 COMMUNITY_ALLOWED_CATEGORIES = {"안전수칙", "소재/보관/세척/사용 가이드", "익명포장/환불/배송 후기", "제품 비교", "브랜드 후기", "운영공지", "FAQ", "정보공유"}
 COMMUNITY_BANNED_PATTERNS = [
     ("external_contact", re.compile(r"(카톡|카카오톡|오픈채팅|텔레|텔레그램|라인|디스코드|인스타|wechat|whatsapp|open\.kakao|t\.me)", re.IGNORECASE), "외부 연락처 유도 금지"),
@@ -205,6 +205,7 @@ COMMUNITY_BANNED_PATTERNS = [
     ("sexual_solicitation", re.compile(r"(역할극|플레이\s?제안|인증샷|노출|벗은|벗어|몸\s?사진|사진\s?교환|영상\s?교환|후기\s?인증)", re.IGNORECASE), "성적 유도/사진 교환 금지"),
     ("review_like_solicitation", re.compile(r"(후기처럼|리뷰처럼|사용후기.*연락|만족하면.*개인연락|구매후.*개인문의)", re.IGNORECASE), "후기 위장 유도 금지"),
     ("repeated_private_contact", re.compile(r"(계속\s?개인(연락|톡)|개인으로\s?넘어가|밖에서\s?얘기|1:1로\s?따로)", re.IGNORECASE), "반복적 사적 접촉 유도 금지"),
+    ("paid_matching", re.compile(r"(돈\s?줄게|입금|송금|페이|수고비|조건\s?제안|대가\s?지급|금전\s?거래.*만남)", re.IGNORECASE), "금전 거래를 통한 매칭/주선 금지"),
 ]
 PHONE_RE = re.compile(r"01[016789][-\s]?\d{3,4}[-\s]?\d{4}")
 HANDLE_RE = re.compile(r"(?:@|https?://)(?:t\.me|open\.kakao|instagram\.com|line\.me|discord\.gg)", re.IGNORECASE)
@@ -3544,4 +3545,38 @@ def admin_random_report_manage(filter_value: str | None = None, current_user: Us
         "sla_hours": rule.admin_review_sla_hours,
         "columns": ["누적신고점수", "누적신고수", "고유ID", "신고내역", "최근신고받은일자"],
         "items": items,
+    }
+
+
+@router.get("/seller/required-fields")
+def seller_required_fields() -> dict[str, Any]:
+    return {
+        "required_fields": [
+            "company_name",
+            "representative_name",
+            "business_number",
+            "ecommerce_number",
+            "business_address",
+            "return_address",
+            "cs_contact",
+            "youth_protection_officer",
+            "settlement_bank",
+            "settlement_account_number",
+            "settlement_account_holder",
+            "business_document_url",
+        ],
+        "note": "판매자별 사업자/통신판매/CS/정산 정보 입력이 완료되어야 신청 접수 기준을 충족합니다.",
+    }
+
+
+@router.get("/policy/group-room-summary")
+def group_room_summary() -> dict[str, Any]:
+    return {
+        "adult_verified_required": True,
+        "grace_period_required": False,
+        "report_history_blocks_creation": False,
+        "suspension_blocks_creation": True,
+        "blocked_transfers": ["photo", "video", "file", "external_contact", "offline_meeting", "paid_matching"],
+        "allowed_internal_shares": ["home_feed", "home_product", "saved_feed", "saved_product", "shop_list", "orders", "cart"],
+        "notice": "단체 톡방은 정보교류/고민상담용으로만 운영하며 사람 찾기/만남/주선은 금지합니다.",
     }

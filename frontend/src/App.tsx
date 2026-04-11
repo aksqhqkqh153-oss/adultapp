@@ -229,9 +229,14 @@ type AuthSummary = {
 };
 
 type SellerVerificationState = {
+  companyName: string;
+  representativeName: string;
   businessNumber: string;
+  ecommerceNumber: string;
+  businessAddress: string;
   csContact: string;
   returnAddress: string;
+  youthProtectionOfficer: string;
   businessDocumentUrl: string;
   settlementBank: string;
   settlementAccountNumber: string;
@@ -509,6 +514,68 @@ const safeCommunityIdeas = [
   '후기형 짧은 댓글 토론',
   '운영진 진행형 AMA',
   '주간 주제 토크방',
+];
+
+const groupRoomNoticeItems = [
+  '사람 찾기/만남/주선 금지',
+  '외부 연락처 교환 금지',
+  '사진/영상/파일 전송 금지',
+  '금전 거래를 통한 매칭 금지',
+  '신고 접수 시 관리자 대화기록 확인 가능',
+];
+
+const internalShareSources = [
+  '홈 피드',
+  '홈 상품',
+  '홈 보관함',
+  '쇼핑 목록',
+  '쇼핑 주문',
+  '쇼핑 바구니',
+];
+
+const sellerRequiredFields = [
+  '상호/법인명',
+  '대표자명',
+  '사업자등록번호',
+  '통신판매업 신고번호',
+  '사업장 주소',
+  '반품 주소',
+  'CS 연락처',
+  '청소년보호책임자',
+  '정산 은행/계좌/예금주',
+  '사업자 등록 인증 자료',
+];
+
+const skuPolicySeed = [
+  { category: '위생/보관', grade: '허용', note: '보관함, 세척도구, 보호파우치, 커버류 중심으로 시작' },
+  { category: '바디/케어', grade: '허용', note: '일반 케어/마사지/관리 용품 중심' },
+  { category: '입문 액세서리', grade: '보류', note: '표현 수위와 외형을 검수 후 승인' },
+  { category: '역할/취향 소품', grade: '보류', note: '노골적 표현, 폭력 오인, 신체손상 우려 요소는 별도 검수' },
+  { category: '촬영/노출 유도 상품', grade: '금지', note: '사진/영상 촬영 유도, 공개 노출 목적 상품은 금지' },
+  { category: '대여/숙박/현장서비스', grade: '금지', note: '오프라인 만남·장소·서비스 연결성 높은 품목은 금지' },
+  { category: '의료효능 오인 상품', grade: '금지', note: '치료·효능·질병 개선을 표방하는 표현 금지' },
+  { category: '미성년 오인/교복/연령 연상 콘셉트', grade: '금지', note: '미성년 연상 요소는 금지' },
+];
+
+const premiumSlaSeed = [
+  { title: '익명포장 보장', detail: '외부 포장에 상품명·브랜드명·민감 키워드 미기재, 송장 품목명 중립화' },
+  { title: '빠른 출고', detail: '영업일 기준 당일 또는 익영업일 출고 가능 판매자만 적용' },
+  { title: '재포장/보호포장', detail: '파손방지 내포장, 외부 충격 완화재, 이중 포장 기준 문서화' },
+  { title: '프리미엄 CS', detail: '운영시간 내 4시간 이내 1차 응답, 환불/교환 이슈 우선 처리' },
+];
+
+const storeSafeMetadataGuide = [
+  '앱 설명은 성인용품 커머스·정보교류 중심으로 작성',
+  '매칭/만남/파트너 찾기/직접 연결 표현 금지',
+  '스크린샷은 쇼핑, 주문, 가이드, 신고/차단 화면 위주로 구성',
+  '단체 톡방도 정보교류/고민상담용 화면만 노출',
+  '사진·영상·외부연락 유도 표현은 메타데이터에서 제외',
+];
+
+const pgSubmissionReadiness = [
+  '현재 프론트/백엔드 골격은 신청 접수 설명용 데모 수준으로 가능',
+  '실운영 신청 전 webhook 서명 검증, 취소/환불 상태머신, 정산 기준 문서 고정 필요',
+  '가맹점/업종 심사 전 금지상품 SKU 정책, 환불정책, 익명포장 SLA 문서 첨부 권장',
 ];
 const dmRuleNoticeItems = [
   "오프라인 만남 제안 금지",
@@ -1259,6 +1326,10 @@ export default function App() {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem("adultapp_adult_verified") === "1";
   });
+  const [groupRoomSuspendedUntil, setGroupRoomSuspendedUntil] = useState(() => {
+    if (typeof window === "undefined") return 0;
+    return Number(window.localStorage.getItem("adultapp_group_room_suspended_until") ?? "0");
+  });
   const [adultGateView, setAdultGateView] = useState<AdultGateView>("intro");
   const [adultFailCount, setAdultFailCount] = useState(() => {
     if (typeof window === "undefined") return 0;
@@ -1297,7 +1368,7 @@ export default function App() {
     try { return { gender: "", ageBand: "", regionCode: "", interests: [], marketingOptIn: false, ...JSON.parse(raw) }; } catch { return { gender: "", ageBand: "", regionCode: "", interests: [], marketingOptIn: false }; }
   });
   const [sellerVerification, setSellerVerification] = useState<SellerVerificationState>(() => {
-    const fallback = { businessNumber: "", csContact: "", returnAddress: "", businessDocumentUrl: "", settlementBank: "", settlementAccountNumber: "", settlementAccountHolder: "", status: "draft" as const };
+    const fallback = { companyName: "", representativeName: "", businessNumber: "", ecommerceNumber: "", businessAddress: "", csContact: "", returnAddress: "", youthProtectionOfficer: "", businessDocumentUrl: "", settlementBank: "", settlementAccountNumber: "", settlementAccountHolder: "", status: "draft" as const };
     if (typeof window === "undefined") return fallback;
     const raw = window.localStorage.getItem("adultapp_seller_verification");
     if (!raw) return fallback;
@@ -1508,6 +1579,11 @@ export default function App() {
   }, [savedProductIds]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_group_room_suspended_until", String(groupRoomSuspendedUntil));
+  }, [groupRoomSuspendedUntil]);
+
+  useEffect(() => {
     setRandomRooms((prev) => prev.map((room) => {
       if (room.kind !== "random_1to1" || room.status === "ended" || !room.expiresAt) return room;
       if (room.expiresAt > randomNow) return room;
@@ -1530,6 +1606,7 @@ export default function App() {
   };
 
   const activeRandomRoom = useMemo(() => randomRooms.find((room) => room.id === activeRandomRoomId) ?? null, [activeRandomRoomId, randomRooms]);
+  const groupRoomSuspendedRemainMinutes = groupRoomSuspendedUntil > Date.now() ? Math.ceil((groupRoomSuspendedUntil - Date.now()) / 60000) : 0;
 
   const visibleRandomMatchRooms = useMemo(() => randomRooms
     .filter((room) => room.kind === "random_1to1")
@@ -1678,7 +1755,20 @@ export default function App() {
   const randomProfileMissing = [!demoProfile.gender ? "성별" : null, !demoProfile.ageBand ? "연령대" : null, !demoProfile.regionCode ? "지역" : null].filter(Boolean) as string[];
   const randomProfileReady = randomProfileMissing.length === 0;
   const sellerApprovalReady = isAdmin || sellerVerification.status === "approved";
-  const sellerApplicationComplete = Boolean(sellerVerification.businessNumber.trim() && sellerVerification.csContact.trim() && sellerVerification.returnAddress.trim() && sellerVerification.businessDocumentUrl.trim() && sellerVerification.settlementBank.trim() && sellerVerification.settlementAccountNumber.trim() && sellerVerification.settlementAccountHolder.trim());
+  const sellerApplicationComplete = Boolean(
+    sellerVerification.companyName.trim()
+    && sellerVerification.representativeName.trim()
+    && sellerVerification.businessNumber.trim()
+    && sellerVerification.ecommerceNumber.trim()
+    && sellerVerification.businessAddress.trim()
+    && sellerVerification.csContact.trim()
+    && sellerVerification.returnAddress.trim()
+    && sellerVerification.youthProtectionOfficer.trim()
+    && sellerVerification.businessDocumentUrl.trim()
+    && sellerVerification.settlementBank.trim()
+    && sellerVerification.settlementAccountNumber.trim()
+    && sellerVerification.settlementAccountHolder.trim()
+  );
   const productDraftReady = Boolean(productRegistrationDraft.category && productRegistrationDraft.name.trim() && productRegistrationDraft.description.trim() && productRegistrationDraft.price.trim() && productRegistrationDraft.stockQty.trim() && productRegistrationDraft.skuCode.trim() && productRegistrationDraft.imageUrls.filter(Boolean).length > 0);
   const consentRecordsPreview = [
     { consent_type: "terms_of_service", agreed: signupConsents.terms, required: true, version: consentVersionMap.terms },
@@ -1761,9 +1851,14 @@ export default function App() {
     if (!sellerApplicationComplete) return;
     try {
       await postJson('/seller/verification/apply', {
+        company_name: sellerVerification.companyName,
+        representative_name: sellerVerification.representativeName,
         business_number: sellerVerification.businessNumber,
+        ecommerce_number: sellerVerification.ecommerceNumber,
+        business_address: sellerVerification.businessAddress,
         cs_contact: sellerVerification.csContact,
         return_address: sellerVerification.returnAddress,
+        youth_protection_officer: sellerVerification.youthProtectionOfficer,
         settlement_bank: sellerVerification.settlementBank,
         settlement_account_number: sellerVerification.settlementAccountNumber,
         settlement_account_holder: sellerVerification.settlementAccountHolder,
@@ -2007,6 +2102,10 @@ export default function App() {
     if (!adultVerified) {
       window.alert("성인인증 완료 회원만 단체 톡방을 개설할 수 있습니다.");
       setAdultPromptOpen(true);
+      return;
+    }
+    if (groupRoomSuspendedUntil > Date.now()) {
+      window.alert(`현재 계정은 신고/제재 반영으로 ${new Date(groupRoomSuspendedUntil).toLocaleString()}까지 단체 톡방 개설이 제한됩니다.`);
       return;
     }
     const parsedMax = Math.max(2, Math.min(20, Number(newRoomMaxPeople) || 8));
@@ -2673,9 +2772,14 @@ export default function App() {
                 <div className="legacy-box compact">
                   <h3>사업자 인증 신청</h3>
                   <div className="profile-form-grid">
+                    <label><span>상호/법인명</span><input value={sellerVerification.companyName} onChange={(e) => setSellerVerification((prev) => ({ ...prev, companyName: e.target.value }))} placeholder="상호 또는 법인명" /></label>
+                    <label><span>대표자명</span><input value={sellerVerification.representativeName} onChange={(e) => setSellerVerification((prev) => ({ ...prev, representativeName: e.target.value }))} placeholder="대표자명" /></label>
                     <label><span>사업자등록번호</span><input value={sellerVerification.businessNumber} onChange={(e) => setSellerVerification((prev) => ({ ...prev, businessNumber: e.target.value }))} placeholder="123-45-67890" /></label>
+                    <label><span>통신판매업 신고번호</span><input value={sellerVerification.ecommerceNumber} onChange={(e) => setSellerVerification((prev) => ({ ...prev, ecommerceNumber: e.target.value }))} placeholder="제 2026-서울-0000호" /></label>
+                    <label className="wide"><span>사업장 주소</span><input value={sellerVerification.businessAddress} onChange={(e) => setSellerVerification((prev) => ({ ...prev, businessAddress: e.target.value }))} placeholder="사업장 주소" /></label>
                     <label><span>CS 연락처</span><input value={sellerVerification.csContact} onChange={(e) => setSellerVerification((prev) => ({ ...prev, csContact: e.target.value }))} placeholder="010-0000-0000" /></label>
                     <label className="wide"><span>반품 주소</span><input value={sellerVerification.returnAddress} onChange={(e) => setSellerVerification((prev) => ({ ...prev, returnAddress: e.target.value }))} placeholder="반품 수령 주소" /></label>
+                    <label><span>청소년보호책임자</span><input value={sellerVerification.youthProtectionOfficer} onChange={(e) => setSellerVerification((prev) => ({ ...prev, youthProtectionOfficer: e.target.value }))} placeholder="담당자명" /></label>
                     <label><span>정산 은행</span><input value={sellerVerification.settlementBank} onChange={(e) => setSellerVerification((prev) => ({ ...prev, settlementBank: e.target.value }))} placeholder="은행명" /></label>
                     <label><span>정산 계좌번호</span><input value={sellerVerification.settlementAccountNumber} onChange={(e) => setSellerVerification((prev) => ({ ...prev, settlementAccountNumber: e.target.value }))} placeholder="계좌번호" /></label>
                     <label><span>예금주명</span><input value={sellerVerification.settlementAccountHolder} onChange={(e) => setSellerVerification((prev) => ({ ...prev, settlementAccountHolder: e.target.value }))} placeholder="예금주명" /></label>
@@ -2715,6 +2819,24 @@ export default function App() {
                       </div>
                     ))}
                     {!sellerProducts.length ? <p className="muted-mini">등록된 내 상품이 없습니다.</p> : null}
+                  </div>
+                </div>
+                <div className="legacy-box compact">
+                  <h3>SKU 정책 뼈대</h3>
+                  <div className="consent-record-list">
+                    {skuPolicySeed.map((item) => <div key={item.category} className="simple-list-row multi-line"><div><b>{item.category}</b><span>{item.note}</span></div><div><span>{item.grade}</span></div></div>)}
+                  </div>
+                </div>
+                <div className="legacy-box compact">
+                  <h3>프리미엄 배송 SLA 기준</h3>
+                  <div className="consent-record-list">
+                    {premiumSlaSeed.map((item) => <div key={item.title} className="simple-list-row multi-line"><div><b>{item.title}</b><span>{item.detail}</span></div></div>)}
+                  </div>
+                </div>
+                <div className="legacy-box compact">
+                  <h3>스토어 제출용 보수 메타데이터 가이드</h3>
+                  <div className="consent-record-list">
+                    {storeSafeMetadataGuide.map((item) => <div key={item} className="simple-list-row"><b>SAFE</b><span>{item}</span></div>)}
                   </div>
                 </div>
                 <div className="legacy-box compact">
@@ -2771,7 +2893,11 @@ export default function App() {
                 </div>
                 <div className="legacy-box compact">
                   <h3>단체 톡방</h3>
-                  <p>성인인증 완료 회원은 자유롭게 주제형 단체 톡방을 개설할 수 있습니다. 단, 이 공간은 정보 교류와 고민상담용이며 사람 찾기, 만남, 주선은 허용하지 않습니다. 방 제목과 최근 메시지는 자동 필터링되고, 사진/영상/외부 연락처/오프라인 제안은 차단 대상으로 유지합니다.</p>
+                  <p>성인인증 완료 회원은 가입 유예기간 없이 단체 톡방을 자유롭게 개설할 수 있습니다. 단, 신고 누적으로 정지기간이 반영된 계정은 그 기간 동안 개설이 제한됩니다. 이 공간은 정보 교류와 고민상담용이며 사람 찾기, 만남, 주선은 허용하지 않습니다.</p>
+                  <div className="consent-record-list compact-list">
+                    {groupRoomNoticeItems.map((item) => <div key={item} className="simple-list-row"><b>안내</b><span>{item}</span></div>)}
+                  </div>
+                  <div className="legacy-box compact"><h3>앱 내부 공유 허용</h3><p>사진/영상/파일 전송은 막되, 앱 내부의 홈 피드·상품·보관함·쇼핑 목록·주문·바구니 항목은 채팅방으로 공유해 불러올 수 있게 유지합니다.</p><div className="copy-action-row wrap-row">{internalShareSources.map((item) => <span key={item} className="question-profile-chip">{item}</span>)}</div></div>
                   <div className="random-room-toolbar grouped-room-toolbar">
                     <select className="random-room-select" value={randomRoomCategory} onChange={(e) => setRandomRoomCategory(e.target.value as RandomRoomCategory)}>
                       {randomRoomCategories.map((category) => <option key={category} value={category}>{category}</option>)}
@@ -2790,9 +2916,26 @@ export default function App() {
                           <b>{room.currentPeople}/{room.maxPeople}</b>
                         </div>
                         <p>{room.latestMessage}{room.password ? " · 비밀번호 있음" : ""}{room.anonymous ? " · 익명방" : ""}</p>
+                        <div className="copy-action-row wrap-row">
+                          <button type="button" className="ghost-btn" onClick={() => openRandomRoom(room.id)}>입장</button>
+                          <button type="button" className="ghost-btn">앱내 공유</button>
+                        </div>
                       </article>
                     ))}
                   </div>
+                  {activeRandomRoom ? (
+                    <div className="legacy-box compact">
+                      <div className="split-row"><h3>{activeRandomRoom.title}</h3><span>{activeRandomRoom.category}</span></div>
+                      <p>이 방은 정보교류/고민상담용입니다. 사람 찾기, 만남, 주선은 금지되며 사진/영상/파일 전송은 차단됩니다.</p>
+                      <div className="copy-action-row wrap-row">
+                        {internalShareSources.map((item) => <button key={item} type="button" className="ghost-btn">{item} 공유</button>)}
+                      </div>
+                      <div className="copy-action-row wrap-row">
+                        <button type="button" className="ghost-btn" onClick={() => reportRandomRoom(activeRandomRoom)}>신고</button>
+                        <button type="button" className="ghost-btn" onClick={leaveRandomRoom}>나가기</button>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             ) : (
@@ -3084,7 +3227,7 @@ export default function App() {
               <strong>단체 채팅방 개설</strong>
               <span className="modal-spacer" />
             </div>
-            <div className="legacy-box compact"><p>성인인증 완료 회원만 개설할 수 있습니다. 이 공간은 주제형 정보교류/고민상담용이며 사람 찾기, 만남, 주선은 허용하지 않습니다.</p></div>
+            <div className="legacy-box compact"><p>성인인증 완료 회원만 개설할 수 있습니다. 이 공간은 주제형 정보교류/고민상담용이며 사람 찾기, 만남, 주선은 허용하지 않습니다. 사진/영상/파일 전송은 막고, 앱 내부 항목만 공유할 수 있습니다.</p>{groupRoomSuspendedRemainMinutes > 0 ? <p>현재 계정은 신고/제재 반영으로 {groupRoomSuspendedRemainMinutes}분 동안 개설이 제한됩니다.</p> : null}</div>
             <div className="modal-form-grid modal-form-grid-top">
               <select value={newRoomCategory} onChange={(e) => setNewRoomCategory(e.target.value as Exclude<RandomRoomCategory, "전체">)}>
                 {randomRoomCategories.filter((item) => item !== "전체").map((item) => <option key={item} value={item}>{item}</option>)}
