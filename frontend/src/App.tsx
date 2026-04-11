@@ -309,7 +309,7 @@ const chatTabs = ["채팅", "랜덤", "질문"] as const;
 const chatTabLabels: Record<ChatTab, string> = { "채팅": "채팅", "랜덤": "포럼", "질문": "질문" };
 const profileTabs = ["내정보"] as const;
 const settingsCategories = ["일반", "계정", "알림", "보안", "배포", "운영", "관리자모드", "DB관리", "신고", "채팅", "기타", "HTML요소"] as const;
-const randomRoomCategories = ["전체", "고민/상담", "정보공유", "일상대화", "취미/관심사", "자유주제"] as const;
+const randomRoomCategories = ["전체", "관계역할/고민", "동의/경계설정", "안전수칙", "일상/취미", "자유대화"] as const;
 const chatCategories = ["전체", "즐겨찾기", "개인", "단체", "쇼핑"] as const;
 const oneToOneRandomCategories = ["고민상담", "자유수다", "아무말대잔치", "도파민수다"] as const;
 const randomGenderOptions = ["무관", "남", "여", "기타"] as const;
@@ -462,30 +462,30 @@ const communitySeed: CommunityPost[] = [
 
 const notificationSeed: NotificationItem[] = [
   { id: 1, section: "공지", title: "앱 공지사항", body: "이용약관, 개인정보 처리방침, 청소년 보호정책, 환불정책을 알림에서 바로 확인할 수 있도록 이동했습니다.", meta: "정책 공지 · 오늘", unread: true, ctaLabel: "정책 확인" },
-  { id: 2, section: "공지", title: "앱 업데이트 안내", body: "우측 상단 알림 버튼이 추가되었고, 공지/주문/채팅 알림을 한 화면에서 구분해 확인할 수 있습니다.", meta: "앱 업데이트 · 오늘", unread: true, ctaLabel: "업데이트 보기" },
+  { id: 2, section: "공지", title: "채팅 운영기준 업데이트", body: "성향/관심사 그룹대화는 허용하되, 1:1 대화는 상호 수락 이후에만 열리도록 기준을 정리했습니다.", meta: "앱 업데이트 · 오늘", unread: true, ctaLabel: "기준 보기" },
   { id: 3, section: "주문", title: "주문한 제품 발송 준비중", body: "주문번호 A-240412-001 상품이 발송 준비 단계로 변경되었습니다.", meta: "쇼핑 주문 · 10분 전", unread: true, ctaLabel: "주문 보기" },
   { id: 4, section: "주문", title: "배송 상태 변경", body: "익명포장 배송 건이 택배사에 인계되었습니다. 상세 추적은 주문 목록에서 확인하세요.", meta: "배송 알림 · 1시간 전", ctaLabel: "배송 조회" },
   { id: 5, section: "소통", title: "커뮤니티 댓글 알림", body: "공지 카테고리 게시글에 새 댓글이 등록되었습니다.", meta: "커뮤니티 · 2시간 전", unread: true, ctaLabel: "댓글 보기" },
-  { id: 6, section: "소통", title: "제한 웹 포럼 안내", body: "앱에서는 직접 소통 매칭을 열지 않습니다. 민감한 정보교류는 성인인증·승인제 기반 제한 웹 포럼으로만 분리 운영합니다.", meta: "채팅 안내 · 오늘", ctaLabel: "운영 기준" },
+  { id: 6, section: "소통", title: "그룹대화/1:1 운영 안내", body: "앱에서는 성향/관심사 기반 그룹대화를 허용하되, 외부 연락처 교환·오프라인 제안·사진/영상 전송은 금지하고 1:1은 상호 수락 후에만 허용합니다.", meta: "채팅 안내 · 오늘", ctaLabel: "운영 기준" },
 ];
 
 const threadSeed: ThreadItem[] = [
   { id: 101, name: "운영 문의", purpose: "상품/운영 문의", preview: "결제 허용 SKU 범위를 다시 확인 부탁드립니다.", time: "오전 9:41", unread: 2, avatar: "운", kind: "개인", favorite: true, status: "고정" },
-  { id: 102, name: "seller_studio", purpose: "판매자 1:1", preview: "승인 대기 상품 이미지 규격을 수정했습니다.", time: "오전 8:12", unread: 0, avatar: "S", kind: "개인", favorite: true },
-  { id: 103, name: "brand_note", purpose: "콘텐츠 응답", preview: "피드형 홈 카드 노출 순서 제안 드립니다.", time: "어제", unread: 1, avatar: "B", kind: "개인" },
+  { id: 102, name: "role_talk_guide", purpose: "상호수락 1:1", preview: "그룹대화 참여 후 상호 수락이 완료되어 1:1 대화가 열렸습니다.", time: "오전 8:12", unread: 0, avatar: "R", kind: "개인", favorite: true, status: "수락완료" },
+  { id: 103, name: "boundary_note", purpose: "관계/소통 대화", preview: "경계설정 체크리스트를 먼저 맞춰보고 이야기해보면 좋겠습니다.", time: "어제", unread: 1, avatar: "B", kind: "개인" },
   { id: 104, name: "customer demo", purpose: "구매자 지원", preview: "장바구니와 프로필 연동 상태를 확인하고 싶어요.", time: "어제", unread: 0, avatar: "C", kind: "개인" },
   { id: 105, name: "정산 지원", purpose: "정산/환불", preview: "환불 검수 상태를 오늘 안으로 공유드릴게요.", time: "4월 8일", unread: 3, avatar: "정", kind: "개인", favorite: true },
   { id: 106, name: "notice bot", purpose: "시스템 안내", preview: "새로운 공지와 이벤트가 등록되었습니다.", time: "4월 7일", unread: 0, avatar: "N", kind: "단체", status: "알림" },
 ];
 
 const randomRoomSeed: RandomRoom[] = [
-  { id: 2001, title: "고민 나눔방", category: "고민/상담", maxPeople: 6, currentPeople: 3, password: "", latestMessage: "오늘 있었던 일부터 편하게 이야기해요." },
-  { id: 2002, title: "정보공유 오픈룸", category: "정보공유", maxPeople: 8, currentPeople: 5, password: "1234", latestMessage: "익명포장, 결제, 보관 팁을 정리해두었습니다." },
-  { id: 2003, title: "퇴근 후 일상대화", category: "일상대화", maxPeople: 5, currentPeople: 2, password: "", latestMessage: "가볍게 하루 있었던 일을 나누는 방입니다." },
-  { id: 2004, title: "취미/관심사 잡담", category: "취미/관심사", maxPeople: 10, currentPeople: 7, password: "", latestMessage: "취미, 루틴, 관심 주제를 자유롭게 나눠요." },
-  { id: 2005, title: "주제 자유 토크", category: "자유주제", maxPeople: 4, currentPeople: 1, password: "5678", latestMessage: "규칙만 지키면 어떤 주제든 이야기 가능합니다." },
-  { id: 2006, title: "오늘의 고민", category: "고민/상담", maxPeople: 6, currentPeople: 4, password: "", latestMessage: "익명으로 편하게 고민을 적어주세요." },
-  { id: 2007, title: "초보 정보공유", category: "정보공유", maxPeople: 8, currentPeople: 6, password: "", latestMessage: "입문자가 보기 쉬운 정보만 모아두는 방입니다." },
+  { id: 2001, title: "관계 역할 고민 라운지", category: "관계역할/고민", maxPeople: 6, currentPeople: 3, password: "", latestMessage: "역할 기대치와 대화 방식 차이를 편하게 나누는 방입니다." },
+  { id: 2002, title: "동의/경계설정 오픈룸", category: "동의/경계설정", maxPeople: 8, currentPeople: 5, password: "1234", latestMessage: "동의 문장, 금지선, 사전 체크리스트를 함께 정리합니다." },
+  { id: 2003, title: "퇴근 후 일상대화", category: "일상/취미", maxPeople: 5, currentPeople: 2, password: "", latestMessage: "가볍게 하루 있었던 일을 나누는 방입니다." },
+  { id: 2004, title: "안전수칙 메모방", category: "안전수칙", maxPeople: 10, currentPeople: 7, password: "", latestMessage: "비동의 금지, 연락처 유도 금지, 외부 이동 금지 기준을 확인해요." },
+  { id: 2005, title: "자유대화 라운지", category: "자유대화", maxPeople: 4, currentPeople: 1, password: "5678", latestMessage: "규칙 안에서 취향, 관심사, 일상 주제를 자유롭게 나눕니다." },
+  { id: 2006, title: "관계 소통 체크인", category: "관계역할/고민", maxPeople: 6, currentPeople: 4, password: "", latestMessage: "서로 기대하는 커뮤니케이션 방식을 차분히 정리해보세요." },
+  { id: 2007, title: "초보 안전 정보공유", category: "안전수칙", maxPeople: 8, currentPeople: 6, password: "", latestMessage: "입문자가 보기 쉬운 안전 기준만 모아둔 방입니다." },
 ];
 
 const questionSeed: QuestionCard[] = [
@@ -1127,7 +1127,7 @@ export default function App() {
   const [adminDbManage, setAdminDbManage] = useState<AdminDbManage | null>(null);
   const [randomRooms, setRandomRooms] = useState<RandomRoom[]>(randomRoomSeed);
   const [roomModalOpen, setRoomModalOpen] = useState(false);
-  const [newRoomCategory, setNewRoomCategory] = useState<Exclude<RandomRoomCategory, "전체">>("고민/상담");
+  const [newRoomCategory, setNewRoomCategory] = useState<Exclude<RandomRoomCategory, "전체">>("관계역할/고민");
   const [newRoomTitle, setNewRoomTitle] = useState("");
   const [newRoomAnonymous, setNewRoomAnonymous] = useState(true);
   const [newRoomMaxPeople, setNewRoomMaxPeople] = useState("8");
@@ -1782,7 +1782,7 @@ export default function App() {
     };
     setRandomRooms((prev) => [nextRoom, ...prev]);
     setRandomRoomCategory("전체");
-    setNewRoomCategory("고민/상담");
+    setNewRoomCategory("관계역할/고민");
     setNewRoomTitle("");
     setNewRoomAnonymous(true);
     setNewRoomMaxPeople("8");
@@ -2406,24 +2406,25 @@ export default function App() {
           <section className="tab-pane fill-pane">
             {chatTab === "랜덤" ? (
               <div className="stack-gap compact-scroll-list">
-                <div className="section-head compact-head"><div><h2>제한 웹 포럼 분리 운영</h2><p>앱 공개영역에서는 직접 매칭·랜덤채팅·오프라인 모임 기능을 제공하지 않고, 제한 웹 영역에서만 정보형 포럼을 승인제로 운영합니다.</p></div></div>
+                <div className="section-head compact-head"><div><h2>성향/관심사 그룹대화 운영</h2><p>앱 공개영역에서는 주제형 그룹대화를 허용하고, 1:1 대화는 그룹대화 참여 후 상호 수락이 완료된 경우에만 열리도록 운영합니다.</p></div></div>
                 <div className="legacy-grid three">
-                  <div className="legacy-box compact"><h3>앱에서 허용하지 않는 기능</h3><p>랜덤채팅, 사용자간 자유 DM, 친구/인연찾기, 모임 개설, 외부 연락처 교환은 앱에서 기본 비활성화합니다.</p></div>
-                  <div className="legacy-box compact"><h3>제한 웹 포럼 허용 범위</h3><p>안전수칙, 동의/경계설정, 세척·보관, 배송/환불 경험, 제품 정보 Q&A만 텍스트 중심으로 허용합니다.</p></div>
-                  <div className="legacy-box compact"><h3>입장 조건</h3><p>성인인증 완료, 운영정책 동의, 승인제 심사, 이미지 업로드 금지, 외부 연락처 차단을 기본값으로 둡니다.</p></div>
+                  <div className="legacy-box compact"><h3>허용되는 구조</h3><p>관계 역할 고민, 동의/경계설정, 안전수칙, 일상/취미, 자유대화처럼 정보·소통 중심 주제방만 운영합니다.</p></div>
+                  <div className="legacy-box compact"><h3>1:1 대화 기준</h3><p>성인인증 완료, 신고 이력 없음, 그룹대화 참여 이력, 상호 수락이 완료된 경우에만 1:1이 열립니다. 자유 개시는 허용하지 않습니다.</p></div>
+                  <div className="legacy-box compact"><h3>기본 차단 항목</h3><p>외부 연락처 교환, 사진/영상 전송, 오프라인 제안, 대가성 제안, 반복 접촉, 미성년/비동의/강압 표현은 자동 차단합니다.</p></div>
                 </div>
                 <div className="legacy-box compact">
                   <h3>운영 기준 요약</h3>
                   <div className="consent-record-list">
-                    <div className="simple-list-row"><b>허용</b><span>안전 가이드 · 관계 경계설정 · 세척/보관 · 배송/환불 정보 · 운영 공지</span></div>
+                    <div className="simple-list-row"><b>허용</b><span>성향/관심사 정보 교류 · 관계 역할 고민 · 동의와 경계설정 · 안전수칙 · 일상 대화</span></div>
+                    <div className="simple-list-row"><b>제한</b><span>1:1은 상호 수락 후만 가능 · 이미지/영상/파일 전송 금지 · 방 개설은 운영자만 허용</span></div>
                     <div className="simple-list-row"><b>금지</b><span>파트너 모집 · 만남 유도 · 외부 연락처 교환 · 사진/영상 공유 · 역할극/행위 제안</span></div>
                     <div className="simple-list-row"><b>기록</b><span>신고, 차단, 블라인드, 관리자 감사로그, 반복 위반 제재를 의무화합니다.</span></div>
                   </div>
                 </div>
                 <div className="random-skeleton-card">
-                  <div className="random-skeleton-row"><span className="random-skeleton-label">현재 앱 정책</span><strong>직접 소통 기능 비활성화</strong></div>
-                  <div className="random-skeleton-row"><span className="random-skeleton-label">분리 채널</span><span>승인제 제한 웹 포럼</span></div>
-                  <p>{randomMatchNote}</p>
+                  <div className="random-skeleton-row"><span className="random-skeleton-label">현재 앱 정책</span><strong>그룹대화 허용 · 1:1 상호수락형</strong></div>
+                  <div className="random-skeleton-row"><span className="random-skeleton-label">대화 범위</span><span>성향/관심사 정보 교류 · 관계/안전/소통 중심</span></div>
+                  <p>자유로운 성향 소통은 허용하되, 대화 구조가 만남 주선이나 외부 이동으로 변질되지 않도록 입장조건, 수락절차, 신고기록, 금칙어 차단을 함께 적용합니다.</p>
                   <div className="random-skeleton-actions">
                     <button type="button" className="ghost-btn" onClick={() => setSettingsCategory("보안")}>보안 기준 보기</button>
                     <button type="button" onClick={() => setSettingsCategory("관리자모드")}>운영자 점검 보기</button>
