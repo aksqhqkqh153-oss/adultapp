@@ -198,6 +198,7 @@ class ProductUpsertRequest(BaseModel):
     display_scope: str = "app_web"
     payment_scope: str = "card_transfer"
     status: str = "draft"
+    submit_mode: str = "draft"
     thumbnail_url: Optional[str] = None
     image_urls: list[str] = []
 

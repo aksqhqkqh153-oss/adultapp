@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./adult_platform.db"
     cors_origins: str = "http://localhost:5173,http://localhost:8000,https://adultapp.pages.dev"
     cors_origin_regex: str = r"https://.*\.adultapp\.pages\.dev"
+    backend_public_base_url: str = "https://adultapp-production.up.railway.app"
 
     jwt_secret_key: str = "change-me-jwt-secret"
     jwt_algorithm: str = "HS256"
@@ -167,6 +168,11 @@ class Settings(BaseSettings):
     password_reset_outbox_dir: str = "./outbox/password-reset"
     alembic_config_path: str = "./alembic.ini"
     mobile_web_fallback_url: str = "https://m.example.com/safe"
+
+    startup_db_init_enabled: bool = False
+    startup_seed_enabled: bool = False
+    postgres_connect_timeout_seconds: int = 5
+    postgres_statement_timeout_ms: int = 10000
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

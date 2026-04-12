@@ -2784,6 +2784,8 @@ def upsert_product(payload: ProductUpsertRequest, request: Request, current_user
         raise HTTPException(status_code=403, detail=reason)
     validate_exchange_text(payload.name)
     validate_exchange_text(payload.description or "")
+    submit_mode = str(payload.submit_mode or "draft").strip().lower()
+    wants_publish = submit_mode == "publish"
     if payload.id:
         product = session.get(Product, payload.id)
         if not product:
@@ -2793,7 +2795,7 @@ def upsert_product(payload: ProductUpsertRequest, request: Request, current_user
     else:
         product = Product(seller_id=current_user.id or 0, name=payload.name, sku_code=payload.sku_code, category=payload.category, status="draft", is_active=False)
     for field, value in payload.model_dump().items():
-        if field not in {"id", "seller_id", "status"}:
+        if field not in {"id", "seller_id", "status", "submit_mode"}:
             setattr(product, field, value)
     product.seller_id = current_user.id or 0
     if not payload.id:
@@ -2807,20 +2809,26 @@ def upsert_product(payload: ProductUpsertRequest, request: Request, current_user
     elif classification.get("review_status") == "manual_review":
         product.status = "pending_review"
         product.is_active = False
+    elif wants_publish:
+        product.status = "approved"
+        product.is_active = True
+    else:
+        product.status = "draft"
+        product.is_active = False
     product.updated_at = utcnow()
     session.add(product)
     session.commit()
     session.refresh(product)
-    _save_product_policy_meta(session, product.id or 0, {**classification, "category": product.category, "sku_code": product.sku_code, "name": product.name})
+    _save_product_policy_meta(session, product.id or 0, {**classification, "category": product.category, "sku_code": product.sku_code, "name": product.name, "submit_mode": submit_mode})
     if payload.image_urls:
         existing = session.exec(select(ProductMedia).where(ProductMedia.product_id == (product.id or 0)).order_by(ProductMedia.sort_order)).all()
-        if not existing:
-            for idx, url in enumerate(payload.image_urls[:5], start=1):
-                if not url:
-                    continue
-                media = ProductMedia(product_id=product.id or 0, file_name=f"image_{idx}.jpg", file_url=url, media_type="image", sort_order=idx)
-                session.add(media)
-            session.commit()
+        existing_urls = {item.file_url for item in existing}
+        for idx, url in enumerate(payload.image_urls[:5], start=1):
+            if not url or url in existing_urls:
+                continue
+            media = ProductMedia(product_id=product.id or 0, file_name=f"image_{idx}.jpg", file_url=url, media_type="image", sort_order=idx)
+            session.add(media)
+        session.commit()
     return product
 
 
@@ -3141,6 +3149,7 @@ def list_orders(current_user: User = Depends(get_current_user), session: Session
         if not _can_view_order(current_user, order):
             continue
         items = session.exec(select(OrderItem).where(OrderItem.order_id == order.id)).all()
+        record = _payment_record(session, order.order_no)
         rows.append(
             {
                 "id": order.id,
@@ -3153,6 +3162,7 @@ def list_orders(current_user: User = Depends(get_current_user), session: Session
                 "total_amount": order.total_amount,
                 "settlement_status": order.settlement_status,
                 "item_count": len(items),
+                "amount_snapshot": _payment_amount_snapshot(order, record),
             }
         )
     return rows
@@ -3253,10 +3263,17 @@ def create_order(payload: OrderCreateRequest, request: Request, current_user: Us
 @router.get("/payments/frontend-env-check")
 def payments_frontend_env_check() -> dict[str, Any]:
     checkout = _current_checkout_values()
+    api_origin = str(settings.backend_public_base_url or "").strip().rstrip("/")
+    if api_origin.endswith("/api"):
+        api_base_url = api_origin
+    elif api_origin:
+        api_base_url = f"{api_origin}/api"
+    else:
+        api_base_url = "https://adultapp-production.up.railway.app/api"
     return {
         "ok": True,
         "recommended_cloudflare_env": {
-            "VITE_API_BASE_URL": settings.cors_origins.split(",")[-1].strip() if settings.cors_origins else "",
+            "VITE_API_BASE_URL": api_base_url,
             "VITE_PORTONE_STORE_ID": checkout["store_id"],
             "VITE_TOSS_CLIENT_KEY": checkout["client_key"],
         },

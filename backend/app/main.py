@@ -32,9 +32,12 @@ app.include_router(api_router, prefix="/api")
 
 @app.on_event("startup")
 def on_startup() -> None:
-    create_db_and_tables()
-    with Session(engine) as session:
-        seed_database(session)
+    media_dir.mkdir(parents=True, exist_ok=True)
+    if settings.startup_db_init_enabled:
+        create_db_and_tables()
+    if settings.startup_seed_enabled:
+        with Session(engine) as session:
+            seed_database(session)
 
 
 @app.websocket("/ws/chat/{thread_id}")

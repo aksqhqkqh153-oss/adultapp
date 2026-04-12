@@ -40,7 +40,7 @@ def seed_database(session: Session) -> None:
         seed_social_chat_tables(session)
         return
 
-    admin = User(email="admin@example.com", name="관리자", password_hash=hash_password("admin1234"), grade=MemberGrade.ADMIN, adult_verified=True, gender="남성", age_band="30대", region_code="서울")
+    admin = User(email="admin@example.com", name="관리자", password_hash=hash_password("admin1234"), grade=MemberGrade.ADMIN, adult_verified=True, identity_verified=True, seller_onboarding_status=SellerOnboardingStatus.ACTIVE, gender="남성", age_band="30대", region_code="서울")
     seller_user = User(
         email="seller@example.com",
         name="사업자A",
@@ -64,6 +64,7 @@ def seed_database(session: Session) -> None:
     session.refresh(general_user)
     session.refresh(admin)
 
+    session.add(SellerProfile(user_id=admin.id, business_number="999-99-99999", settlement_account_verified=True, return_address="서울시 관리자구 관리자로 1", cs_contact="02-111-1111", seller_contract_agreed=True))
     session.add(SellerProfile(user_id=seller_user.id, business_number="123-45-67890", settlement_account_verified=True, return_address="서울시 예시구 예시로 1", cs_contact="02-000-0000", seller_contract_agreed=True))
 
     product = Product(seller_id=seller_user.id, name="안전 카테고리 샘플 상품", sku_code="SAFE-001", category="위생/보관", description="기본 판매자센터 샘플", price=11000, stock_qty=24, risk_grade="A", display_scope="app_web", payment_scope="card_transfer", status="published")

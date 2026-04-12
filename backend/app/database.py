@@ -2,25 +2,47 @@ from __future__ import annotations
 
 from pathlib import Path
 import sqlite3
+from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 
-from sqlalchemy import inspect, text
-from sqlmodel import SQLModel, Session, create_engine
+from sqlalchemy import create_engine as sa_create_engine
+from sqlmodel import SQLModel, Session
 
 from .config import settings
 
-connect_args = {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
-engine = create_engine(settings.database_url, echo=False, connect_args=connect_args)
 
-if settings.app_env.lower() in {"production", "staging"} and settings.database_url.startswith("sqlite"):
-    raise RuntimeError("SQLite is restricted to local development only. Set DATABASE_URL to PostgreSQL for staging/production.")
+def _normalize_database_url(raw: str) -> str:
+    url = (raw or '').strip()
+    if not url:
+        return 'sqlite:///./adult_platform.db'
+    if url.startswith('postgres://'):
+        url = 'postgresql://' + url[len('postgres://'): ]
+    if url.startswith('postgresql+psycopg2://'):
+        url = 'postgresql://' + url[len('postgresql+psycopg2://'): ]
+    if url.startswith('postgresql://'):
+        parts = urlsplit(url)
+        query = dict(parse_qsl(parts.query, keep_blank_values=True))
+        query.setdefault('connect_timeout', str(max(settings.postgres_connect_timeout_seconds, 1)))
+        query.setdefault('sslmode', 'require')
+        return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+    return url
 
 
-def create_db_and_tables() -> None:
-    SQLModel.metadata.create_all(engine)
-    run_migrations()
+DATABASE_URL = _normalize_database_url(settings.database_url)
+IS_SQLITE = DATABASE_URL.startswith('sqlite')
+connect_args = {'check_same_thread': False} if IS_SQLITE else {}
+engine = sa_create_engine(
+    DATABASE_URL,
+    echo=False,
+    connect_args=connect_args,
+    pool_pre_ping=not IS_SQLITE,
+    pool_recycle=300 if not IS_SQLITE else -1,
+)
+
+if settings.app_env.lower() in {'production', 'staging'} and IS_SQLITE:
+    raise RuntimeError('SQLite is restricted to local development only. Set DATABASE_URL to PostgreSQL for staging/production.')
 
 
-SQLITE_MIGRATIONS = {
+SQLITE_MIGRATIONS =  {
     "user": [
         ("password_changed_at", "ALTER TABLE user ADD COLUMN password_changed_at DATETIME"),
         ("reset_required", "ALTER TABLE user ADD COLUMN reset_required BOOLEAN DEFAULT 0"),
@@ -111,6 +133,11 @@ SQLITE_MIGRATIONS = {
         ("chain_hash", "ALTER TABLE adminactionlog ADD COLUMN chain_hash VARCHAR"),
     ],
 }
+
+
+def create_db_and_tables() -> None:
+    SQLModel.metadata.create_all(engine)
+    run_migrations()
 
 
 def run_migrations() -> None:

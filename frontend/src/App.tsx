@@ -275,6 +275,13 @@ type ApiOrder = {
   total_amount: number;
   settlement_status: string;
   item_count: number;
+  amount_snapshot?: {
+    order_total: number;
+    paid_amount: number;
+    cancelled_amount: number;
+    refunded_amount: number;
+    remaining: number;
+  };
 };
 
 type ApiOrderDetail = {
@@ -2164,7 +2171,7 @@ export default function App() {
     setShoppingTab('사업자인증');
   };
 
-  const submitProductRegistration = async () => {
+  const submitProductRegistration = async (submitMode: "draft" | "publish" = "draft") => {
     if (!productDraftReady || !sellerApprovalReady || reconsentWriteRestricted) return;
     const payload = {
       name: productRegistrationDraft.name,
@@ -2174,21 +2181,19 @@ export default function App() {
       price: Number(productRegistrationDraft.price || '0'),
       stock_qty: Number(productRegistrationDraft.stockQty || '0'),
       image_urls: productRegistrationDraft.imageUrls.filter(Boolean),
-      status: 'draft',
+      status: submitMode === 'publish' ? 'approved' : 'draft',
+      submit_mode: submitMode,
       payment_scope: 'card_transfer',
       risk_grade: 'A',
     };
     try {
       const created = await postJson<SellerProductItem>('/products', payload);
-      if (isAdmin && created?.id) {
-        await postJson(`/admin/product-approvals/${created.id}/decision`, { decision: 'approved', note: '관리자 즉시 공개 테스트 등록' });
-      }
       getJson<SellerProductItem[]>('/seller/products/mine').then(setSellerProducts).catch(() => null);
       getJson<ApiProduct[]>('/products').then(setApiProducts).catch(() => null);
       if (isAdmin) getJson<{ items: ProductApprovalItem[] }>('/admin/product-approvals').then((res) => setProductApprovalQueue(res.items ?? [])).catch(() => null);
-      setOrderMessage(`상품 등록 완료: ${created.name} · ${isAdmin ? '즉시 공개 처리' : '승인대기 또는 검토 상태'}`);
+      setOrderMessage(`${submitMode === 'publish' ? '상품등록' : '상품 임시저장'} 완료: ${created.name} · ${created.status ?? 'draft'}`);
     } catch (error) {
-      setOrderMessage(error instanceof Error ? error.message : '상품 등록 실패');
+      setOrderMessage(error instanceof Error ? error.message : submitMode === 'publish' ? '상품등록 실패' : '상품 임시저장 실패');
       return;
     }
     setSubmittedProducts((prev) => [productRegistrationDraft, ...prev]);
@@ -2372,8 +2377,14 @@ export default function App() {
       setOrderMessage("취소할 결제완료 주문이 없습니다.");
       return;
     }
+    const remaining = Number(target.amount_snapshot?.remaining ?? target.total_amount ?? 0);
+    if (remaining <= 0) {
+      setOrderMessage(`취소 가능한 잔액이 없습니다: ${target.order_no}`);
+      return;
+    }
     try {
-      const amount = partial ? Number(orderActionAmount || "0") : target.total_amount;
+      const requestedAmount = partial ? Number(orderActionAmount || "0") : remaining;
+      const amount = Math.min(requestedAmount, remaining);
       const result = await postJson<{ status: string; cancel_amount: number }>(`/payments/orders/${target.order_no}/cancel`, {
         amount,
         reason: partial ? "부분취소 테스트" : "전체취소 테스트",
@@ -2392,8 +2403,14 @@ export default function App() {
       setOrderMessage("환불할 결제완료 주문이 없습니다.");
       return;
     }
+    const remaining = Number(target.amount_snapshot?.remaining ?? target.total_amount ?? 0);
+    if (remaining <= 0) {
+      setOrderMessage(`환불 가능한 잔액이 없습니다: ${target.order_no}`);
+      return;
+    }
     try {
-      const amount = partial ? Number(orderActionAmount || "0") : target.total_amount;
+      const requestedAmount = partial ? Number(orderActionAmount || "0") : remaining;
+      const amount = Math.min(requestedAmount, remaining);
       const result = await postJson<{ status: string; refund_amount: number }>(`/payments/orders/${target.order_no}/refund`, {
         amount,
         reason: partial ? "부분환불 테스트" : "전체환불 테스트",
@@ -3482,7 +3499,8 @@ export default function App() {
                       </div>
                       {reconsentWriteRestricted ? <p className="muted-mini">유예기간 없이 최신 필수 문서 재동의가 필요합니다. 먼저 필수 문서 안내 화면에서 최신 약관과 재동의 절차를 확인하세요.</p> : null}
                       <div className="copy-action-row">
-                        <button type="button" onClick={submitProductRegistration} disabled={!sellerApprovalReady || !productDraftReady || reconsentWriteRestricted}>임시저장</button>
+                        <button type="button" onClick={() => submitProductRegistration("draft")} disabled={!sellerApprovalReady || !productDraftReady || reconsentWriteRestricted}>임시저장</button>
+                        <button type="button" onClick={() => submitProductRegistration("publish")} disabled={!sellerApprovalReady || !productDraftReady || reconsentWriteRestricted}>상품등록</button>
                         <button type="button" className="ghost-btn" onClick={openBusinessVerificationTab}>사업자인증 수정</button>
                       </div>
                     </div>
