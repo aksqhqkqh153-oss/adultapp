@@ -34,6 +34,7 @@ from ..auth import (
     consume_login_challenge,
     consume_password_reset_token,
     create_access_token,
+    try_demo_login,
     decode_token,
     create_device_session,
     create_password_reset_token,
@@ -2088,6 +2089,9 @@ def moderation_check_text(payload: ModerationTextRequest):
 
 @router.post("/auth/login", response_model=TokenResponse)
 def login(payload: LoginRequest, request: Request, session: Session = Depends(get_session)) -> TokenResponse:
+    demo_tokens = try_demo_login(payload.email, payload.password)
+    if demo_tokens:
+        return TokenResponse(**demo_tokens)
     client_ip = request.client.host if request.client else "127.0.0.1"
     try:
         check_ip_rate_limit(client_ip, "auth_login", session)
@@ -2195,6 +2199,32 @@ def confirm_password_reset(payload: PasswordResetConfirmRequest, session: Sessio
 
 @router.get("/auth/me")
 def auth_me(user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    if (user.id or 0) < 0:
+        return {
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "grade": user.grade,
+            "adult_verified": user.adult_verified,
+            "identity_verified": user.identity_verified,
+            "adult_verification_status": user.adult_verification_status,
+            "adult_verification_fail_count": 0,
+            "adult_verification_locked_until": None,
+            "reconsent_required": False,
+            "consent_status": {},
+            "reconsent_enforcement_mode": settings.reconsent_enforcement_mode,
+            "random_chat_profile_ready": False,
+            "feature_flags": _community_feature_flags(),
+            "admin_2fa_confirmed": False,
+            "backup_codes_remaining": 0,
+            "locked_until": "",
+            "failed_login_count": 0,
+            "last_login_at": "",
+            "password_changed_at": "",
+            "session_count": 0,
+            "member_status": user.member_status,
+            "location_feature_mode": settings.location_feature_mode,
+        }
     backup_count = len([x for x in (user.admin_backup_codes or "").split(",") if x])
     sessions = session.exec(select(DeviceSession).where(DeviceSession.user_id == user.id).order_by(DeviceSession.created_at.desc())).all()
     return {

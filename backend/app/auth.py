@@ -59,6 +59,57 @@ def build_access_payload(user: User, device_session_id: int | None = None) -> di
 def create_access_token(user: User, device_session_id: int | None = None) -> str:
     return jwt.encode(build_access_payload(user, device_session_id), settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
+DEMO_ACCOUNT_DEFS = {
+    "admin@example.com": {"password": "admin1234", "role": MemberGrade.ADMIN, "user_id": -1, "name": "관리자", "adult_verified": True, "identity_verified": True, "member_status": "active"},
+    "customer@example.com": {"password": "customer1234", "role": MemberGrade.USER, "user_id": -2, "name": "회원", "adult_verified": True, "identity_verified": True, "member_status": "active"},
+    "seller@example.com": {"password": "seller1234", "role": MemberGrade.SELLER, "user_id": -3, "name": "판매자", "adult_verified": True, "identity_verified": True, "member_status": "active"},
+    "general@example.com": {"password": "general1234", "role": MemberGrade.USER, "user_id": -4, "name": "일반회원", "adult_verified": False, "identity_verified": False, "member_status": "pending"},
+}
+
+def build_demo_access_token(email: str) -> str:
+    demo = DEMO_ACCOUNT_DEFS[email]
+    expire = utcnow() + timedelta(minutes=settings.jwt_access_token_expire_minutes)
+    payload = {
+        "sub": str(demo["user_id"]),
+        "email": email,
+        "role": demo["role"],
+        "type": "access",
+        "device_session_id": None,
+        "exp": expire,
+        "iat": utcnow(),
+        "demo_account": True,
+        "name": demo["name"],
+        "adult_verified": demo["adult_verified"],
+        "identity_verified": demo["identity_verified"],
+        "member_status": demo["member_status"],
+    }
+    return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+
+def try_demo_login(email: str, password: str):
+    demo = DEMO_ACCOUNT_DEFS.get(email)
+    if not demo or demo["password"] != password:
+        return None
+    return {
+        "access_token": build_demo_access_token(email),
+        "refresh_token": "",
+        "role": demo["role"],
+        "user_id": demo["user_id"],
+        "two_factor_required": False,
+    }
+
+def build_demo_user_from_payload(payload: dict) -> User:
+    return User(
+        id=int(payload.get("sub", 0)),
+        email=payload.get("email", ""),
+        name=payload.get("name", ""),
+        grade=payload.get("role", MemberGrade.USER),
+        adult_verified=bool(payload.get("adult_verified", False)),
+        identity_verified=bool(payload.get("identity_verified", False)),
+        member_status=payload.get("member_status", "active"),
+        adult_verification_status="verified_adult" if payload.get("adult_verified") else "pending",
+    )
+
+
 
 def create_device_session(user: User, session: Session, device_name: str = "web-browser", user_agent: str | None = None, ip_address: str | None = None) -> DeviceSession:
     item = DeviceSession(user_id=user.id or 0, device_name=device_name, user_agent=user_agent, ip_address=ip_address)
@@ -267,6 +318,8 @@ def get_current_user(
         raise HTTPException(status_code=401, detail="missing bearer token")
     token = authorization.split(" ", 1)[1]
     payload = decode_token(token)
+    if payload.get("demo_account"):
+        return build_demo_user_from_payload(payload)
     user_id = int(payload.get("sub", 0))
     user = session.get(User, user_id)
     if not user:
