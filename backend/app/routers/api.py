@@ -10,6 +10,13 @@ import io
 import json
 from pathlib import Path
 from urllib.parse import quote
+from urllib.request import Request as UrlRequest, urlopen
+
+try:
+    import portone_server_sdk as portone_sdk
+except ImportError:  # pragma: no cover - optional dependency during local bootstrap
+    portone_sdk = None
+from urllib.error import HTTPError, URLError
 from typing import Any
 
 import pyotp
@@ -100,6 +107,9 @@ from ..schemas import (
     ProfileQuestionCreate,
     PasswordResetConfirmRequest,
     PasswordResetRequest,
+    PaymentCancelRequest,
+    PaymentConfirmRequest,
+    PaymentRefundRequest,
     ProductMediaAttachRequest,
     RandomReportCreate,
     RandomRuleUpdateRequest,
@@ -404,7 +414,7 @@ def _assert_reconsent_write_allowed(user: User, session: Session) -> None:
 
 
 def _seller_can_register_products(user: User, session: Session) -> tuple[bool, str]:
-    if user.grade == MemberGrade.ADMIN:
+    if user.grade == MemberGrade.ADMIN and settings.seller_onboarding_admin_override_enabled:
         return True, "admin override"
     profile = session.exec(select(SellerProfile).where(SellerProfile.user_id == (user.id or 0))).first()
     if not profile:
@@ -814,30 +824,7 @@ def _save_seller_submission_payload(session: Session, user_id: int, payload: dic
 
 
 def _seller_submission_complete(payload: dict[str, Any]) -> bool:
-    required = [
-        "company_name",
-        "representative_name",
-        "business_number",
-        "ecommerce_number",
-        "business_address",
-        "cs_contact",
-        "return_address",
-        "youth_protection_officer",
-        "business_document_url",
-        "settlement_bank",
-        "settlement_account_number",
-        "settlement_account_holder",
-        "handled_categories",
-    ]
-    for key in required:
-        value = payload.get(key)
-        if isinstance(value, list):
-            if not value:
-                return False
-            continue
-        if not str(value or "").strip():
-            return False
-    return True
+    return not _seller_submission_missing_fields(payload)
 
 
 def _product_publicly_visible(item: Product | None) -> bool:
@@ -929,17 +916,411 @@ def _run_minor_block_purge(session: Session, actor: User | None = None) -> dict[
 
 
 def _payment_provider_status() -> dict[str, Any]:
+    test_items = {
+        "store_id": settings.pg_portone_store_id_test != "change-me-pg-store-id-test",
+        "channel_key": settings.pg_portone_channel_key_test != "change-me-pg-channel-key-test",
+        "merchant_id": settings.pg_primary_merchant_id_test != "change-me-merchant-test",
+        "api_secret": settings.portone_api_secret != "change-me-portone-api-secret",
+        "webhook_secret": settings.portone_webhook_secret_test != "change-me-portone-webhook-test",
+        "toss_client_key": settings.toss_client_key_test != "change-me-toss-client-key-test",
+        "toss_secret_key": settings.toss_secret_key_test != "change-me-toss-secret-key-test",
+        "toss_mid": settings.toss_mid_test != "change-me-toss-mid-test",
+    }
+    live_items = {
+        "store_id": settings.pg_portone_store_id_live != "change-me-pg-store-id-live",
+        "channel_key": settings.pg_portone_channel_key_live != "change-me-pg-channel-key-live",
+        "merchant_id": settings.pg_primary_merchant_id_live != "change-me-merchant-live",
+        "webhook_secret": settings.portone_webhook_secret_live != "change-me-portone-webhook-live",
+        "toss_client_key": settings.toss_client_key_live != "change-me-toss-client-key-live",
+        "toss_secret_key": settings.toss_secret_key_live != "change-me-toss-secret-key-live",
+        "toss_mid": settings.toss_mid_live != "change-me-toss-mid-live",
+    }
     return {
         "primary_provider": settings.pg_primary_provider,
         "secondary_provider": settings.pg_secondary_provider,
+        "payments_env_split_enabled": settings.payments_env_split_enabled,
+        "portone_sdk_enabled": settings.portone_sdk_enabled,
+        "portone_sdk_installed": portone_sdk is not None,
         "portone_store_id_configured": settings.pg_portone_store_id != "change-me-pg-store-id",
         "portone_channel_key_configured": settings.pg_portone_channel_key != "change-me-pg-channel-key",
+        "portone_store_id_test_configured": test_items["store_id"],
+        "portone_store_id_live_configured": live_items["store_id"],
+        "portone_channel_key_test_configured": test_items["channel_key"],
+        "portone_channel_key_live_configured": live_items["channel_key"],
         "primary_merchant_configured": settings.pg_primary_merchant_id != "change-me",
+        "primary_merchant_test_configured": test_items["merchant_id"],
+        "primary_merchant_live_configured": live_items["merchant_id"],
         "secondary_merchant_configured": settings.pg_secondary_merchant_id != "change-me",
         "webhook_paths": {"payment": settings.pg_webhook_path, "refund": settings.pg_refund_webhook_path},
+        "webhook_urls": {"test": f"https://test-api.example.com{settings.pg_webhook_path}", "live": f"https://api.example.com{settings.pg_webhook_path}"},
         "settlement_basis_note": settings.pg_settlement_basis_note,
+        "portone_api_secret_configured": test_items["api_secret"],
+        "portone_webhook_test_configured": test_items["webhook_secret"],
+        "portone_webhook_live_configured": live_items["webhook_secret"],
+        "test_env_ready": all(test_items.values()),
+        "toss_test_client_key_configured": test_items["toss_client_key"],
+        "toss_test_secret_key_configured": test_items["toss_secret_key"],
+        "toss_test_mid_configured": test_items["toss_mid"],
+        "live_env_ready": all(live_items.values()),
+        "toss_live_client_key_configured": live_items["toss_client_key"],
+        "toss_live_secret_key_configured": live_items["toss_secret_key"],
+        "toss_live_mid_configured": live_items["toss_mid"],
+        "recommended_now": [
+            "테스트 webhook secret / Store ID / channel key / API Secret만 먼저 입력",
+            "결제·취소·부분취소·환불·webhook 재전송까지 테스트",
+            "live merchant / 운영 MID / live webhook secret은 마지막 단계에서만 입력",
+        ],
+        "test_stage_defaults": {
+            "sdk_install_now": settings.test_stage_sdk_install_now,
+            "live_values_entry_phase": settings.test_stage_live_values_entry_phase,
+            "admin_override_policy": settings.test_stage_admin_override_policy,
+            "sku_expansion_phase": settings.test_stage_sku_expansion_phase,
+            "premium_sla_upgrade_phase": settings.test_stage_premium_sla_upgrade_phase,
+            "next_actions": [item.strip() for item in settings.test_stage_next_actions.split(',') if item.strip()],
+        },
     }
 
+
+
+
+def _portone_header_dict(request: Request) -> dict[str, str]:
+    return {str(k): str(v) for k, v in request.headers.items()}
+
+
+def _portone_sdk_verify_webhook(raw_body: bytes, secret: str, request: Request) -> bool:
+    if not settings.portone_sdk_enabled or portone_sdk is None:
+        return False
+    try:
+        portone_sdk.webhook.verify(secret, raw_body.decode("utf-8"), _portone_header_dict(request))
+        return True
+    except Exception:
+        return False
+
+
+def _portone_env_mode(payload: dict[str, Any], request: Request) -> str:
+    explicit = str(payload.get("environment") or payload.get("mode") or request.headers.get("x-portone-mode") or request.headers.get("x-portone-environment") or "").strip().lower()
+    return "live" if explicit in {"live", "production", "prod"} else "test"
+
+
+def _portone_webhook_secret_for_mode(mode: str) -> str:
+    return settings.portone_webhook_secret_live if mode == "live" else settings.portone_webhook_secret_test
+
+
+def _extract_portone_signature(request: Request, payload: dict[str, Any]) -> str:
+    header_candidates = [
+        request.headers.get("webhook-signature"),
+        request.headers.get("x-portone-signature"),
+        request.headers.get("portone-signature"),
+        request.headers.get("x-signature"),
+    ]
+    for value in header_candidates:
+        if value:
+            return str(value).strip()
+    return str(payload.get("signature") or "").strip()
+
+
+def _verify_portone_webhook_signature(raw_body: bytes, signature: str, secret: str, request: Request) -> bool:
+    if not secret or secret.startswith("change-me"):
+        return True
+    if settings.portone_sdk_enabled and portone_sdk is not None:
+        if _portone_sdk_verify_webhook(raw_body, secret, request):
+            return True
+    if not signature:
+        return False
+    expected = hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
+    normalized = signature.split("=", 1)[-1].strip()
+    return hmac.compare_digest(normalized, expected)
+
+
+def _portone_fetch_payment(payment_id: str) -> dict[str, Any] | None:
+    if not payment_id or not settings.portone_api_secret or settings.portone_api_secret.startswith("change-me"):
+        return None
+    if settings.portone_sdk_enabled and portone_sdk is not None:
+        try:
+            client = portone_sdk.PortOneClient(secret=settings.portone_api_secret)
+            payment = client.payment.get_payment(payment_id=payment_id)
+            if payment is None:
+                return None
+            if hasattr(payment, "model_dump"):
+                return payment.model_dump(by_alias=True)
+            if isinstance(payment, dict):
+                return payment
+        except Exception:
+            pass
+    url = f"{settings.portone_api_base_url.rstrip('/')}/payments/{quote(payment_id)}"
+    req = UrlRequest(url, headers={"Authorization": f"PortOne {settings.portone_api_secret}", "Accept": "application/json"})
+    try:
+        with urlopen(req, timeout=10) as resp:
+            raw = resp.read().decode("utf-8")
+            data = json.loads(raw)
+            if isinstance(data, dict) and isinstance(data.get("payment"), dict):
+                return data.get("payment")
+            return data if isinstance(data, dict) else None
+    except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        return None
+
+
+def _payment_event_store_key(event_id: str, event_type: str, payment_id: str) -> str:
+    pivot = event_id or payment_id or "unknown"
+    return f"{event_type}:{pivot}"
+
+
+def _payment_event_seen(session: Session, event_id: str, event_type: str, payment_id: str) -> bool:
+    return _app_asset_json(session, "payment_webhook_event", _payment_event_store_key(event_id, event_type, payment_id)) is not None
+
+
+def _mark_payment_event_seen(session: Session, event_id: str, event_type: str, payment_id: str, payload: dict[str, Any]) -> None:
+    _save_app_asset_json(session, "payment_webhook_event", _payment_event_store_key(event_id, event_type, payment_id), payload, status="processed")
+
+
+def _portone_status_to_order_status(status: str) -> str:
+    normalized = (status or "").strip()
+    mapping = {
+        "Paid": "paid",
+        "Ready": "payment_requested",
+        "VirtualAccountIssued": "payment_requested",
+        "CancelPending": "cancel_pending",
+        "PartialCancelled": "partial_cancelled",
+        "Cancelled": "cancelled",
+        "Failed": "refund_failed",
+        "Refunded": "refunded",
+        "PartialRefunded": "partial_cancelled",
+        "PayPending": "payment_requested",
+    }
+    return mapping.get(normalized, mapping.get(normalized.title(), normalized.lower() or "payment_requested"))
+
+
+def _settlement_status_for_order(order_status: str) -> str:
+    return "open" if order_status in {"paid"} else "hold"
+
+
+def _apply_payment_status(order: Order, provider_status: str) -> str:
+    next_status = _portone_status_to_order_status(provider_status)
+    order.order_status = next_status
+    order.settlement_status = _settlement_status_for_order(next_status)
+    now = utcnow()
+    if next_status == "paid":
+        order.approved_at = now
+    if next_status in {"cancelled", "partial_cancelled", "refunded", "refund_failed", "cancel_pending"}:
+        order.cancel_at = now
+    return next_status
+
+
+def _payment_record(session: Session, order_no: str) -> dict[str, Any]:
+    return _app_asset_json(session, "payment_tx", order_no) or {}
+
+
+def _save_payment_record(session: Session, order_no: str, payload: dict[str, Any], status: str = "configured") -> AppAsset:
+    return _save_app_asset_json(session, "payment_tx", order_no, payload, status=status)
+
+
+def _payment_amount_snapshot(order: Order, record: dict[str, Any]) -> dict[str, int]:
+    total = int(order.total_amount or 0)
+    paid = int(record.get("paid_amount") or total)
+    cancelled = int(record.get("cancelled_amount") or 0)
+    refunded = int(record.get("refunded_amount") or 0)
+    remaining = max(0, paid - cancelled - refunded)
+    return {"total": total, "paid": paid, "cancelled": cancelled, "refunded": refunded, "remaining": remaining}
+
+
+def _append_payment_history(record: dict[str, Any], event_type: str, payload: dict[str, Any]) -> dict[str, Any]:
+    history = list(record.get("history") or [])
+    history.append({"event_type": event_type, "at": utcnow().isoformat(), **payload})
+    record["history"] = history[-50:]
+    return record
+
+
+def _current_checkout_values() -> dict[str, Any]:
+    test_ready = settings.toss_client_key_test != "change-me-toss-client-key-test" and settings.pg_portone_store_id_test != "change-me-pg-store-id-test" and settings.pg_portone_channel_key_test != "change-me-pg-channel-key-test"
+    mode = "test" if test_ready else "live"
+    return {
+        "mode": mode,
+        "store_id": settings.pg_portone_store_id_test if mode == "test" else settings.pg_portone_store_id_live,
+        "channel_key": settings.pg_portone_channel_key_test if mode == "test" else settings.pg_portone_channel_key_live,
+        "client_key": settings.toss_client_key_test if mode == "test" else settings.toss_client_key_live,
+        "mid": settings.toss_mid_test if mode == "test" else settings.toss_mid_live,
+    }
+
+
+def _refund_provider_status_for_amount(refund_amount: int, remaining_before: int) -> str:
+    if refund_amount >= remaining_before:
+        return "Refunded"
+    return "PartialCancelled"
+
+
+def _sku_policy_rules() -> dict[str, Any]:
+    return {
+        "allowed_keywords": ["위생", "보관", "세척", "중립포장", "보호포장", "케어", "마사지", "완충", "보관케이스", "파우치"],
+        "review_keywords": ["스트랩", "밴드", "로프", "역할", "제한", "클램프", "임팩트", "구속", "보정"],
+        "blocked_keywords": ["성기", "음경", "질삽", "애널", "딜도", "바이브레이터", "오나홀", "촬영", "캠", "동영상", "서비스", "만남", "출장", "플레이권", "체험권"],
+        "blocked_categories": ["촬영/서비스", "위험물", "만남/서비스 이용권"],
+    }
+
+
+def _classify_sku(category: str, name: str, description: str) -> dict[str, str]:
+    haystack = f"{category} {name} {description}".lower()
+    rules = _sku_policy_rules()
+    for keyword in rules["blocked_keywords"]:
+        if keyword.lower() in haystack:
+            return {"risk_level": "high", "review_status": "blocked", "blocked_reason": f"금지 키워드 감지: {keyword}"}
+    for category_name in rules["blocked_categories"]:
+        if category_name.lower() in haystack:
+            return {"risk_level": "high", "review_status": "blocked", "blocked_reason": f"금지 카테고리 감지: {category_name}"}
+    for keyword in rules["review_keywords"]:
+        if keyword.lower() in haystack:
+            return {"risk_level": "medium", "review_status": "manual_review", "blocked_reason": f"수동심사 키워드 감지: {keyword}"}
+    return {"risk_level": "low", "review_status": "approved_candidate", "blocked_reason": ""}
+
+
+def _save_product_policy_meta(session: Session, product_id: int, payload: dict[str, Any]) -> None:
+    _save_app_asset_json(session, "product_policy", str(product_id), payload, status=payload.get("review_status", "configured"))
+
+
+def _product_policy_meta(session: Session, product_id: int) -> dict[str, Any]:
+    return _app_asset_json(session, "product_policy", str(product_id)) or {}
+
+
+def _seller_submission_missing_fields(payload: dict[str, Any]) -> list[str]:
+    required = [
+        "company_name", "representative_name", "business_number", "ecommerce_number", "business_address",
+        "cs_contact", "return_address", "youth_protection_officer", "business_document_url",
+        "settlement_bank", "settlement_account_number", "settlement_account_holder", "handled_categories",
+    ]
+    missing: list[str] = []
+    for key in required:
+        value = payload.get(key)
+        if isinstance(value, list):
+            if not value:
+                missing.append(key)
+            continue
+        if not str(value or "").strip():
+            missing.append(key)
+    return missing
+
+
+def _run_internal_payment_selftests() -> dict[str, Any]:
+    sdk_installed = portone_sdk is not None
+    status_expectations = {
+        "Paid": "paid",
+        "Ready": "payment_requested",
+        "CancelPending": "cancel_pending",
+        "PartialCancelled": "partial_cancelled",
+        "Cancelled": "cancelled",
+        "Failed": "refund_failed",
+    }
+    transition_results: list[dict[str, Any]] = []
+    transition_passed = True
+    for provider_status, expected in status_expectations.items():
+        order = Order(order_status="payment_requested", settlement_status="hold", total_amount=1000)
+        actual = _apply_payment_status(order, provider_status)
+        ok = actual == expected
+        transition_results.append({
+            "provider_status": provider_status,
+            "expected": expected,
+            "actual": actual,
+            "ok": ok,
+            "settlement_status": order.settlement_status,
+        })
+        transition_passed = transition_passed and ok
+
+    valid_seller_payload = {
+        "company_name": "테스트상호",
+        "representative_name": "대표자",
+        "business_number": "1234567890",
+        "ecommerce_number": "2026-서울-0001",
+        "business_address": "서울시 테스트구",
+        "return_address": "서울시 테스트구 반품로",
+        "cs_contact": "010-1111-2222",
+        "youth_protection_officer": "관리자",
+        "settlement_bank": "테스트은행",
+        "settlement_account_number": "123-456-7890",
+        "settlement_account_holder": "테스트상호",
+        "business_document_url": "https://example.com/business.pdf",
+        "handled_categories": ["위생/보관"],
+    }
+    missing_none = _seller_submission_missing_fields(valid_seller_payload)
+    invalid_seller_payload = {
+        "company_name": "",
+        "representative_name": "대표자",
+        "business_number": "",
+        "handled_categories": [],
+    }
+    missing_some = _seller_submission_missing_fields(invalid_seller_payload)
+
+    sku_cases = [
+        {"category": "위생/보관", "name": "보관 파우치", "description": "중립 포장", "expected": "approved_candidate"},
+        {"category": "액세서리", "name": "스트랩 세트", "description": "역할 고민용", "expected": "manual_review"},
+        {"category": "촬영/서비스", "name": "만남 서비스권", "description": "금지", "expected": "blocked"},
+    ]
+    sku_results = []
+    sku_passed = True
+    for case in sku_cases:
+        result = _classify_sku(case["category"], case["name"], case["description"])
+        ok = result.get("review_status") == case["expected"]
+        sku_results.append({"case": case, "result": result, "ok": ok})
+        sku_passed = sku_passed and ok
+
+    placeholders = {
+        "portone_api_secret": settings.portone_api_secret.startswith("change-me"),
+        "portone_webhook_secret_test": settings.portone_webhook_secret_test.startswith("change-me"),
+        "pg_portone_store_id_test": settings.pg_portone_store_id_test.startswith("change-me"),
+        "pg_portone_channel_key_test": settings.pg_portone_channel_key_test.startswith("change-me"),
+        "pg_primary_merchant_id_test": settings.pg_primary_merchant_id_test.startswith("change-me"),
+        "portone_webhook_secret_live": settings.portone_webhook_secret_live.startswith("change-me"),
+        "pg_portone_store_id_live": settings.pg_portone_store_id_live.startswith("change-me"),
+        "pg_portone_channel_key_live": settings.pg_portone_channel_key_live.startswith("change-me"),
+        "pg_primary_merchant_id_live": settings.pg_primary_merchant_id_live.startswith("change-me"),
+        "toss_client_key_test": settings.toss_client_key_test.startswith("change-me"),
+        "toss_secret_key_test": settings.toss_secret_key_test.startswith("change-me"),
+        "toss_mid_test": settings.toss_mid_test.startswith("change-me"),
+        "toss_client_key_live": settings.toss_client_key_live.startswith("change-me"),
+        "toss_secret_key_live": settings.toss_secret_key_live.startswith("change-me"),
+        "toss_mid_live": settings.toss_mid_live.startswith("change-me"),
+    }
+
+    tests = [
+        {"name": "sdk_optional_import", "ok": sdk_installed, "detail": "portone_server_sdk 설치 여부"},
+        {"name": "payment_state_machine", "ok": transition_passed, "detail": transition_results},
+        {"name": "seller_required_fields_validation", "ok": (missing_none == [] and len(missing_some) >= 3), "detail": {"valid_missing": missing_none, "invalid_missing": missing_some}},
+        {"name": "sku_policy_classification", "ok": sku_passed, "detail": sku_results},
+        {"name": "test_env_values_present", "ok": not any(placeholders[k] for k in ["portone_api_secret", "portone_webhook_secret_test", "pg_portone_store_id_test", "pg_portone_channel_key_test", "pg_primary_merchant_id_test", "toss_client_key_test", "toss_secret_key_test"]), "detail": placeholders},
+        {"name": "live_env_values_deferred", "ok": all(placeholders[k] for k in ["portone_webhook_secret_live", "pg_portone_store_id_live", "pg_portone_channel_key_live", "pg_primary_merchant_id_live"]), "detail": placeholders},
+    ]
+    passed = [t["name"] for t in tests if t["ok"]]
+    failed = [t["name"] for t in tests if not t["ok"]]
+    return {
+        "mode": settings.launch_stage_mode,
+        "summary": {
+            "passed": len(passed),
+            "failed": len(failed),
+            "total": len(tests),
+        },
+        "passed": passed,
+        "failed": failed,
+        "tests": tests,
+        "limitations": [
+            "PortOne 콘솔에서 발급한 실제 TEST webhook secret / Store ID / channel key / API Secret 없이는 외부 결제망 검증을 완료할 수 없습니다.",
+            "실제 결제, 취소, 환불, webhook 재전송 테스트는 PortOne 테스트 채널 연결 후 다시 확인해야 합니다.",
+            "LIVE merchant / LIVE webhook secret은 마지막 단계에서만 입력해야 합니다.",
+        ],
+        "recommended_next": [
+            "PortOne 콘솔에서 TEST webhook secret / Store ID / channel key / API Secret 발급",
+            "backend/.env에 TEST 값만 입력",
+            "테스트 결제/취소/부분취소/환불/webhook 재전송 검증",
+            "판매자 필수 입력값 누락 차단 동작 확인",
+            "허용 SKU만 노출한 상태로 PG 사전상담 진행",
+        ],
+    }
+
+
+@router.get("/payments/self-test-report")
+def payments_self_test_report() -> dict[str, Any]:
+    return _run_internal_payment_selftests()
+
+
+@router.post("/payments/self-test-run")
+def payments_self_test_run(current_user: User = Depends(require_grade(MemberGrade.ADMIN))) -> dict[str, Any]:
+    return {"ok": True, "report": _run_internal_payment_selftests()}
 
 @router.get("/legal/documents")
 def legal_documents():
@@ -1092,45 +1473,173 @@ def payments_provider_status():
     return _payment_provider_status()
 
 
+@router.get("/provider-status")
+def payments_provider_status_alias():
+    return _payment_provider_status()
+
+
+@router.get("/self-test")
+def payments_self_test_alias() -> dict[str, Any]:
+    return _run_internal_payment_selftests()
+
+
+@router.get("/launch-priority")
+def payments_launch_priority_alias() -> dict[str, Any]:
+    return payments_launch_priority()
+
+
+@router.get("/payments/test-stage-policy")
+def payments_test_stage_policy() -> dict[str, Any]:
+    return {
+        "summary": "개발/테스트 단계에서는 운영 전 재작업을 줄이기 위해 운영형 구조를 보수적으로 먼저 고정합니다.",
+        "chosen_defaults": {
+            "portone_sdk": "install_now",
+            "env_split": "test_live_full_split",
+            "sku_policy": "conservative_until_pg_preconsult",
+            "premium_sla": "target_only_until_operations_stable",
+            "seller_onboarding_gate": "strict_without_override_by_default",
+        },
+        "details": [
+            {"title": "SDK 설치", "value": "requirements.txt 기준 즉시 설치 권장", "note": "테스트 채널에서 공식 검증 구조를 먼저 고정"},
+            {"title": "실제값 입력 시점", "value": settings.test_stage_live_values_entry_phase, "note": "live 값은 운영 MID 발급 직전까지 placeholder 유지"},
+            {"title": "관리자 override", "value": settings.test_stage_admin_override_policy, "note": "출시 준비 기본값은 비활성화, 내부 QA에만 임시 허용"},
+            {"title": "SKU 확장 시점", "value": settings.test_stage_sku_expansion_phase, "note": "허용 SKU만 노출한 뒤 사전상담 피드백 확인"},
+            {"title": "프리미엄 배송 문구 전환", "value": settings.test_stage_premium_sla_upgrade_phase, "note": "테스트 단계는 목표형/안내형 유지"},
+        ],
+        "extra_actions": [
+            "PortOne 테스트 webhook secret, Store ID, channel key, API Secret 발급",
+            "backend/.env에 test 값만 먼저 입력",
+            "결제/취소/부분취소/환불/webhook 재전송 테스트",
+            "판매자 필수 입력값 누락 차단 동작 확인",
+            "허용 SKU만 공개하여 PG 사전상담 진행",
+            "운영 MID/merchant 실제값은 마지막 단계에서 반영",
+        ],
+    }
+
+
+@router.get("/payments/operational-path")
+def payments_operational_path() -> dict[str, Any]:
+    return {
+        "stage": settings.launch_stage_mode,
+        "chosen_method": {
+            "portone_sdk": "지금 requirements.txt 기준으로 설치해서 테스트 webhook 검증부터 공식 SDK 우선 사용",
+            "env_split": "test/live Store ID, channel key, merchant, webhook secret, callback URL 완전 분리",
+            "sku_policy": "허용 SKU만 실제 노출, 보류/금지는 관리자 검수 또는 비공개 유지",
+            "premium_sla": "운영 안정화 전까지 목표형/안내형만 사용, 보장형 SLA는 운영 이후 검토",
+            "seller_gate": "필수 입력값 누락 시 pending 유지, 상품 등록/공개/주문 수락 차단, 관리자 override는 기본 OFF",
+        },
+        "do_now": [
+            "PortOne 콘솔에서 테스트 webhook secret / Store ID / channel key / API Secret 발급",
+            "backend/.env에 test 값만 먼저 입력",
+            "결제 성공 / 취소 / 부분취소 / 환불 / webhook 재전송 / 중복수신 테스트",
+            "판매자 필수 입력 누락 시 실제 차단되는지 확인",
+            "허용 SKU만 공개한 상태로 PG 사전상담 진행",
+            "푸터 / 상품상세 / 주문서의 통신판매중개 고지 점검",
+            "미인증 구매 차단 / 인증 만료 차단 / 인증 로그 저장 확인",
+        ],
+        "do_last": [
+            "운영 MID / live merchant 입력",
+            "live webhook secret 입력",
+            "live callback URL 최종 등록",
+            "프리미엄 배송 보장형 SLA 문구 전환 검토",
+        ],
+        "cautions": [
+            "test/live 값을 섞지 않기",
+            "관리자 override는 내부 QA에서만 일시 사용",
+            "사진/영상/파일 전송은 단체 톡방과 1:1 모두 계속 차단 유지",
+            "허용 SKU 외 노출 확장은 PG 사전상담 피드백 이후 진행",
+        ],
+    }
+
+
+@router.get("/payments/launch-priority")
+def payments_launch_priority() -> dict[str, Any]:
+    return {
+        "stage": settings.launch_stage_mode,
+        "priorities": [
+            {"rank": 1, "title": "PortOne 테스트 실값 입력", "action": "테스트 webhook secret, Store ID, channel key, API Secret을 backend/.env에 입력하고 provider-status에서 configured 상태를 확인"},
+            {"rank": 2, "title": "결제/취소/환불/webhook 검증", "action": "결제, 취소, 부분취소, 환불, webhook 재전송, 중복수신까지 테스트하고 상태머신 전이가 맞는지 확인"},
+            {"rank": 3, "title": "판매자 필수 입력 차단 운영", "action": "필수 입력값 누락 시 상품 등록/공개/주문 수락이 실제로 차단되는지 관리자 승인 화면까지 포함해 확인"},
+            {"rank": 4, "title": "운영자 override 기본 비활성화", "action": "출시 준비 기본값은 override를 끄고 내부 QA 계정에서만 필요시 임시 사용"},
+            {"rank": 5, "title": "허용 SKU만 노출", "action": "허용 SKU만 공개하고 보류/금지 카테고리는 관리자 검수 또는 비공개 상태를 유지"},
+            {"rank": 6, "title": "PG 사전상담 진행", "action": "허용 SKU, 거래 구조, 환불정책, 통신판매중개 고지 구조를 묶어 PG/포트원 사전상담 진행"},
+            {"rank": 7, "title": "고지 화면 최종 점검", "action": "푸터, 상품상세, 주문서에 판매자 정보와 통신판매중개 고지 문구가 정확히 표시되는지 확인"},
+            {"rank": 8, "title": "프리미엄 배송은 목표형 유지", "action": "운영 안정화 전까지는 목표형/안내형 문구만 사용하고 보장형 SLA는 쓰지 않음"},
+            {"rank": 9, "title": "성인인증과 결제 흐름 분리 검증", "action": "미인증 구매 차단, 인증 만료 차단, 인증 로그 저장, 판매자/구매자 권한 구분 확인"},
+            {"rank": 10, "title": "운영 MID는 마지막 입력", "action": "실 merchant, 운영 MID, live webhook secret은 마지막 단계에서만 입력하고 test/live 혼용을 피함"},
+        ],
+    }
+
+
+@router.post("/payments/webhooks/test-signature")
+async def payments_webhook_test_signature(payload: dict[str, Any], request: Request):
+    raw_body = await request.body()
+    mode = _portone_env_mode(payload, request)
+    signature = _extract_portone_signature(request, payload)
+    secret = _portone_webhook_secret_for_mode(mode)
+    verified = _verify_portone_webhook_signature(raw_body, signature, secret, request)
+    return {"ok": True, "mode": mode, "verified": verified, "has_signature": bool(signature)}
+
+
 @router.post("/payments/webhooks/pg")
-def payments_webhook_pg(payload: dict[str, Any], request: Request, session: Session = Depends(get_session)):
-    signature = str(payload.get("signature") or "")
-    event_type = str(payload.get("event_type") or "payment.approved")
-    merchant_uid = str(payload.get("merchant_uid") or payload.get("order_no") or "")
-    status = str(payload.get("status") or "approved")
+async def payments_webhook_pg(payload: dict[str, Any], request: Request, session: Session = Depends(get_session)):
+    raw_body = await request.body()
+    mode = _portone_env_mode(payload, request)
+    signature = _extract_portone_signature(request, payload)
+    secret = _portone_webhook_secret_for_mode(mode)
+    if not _verify_portone_webhook_signature(raw_body, signature, secret, request):
+        raise HTTPException(status_code=400, detail="invalid portone webhook signature")
+    payment_id = str(payload.get("paymentId") or payload.get("payment_id") or payload.get("tx_id") or "").strip()
+    event_id = str(payload.get("id") or payload.get("eventId") or "").strip()
+    event_type = str(payload.get("type") or payload.get("event_type") or "payment.updated").strip()
+    merchant_uid = str(payload.get("merchant_uid") or payload.get("order_no") or payload.get("customData", {}).get("merchant_uid") if isinstance(payload.get("customData"), dict) else payload.get("merchant_uid") or "").strip()
+    fallback_status = str(payload.get("status") or payload.get("data", {}).get("status") if isinstance(payload.get("data"), dict) else payload.get("status") or "payment_requested").strip()
     if not merchant_uid:
         raise HTTPException(status_code=400, detail="merchant_uid required")
-    expected = hmac.new(settings.pg_primary_webhook_secret.encode("utf-8"), f"{event_type}:{merchant_uid}:{status}".encode("utf-8"), hashlib.sha256).hexdigest()
-    if settings.pg_primary_webhook_secret != "change-me" and signature and not hmac.compare_digest(signature, expected):
-        raise HTTPException(status_code=400, detail="invalid pg webhook signature")
+    if _payment_event_seen(session, event_id, event_type, payment_id or merchant_uid):
+        return {"ok": True, "deduplicated": True, "order_no": merchant_uid}
+    provider_payment = _portone_fetch_payment(payment_id) if payment_id else None
+    provider_status = str((provider_payment or {}).get("status") or fallback_status or "payment_requested")
     order = session.exec(select(Order).where(Order.order_no == merchant_uid)).first()
     if not order:
-        return {"ok": True, "message": "order not found; ignored"}
-    if status in {"approved", "paid"}:
-        order.order_status = "paid"
-        order.approved_at = utcnow()
-    elif status in {"cancelled", "canceled"}:
-        order.order_status = "cancelled"
-        order.cancel_at = utcnow()
-    elif status in {"refunded", "refund_completed"}:
-        order.order_status = "refunded"
-        order.cancel_at = utcnow()
+        _mark_payment_event_seen(session, event_id, event_type, payment_id or merchant_uid, {"event_type": event_type, "order_no": merchant_uid, "status": provider_status, "mode": mode})
+        return {"ok": True, "message": "order not found; ignored", "order_no": merchant_uid}
+    next_status = _apply_payment_status(order, provider_status)
     session.add(order)
     session.commit()
-    return {"ok": True, "order_no": order.order_no, "status": order.order_status}
+    _mark_payment_event_seen(session, event_id, event_type, payment_id or merchant_uid, {"event_type": event_type, "order_no": merchant_uid, "status": provider_status, "mode": mode})
+    return {"ok": True, "order_no": order.order_no, "status": next_status, "provider_status": provider_status, "verified_by_requery": bool(provider_payment)}
 
 
 @router.post("/payments/webhooks/refund")
-def payments_webhook_refund(payload: dict[str, Any], request: Request, session: Session = Depends(get_session)):
-    signature = str(payload.get("signature") or "")
-    refund_id = str(payload.get("refund_id") or payload.get("case_id") or "")
-    status = str(payload.get("status") or "approved")
-    expected = hmac.new(settings.pg_primary_webhook_secret.encode("utf-8"), f"refund:{refund_id}:{status}".encode("utf-8"), hashlib.sha256).hexdigest()
-    if settings.pg_primary_webhook_secret != "change-me" and signature and not hmac.compare_digest(signature, expected):
-        raise HTTPException(status_code=400, detail="invalid refund webhook signature")
-    if not refund_id:
-        return {"ok": True, "message": "refund id missing; ignored"}
-    return {"ok": True, "refund_id": refund_id, "status": status}
+async def payments_webhook_refund(payload: dict[str, Any], request: Request, session: Session = Depends(get_session)):
+    raw_body = await request.body()
+    mode = _portone_env_mode(payload, request)
+    signature = _extract_portone_signature(request, payload)
+    secret = _portone_webhook_secret_for_mode(mode)
+    if not _verify_portone_webhook_signature(raw_body, signature, secret, request):
+        raise HTTPException(status_code=400, detail="invalid portone refund webhook signature")
+    event_id = str(payload.get("id") or payload.get("eventId") or "").strip()
+    event_type = str(payload.get("type") or payload.get("event_type") or "refund.updated").strip()
+    payment_id = str(payload.get("paymentId") or payload.get("payment_id") or payload.get("tx_id") or "").strip()
+    merchant_uid = str(payload.get("merchant_uid") or payload.get("order_no") or "").strip()
+    refund_id = str(payload.get("refund_id") or payload.get("case_id") or event_id or payment_id).strip()
+    if _payment_event_seen(session, event_id, event_type, refund_id):
+        return {"ok": True, "deduplicated": True, "refund_id": refund_id}
+    provider_payment = _portone_fetch_payment(payment_id) if payment_id else None
+    provider_status = str((provider_payment or {}).get("status") or payload.get("status") or "refund_processing")
+    if merchant_uid:
+        order = session.exec(select(Order).where(Order.order_no == merchant_uid)).first()
+        if order:
+            next_status = _apply_payment_status(order, provider_status)
+            session.add(order)
+            session.commit()
+        else:
+            next_status = provider_status
+    else:
+        next_status = provider_status
+    _mark_payment_event_seen(session, event_id, event_type, refund_id, {"event_type": event_type, "refund_id": refund_id, "status": provider_status, "mode": mode})
+    return {"ok": True, "refund_id": refund_id, "status": next_status, "provider_status": provider_status, "verified_by_requery": bool(provider_payment)}
 
 
 @router.get("/ops/minor-purge/preview")
@@ -1907,23 +2416,27 @@ def seller_verification_apply(payload: SellerVerificationRequest, SellerApproval
     _enforce_route_rate_limit(request, "seller_verification_apply", session)
     _assert_can_access_adult(current_user)
     profile = session.exec(select(SellerProfile).where(SellerProfile.user_id == (current_user.id or 0))).first()
+    handled_categories = [item.strip() for item in payload.handled_categories if str(item).strip()]
     submission_payload = {
-        "company_name": payload.company_name,
-        "representative_name": payload.representative_name,
-        "business_number": payload.business_number,
-        "ecommerce_number": payload.ecommerce_number,
-        "business_address": payload.business_address,
-        "cs_contact": payload.cs_contact,
-        "return_address": payload.return_address,
-        "youth_protection_officer": payload.youth_protection_officer,
-        "settlement_bank": payload.settlement_bank,
-        "settlement_account_number": payload.settlement_account_number,
-        "settlement_account_holder": payload.settlement_account_holder,
-        "handled_categories": payload.handled_categories,
+        "company_name": payload.company_name.strip(),
+        "representative_name": payload.representative_name.strip(),
+        "business_number": payload.business_number.strip(),
+        "ecommerce_number": payload.ecommerce_number.strip(),
+        "business_address": payload.business_address.strip(),
+        "cs_contact": payload.cs_contact.strip(),
+        "return_address": payload.return_address.strip(),
+        "youth_protection_officer": payload.youth_protection_officer.strip(),
+        "settlement_bank": payload.settlement_bank.strip(),
+        "settlement_account_number": payload.settlement_account_number.strip(),
+        "settlement_account_holder": payload.settlement_account_holder.strip(),
+        "handled_categories": handled_categories,
         "seller_contract_agreed": payload.seller_contract_agreed,
-        "business_document_url": payload.business_document_url,
+        "business_document_url": payload.business_document_url.strip(),
         "submitted_at": utcnow().isoformat(),
     }
+    missing_fields = _seller_submission_missing_fields(submission_payload)
+    if missing_fields:
+        raise HTTPException(status_code=400, detail={"message": "seller submission incomplete", "missing_fields": missing_fields})
     if not profile:
         profile = SellerProfile(user_id=current_user.id or 0, business_number=payload.business_number, cs_contact=payload.cs_contact, return_address=payload.return_address, seller_contract_agreed=payload.seller_contract_agreed, settlement_account_verified=False)
     else:
@@ -1971,6 +2484,7 @@ def admin_seller_approvals(current_user: User = Depends(require_grade(MemberGrad
             "cs_contact": profile.cs_contact if profile else submission.get("cs_contact"),
             "seller_contract_agreed": bool(profile.seller_contract_agreed) if profile else bool(submission.get("seller_contract_agreed")),
             "submission_complete": _seller_submission_complete(submission),
+            "missing_fields": _seller_submission_missing_fields(submission),
             "submitted_at": submission.get("submitted_at"),
         })
     return {"items": rows, "requirements": settings.seller_approval_requirements}
@@ -2001,6 +2515,7 @@ def admin_seller_approval_detail(user_id: int, current_user: User = Depends(requ
             "seller_contract_agreed": bool(profile.seller_contract_agreed) if profile else bool(submission.get("seller_contract_agreed")),
         },
         "submission": submission,
+        "missing_fields": _seller_submission_missing_fields(submission),
     }
 
 
@@ -2034,7 +2549,8 @@ def admin_product_approvals(current_user: User = Depends(require_grade(MemberGra
     rows = session.exec(select(Product).order_by(Product.updated_at.desc())).all()
     data=[]
     for item in rows:
-        data.append({"id": item.id, "seller_id": item.seller_id, "name": item.name, "sku_code": item.sku_code, "category": item.category, "status": item.status, "price": item.price, "stock_qty": item.stock_qty, "updated_at": item.updated_at.isoformat() if item.updated_at else ""})
+        meta = _product_policy_meta(session, item.id or 0)
+        data.append({"id": item.id, "seller_id": item.seller_id, "name": item.name, "sku_code": item.sku_code, "category": item.category, "status": item.status, "price": item.price, "stock_qty": item.stock_qty, "updated_at": item.updated_at.isoformat() if item.updated_at else "", "risk_level": meta.get("risk_level", "low"), "review_status": meta.get("review_status", item.status), "blocked_reason": meta.get("blocked_reason", "")})
     return {"items": data, "visibility_policy": settings.product_review_visibility_policy}
 
 
@@ -2044,7 +2560,7 @@ def admin_product_approval_detail(product_id: int, current_user: User = Depends(
     if not item:
         raise HTTPException(status_code=404, detail="product not found")
     media = session.exec(select(ProductMedia).where(ProductMedia.product_id == product_id).order_by(ProductMedia.sort_order)).all()
-    return {"product": item, "media": media, "visibility_policy": settings.product_review_visibility_policy}
+    return {"product": item, "media": media, "visibility_policy": settings.product_review_visibility_policy, "policy_meta": _product_policy_meta(session, product_id)}
 
 
 @router.post("/admin/product-approvals/{product_id}/decision")
@@ -2124,10 +2640,19 @@ def upsert_product(payload: ProductUpsertRequest, request: Request, current_user
     if not payload.id:
         product.status = "draft"
         product.is_active = False
+    classification = _classify_sku(product.category or "", product.name or "", product.description or "")
+    product.risk_grade = {"low": "A", "medium": "B", "high": "C"}.get(classification.get("risk_level"), "B")
+    if classification.get("review_status") == "blocked":
+        product.status = "blocked_policy"
+        product.is_active = False
+    elif classification.get("review_status") == "manual_review":
+        product.status = "pending_review"
+        product.is_active = False
     product.updated_at = utcnow()
     session.add(product)
     session.commit()
     session.refresh(product)
+    _save_product_policy_meta(session, product.id or 0, {**classification, "category": product.category, "sku_code": product.sku_code, "name": product.name})
     if payload.image_urls:
         existing = session.exec(select(ProductMedia).where(ProductMedia.product_id == (product.id or 0)).order_by(ProductMedia.sort_order)).all()
         if not existing:
@@ -2145,6 +2670,9 @@ def delete_product(product_id: int, request: Request, current_user: User = Depen
     product = session.get(Product, product_id)
     if not product:
         raise HTTPException(status_code=404, detail="product not found")
+    seller = session.get(User, product.seller_id)
+    if not seller or seller.seller_onboarding_status != SellerOnboardingStatus.ACTIVE:
+        raise HTTPException(status_code=403, detail="seller onboarding incomplete")
     if not _can_manage_product(current_user, product):
         raise HTTPException(status_code=403, detail="author or admin only")
     medias = session.exec(select(ProductMedia).where(ProductMedia.product_id == product_id)).all()
@@ -2485,7 +3013,7 @@ def create_order(payload: OrderCreateRequest, request: Request, current_user: Us
     supply_amount = int(round(total_amount / 1.1)) if total_amount else 0
     vat_amount = total_amount - supply_amount
     order = Order(
-        order_no=f"ORD-{utcnow().strftime('%Y%m%d%H%M%S')}",
+        order_no=f"ORD-{utcnow().strftime('%Y%m%d%H%M%S%f')}",
         member_id=current_user.id or 0,
         seller_id=product.seller_id,
         order_status="payment_pending",
@@ -2516,7 +3044,143 @@ def create_order(payload: OrderCreateRequest, request: Request, current_user: Us
     session.add(item)
     session.commit()
     write_admin_log(session, current_user, "order_create", "order", str(order.id), "스타터 주문 생성", after_state=f"total={total_amount}")
-    return {"ok": True, "order_id": order.id, "order_no": order.order_no, "total_amount": total_amount, "payment_provider": settings.pg_primary_provider, "payment_init": {"merchant_uid": order.order_no, "store_id_configured": settings.pg_portone_store_id != "change-me-pg-store-id", "channel_key_configured": settings.pg_portone_channel_key != "change-me-pg-channel-key", "webhook_path": settings.pg_webhook_path}}
+    checkout = _current_checkout_values()
+    return {"ok": True, "order_id": order.id, "order_no": order.order_no, "total_amount": total_amount, "payment_provider": settings.pg_primary_provider, "payment_init": {"merchant_uid": order.order_no, "store_id_configured": settings.pg_portone_store_id != "change-me-pg-store-id", "channel_key_configured": settings.pg_portone_channel_key != "change-me-pg-channel-key", "webhook_path": settings.pg_webhook_path, "store_id": checkout["store_id"], "channel_key": checkout["channel_key"], "client_key": checkout["client_key"], "mid": checkout["mid"], "mode": checkout["mode"]}}
+
+
+@router.get("/payments/frontend-env-check")
+def payments_frontend_env_check() -> dict[str, Any]:
+    checkout = _current_checkout_values()
+    return {
+        "ok": True,
+        "recommended_cloudflare_env": {
+            "VITE_API_BASE_URL": settings.cors_origins.split(",")[-1].strip() if settings.cors_origins else "",
+            "VITE_PORTONE_STORE_ID": checkout["store_id"],
+            "VITE_TOSS_CLIENT_KEY": checkout["client_key"],
+        },
+        "resolved_checkout": checkout,
+        "notes": [
+            "Cloudflare Pages에는 client key와 store id만 넣고 secret 값은 넣지 않습니다.",
+            "Railway backend에는 PORTONE_API_SECRET, webhook secret, toss secret key를 넣습니다.",
+            "테스트 단계에서는 test/live 값을 절대 섞지 않습니다.",
+        ],
+    }
+
+
+@router.get("/payments/orders/{order_no}/checkout-config")
+def payment_checkout_config(order_no: str, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)) -> dict[str, Any]:
+    order = session.exec(select(Order).where(Order.order_no == order_no)).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="order not found")
+    if not _can_view_order(current_user, order):
+        raise HTTPException(status_code=403, detail="forbidden")
+    checkout = _current_checkout_values()
+    record = _payment_record(session, order.order_no)
+    return {
+        "ok": True,
+        "order_no": order.order_no,
+        "amount": int(order.total_amount or 0),
+        "currency": "KRW",
+        "payment_status": order.order_status,
+        "checkout": checkout,
+        "provider": settings.pg_primary_provider,
+        "customer": {"id": current_user.id, "email": current_user.email, "name": current_user.name},
+        "record": record,
+    }
+
+
+@router.post("/payments/confirm")
+def payments_confirm(payload: PaymentConfirmRequest, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)) -> dict[str, Any]:
+    order = session.exec(select(Order).where(Order.order_no == payload.order_no)).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="order not found")
+    if not _can_view_order(current_user, order):
+        raise HTTPException(status_code=403, detail="forbidden")
+    if int(payload.amount or 0) != int(order.total_amount or 0):
+        raise HTTPException(status_code=400, detail="payment amount mismatch")
+    record = _payment_record(session, order.order_no)
+    if record.get("confirmed") and str(record.get("payment_id")) != str(payload.payment_id):
+        raise HTTPException(status_code=409, detail="order already confirmed with different payment")
+    provider_status = payload.status or "Paid"
+    next_status = _apply_payment_status(order, provider_status)
+    session.add(order)
+    session.commit()
+    record.update({
+        "confirmed": True,
+        "payment_id": payload.payment_id,
+        "provider": payload.provider,
+        "method": payload.method,
+        "paid_amount": int(payload.amount or 0),
+        "cancelled_amount": int(record.get("cancelled_amount") or 0),
+        "refunded_amount": int(record.get("refunded_amount") or 0),
+        "latest_status": next_status,
+    })
+    _append_payment_history(record, "payment_confirmed", {"payment_id": payload.payment_id, "status": next_status, "amount": int(payload.amount or 0)})
+    _save_payment_record(session, order.order_no, record, status=next_status)
+    write_admin_log(session, current_user, "payment_confirm", "order", str(order.id or 0), f"결제 확인 {order.order_no}", after_state=next_status, ip=request.client.host if request.client else "127.0.0.1", device=request.headers.get("user-agent"))
+    return {"ok": True, "order_no": order.order_no, "status": next_status, "payment_id": payload.payment_id, "record": record}
+
+
+@router.post("/payments/orders/{order_no}/cancel")
+def payments_cancel(order_no: str, payload: PaymentCancelRequest, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)) -> dict[str, Any]:
+    order = session.exec(select(Order).where(Order.order_no == order_no)).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="order not found")
+    if not _can_view_order(current_user, order):
+        raise HTTPException(status_code=403, detail="forbidden")
+    record = _payment_record(session, order.order_no)
+    if not record.get("confirmed"):
+        raise HTTPException(status_code=400, detail="payment not confirmed")
+    snapshot = _payment_amount_snapshot(order, record)
+    cancel_amount = int(payload.amount or snapshot["remaining"])
+    if cancel_amount <= 0:
+        raise HTTPException(status_code=400, detail="cancel amount must be positive")
+    if cancel_amount > snapshot["remaining"]:
+        raise HTTPException(status_code=400, detail="cancel amount exceeds remaining payable amount")
+    idem = str(payload.idempotency_key or f"cancel:{order_no}:{cancel_amount}:{payload.reason}")
+    if any(item.get("idempotency_key") == idem for item in (record.get("history") or [])):
+        return {"ok": True, "deduplicated": True, "order_no": order_no, "status": order.order_status, "record": record}
+    provider_status = "Cancelled" if cancel_amount == snapshot["remaining"] else "PartialCancelled"
+    next_status = _apply_payment_status(order, provider_status)
+    session.add(order)
+    session.commit()
+    record["cancelled_amount"] = int(record.get("cancelled_amount") or 0) + cancel_amount
+    record["latest_status"] = next_status
+    _append_payment_history(record, "payment_cancelled", {"amount": cancel_amount, "reason": payload.reason, "provider_status": provider_status, "idempotency_key": idem})
+    _save_payment_record(session, order.order_no, record, status=next_status)
+    write_admin_log(session, current_user, "payment_cancel", "order", str(order.id or 0), f"결제 취소 {order.order_no}", before_state=str(snapshot), after_state=next_status, ip=request.client.host if request.client else "127.0.0.1", device=request.headers.get("user-agent"))
+    return {"ok": True, "order_no": order_no, "status": next_status, "cancel_amount": cancel_amount, "amount_snapshot": _payment_amount_snapshot(order, record), "record": record}
+
+
+@router.post("/payments/orders/{order_no}/refund")
+def payments_refund(order_no: str, payload: PaymentRefundRequest, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)) -> dict[str, Any]:
+    order = session.exec(select(Order).where(Order.order_no == order_no)).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="order not found")
+    if not _can_view_order(current_user, order):
+        raise HTTPException(status_code=403, detail="forbidden")
+    record = _payment_record(session, order.order_no)
+    if not record.get("confirmed"):
+        raise HTTPException(status_code=400, detail="payment not confirmed")
+    snapshot = _payment_amount_snapshot(order, record)
+    refund_amount = int(payload.amount or snapshot["remaining"])
+    if refund_amount <= 0:
+        raise HTTPException(status_code=400, detail="refund amount must be positive")
+    if refund_amount > snapshot["remaining"]:
+        raise HTTPException(status_code=400, detail="refund amount exceeds remaining payable amount")
+    idem = str(payload.idempotency_key or f"refund:{order_no}:{refund_amount}:{payload.reason}")
+    if any(item.get("idempotency_key") == idem for item in (record.get("history") or [])):
+        return {"ok": True, "deduplicated": True, "order_no": order_no, "status": order.order_status, "record": record}
+    provider_status = _refund_provider_status_for_amount(refund_amount, snapshot["remaining"])
+    next_status = _apply_payment_status(order, provider_status)
+    session.add(order)
+    session.commit()
+    record["refunded_amount"] = int(record.get("refunded_amount") or 0) + refund_amount
+    record["latest_status"] = next_status
+    _append_payment_history(record, "payment_refunded", {"amount": refund_amount, "reason": payload.reason, "provider_status": provider_status, "idempotency_key": idem})
+    _save_payment_record(session, order.order_no, record, status=next_status)
+    write_admin_log(session, current_user, "payment_refund", "order", str(order.id or 0), f"환불 처리 {order.order_no}", before_state=str(snapshot), after_state=next_status, ip=request.client.host if request.client else "127.0.0.1", device=request.headers.get("user-agent"))
+    return {"ok": True, "order_no": order_no, "status": next_status, "refund_amount": refund_amount, "amount_snapshot": _payment_amount_snapshot(order, record), "record": record}
 
 
 @router.get("/settlements/preview")
@@ -3612,6 +4276,7 @@ def seller_required_fields() -> dict[str, Any]:
             "business_document_url": "사업자증빙 파일 경로 또는 업로드 URL 필수",
         },
         "marketplace_direction": "통신판매중개",
+        "blocking_rules": ["seller_onboarding_status=pending", "필수 입력 누락 시 상품 등록 불가", "필수 입력 누락 시 상품 공개 불가", "필수 입력 누락 시 주문 수락 불가", "테스트 관리자 계정만 admin override 허용"],
         "note": "판매자별 사업자/통신판매/CS/정산 정보 입력이 완료되어야 PG 신청 접수 기준을 충족합니다.",
     }
 
@@ -3642,6 +4307,20 @@ def pg_submission_package() -> dict[str, Any]:
             "정산 기준 문서 확정",
             "운영용 사업자/판매자 고지 화면 정리",
         ],
+        "env_required": [
+            "PG_PORTONE_STORE_ID", "PG_PORTONE_CHANNEL_KEY", "PORTONE_API_SECRET",
+            "PORTONE_WEBHOOK_SECRET_TEST", "PORTONE_WEBHOOK_SECRET_LIVE",
+            "PG_PRIMARY_MERCHANT_ID", "PG_PRIMARY_API_KEY", "PG_PRIMARY_WEBHOOK_SECRET",
+            "PG_PORTONE_STORE_ID_TEST", "PG_PORTONE_STORE_ID_LIVE", "PG_PORTONE_CHANNEL_KEY_TEST", "PG_PORTONE_CHANNEL_KEY_LIVE",
+            "PG_PRIMARY_MERCHANT_ID_TEST", "PG_PRIMARY_MERCHANT_ID_LIVE"
+        ],
+        "recommended_test_defaults": {
+            "portone_sdk": "enabled",
+            "env_split": "full",
+            "sku_policy": "conservative",
+            "premium_sla": "target_only",
+            "seller_onboarding_gate": "strict_with_admin_override"
+        },
     }
 
 
@@ -3670,6 +4349,14 @@ def payments_integration_checklist() -> dict[str, Any]:
             "정산 기준과 주문 상태 연결",
             "미인증 사용자의 구매 진입 차단",
         ],
+        "order_statuses": ["payment_requested","paid","cancel_requested","cancel_pending","cancelled","partial_cancelled","refund_requested","refund_processing","refunded","refund_failed"],
+        "recommended_test_stage_choices": [
+            "PortOne 표준 SDK 즉시 적용",
+            "test/live Store ID, channel key, merchant, webhook URL 완전 분리",
+            "허용 SKU만 실제 상품으로 노출",
+            "프리미엄 배송은 목표형 문구만 사용",
+            "판매자 필수 입력 누락 시 상품등록/공개/주문수락 차단"
+        ],
     }
 
 
@@ -3686,9 +4373,16 @@ def policy_refund_settlement() -> dict[str, Any]:
             "판매자 책임 vs 플랫폼 책임",
         ],
         "marketplace_responsibility": {
-            "platform": ["결제 흐름 제공", "분쟁 중재", "정산 데이터 제공"],
+            "platform": ["결제 흐름 제공", "분쟁 중재", "정산 데이터 제공", "통신판매중개 고지"],
             "seller": ["상품 정보", "배송", "반품지", "하자/오배송 1차 책임", "증빙 발급"],
         },
+        "premium_delivery_sla_mode": settings.premium_delivery_sla_mode,
+        "premium_delivery_sla": [
+            "익명포장: 적용 가능 판매자 한정 목표형 안내",
+            "빠른출고: 영업일 기준 24시간 이내 출고 목표",
+            "재포장/보호포장: 외부 파손 방지 포장 추가 목표",
+            "프리미엄CS: 영업일 기준 4시간 이내 1차 응답 목표"
+        ],
     }
 
 
@@ -3701,7 +4395,29 @@ def policy_store_metadata_safe() -> dict[str, Any]:
             "단체 톡방 공지에 사람 찾기/주선 금지 명시",
             "상품 이미지는 노골적 표현 최소화",
             "스토어 메타데이터도 보수적으로 유지",
-        ]
+        ],
+        "safe_footer_notice": "어른플랫폼은 통신판매중개자이며, 판매의 당사자가 아닙니다.",
+        "order_notice": "구매계약의 당사자는 판매자이며, 플랫폼은 통신판매중개를 제공합니다.",
+    }
+
+
+@router.get("/policy/sku-matrix")
+def policy_sku_matrix() -> dict[str, Any]:
+    return {
+        "direction": "통신판매중개",
+        "allowed": ["위생/보관/세척", "비노골적 웰니스 액세서리", "중립 포장 관련 부자재"],
+        "manual_review": ["표현 수위가 애매한 상품", "오해 소지가 있는 상품명/이미지", "부상 위험 가능성이 있는 상품"],
+        "blocked": ["노골적 성기형상", "강압/위험행위 연상", "촬영물/서비스 연계", "불법/위험 물품", "만남/서비스 이용권 성격 상품"],
+        "note": "테스트 단계에서는 허용 SKU만 실제 노출하고, 보류는 관리자 더미 상태로 유지하며, 금지는 저장만 허용하고 공개 차단합니다.",
+    }
+
+
+@router.get("/policy/marketplace-disclosure")
+def policy_marketplace_disclosure() -> dict[str, Any]:
+    return {
+        "footer_notice": "어른플랫폼은 통신판매중개자이며, 판매의 당사자가 아닙니다.",
+        "product_detail_required": ["판매자명", "사업자등록번호", "통신판매업 신고번호", "CS 연락처", "반품지"],
+        "checkout_notice": "구매계약의 당사자는 판매자이며, 플랫폼은 통신판매중개를 제공합니다.",
     }
 
 

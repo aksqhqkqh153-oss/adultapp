@@ -1,0 +1,33 @@
+AdultApp PortOne TEST configuration build check (2026-04-12)
+
+Applied updates
+- Added backend/.env with PortOne TEST values only
+- Kept LIVE values as placeholders
+- Added root .gitignore to prevent backend/.env and local env files from Git tracking
+- Added /api/provider-status, /api/self-test, /api/launch-priority alias endpoints
+- Added /api/payments/webhooks/test-signature diagnostic endpoint
+- Added backend/scripts/portone_local_smoke_test.py
+
+Local verification performed
+1) GET /api/provider-status
+   - test_env_ready = true
+   - live_env_ready = false
+   - portone_sdk_installed = true
+   - toss_test_client_key_configured = true
+   - toss_test_secret_key_configured = true
+   - toss_test_mid_configured = true
+
+2) GET /api/self-test
+   - passed = 6
+   - failed = 0
+
+3) POST /api/payments/webhooks/test-signature
+   - verified = true
+
+4) POST /api/payments/webhooks/pg
+   - signed test payload accepted
+   - order ORD-WEBHOOK-SMOKE moved to paid
+
+Notes
+- External PortOne network payment authorization/cancel/refund was not executed in this container because the test confirmed local config loading, webhook signature validation, and payment status handling only.
+- For real PortOne callback delivery from the console in local development, localhost must be exposed through a tunnel such as ngrok or a public test URL.

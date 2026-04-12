@@ -7,3 +7,4 @@ PyJWT==2.10.1
 pyotp==2.9.0
 passlib[argon2]==1.7.4
 argon2-cffi==25.1.0
+portone-server-sdk==0.20.0

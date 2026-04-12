@@ -1,11 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+.env
+.env.*
+*.sqlite3
+*.db
+
+# Node
 node_modules/
 dist/
-.venv/
-__pycache__/
-*.pyc
-.env
+
+# OS / IDE
 .DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs and local artifacts
+*.log
 coverage/
-frontend/.vite/
-backend/.pytest_cache/
-backend/.mypy_cache/
+htmlcov/
+
+# Project-specific secrets
+backend/.env
+backend/.env.local
+backend/.env.*
+frontend/.env
+frontend/.env.local
+frontend/.env.*

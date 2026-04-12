@@ -1,0 +1,8 @@
+provider-status OK
+self-test OK
+frontend-env-check OK
+confirm OK: ORD-20260412062804810009
+partial-cancel OK: ORD-20260412062804810009
+full-cancel OK: ORD-20260412062804877702
+partial-refund OK: ORD-20260412062804914250
+full-refund OK: ORD-20260412062804966759

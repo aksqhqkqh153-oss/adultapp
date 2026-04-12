@@ -32,6 +32,24 @@ class Settings(BaseSettings):
 
     pg_portone_store_id: str = "change-me-pg-store-id"
     pg_portone_channel_key: str = "change-me-pg-channel-key"
+    pg_portone_store_id_test: str = "change-me-pg-store-id-test"
+    pg_portone_store_id_live: str = "change-me-pg-store-id-live"
+    pg_portone_channel_key_test: str = "change-me-pg-channel-key-test"
+    pg_portone_channel_key_live: str = "change-me-pg-channel-key-live"
+    pg_primary_merchant_id_test: str = "change-me-merchant-test"
+    pg_primary_merchant_id_live: str = "change-me-merchant-live"
+    toss_mid_test: str = "iamporttest_3"
+    toss_client_key_test: str = "change-me-toss-client-key-test"
+    toss_secret_key_test: str = "change-me-toss-secret-key-test"
+    toss_mid_live: str = "change-me-toss-mid-live"
+    toss_client_key_live: str = "change-me-toss-client-key-live"
+    toss_secret_key_live: str = "change-me-toss-secret-key-live"
+    portone_sdk_enabled: bool = True
+    payments_env_split_enabled: bool = True
+    portone_api_base_url: str = "https://api.portone.io"
+    portone_api_secret: str = "change-me-portone-api-secret"
+    portone_webhook_secret_test: str = "change-me-portone-webhook-test"
+    portone_webhook_secret_live: str = "change-me-portone-webhook-live"
     pg_webhook_path: str = "/api/payments/webhooks/pg"
     pg_refund_webhook_path: str = "/api/payments/webhooks/refund"
     pg_settlement_basis_note: str = "초기에는 관리자 승인형 판매자/상품 공개 구조로 운영하며, 관리자 직접판매와 사업자 판매물품 중개를 병행"
@@ -107,9 +125,18 @@ class Settings(BaseSettings):
     monetization_b2b_report_tools_enabled: bool = True
     monetization_sponsored_slot_policy: str = "브랜드관/기획전 대신 홈·질문 피드 사이에 검수형 추천노출 상품 슬롯만 허용"
     monetization_premium_member_policy: str = "구매자 회원제 기반으로 익명포장·빠른출고·보호포장·프리미엄CS 옵션 제공"
+    premium_delivery_sla_mode: str = "target"
     monetization_b2b_tool_policy: str = "판매자 월 구독 없이 월별 정산·반품환불 이력·분쟁로그·증빙·대시보드·SKU 승인 상태 리포트만 유료화"
 
     seller_approval_requirements: str = "사업자등록증,정산계좌 확인,반품지,CS 연락처,판매자 약관 동의 완료 시 승인"
+    seller_onboarding_admin_override_enabled: bool = False
+    test_stage_sdk_install_now: bool = True
+    test_stage_live_values_entry_phase: str = "테스트 webhook secret, Store ID, channel key, API Secret 발급 후 test 환경부터 입력하고 live 값은 운영 MID 발급 직전에 입력"
+    test_stage_admin_override_policy: str = "출시 준비 단계 기본값은 비활성화이며, 내부 QA 환경에서만 일시적 활성화를 허용"
+    test_stage_sku_expansion_phase: str = "PG 사전상담 피드백 전까지 보수 유지, 승인 후 단계적으로 확장"
+    test_stage_premium_sla_upgrade_phase: str = "운영 안정화 이후 목표형에서 보장형 전환 검토"
+    test_stage_next_actions: str = "PortOne 테스트 webhook secret/Store ID/channel key/API Secret 발급,backend/.env에 test 값만 입력,결제·취소·부분취소·환불·webhook 재전송 테스트,판매자 필수 입력 누락 차단 확인,허용 SKU만 공개해 PG 사전상담,live merchant/MID/live webhook secret은 마지막 단계에서만 입력"
+    launch_stage_mode: str = "prelive"
     product_review_visibility_policy: str = "승인 전 비공개"
     product_review_editable_statuses: str = "draft,pending_review,rejected"
     settlement_cycle_policy: str = "환불 리스크와 CS 처리 안정화 후 주별 정산"

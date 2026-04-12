@@ -194,6 +194,21 @@ type PaymentProviderStatusResponse = {
   portone_channel_key_configured?: boolean;
   primary_merchant_configured?: boolean;
   secondary_merchant_configured?: boolean;
+  portone_store_id_test_configured?: boolean;
+  portone_store_id_live_configured?: boolean;
+  portone_channel_key_test_configured?: boolean;
+  portone_channel_key_live_configured?: boolean;
+  primary_merchant_test_configured?: boolean;
+  primary_merchant_live_configured?: boolean;
+  portone_api_secret_configured?: boolean;
+  portone_webhook_test_configured?: boolean;
+  portone_webhook_live_configured?: boolean;
+  portone_sdk_enabled?: boolean;
+  portone_sdk_installed?: boolean;
+  payments_env_split_enabled?: boolean;
+  test_env_ready?: boolean;
+  live_env_ready?: boolean;
+  recommended_now?: string[];
   webhook_paths?: Record<string, string>;
   settlement_basis_note?: string;
 };
@@ -344,6 +359,26 @@ const defaultHeaderFavorites: HeaderFavoriteMap = {
   "소통": ["커뮤", "포럼", "후기"],
   "채팅": ["채팅", "질문"],
   "프로필": ["내정보"],
+};
+
+const defaultSignupConsents: SignupConsentState = { terms: false, privacy: false, adultNotice: false, identityNotice: false, marketing: false, profileOptional: false };
+const defaultSignupForm: SignupFormState = { email: "", password: "", displayName: "", loginMethod: "이메일" };
+const defaultDemoProfile: DemoProfileState = { gender: "", ageBand: "", regionCode: "", interests: [], marketingOptIn: false };
+const defaultSellerVerification: SellerVerificationState = {
+  companyName: "",
+  representativeName: "",
+  businessNumber: "",
+  ecommerceNumber: "",
+  businessAddress: "",
+  csContact: "",
+  returnAddress: "",
+  youthProtectionOfficer: "",
+  businessDocumentUrl: "",
+  settlementBank: "",
+  settlementAccountNumber: "",
+  settlementAccountHolder: "",
+  handledCategories: "",
+  status: "draft",
 };
 
 
@@ -559,10 +594,10 @@ const skuPolicySeed = [
 ];
 
 const premiumSlaSeed = [
-  { title: '익명포장 보장', detail: '외부 포장에 상품명·브랜드명·민감 키워드 미기재, 송장 품목명 중립화' },
-  { title: '빠른 출고', detail: '영업일 기준 당일 또는 익영업일 출고 가능 판매자만 적용' },
-  { title: '재포장/보호포장', detail: '파손방지 내포장, 외부 충격 완화재, 이중 포장 기준 문서화' },
-  { title: '프리미엄 CS', detail: '운영시간 내 4시간 이내 1차 응답, 환불/교환 이슈 우선 처리' },
+  { title: '익명포장 목표형', detail: '적용 가능 판매자에 한해 외부 포장에 상품명·브랜드명·민감 키워드 미기재를 목표로 운영' },
+  { title: '빠른 출고 목표', detail: '영업일 기준 당일 또는 익영업일 출고 가능 판매자만 적용' },
+  { title: '재포장/보호포장 목표', detail: '파손방지 내포장, 외부 충격 완화재, 이중 포장 기준을 목표형으로 운영' },
+  { title: '프리미엄 CS 목표', detail: '운영시간 내 4시간 이내 1차 응답을 목표로 우선 처리' },
 ];
 
 const storeSafeMetadataGuide = [
@@ -574,10 +609,12 @@ const storeSafeMetadataGuide = [
 ];
 
 const pgSubmissionReadiness = [
-  '현재 프론트/백엔드 골격은 사전 상담/사전심사 접수와 테스트 채널 연동 설명용 수준으로 가능',
-  '실운영 신청 전 webhook 서명 검증, 취소/환불 상태머신, 정산 기준 문서 고정 필요',
-  '가맹점/업종 심사 전 금지상품 SKU 정책, 환불정책, 익명포장 SLA 문서 첨부 권장',
+  '현재는 테스트 단계이므로 PortOne 표준 SDK, test/live 완전 분리, 보수적 SKU 기준을 우선 적용',
+  '실운영 신청 전 webhook 검증, 결제 재조회, 취소/환불 상태머신, 정산 기준 문서를 고정해야 함',
+  '가맹점/업종 심사 전 금지상품 SKU 정책, 환불정책, 프리미엄 배송 목표형 문구를 첨부 권장',
 ];
+
+const marketplaceDisclosureItems = ['판매자명', '사업자등록번호', '통신판매업 신고번호', 'CS 연락처', '반품지'];
 
 const pgSubmissionPackageItems = [
   '플랫폼 사업자 정보',
@@ -613,11 +650,48 @@ const pgExecutionSteps = [
   '운영 최종 점검 후 심사 제출',
 ];
 
+const testStageExtraActions = [
+  'PortOne 테스트 webhook secret / Store ID / channel key / API Secret 발급',
+  'backend/.env에는 test 값만 먼저 입력',
+  '결제/취소/부분취소/환불/webhook 재전송까지 테스트',
+  '판매자 필수 입력값 누락 차단 동작 확인',
+  '허용 SKU만 노출한 상태로 PG 사전상담 진행',
+  '운영 MID / merchant 실제값은 마지막 단계에서 반영',
+];
+
+const launchPriorityTop10 = [
+  { title: '1순위 · PortOne 테스트 실값 입력', body: '테스트 webhook secret, Store ID, channel key, API Secret을 먼저 넣고 provider status에서 configured 상태를 확인합니다.' },
+  { title: '2순위 · 결제/취소/환불/webhook 검증', body: '결제, 취소, 부분취소, 환불, webhook 재전송, 중복수신까지 실제 테스트해 상태머신 전이를 확인합니다.' },
+  { title: '3순위 · 판매자 필수 입력 차단 운영', body: '필수값 누락 시 상품 등록·공개·주문 수락이 실제로 막히는지 관리자 화면까지 같이 확인합니다.' },
+  { title: '4순위 · 운영자 override 기본 비활성화', body: '출시 준비 기본값은 override를 끄고 내부 QA용으로만 임시 사용합니다.' },
+  { title: '5순위 · 허용 SKU만 노출', body: '허용 SKU만 공개하고 보류/금지 카테고리는 관리자 검수 또는 비공개 상태로 유지합니다.' },
+  { title: '6순위 · PG 사전상담', body: '허용 SKU, 거래 구조, 환불정책, 통신판매중개 고지 구조를 묶어 PG/포트원 사전상담을 진행합니다.' },
+  { title: '7순위 · 고지 화면 최종 점검', body: '푸터, 상품상세, 주문서에 판매자 정보와 통신판매중개 고지 문구가 정확히 표시되는지 확인합니다.' },
+  { title: '8순위 · 프리미엄 배송 목표형 유지', body: '운영 안정화 전까지는 목표형/안내형 문구만 사용하고 보장형 SLA는 열지 않습니다.' },
+  { title: '9순위 · 성인인증과 결제 흐름 분리 검증', body: '미인증 구매 차단, 인증 만료 차단, 인증 로그 저장, 판매자/구매자 권한 구분을 점검합니다.' },
+  { title: '10순위 · 운영 MID는 마지막 입력', body: '실 merchant, 운영 MID, live webhook secret은 마지막 단계에서만 입력해 test/live 혼용을 피합니다.' },
+];
+
+const testStageDefaults = [
+  { title: 'PortOne 표준 SDK', body: 'requirements.txt 기준으로 공식 SDK를 바로 설치해 테스트 채널부터 공식 webhook 검증 구조로 고정합니다.' },
+  { title: '테스트/운영 완전 분리', body: 'webhook secret, Store ID, channel key, merchant ID, callback URL을 test/live로 완전 분리하고 live 값은 운영 MID 발급 직전까지 넣지 않습니다.' },
+  { title: 'SKU 보수 기준', body: '허용 SKU만 실제 상품으로 노출하고, 보류 SKU는 관리자 더미 상태, 금지는 공개 차단으로 유지하며 PG 사전상담 전에는 넓히지 않습니다.' },
+  { title: '프리미엄 배송 목표형', body: '보장형 대신 적용 가능 판매자 한정 목표형/안내형 문구로만 운영하고, 운영 안정화 이후에만 보장형 전환을 검토합니다.' },
+  { title: '판매자 필수값 강제', body: '필수 입력이 모두 완료되기 전까지 상품 등록·공개·주문 수락을 차단하고, 출시 준비 기본값은 관리자 override도 비활성화합니다.' },
+];
+
 const marketplaceDirectionCards = [
   { title: '통신판매중개 구조', body: '플랫폼은 통신판매중개자로 고지하고, 판매자별 사업자·CS·반품·정산 책임을 분리 표시합니다.' },
   { title: '판매자 필수 입력 서버검증', body: '상호/법인명, 대표자명, 사업자번호, 통신판매업 신고번호, 주소, CS, 반품지, 정산계좌, 청소년보호책임자, 취급 카테고리를 서버 기준으로 저장·검증합니다.' },
   { title: 'PG 심사 제출 패키지', body: '포트원/PG 심사 시 제출할 사업 정보 묶음, 거래 구조 설명, 금지상품/SKU 정책, 환불/정산 기준을 한 세트로 준비합니다.' },
   { title: '운영 전환 체크', body: '테스트 MID, webhook, 환불 상태머신, 성인인증 분리 검증, 운영 메타데이터 보수화까지 완료 후 운영 전환합니다.' },
+];
+const goLiveBestFitCards = [
+  { title: '1. 테스트값 먼저 입력', body: 'PortOne 테스트 webhook secret, Store ID, channel key, API Secret만 backend/.env에 먼저 입력하고 live 값은 마지막 단계까지 비워둡니다.' },
+  { title: '2. 결제 이벤트 전수 테스트', body: '결제 성공, 취소, 부분취소, 환불, webhook 재전송, 중복수신까지 모두 테스트해 상태머신 전이가 맞는지 확인합니다.' },
+  { title: '3. 판매자 차단 강제 확인', body: '필수 입력값 누락 판매자는 pending으로 두고 상품 등록·공개·주문 수락이 실제로 막히는지 관리자 화면까지 같이 확인합니다.' },
+  { title: '4. 허용 SKU만 공개', body: '허용 SKU만 실제 노출하고 보류/금지는 관리자 검수 또는 비공개를 유지한 상태로 PG 사전상담을 진행합니다.' },
+  { title: '5. 운영값은 마지막 입력', body: '운영 MID, live merchant, live webhook secret, live callback URL은 운영 전환 직전 마지막 단계에서만 입력합니다.' },
 ];
 const dmRuleNoticeItems = [
   "오프라인 만남 제안 금지",
@@ -1076,7 +1150,7 @@ function SettingSection({ category, isAdmin, legacySection, setLegacySection, pr
         <div className="legacy-box compact"><h3>재동의 상태</h3><p>{authSummary?.reconsent_required || authSummary?.consent_status?.reconsent_required ? '필수 재동의 필요' : '최신 버전 동의 상태'}</p></div>
         <div className="legacy-box compact"><h3>국내 출시 법적 준비</h3><p>{releaseReadiness?.status === 'blocked' ? '출시 차단 항목 존재' : releaseReadiness?.status === 'warning' ? '주의 항목 있음' : '핵심 차단 항목 없음'}</p><p>차단 {releaseReadiness?.blockers?.length ?? 0}건 · 주의 {releaseReadiness?.warnings?.length ?? 0}건</p></div>
         <div className="legacy-box compact"><h3>사업자 표시 정보</h3><p>{businessInfo?.complete ? '사업자 고지 정보 확정' : '사업자/통신판매/청소년보호책임자 정보 보완 필요'}</p><p>누락: {businessInfo?.placeholder_fields?.length ? businessInfo.placeholder_fields.join(', ') : '없음'}</p><p>입력 소스: {businessInfo?.source ?? 'settings'} {businessInfo?.beta_db_override_enabled ? '· 베타 DB 연동 가능' : ''}</p></div>
-        <div className="legacy-box compact"><h3>PortOne/PASS 연동</h3><p>{paymentProviderStatus?.portone_store_id_configured && paymentProviderStatus?.portone_channel_key_configured ? 'PortOne 설정값 입력됨' : 'PortOne 설정값 입력 필요'}</p><p>기본 PG: {paymentProviderStatus?.primary_provider ?? '-'} · webhook: {paymentProviderStatus?.webhook_paths?.payment ?? '-'}</p></div>
+        <div className="legacy-box compact"><h3>PortOne/PASS 연동</h3><p>{paymentProviderStatus?.test_env_ready ? '테스트 설정 완료' : '테스트 설정 입력 필요'}</p><p>기본 PG: {paymentProviderStatus?.primary_provider ?? '-'} · webhook: {paymentProviderStatus?.webhook_paths?.payment ?? '-'}</p><p>SDK: {paymentProviderStatus?.portone_sdk_installed ? '설치됨' : '미설치'} · env 분리: {paymentProviderStatus?.payments_env_split_enabled ? '활성화' : '비활성화'}</p></div>
       </div>
     );
   }
@@ -1392,29 +1466,28 @@ export default function App() {
     return window.localStorage.getItem("adultapp_identity_token") ?? "";
   });
   const [signupConsents, setSignupConsents] = useState<SignupConsentState>(() => {
-    if (typeof window === "undefined") return { terms: false, privacy: false, adultNotice: false, identityNotice: false, marketing: false, profileOptional: false };
+    if (typeof window === "undefined") return defaultSignupConsents;
     const raw = window.localStorage.getItem("adultapp_signup_consents");
-    if (!raw) return { terms: false, privacy: false, adultNotice: false, identityNotice: false, marketing: false, profileOptional: false };
-    try { return { terms: false, privacy: false, adultNotice: false, identityNotice: false, marketing: false, profileOptional: false, ...JSON.parse(raw) }; } catch { return { terms: false, privacy: false, adultNotice: false, identityNotice: false, marketing: false, profileOptional: false }; }
+    if (!raw) return defaultSignupConsents;
+    try { return { ...defaultSignupConsents, ...JSON.parse(raw) }; } catch { return defaultSignupConsents; }
   });
   const [signupForm, setSignupForm] = useState<SignupFormState>(() => {
-    if (typeof window === "undefined") return { email: "", password: "", displayName: "", loginMethod: "이메일" };
+    if (typeof window === "undefined") return defaultSignupForm;
     const raw = window.localStorage.getItem("adultapp_signup_form");
-    if (!raw) return { email: "", password: "", displayName: "", loginMethod: "이메일" };
-    try { return { email: "", password: "", displayName: "", loginMethod: "이메일", ...JSON.parse(raw) }; } catch { return { email: "", password: "", displayName: "", loginMethod: "이메일" }; }
+    if (!raw) return defaultSignupForm;
+    try { return { ...defaultSignupForm, ...JSON.parse(raw) }; } catch { return defaultSignupForm; }
   });
   const [demoProfile, setDemoProfile] = useState<DemoProfileState>(() => {
-    if (typeof window === "undefined") return { gender: "", ageBand: "", regionCode: "", interests: [], marketingOptIn: false };
+    if (typeof window === "undefined") return defaultDemoProfile;
     const raw = window.localStorage.getItem("adultapp_demo_profile");
-    if (!raw) return { gender: "", ageBand: "", regionCode: "", interests: [], marketingOptIn: false };
-    try { return { gender: "", ageBand: "", regionCode: "", interests: [], marketingOptIn: false, ...JSON.parse(raw) }; } catch { return { gender: "", ageBand: "", regionCode: "", interests: [], marketingOptIn: false }; }
+    if (!raw) return defaultDemoProfile;
+    try { return { ...defaultDemoProfile, ...JSON.parse(raw) }; } catch { return defaultDemoProfile; }
   });
   const [sellerVerification, setSellerVerification] = useState<SellerVerificationState>(() => {
-    const fallback = { companyName: "", representativeName: "", businessNumber: "", ecommerceNumber: "", businessAddress: "", csContact: "", returnAddress: "", youthProtectionOfficer: "", businessDocumentUrl: "", settlementBank: "", settlementAccountNumber: "", settlementAccountHolder: "", handledCategories: "", status: "draft" as const };
-    if (typeof window === "undefined") return fallback;
+    if (typeof window === "undefined") return defaultSellerVerification;
     const raw = window.localStorage.getItem("adultapp_seller_verification");
-    if (!raw) return fallback;
-    try { return { ...fallback, ...JSON.parse(raw) }; } catch { return fallback; }
+    if (!raw) return defaultSellerVerification;
+    try { return { ...defaultSellerVerification, ...JSON.parse(raw) }; } catch { return defaultSellerVerification; }
   });
   const [productRegistrationDraft, setProductRegistrationDraft] = useState<ProductRegistrationDraft>(() => ({ category: "뷰티", name: "", imageUrls: ["", "", "", "", ""], description: "", price: "", stockQty: "", skuCode: "" }));
   const [submittedProducts, setSubmittedProducts] = useState<ProductRegistrationDraft[]>(() => []);
@@ -1676,6 +1749,52 @@ export default function App() {
     setHomeTab("보관함");
     setSavedTab("피드");
     setOverlayMode(null);
+  };
+
+  const handleLogout = () => {
+    if (typeof window === "undefined") return;
+    const confirmed = window.confirm("현재 테스트 로그인 상태를 종료하고 가입/본인확인 초기 화면으로 돌아가시겠습니까?");
+    if (!confirmed) return;
+
+    [
+      "adultapp_demo_login_provider",
+      "adultapp_identity_verified",
+      "adultapp_adult_verified",
+      "adultapp_adult_fail_count",
+      "adultapp_adult_cooldown_until",
+      "adultapp_identity_method",
+      "adultapp_identity_token",
+      "adultapp_signup_consents",
+      "adultapp_signup_form",
+      "adultapp_demo_profile",
+      "adultapp_seller_verification",
+      "adultapp_account_private",
+    ].forEach((key) => window.localStorage.removeItem(key));
+
+    setDemoLoginProvider("카카오");
+    setIdentityVerified(false);
+    setAdultVerified(false);
+    setGroupRoomSuspendedUntil(0);
+    setAdultGateView("intro");
+    setAdultFailCount(0);
+    setAdultCooldownUntil(0);
+    setAdultPromptOpen(false);
+    setSignupStep("consent");
+    setIdentityMethod("미완료");
+    setIdentityVerificationToken("");
+    setSignupConsents(defaultSignupConsents);
+    setSignupForm(defaultSignupForm);
+    setDemoProfile(defaultDemoProfile);
+    setSellerVerification(defaultSellerVerification);
+    setAccountPrivate(false);
+    setAuthSummary(null);
+    setSettingsCategory("일반");
+    setOverlayMode(null);
+    setActiveTab("홈");
+    setHomeTab("피드");
+    setProfileTab("내정보");
+
+    window.alert("로그아웃이 완료되었습니다. 다시 로그인/본인확인 후 결제 설정을 이어서 확인할 수 있습니다.");
   };
 
   const homeMenuItems = [
@@ -2483,6 +2602,9 @@ export default function App() {
             {overlayMode === "settings" ? (
               <div className="stack-gap">
                 <div className="settings-category-nav">
+                  <button type="button" className="settings-category-btn settings-logout-btn" onClick={handleLogout}>
+                    <span>로그아웃</span>
+                  </button>
                   {settingsNavItems.map((item) => {
                     const isHtmlToggle = item === "HTML요소";
                     return (
@@ -2806,7 +2928,7 @@ export default function App() {
                 <div className="legacy-grid three">
                   <div className="legacy-box compact"><h3>사업자 인증 상태</h3><p>{sellerVerification.status === 'approved' ? '관리자 승인 완료' : sellerVerification.status === 'pending' ? '승인 대기 중' : '신청 전'}</p><p>필수 입력: 상호/법인명, 대표자명, 사업자번호, 통신판매업 신고번호, CS, 반품지, 정산계좌, 청소년보호책임자, 취급 카테고리</p></div>
                   <div className="legacy-box compact"><h3>등록 가능 여부</h3><p>{sellerApprovalReady ? '상품 등록 가능' : '사업자 인증 및 관리자 승인이 필요합니다.'}</p><p>최초에는 내부 승인 문서 + 감사로그 방식으로 운영하고, 이후 전용 백오피스 승인 화면으로 전환합니다.</p></div>
-                  <div className="legacy-box compact"><h3>PG/결제 준비</h3><p>PortOne 기반 PASS 통합 연동과 별도로 PG 연동은 통신판매중개 구조 기준으로 준비합니다.</p><p>남은 핵심: PG사 확정, webhook 서명 검증, 취소/환불 상태머신, 정산 정책.</p></div>
+                  <div className="legacy-box compact"><h3>PG/결제 준비</h3><p>PortOne 기반 PASS 통합 연동과 별도로 PG 연동은 통신판매중개 구조 기준으로 준비합니다.</p><p>남은 핵심: PortOne V2 webhook 서명 검증, 운영 MID/merchant 실제값, 취소/환불 상태머신, 정산 정책.</p></div>
                 </div>
                 <div className="legacy-grid three">
                   {marketplaceDirectionCards.map((item) => <div key={item.title} className="legacy-box compact"><h3>{item.title}</h3><p>{item.body}</p></div>)}
@@ -2867,6 +2989,39 @@ export default function App() {
                       </div>
                     ))}
                     {!sellerProducts.length ? <p className="muted-mini">등록된 내 상품이 없습니다.</p> : null}
+                  </div>
+                </div>
+                <div className="legacy-box compact">
+                  <h3>통신판매중개 고지 화면 기준</h3>
+                  <div className="consent-record-list">
+                    <div className="simple-list-row"><b>푸터</b><span>어른플랫폼은 통신판매중개자이며, 판매의 당사자가 아닙니다.</span></div>
+                    {marketplaceDisclosureItems.map((item) => <div key={item} className="simple-list-row"><b>상품상세</b><span>{item}</span></div>)}
+                    <div className="simple-list-row"><b>주문서</b><span>구매계약의 당사자는 판매자이며, 플랫폼은 통신판매중개를 제공합니다.</span></div>
+                  </div>
+                </div>
+                <div className="legacy-box compact">
+                  <h3>테스트 단계 권장 설정값</h3>
+                  <div className="consent-record-list">
+                    {testStageDefaults.map((item) => <div key={item.title} className="simple-list-row multi-line"><div><b>{item.title}</b><span>{item.body}</span></div></div>)}
+                  </div>
+                </div>
+                <div className="legacy-box compact">
+                  <h3>실운영 전환에 가장 적합한 적용 방식</h3>
+                  <div className="consent-record-list">
+                    {goLiveBestFitCards.map((item) => <div key={item.title} className="simple-list-row multi-line"><div><b>{item.title}</b><span>{item.body}</span></div></div>)}
+                  </div>
+                  <div className="simple-list-row multi-line"><div><b>현재 PortOne 상태</b><span>{paymentProviderStatus?.test_env_ready ? '테스트 결제 설정값 준비 완료' : '테스트 결제 설정값 일부 미입력'} · {paymentProviderStatus?.live_env_ready ? '운영 live 값 입력됨' : '운영 live 값은 아직 마지막 단계에서 입력 예정'}</span></div></div>
+                </div>
+                <div className="legacy-box compact">
+                  <h3>출시 우선순위 1~10</h3>
+                  <div className="consent-record-list">
+                    {launchPriorityTop10.map((item) => <div key={item.title} className="simple-list-row multi-line"><div><b>{item.title}</b><span>{item.body}</span></div></div>)}
+                  </div>
+                </div>
+                <div className="legacy-box compact">
+                  <h3>지금 추가로 진행할 것</h3>
+                  <div className="consent-record-list">
+                    {testStageExtraActions.map((item, index) => <div key={item} className="simple-list-row"><b>{index + 1}단계</b><span>{item}</span></div>)}
                   </div>
                 </div>
                 <div className="legacy-box compact">

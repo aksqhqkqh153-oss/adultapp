@@ -275,6 +275,14 @@ pre {
   border-color: rgba(255, 211, 122, 0.42);
   color: #ffebb9;
 }
+.settings-logout-btn {
+  background: rgba(255, 107, 107, 0.08);
+  border-color: rgba(255, 107, 107, 0.34);
+  color: #ffd5d5;
+}
+.settings-logout-btn:hover {
+  background: rgba(255, 107, 107, 0.14);
+}
 .settings-category-btn.inspector-on b { color: #9ff7bf; }
 .settings-one-col { grid-template-columns: 1fr; }
 .toggle-pill {

@@ -1,0 +1,5 @@
+[adultapp logout settings update build check]
+- frontend settings overlay logout button added above 일반
+- frontend build: PASS
+- backend python compileall: PASS
+- zip target prepared for PowerShell Expand-Archive overwrite

@@ -247,6 +247,28 @@ class OrderCreateRequest(BaseModel):
     coupon_burden_owner: str = "platform"
 
 
+
+
+class PaymentConfirmRequest(BaseModel):
+    order_no: str
+    payment_id: str
+    status: str = "Paid"
+    amount: int
+    provider: str = "tosspayments"
+    method: str = "card"
+
+
+class PaymentCancelRequest(BaseModel):
+    amount: Optional[int] = None
+    reason: str = "customer_request"
+    idempotency_key: Optional[str] = None
+
+
+class PaymentRefundRequest(BaseModel):
+    amount: Optional[int] = None
+    reason: str = "customer_refund_request"
+    idempotency_key: Optional[str] = None
+
 class ReportResolveRequest(BaseModel):
     status: str = "resolved"
     action_taken: str = "임시조치"
