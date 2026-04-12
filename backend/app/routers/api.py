@@ -417,7 +417,7 @@ def _assert_reconsent_write_allowed(user: User, session: Session) -> None:
 
 
 def _seller_can_register_products(user: User, session: Session) -> tuple[bool, str]:
-    if user.grade == MemberGrade.ADMIN and settings.seller_onboarding_admin_override_enabled:
+    if user.grade == MemberGrade.ADMIN:
         return True, "admin override"
     profile = session.exec(select(SellerProfile).where(SellerProfile.user_id == (user.id or 0))).first()
     if not profile:

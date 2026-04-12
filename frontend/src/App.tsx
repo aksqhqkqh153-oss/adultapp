@@ -1522,6 +1522,7 @@ export default function App() {
   });
   const [adultPromptOpen, setAdultPromptOpen] = useState(false);
   const [signupStep, setSignupStep] = useState<SignupStep>("consent");
+  const [signupLegalOpen, setSignupLegalOpen] = useState<string | null>(null);
   const [identityMethod, setIdentityMethod] = useState<"PASS" | "휴대폰" | "미완료">(() => {
     if (typeof window === "undefined") return "미완료";
     return (window.localStorage.getItem("adultapp_identity_method") as "PASS" | "휴대폰" | "미완료" | null) ?? "미완료";
@@ -2856,15 +2857,24 @@ export default function App() {
                 {signupStep === "consent" ? (
                   <div className="stack-gap">
                     <div className="legacy-box compact signup-legal-copy">
-                      <h3>개인정보 수집·이용 안내</h3>
-                      <p>수집·이용 목적 : 회원 식별, 로그인, 본인확인, 성인인증, 고객지원</p>
-                      <p>수집 항목 : 이메일, 비밀번호, 이름, 본인확인 결과값</p>
-                      <p>보유 및 이용 기간 : 법령상 보존기간까지</p>
-                      <p>동의 거부권 및 불이익 : 필수 항목 미동의 시 회원가입이 제한될 수 있음</p>
-                      <div className="copy-action-row legal-link-row">
-                        <a className="ghost-link-btn" href={`${getApiBase()}/legal/terms-of-service`} target="_blank" rel="noreferrer">이용약관</a>
-                        <a className="ghost-link-btn" href={`${getApiBase()}/legal/privacy-policy`} target="_blank" rel="noreferrer">개인정보 처리방침 보기</a>
-                        <a className="ghost-link-btn" href={`${getApiBase()}/legal/youth-policy`} target="_blank" rel="noreferrer">청소년 보호정책 보기</a>
+                      <h3>약관 및 필수 안내</h3>
+                      <p>회원가입 전에 필수 문서 제목만 확인하고 체크할 수 있도록 정리했습니다. 자세한 내용은 아래 문서를 눌러 펼쳐서 읽을 수 있습니다.</p>
+                      <div className="consent-record-list">
+                        <details className="legacy-box compact" open={signupLegalOpen === "terms"} onToggle={(e) => setSignupLegalOpen((e.currentTarget as HTMLDetailsElement).open ? "terms" : signupLegalOpen === "terms" ? null : signupLegalOpen)}>
+                          <summary><strong>이용약관 자세히 보기</strong></summary>
+                          <p>서비스 이용 조건, 회원 의무, 금지 행위, 게시물 운영원칙, 주문/환불 기본 정책을 안내합니다.</p>
+                          <a className="ghost-link-btn" href={`${getApiBase()}/legal/terms-of-service`} target="_blank" rel="noreferrer">전체 약관 문서 열기</a>
+                        </details>
+                        <details className="legacy-box compact" open={signupLegalOpen === "privacy"} onToggle={(e) => setSignupLegalOpen((e.currentTarget as HTMLDetailsElement).open ? "privacy" : signupLegalOpen === "privacy" ? null : signupLegalOpen)}>
+                          <summary><strong>개인정보 처리방침 자세히 보기</strong></summary>
+                          <p>수집 항목은 이메일, 비밀번호, 이름, 본인확인 결과값이며 회원 식별, 로그인, 고객지원, 성인인증 처리에 사용됩니다. 법령상 보존기간 동안 보관할 수 있습니다.</p>
+                          <a className="ghost-link-btn" href={`${getApiBase()}/legal/privacy-policy`} target="_blank" rel="noreferrer">전체 처리방침 문서 열기</a>
+                        </details>
+                        <details className="legacy-box compact" open={signupLegalOpen === "youth"} onToggle={(e) => setSignupLegalOpen((e.currentTarget as HTMLDetailsElement).open ? "youth" : signupLegalOpen === "youth" ? null : signupLegalOpen)}>
+                          <summary><strong>청소년 보호정책 자세히 보기</strong></summary>
+                          <p>만 19세 미만은 이용이 제한되며, 성인 서비스 접근 전 본인확인과 성인인증이 필요합니다. 정책 위반 시 서비스 제한이 적용될 수 있습니다.</p>
+                          <a className="ghost-link-btn" href={`${getApiBase()}/legal/youth-policy`} target="_blank" rel="noreferrer">전체 청소년 보호정책 문서 열기</a>
+                        </details>
                       </div>
                     </div>
                     <div className="consent-checklist">
