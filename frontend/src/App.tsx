@@ -1,5 +1,5 @@
 import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
-import { clearTokens, getApiBase, getJson, getRefreshToken, postJson, setAuthToken, setRefreshToken } from "./lib/api";
+import { clearTokens, getApiBase, getJson, getRefreshToken, hasAuthToken, postJson, setAuthToken, setRefreshToken } from "./lib/api";
 
 type FeedItem = {
   id: number;
@@ -1664,10 +1664,18 @@ export default function App() {
     getJson<ProjectStatus>("/project-status").then(setProjectStatus).catch(() => null);
     getJson<DeployGuide>("/deploy/cloudflare-pages-manual").then(setDeployGuide).catch(() => null);
     getJson<LegalDocumentsResponse>("/legal/documents").then(setLegalDocuments).catch(() => null);
-    getJson<BusinessInfoResponse>("/legal/business-info").then(setBusinessInfo).catch(() => null);
-    getJson<ReleaseReadinessResponse>("/legal/release-readiness").then(setReleaseReadiness).catch(() => null);
     getJson<PaymentProviderStatusResponse>("/payments/provider-status").then(setPaymentProviderStatus).catch(() => null);
     getJson<ApiProduct[]>("/products").then(setApiProducts).catch(() => null);
+
+    if (!hasAuthToken()) {
+      setAuthSummary(null);
+      setCurrentUserRole("GUEST");
+      if (typeof window !== "undefined") window.localStorage.setItem("adultapp_demo_role", "GUEST");
+      setOrders([]);
+      setSellerProducts([]);
+      return;
+    }
+
     getJson<AuthMeResponse>("/auth/me").then((me) => {
       setAuthSummary(me);
       const nextRole = String(me.grade ?? "GUEST").toUpperCase();
@@ -1678,13 +1686,19 @@ export default function App() {
       getJson<ApiOrder[]>("/orders").then(setOrders).catch(() => null);
       getJson<SellerProductItem[]>("/seller/products/mine").then(setSellerProducts).catch(() => null);
       if (["ADMIN", "1", "GRADE_1"].includes(nextRole)) {
+        getJson<BusinessInfoResponse>("/legal/business-info").then(setBusinessInfo).catch(() => null);
+        getJson<ReleaseReadinessResponse>("/legal/release-readiness").then(setReleaseReadiness).catch(() => null);
         getJson<MinorPurgePreview>("/ops/minor-purge/preview").then(setMinorPurgePreview).catch(() => null);
         getJson<{ items: SellerApprovalItem[] }>("/admin/seller-approvals").then((res) => setSellerApprovalQueue(res.items ?? [])).catch(() => null);
         getJson<{ items: ProductApprovalItem[] }>("/admin/product-approvals").then((res) => setProductApprovalQueue(res.items ?? [])).catch(() => null);
         getJson<SettlementPreviewResponse>("/settlements/preview").then(setSettlementPreview).catch(() => null);
         getJson<AdminDbManage>("/admin/chat-random/db-manage").then(setAdminDbManage).catch(() => null);
+      } else {
+        setBusinessInfo(null);
+        setReleaseReadiness(null);
       }
     }).catch(() => {
+      clearTokens();
       setAuthSummary(null);
       setCurrentUserRole("GUEST");
       if (typeof window !== "undefined") window.localStorage.setItem("adultapp_demo_role", "GUEST");
@@ -2253,6 +2267,7 @@ export default function App() {
   };
 
   const loginWithTestAccount = async (email: string, password: string) => {
+    clearTokens();
     setAuthEmail(email);
     setAuthPassword(password);
     setAuthMessage(`테스트 계정으로 로그인 중: ${email}`);
@@ -2274,11 +2289,13 @@ export default function App() {
       setShoppingTab("목록");
       setAdultGateView("success");
     } catch (error) {
+      clearTokens();
       setAuthMessage(error instanceof Error ? error.message : "테스트 계정 로그인에 실패했습니다.");
     }
   };
 
   const loginWithCredentials = async () => {
+    clearTokens();
     try {
       const response = await postJson<{ access_token: string; refresh_token: string; role: string; two_factor_required?: boolean }>("/auth/login", {
         email: authEmail.trim(),
@@ -2297,6 +2314,7 @@ export default function App() {
       setShoppingTab("목록");
       setAdultGateView("success");
     } catch (error) {
+      clearTokens();
       setAuthMessage(error instanceof Error ? error.message : "로그인에 실패했습니다.");
     }
   };

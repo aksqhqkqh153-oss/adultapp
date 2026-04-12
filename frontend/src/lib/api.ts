@@ -43,6 +43,10 @@ export function getApiBase() {
   return activeApiBase;
 }
 
+export function hasAuthToken() {
+  return Boolean(accessToken);
+}
+
 export function setAuthToken(token: string) {
   accessToken = token;
   if (token) localStorage.setItem("adultapp_access_token", token);
@@ -77,6 +81,9 @@ async function requestOnce<T>(base: string, path: string, init?: RequestInit): P
     const response = await fetch(`${base}${path}`, { ...init, headers, signal: controller.signal });
     if (!response.ok) {
       const text = await response.text();
+      if (response.status === 401) {
+        clearTokens();
+      }
       throw new Error(`${init?.method ?? "GET"} ${path} failed: ${response.status} ${text}`);
     }
     activeApiBase = base;
