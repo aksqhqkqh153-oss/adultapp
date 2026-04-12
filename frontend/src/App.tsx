@@ -1,5 +1,5 @@
 import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
-import { getApiBase, getJson, postJson, setAuthToken, setRefreshToken } from "./lib/api";
+import { clearTokens, getApiBase, getJson, getRefreshToken, postJson, setAuthToken, setRefreshToken } from "./lib/api";
 
 type FeedItem = {
   id: number;
@@ -241,6 +241,38 @@ type AuthSummary = {
   reconsent_enforcement_mode?: "limited_access" | "login_block" | string;
   consent_status?: { reconsent_required?: boolean; next_reconsent_deadline?: string | null; grace_period_days?: number };
   random_chat_profile_ready?: boolean;
+};
+
+type AuthMeResponse = AuthSummary & {
+  id?: number;
+  email?: string;
+  name?: string;
+  grade?: string;
+};
+
+type ApiProduct = {
+  id: number;
+  seller_id?: number;
+  category: string;
+  name: string;
+  description?: string;
+  price: number;
+  status?: string;
+  sku_code?: string;
+  stock_qty?: number;
+};
+
+type ApiOrder = {
+  id: number;
+  order_no: string;
+  member_id: number;
+  seller_id: number;
+  status: string;
+  payment_method: string;
+  payment_pg: string;
+  total_amount: number;
+  settlement_status: string;
+  item_count: number;
 };
 
 type SellerVerificationState = {
@@ -1424,9 +1456,9 @@ export default function App() {
   const [newRoomAnonymous, setNewRoomAnonymous] = useState(true);
   const [newRoomMaxPeople, setNewRoomMaxPeople] = useState("8");
   const [newRoomPassword, setNewRoomPassword] = useState("");
-  const [currentUserRole] = useState(() => {
-    if (typeof window === "undefined") return "ADMIN";
-    return (window.localStorage.getItem("adultapp_demo_role") ?? "ADMIN").toUpperCase();
+  const [currentUserRole, setCurrentUserRole] = useState(() => {
+    if (typeof window === "undefined") return "GUEST";
+    return (window.localStorage.getItem("adultapp_demo_role") ?? "GUEST").toUpperCase();
   });
   const [selectedAskProfile, setSelectedAskProfile] = useState<AskProfile | null>(null);
   const [selectedStory, setSelectedStory] = useState<StoryItem | null>(null);
@@ -1531,6 +1563,14 @@ export default function App() {
     try { return JSON.parse(window.localStorage.getItem("adultapp_saved_product_ids") ?? "[]"); } catch { return []; }
   });
   const [savedTab, setSavedTab] = useState<"피드" | "상품">("피드");
+  const [authEmail, setAuthEmail] = useState("customer@example.com");
+  const [authPassword, setAuthPassword] = useState("customer1234");
+  const [authMessage, setAuthMessage] = useState("");
+  const [apiProducts, setApiProducts] = useState<ApiProduct[]>([]);
+  const [cartItems, setCartItems] = useState<Array<{ productId: number; qty: number }>>([]);
+  const [orders, setOrders] = useState<ApiOrder[]>([]);
+  const [orderMessage, setOrderMessage] = useState("");
+  const [orderActionAmount, setOrderActionAmount] = useState("5500");
 
   const isAdmin = ["ADMIN", "1", "GRADE_1"].includes(currentUserRole);
   const mutualFollowIds = useMemo(() => followingUserIds.filter((id) => followerUserIds.includes(id)), [followingUserIds, followerUserIds]);
@@ -1587,18 +1627,31 @@ export default function App() {
     getJson<BusinessInfoResponse>("/legal/business-info").then(setBusinessInfo).catch(() => null);
     getJson<ReleaseReadinessResponse>("/legal/release-readiness").then(setReleaseReadiness).catch(() => null);
     getJson<PaymentProviderStatusResponse>("/payments/provider-status").then(setPaymentProviderStatus).catch(() => null);
-    if (isAdmin) {
-      getJson<MinorPurgePreview>("/ops/minor-purge/preview").then(setMinorPurgePreview).catch(() => null);
-      getJson<{ items: SellerApprovalItem[] }>("/admin/seller-approvals").then((res) => setSellerApprovalQueue(res.items ?? [])).catch(() => null);
-      getJson<{ items: ProductApprovalItem[] }>("/admin/product-approvals").then((res) => setProductApprovalQueue(res.items ?? [])).catch(() => null);
-      getJson<SettlementPreviewResponse>("/settlements/preview").then(setSettlementPreview).catch(() => null);
-    }
-    getJson<AuthSummary>("/auth/me").then(setAuthSummary).catch(() => null);
-    getJson<SellerProductItem[]>("/seller/products/mine").then(setSellerProducts).catch(() => null);
-    if (isAdmin) {
-      getJson<AdminDbManage>("/admin/chat-random/db-manage").then(setAdminDbManage).catch(() => null);
-    }
-  }, [isAdmin]);
+    getJson<ApiProduct[]>("/products").then(setApiProducts).catch(() => null);
+    getJson<AuthMeResponse>("/auth/me").then((me) => {
+      setAuthSummary(me);
+      const nextRole = String(me.grade ?? "GUEST").toUpperCase();
+      setCurrentUserRole(nextRole);
+      if (typeof window !== "undefined") window.localStorage.setItem("adultapp_demo_role", nextRole);
+      setIdentityVerified(Boolean(me.identity_verified));
+      setAdultVerified(Boolean(me.adult_verified));
+      getJson<ApiOrder[]>("/orders").then(setOrders).catch(() => null);
+      getJson<SellerProductItem[]>("/seller/products/mine").then(setSellerProducts).catch(() => null);
+      if (["ADMIN", "1", "GRADE_1"].includes(nextRole)) {
+        getJson<MinorPurgePreview>("/ops/minor-purge/preview").then(setMinorPurgePreview).catch(() => null);
+        getJson<{ items: SellerApprovalItem[] }>("/admin/seller-approvals").then((res) => setSellerApprovalQueue(res.items ?? [])).catch(() => null);
+        getJson<{ items: ProductApprovalItem[] }>("/admin/product-approvals").then((res) => setProductApprovalQueue(res.items ?? [])).catch(() => null);
+        getJson<SettlementPreviewResponse>("/settlements/preview").then(setSettlementPreview).catch(() => null);
+        getJson<AdminDbManage>("/admin/chat-random/db-manage").then(setAdminDbManage).catch(() => null);
+      }
+    }).catch(() => {
+      setAuthSummary(null);
+      setCurrentUserRole("GUEST");
+      if (typeof window !== "undefined") window.localStorage.setItem("adultapp_demo_role", "GUEST");
+      setOrders([]);
+      setSellerProducts([]);
+    });
+  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => setRandomNow(Date.now()), 30000);
@@ -1751,12 +1804,21 @@ export default function App() {
     setOverlayMode(null);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     if (typeof window === "undefined") return;
-    const confirmed = window.confirm("현재 테스트 로그인 상태를 종료하고 가입/본인확인 초기 화면으로 돌아가시겠습니까?");
+    const confirmed = window.confirm("현재 테스트 로그인 상태를 종료하고 로그인 화면으로 이동하시겠습니까?");
     if (!confirmed) return;
 
+    try {
+      const refreshToken = getRefreshToken();
+      if (refreshToken) {
+        await postJson("/auth/logout", { refresh_token: refreshToken });
+      }
+    } catch {}
+
+    clearTokens();
     [
+      "adultapp_demo_role",
       "adultapp_demo_login_provider",
       "adultapp_identity_verified",
       "adultapp_adult_verified",
@@ -1771,6 +1833,7 @@ export default function App() {
       "adultapp_account_private",
     ].forEach((key) => window.localStorage.removeItem(key));
 
+    setCurrentUserRole("GUEST");
     setDemoLoginProvider("카카오");
     setIdentityVerified(false);
     setAdultVerified(false);
@@ -1779,7 +1842,7 @@ export default function App() {
     setAdultFailCount(0);
     setAdultCooldownUntil(0);
     setAdultPromptOpen(false);
-    setSignupStep("consent");
+    setSignupStep("account");
     setIdentityMethod("미완료");
     setIdentityVerificationToken("");
     setSignupConsents(defaultSignupConsents);
@@ -1788,13 +1851,17 @@ export default function App() {
     setSellerVerification(defaultSellerVerification);
     setAccountPrivate(false);
     setAuthSummary(null);
+    setOrders([]);
+    setCartItems([]);
+    setOrderMessage("");
     setSettingsCategory("일반");
     setOverlayMode(null);
-    setActiveTab("홈");
+    setActiveTab("프로필");
     setHomeTab("피드");
     setProfileTab("내정보");
+    setAuthMessage("로그아웃 완료 · 테스트 로그인 화면으로 이동했습니다.");
 
-    window.alert("로그아웃이 완료되었습니다. 다시 로그인/본인확인 후 결제 설정을 이어서 확인할 수 있습니다.");
+    window.alert("로그아웃이 완료되었습니다. 프로필 화면의 로그인 영역에서 다시 접속할 수 있습니다.");
   };
 
   const homeMenuItems = [
@@ -1811,12 +1878,22 @@ export default function App() {
 
   const allShopItems = useMemo(() => {
     const keyword = `${shopKeyword} ${globalKeyword}`.trim().toLowerCase();
-    return productsSeed.filter((product) => {
+    const source = apiProducts.length
+      ? apiProducts.filter((item) => (item.status ?? "published") === "published").map((item) => ({
+          id: item.id,
+          category: item.category,
+          name: item.name,
+          subtitle: item.description ?? "",
+          price: `₩${Number(item.price || 0).toLocaleString()}`,
+          badge: item.stock_qty && item.stock_qty > 0 ? "판매중" : "재고확인",
+        }))
+      : productsSeed;
+    return source.filter((product) => {
       const matchCategory = selectedShopCategory === "전체" || product.category === selectedShopCategory;
       const matchKeyword = !keyword || `${product.name} ${product.subtitle} ${product.category}`.toLowerCase().includes(keyword);
       return matchCategory && matchKeyword;
     });
-  }, [selectedShopCategory, shopKeyword, globalKeyword]);
+  }, [selectedShopCategory, shopKeyword, globalKeyword, apiProducts]);
 
   const filteredCommunity = useMemo(() => {
     const keyword = `${communityKeyword} ${globalKeyword}`.trim().toLowerCase();
@@ -2076,6 +2153,159 @@ export default function App() {
       await postJson(`/admin/product-approvals/${productId}/decision`, { decision, note: `관리자 ${decision}` });
       getJson<{ items: ProductApprovalItem[] }>('/admin/product-approvals').then((res) => setProductApprovalQueue(res.items ?? [])).catch(() => null);
     } catch {}
+  };
+
+  const applyLoggedInUser = async () => {
+    const me = await getJson<AuthMeResponse>("/auth/me");
+    setAuthSummary(me);
+    const nextRole = String(me.grade ?? "GUEST").toUpperCase();
+    setCurrentUserRole(nextRole);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("adultapp_demo_role", nextRole);
+    }
+    setIdentityVerified(Boolean(me.identity_verified));
+    setAdultVerified(Boolean(me.adult_verified));
+    const nextOrders = await getJson<ApiOrder[]>("/orders");
+    setOrders(nextOrders);
+    setAuthMessage(`${me.email ?? "계정"} 로그인 완료 · 역할 ${nextRole}`);
+  };
+
+  const fillTestAccount = (email: string, password: string) => {
+    setAuthEmail(email);
+    setAuthPassword(password);
+    setAuthMessage(`테스트 계정 입력 완료: ${email}`);
+  };
+
+  const loginWithCredentials = async () => {
+    try {
+      const response = await postJson<{ access_token: string; refresh_token: string; role: string; two_factor_required?: boolean }>("/auth/login", {
+        email: authEmail.trim(),
+        password: authPassword,
+        device_name: "web-browser",
+      });
+      if (response.two_factor_required) {
+        setAuthMessage("관리자 2차 인증이 필요한 계정입니다. 현재 테스트 화면에서는 2FA 완료 계정만 바로 로그인할 수 있습니다.");
+        return;
+      }
+      setAuthToken(response.access_token);
+      setRefreshToken(response.refresh_token);
+      await applyLoggedInUser();
+      setActiveTab("쇼핑");
+      setShoppingTab("목록");
+      setAdultGateView("success");
+    } catch (error) {
+      setAuthMessage(error instanceof Error ? error.message : "로그인에 실패했습니다.");
+    }
+  };
+
+  const addToCart = (productId: number) => {
+    setCartItems((prev) => {
+      const found = prev.find((item) => item.productId === productId);
+      if (found) return prev.map((item) => item.productId === productId ? { ...item, qty: item.qty + 1 } : item);
+      return [...prev, { productId, qty: 1 }];
+    });
+    setShoppingTab("바구니");
+  };
+
+  const cartDetailedItems = useMemo(() => cartItems.map((item) => {
+    const product = apiProducts.find((row) => row.id === item.productId);
+    return product ? { ...item, product } : null;
+  }).filter(Boolean) as Array<{ productId: number; qty: number; product: ApiProduct }>, [cartItems, apiProducts]);
+
+  const cartTotalAmount = useMemo(() => cartDetailedItems.reduce((sum, item) => sum + (Number(item.product.price || 0) * item.qty), 0), [cartDetailedItems]);
+
+  const refreshOrders = () => getJson<ApiOrder[]>("/orders").then(setOrders).catch(() => null);
+
+  const createOrderFromCart = async () => {
+    const first = cartDetailedItems[0];
+    if (!first) {
+      setOrderMessage("바구니가 비어 있습니다.");
+      return;
+    }
+    try {
+      const created = await postJson<{ order_no: string; total_amount: number; payment_init: { mode?: string; webhook_path?: string } }>("/orders", {
+        product_id: first.product.id,
+        qty: first.qty,
+        payment_method: "card",
+        payment_pg: "demo-pg",
+      });
+      setOrderMessage(`주문 생성 완료: ${created.order_no} · ${created.total_amount.toLocaleString()}원 · mode ${created.payment_init?.mode ?? "-"}`);
+      await refreshOrders();
+      setShoppingTab("주문");
+    } catch (error) {
+      setOrderMessage(error instanceof Error ? error.message : "주문 생성 실패");
+    }
+  };
+
+  const confirmLatestPendingOrder = async () => {
+    const target = [...orders].reverse().find((item) => item.status === "payment_pending") ?? orders[orders.length - 1];
+    if (!target) {
+      setOrderMessage("확인할 주문이 없습니다.");
+      return;
+    }
+    try {
+      const result = await postJson<{ status: string }>("/payments/confirm", {
+        order_no: target.order_no,
+        payment_id: `pay_${Date.now()}`,
+        status: "Paid",
+        amount: target.total_amount,
+        provider: "tosspayments",
+        method: "card",
+      });
+      setOrderMessage(`결제 승인 완료: ${target.order_no} → ${result.status}`);
+      await refreshOrders();
+    } catch (error) {
+      setOrderMessage(error instanceof Error ? error.message : "결제 승인 실패");
+    }
+  };
+
+  const cancelLatestPaidOrder = async (partial = false) => {
+    const target = [...orders].reverse().find((item) => ["paid", "partial_cancelled"].includes(item.status));
+    if (!target) {
+      setOrderMessage("취소할 결제완료 주문이 없습니다.");
+      return;
+    }
+    try {
+      const amount = partial ? Number(orderActionAmount || "0") : target.total_amount;
+      const result = await postJson<{ status: string; cancel_amount: number }>(`/payments/orders/${target.order_no}/cancel`, {
+        amount,
+        reason: partial ? "부분취소 테스트" : "전체취소 테스트",
+        idempotency_key: `cancel_${partial ? 'partial' : 'full'}_${Date.now()}`,
+      });
+      setOrderMessage(`취소 완료: ${target.order_no} · ${result.cancel_amount.toLocaleString()}원 · ${result.status}`);
+      await refreshOrders();
+    } catch (error) {
+      setOrderMessage(error instanceof Error ? error.message : "취소 실패");
+    }
+  };
+
+  const refundLatestPaidOrder = async (partial = false) => {
+    const target = [...orders].reverse().find((item) => ["paid", "partial_cancelled"].includes(item.status));
+    if (!target) {
+      setOrderMessage("환불할 결제완료 주문이 없습니다.");
+      return;
+    }
+    try {
+      const amount = partial ? Number(orderActionAmount || "0") : target.total_amount;
+      const result = await postJson<{ status: string; refund_amount: number }>(`/payments/orders/${target.order_no}/refund`, {
+        amount,
+        reason: partial ? "부분환불 테스트" : "전체환불 테스트",
+        idempotency_key: `refund_${partial ? 'partial' : 'full'}_${Date.now()}`,
+      });
+      setOrderMessage(`환불 완료: ${target.order_no} · ${result.refund_amount.toLocaleString()}원 · ${result.status}`);
+      await refreshOrders();
+    } catch (error) {
+      setOrderMessage(error instanceof Error ? error.message : "환불 실패");
+    }
+  };
+
+  const runWebhookSignatureTest = async () => {
+    try {
+      const result = await postJson<{ verified: boolean; mode: string }>("/payments/webhooks/test-signature", { event_type: "Transaction.Paid", data: { paymentId: `pay_${Date.now()}` }, mode: "test" });
+      setOrderMessage(`webhook 서명 점검 호출 완료 · verified=${String(result.verified)} · mode=${result.mode}`);
+    } catch (error) {
+      setOrderMessage(error instanceof Error ? error.message : "webhook 점검 실패");
+    }
   };
 
   const resetAdultFlow = () => {
@@ -2881,7 +3111,7 @@ export default function App() {
                         <p>{product.subtitle}</p>
                         <div className="product-meta"><span>{product.category}</span><b>{product.price}</b></div>
                         <div className="product-card-actions">
-                          <button>장바구니 담기</button>
+                          <button type="button" onClick={() => addToCart(product.id)}>장바구니 담기</button>
                           <button type="button" className="ghost-btn" onClick={() => toggleSavedProduct(product.id)}>{savedProductIds.includes(product.id) ? "보관해제" : "보관함"}</button>
                         </div>
                       </article>
@@ -2894,15 +3124,30 @@ export default function App() {
             {shoppingTab === "주문" ? (
               <div className="stack-gap compact-scroll-list">
                 <div className="legacy-grid three">
-                  <div className="legacy-box"><h3>주문 진행</h3><p>결제대기 4건 · 출고대기 7건 · 배송중 5건</p></div>
-                  <div className="legacy-box"><h3>환불 요청</h3><p>검수중 2건 · 반려검토 1건</p></div>
-                  <div className="legacy-box"><h3>이번 주 정산</h3><p>예상 정산액 ₩5,820,000</p></div>
+                  <div className="legacy-box"><h3>주문 진행</h3><p>주문 {orders.length}건 · 결제대기 {orders.filter((item) => item.status === "payment_pending").length}건 · 결제완료 {orders.filter((item) => item.status === "paid").length}건</p></div>
+                  <div className="legacy-box"><h3>취소/환불 검증</h3><p>부분 처리 금액 입력값: ₩{Number(orderActionAmount || "0").toLocaleString()}</p></div>
+                  <div className="legacy-box"><h3>webhook 점검</h3><p>서명 점검 API와 주문 상태머신을 한 화면에서 검증합니다.</p></div>
+                </div>
+                <div className="legacy-box">
+                  <h3>결제 테스트 센터</h3>
+                  <div className="profile-form-grid">
+                    <label><span>부분취소/부분환불 금액</span><input value={orderActionAmount} onChange={(e) => setOrderActionAmount(e.target.value.replace(/[^0-9]/g, ""))} placeholder="5500" /></label>
+                    <label><span>API Base</span><input value={getApiBase()} readOnly /></label>
+                  </div>
+                  <div className="product-card-actions">
+                    <button type="button" onClick={confirmLatestPendingOrder}>최근 대기주문 결제승인</button>
+                    <button type="button" className="ghost-btn" onClick={() => cancelLatestPaidOrder(false)}>전체취소</button>
+                    <button type="button" className="ghost-btn" onClick={() => cancelLatestPaidOrder(true)}>부분취소</button>
+                    <button type="button" className="ghost-btn" onClick={() => refundLatestPaidOrder(false)}>전체환불</button>
+                    <button type="button" className="ghost-btn" onClick={() => refundLatestPaidOrder(true)}>부분환불</button>
+                    <button type="button" className="ghost-btn" onClick={runWebhookSignatureTest}>webhook 점검</button>
+                  </div>
+                  {orderMessage ? <p className="muted-mini">{orderMessage}</p> : null}
                 </div>
                 <div className="legacy-box">
                   <h3>최근 주문</h3>
                   <div className="chat-list">
-                    <article className="chat-row simple-row"><div className="avatar-circle">01</div><div className="chat-copy"><strong>ORD-20260409-001</strong><span>뉴트럴 케어 파우치 외 1건</span><p>결제완료 · 익명포장 요청</p></div><div className="chat-meta"><span>오늘</span><b>정상</b></div></article>
-                    <article className="chat-row simple-row"><div className="avatar-circle">02</div><div className="chat-copy"><strong>ORD-20260408-018</strong><span>스타터 바디 케어 세트</span><p>출고대기 · 송장 입력 필요</p></div><div className="chat-meta"><span>어제</span><b>대기</b></div></article>
+                    {orders.length ? orders.slice().reverse().map((item, index) => <article key={item.order_no} className="chat-row simple-row"><div className="avatar-circle">{String(index + 1).padStart(2, '0')}</div><div className="chat-copy"><strong>{item.order_no}</strong><span>총액 ₩{Number(item.total_amount || 0).toLocaleString()} · PG {item.payment_pg}</span><p>상태 {item.status} · 정산 {item.settlement_status} · 품목 {item.item_count}건</p></div><div className="chat-meta"><span>{item.payment_method}</span><b>{item.status}</b></div></article>) : <p>로그인 후 주문을 생성하면 이곳에 표시됩니다.</p>}
                   </div>
                 </div>
               </div>
@@ -2910,11 +3155,17 @@ export default function App() {
 
             {shoppingTab === "바구니" ? (
               <div className="cart-box compact-scroll-list">
-                {cartSeed.map((item) => (
+                {cartDetailedItems.length ? cartDetailedItems.map((item) => (
+                  <div key={item.productId} className="cart-row"><div><strong>{item.product.name}</strong><span>{item.product.category} · 수량 {item.qty}</span></div><b>₩{(Number(item.product.price || 0) * item.qty).toLocaleString()}</b></div>
+                )) : cartSeed.map((item) => (
                   <div key={item.id} className="cart-row"><div><strong>{item.name}</strong><span>{item.option} · 수량 {item.qty}</span></div><b>{item.price}</b></div>
                 ))}
-                <div className="cart-summary"><span>총 결제 예정</span><strong>₩112,500</strong></div>
-                <button>주문/결제 진행</button>
+                <div className="cart-summary"><span>총 결제 예정</span><strong>{cartDetailedItems.length ? `₩${cartTotalAmount.toLocaleString()}` : '₩112,500'}</strong></div>
+                <div className="product-card-actions">
+                  <button type="button" onClick={createOrderFromCart}>주문 생성</button>
+                  <button type="button" className="ghost-btn" onClick={() => setShoppingTab('주문')}>주문 탭 보기</button>
+                </div>
+                {orderMessage ? <p className="muted-mini">{orderMessage}</p> : null}
               </div>
             ) : null}
           </section>

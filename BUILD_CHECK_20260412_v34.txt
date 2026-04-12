@@ -1,0 +1,5 @@
+[2026-04-12]
+- frontend npm install: OK
+- frontend npm run build: OK
+- backend python -m compileall backend/app: OK
+- added login/logout payment test flow UI and test account guide
