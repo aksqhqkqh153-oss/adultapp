@@ -2243,8 +2243,16 @@ export default function App() {
     }
     setIdentityVerified(Boolean(me.identity_verified));
     setAdultVerified(Boolean(me.adult_verified));
-    const nextOrders = await getJson<ApiOrder[]>("/orders");
-    setOrders(nextOrders);
+
+    let nextOrders: ApiOrder[] = [];
+    try {
+      nextOrders = await getJson<ApiOrder[]>("/orders");
+      setOrders(nextOrders);
+    } catch (error) {
+      console.warn("orders_prefetch_failed_after_login", error);
+      setOrders([]);
+    }
+
     const firstOrderNo = nextOrders.length ? nextOrders[nextOrders.length - 1].order_no : "";
     setSelectedOrderNo(firstOrderNo);
     if (firstOrderNo) {
