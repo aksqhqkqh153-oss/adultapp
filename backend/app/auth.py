@@ -61,9 +61,9 @@ def create_access_token(user: User, device_session_id: int | None = None) -> str
 
 DEMO_ACCOUNT_DEFS = {
     "admin@example.com": {"password": "admin1234", "role": MemberGrade.ADMIN, "user_id": -1, "name": "관리자", "adult_verified": True, "identity_verified": True, "member_status": "active"},
-    "customer@example.com": {"password": "customer1234", "role": MemberGrade.USER, "user_id": -2, "name": "회원", "adult_verified": True, "identity_verified": True, "member_status": "active"},
+    "customer@example.com": {"password": "customer1234", "role": MemberGrade.CUSTOMER, "user_id": -2, "name": "회원", "adult_verified": True, "identity_verified": True, "member_status": "active"},
     "seller@example.com": {"password": "seller1234", "role": MemberGrade.SELLER, "user_id": -3, "name": "판매자", "adult_verified": True, "identity_verified": True, "member_status": "active"},
-    "general@example.com": {"password": "general1234", "role": MemberGrade.USER, "user_id": -4, "name": "일반회원", "adult_verified": False, "identity_verified": False, "member_status": "pending"},
+    "general@example.com": {"password": "general1234", "role": MemberGrade.GENERAL, "user_id": -4, "name": "일반회원", "adult_verified": False, "identity_verified": False, "member_status": "pending"},
 }
 
 def build_demo_access_token(email: str) -> str:
@@ -102,7 +102,7 @@ def build_demo_user_from_payload(payload: dict) -> User:
         id=int(payload.get("sub", 0)),
         email=payload.get("email", ""),
         name=payload.get("name", ""),
-        grade=payload.get("role", MemberGrade.USER),
+        grade=payload.get("role", MemberGrade.GENERAL),
         adult_verified=bool(payload.get("adult_verified", False)),
         identity_verified=bool(payload.get("identity_verified", False)),
         member_status=payload.get("member_status", "active"),
