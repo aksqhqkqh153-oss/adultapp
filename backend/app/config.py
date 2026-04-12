@@ -75,7 +75,7 @@ class Settings(BaseSettings):
     adult_verification_error_code_map: str = "INVALID_IDENTITY:본인확인 실패,MINOR_BLOCKED:미성년 차단,SIGNATURE_ERROR:콜백 서명 오류,PROVIDER_TIMEOUT:공급사 응답 지연"
 
     adult_verification_prod_cutover_checklist: str = "본인확인 실연동,콜백 검증,서버 저장,장애 알림,운영 점검표 완료 후 운영키 전환"
-    reconsent_grace_days: int = 7
+    reconsent_grace_days: int = 0
     reconsent_enforcement_mode: str = "limited_access"
     reconsent_redirect_path: str = "/reconsent"
     minor_block_retention_days: int = 365

@@ -2519,7 +2519,7 @@ def policy_decisions():
             "grace_days": settings.reconsent_grace_days,
             "enforcement_mode": settings.reconsent_enforcement_mode,
             "redirect_path": settings.reconsent_redirect_path,
-            "meaning": "필수 문서 버전이 바뀌었을 때 기존 동의 사용자에게 즉시 차단 대신 일정 기간 재동의 유예를 부여",
+            "meaning": "필수 문서 버전이 바뀌었을 때 유예기간 없이 최신 문서 재동의를 바로 요구",
             "post_grace_restrictions": ["글쓰기", "채팅", "주문", "문의", "프로필 수정"],
         },
         "ops_alerts": {

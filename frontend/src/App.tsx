@@ -432,7 +432,7 @@ type RandomGenderOption = (typeof randomGenderOptions)[number];
 type RandomRegionOption = (typeof randomRegionOptions)[number];
 type RandomEntryTab = (typeof randomEntryTabs)[number];
 type AdminModeTab = (typeof adminModeTabs)[number];
-type OverlayMode = "search" | "settings" | "notifications" | "menu" | null;
+type OverlayMode = "search" | "settings" | "notifications" | "menu" | "reconsent_info" | null;
 type DemoLoginProvider = "PASS" | "휴대폰" | "카카오";
 type AdultGateView = "intro" | "success" | "failed" | "minor";
 type SignupStep = "consent" | "account" | "profile";
@@ -1566,6 +1566,10 @@ export default function App() {
   });
   const [savedTab, setSavedTab] = useState<"피드" | "상품">("피드");
   const [authStandaloneScreen, setAuthStandaloneScreen] = useState<AuthStandaloneScreen | null>(null);
+  const [homeShopConsentGuideSeen, setHomeShopConsentGuideSeen] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("adultapp_home_shop_consent_guide_seen") === "1";
+  });
   const [authEmail, setAuthEmail] = useState("customer@example.com");
   const [authPassword, setAuthPassword] = useState("customer1234");
   const [authMessage, setAuthMessage] = useState("");
@@ -1736,6 +1740,11 @@ export default function App() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_home_shop_consent_guide_seen", homeShopConsentGuideSeen ? "1" : "0");
+  }, [homeShopConsentGuideSeen]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
     window.localStorage.setItem("adultapp_header_favorites", JSON.stringify(headerFavorites));
   }, [headerFavorites]);
 
@@ -1864,6 +1873,7 @@ export default function App() {
     setHomeTab("피드");
     setProfileTab("내정보");
     setAuthMessage("로그아웃 완료 · 로그인 화면으로 이동했습니다.");
+    setHomeShopConsentGuideSeen(false);
 
     window.alert("로그아웃이 완료되었습니다. 로그인 화면으로 이동합니다.");
   };
@@ -1992,7 +2002,8 @@ export default function App() {
   const requiredConsentAccepted = requiredConsentKeys.every((key) => signupConsents[key]);
   const reconsentRequired = Boolean(authSummary?.reconsent_required || authSummary?.consent_status?.reconsent_required);
   const reconsentMode = (authSummary?.reconsent_enforcement_mode as string | undefined) ?? "limited_access";
-  const reconsentWriteRestricted = reconsentRequired && reconsentMode !== "login_block";
+  const reconsentWriteRestricted = !isAdmin && reconsentRequired && reconsentMode !== "login_block";
+  const shouldShowHomeShopConsentGuide = !isAdmin && currentUserRole !== "GUEST" && ["홈", "쇼핑"].includes(activeTab) && !homeShopConsentGuideSeen;
   const signupAccountValid = Boolean(signupForm.email.trim() && signupForm.password.trim() && signupForm.displayName.trim() && identityVerified && identityVerificationToken);
   const randomProfileMissing = [!demoProfile.gender ? "성별" : null, !demoProfile.ageBand ? "연령대" : null, !demoProfile.regionCode ? "지역" : null].filter(Boolean) as string[];
   const randomProfileReady = randomProfileMissing.length === 0;
@@ -2086,6 +2097,7 @@ export default function App() {
     setAuthEmail(signupForm.email);
     setAuthPassword(signupForm.password);
     setAuthMessage("회원가입 입력이 저장되었습니다. 로그인 화면에서 바로 로그인할 수 있습니다.");
+    setHomeShopConsentGuideSeen(false);
     setAuthStandaloneScreen("login");
   };
 
@@ -2807,9 +2819,15 @@ export default function App() {
 
       <main className="mobile-main">
         {showBaseTabContent && reconsentRequired ? (
-          <section className="reconsent-banner">
+          <section className="reconsent-banner" role="button" tabIndex={0} onClick={() => { setHomeShopConsentGuideSeen(true); setOverlayMode("reconsent_info"); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setHomeShopConsentGuideSeen(true); setOverlayMode("reconsent_info"); } }}>
             <strong>필수 문서 재동의 필요</strong>
-            <p>기존 가입자에게 7일 유예가 제공되며, 유예 종료 후에는 글쓰기, 채팅, 주문, 문의, 프로필 수정이 제한되고 재동의 화면으로 우선 이동됩니다.</p>
+            <p>기존 7일 유예 없이 최신 필수 문서를 바로 다시 확인해야 합니다. 클릭하면 재동의 안내와 약관 화면으로 이동합니다.</p>
+          </section>
+        ) : null}
+        {showBaseTabContent && shouldShowHomeShopConsentGuide ? (
+          <section className="reconsent-banner" role="button" tabIndex={0} onClick={() => { setHomeShopConsentGuideSeen(true); setOverlayMode("reconsent_info"); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setHomeShopConsentGuideSeen(true); setOverlayMode("reconsent_info"); } }}>
+            <strong>홈/쇼핑 최초 진입 전 필수 문서 확인 안내</strong>
+            <p>{reconsentRequired ? "재동의가 필요한 계정입니다. 클릭 후 최신 필수 문서를 확인하고 무엇을 해야 하는지 안내를 먼저 보세요." : "최신 이용약관, 개인정보 처리방침, 청소년 보호정책 확인 방법을 보려면 클릭하세요."}</p>
           </section>
         ) : null}
         {showBaseTabContent && releaseReadiness && releaseReadiness.status !== "ready" ? (
@@ -2822,7 +2840,7 @@ export default function App() {
         {overlayMode ? (
           <section className="overlay-card">
             <div className="overlay-head">
-              <strong>{overlayMode === "search" ? "통합 검색" : overlayMode === "notifications" ? "알림" : overlayMode === "menu" ? `${activeTab} 메뉴` : "설정 카테고리"}</strong>
+              <strong>{overlayMode === "search" ? "통합 검색" : overlayMode === "notifications" ? "알림" : overlayMode === "menu" ? `${activeTab} 메뉴` : overlayMode === "reconsent_info" ? "필수 문서 재동의 안내" : "설정 카테고리"}</strong>
               <button className="ghost-btn" onClick={() => setOverlayMode(null)}>닫기</button>
             </div>
 
@@ -2977,6 +2995,57 @@ export default function App() {
                     <div className="simple-list-row"><b>저장된 상품</b><span>{savedProductIds.length}개</span></div>
                   </div>
                 ) : null}
+              </div>
+            ) : null}
+
+            {overlayMode === "reconsent_info" ? (
+              <div className="stack-gap compact-scroll-list">
+                <section className="notification-section-card">
+                  <div className="notification-section-head">
+                    <div><strong>필수 문서 재동의 안내</strong><p>홈 또는 쇼핑에 처음 들어오면 최신 필수 문서를 다시 확인해야 하는지 먼저 확인합니다.</p></div>
+                  </div>
+                  <div className="notification-list">
+                    <article className="notification-item unread">
+                      <div className="notification-item-copy">
+                        <div className="notification-item-topline"><span className="notification-chip">안내</span><span>{reconsentRequired ? "즉시 재동의 필요" : "최신 문서 확인 권장"}</span></div>
+                        <strong>{reconsentRequired ? "유예기간 없이 최신 필수 문서 재동의가 필요합니다." : "최신 약관·처리방침·청소년 보호정책을 확인해 주세요."}</strong>
+                        <p>{reconsentRequired ? "현재 계정은 기존 7일 유예 없이 최신 버전 기준으로 즉시 재동의 상태가 적용됩니다. 재동의를 완료하기 전에는 글쓰기, 채팅, 주문, 문의, 프로필 수정 같은 쓰기 기능이 제한될 수 있습니다." : "회원가입 직후 홈/쇼핑 진입 시 최신 필수 문서를 먼저 확인하고, 변경 공지가 있을 때는 재동의 필요 여부를 여기에서 확인합니다."}</p>
+                      </div>
+                    </article>
+                  </div>
+                </section>
+                <section className="notification-section-card">
+                  <div className="notification-section-head">
+                    <div><strong>무엇을 해야 하나요?</strong><p>아래 순서대로 진행하면 됩니다.</p></div>
+                  </div>
+                  <div className="consent-record-list">
+                    <div className="simple-list-row multi-line"><div><b>1단계</b><span>이용약관, 개인정보 처리방침, 청소년 보호정책의 최신 버전을 열어 확인합니다.</span></div></div>
+                    <div className="simple-list-row multi-line"><div><b>2단계</b><span>문서가 변경되었고 재동의가 필요하다고 표시되면 최신 버전 기준으로 다시 동의합니다.</span></div></div>
+                    <div className="simple-list-row multi-line"><div><b>3단계</b><span>재동의 완료 후 홈, 쇼핑, 주문, 채팅, 문의, 프로필 수정 같은 기능을 계속 진행합니다.</span></div></div>
+                    <div className="simple-list-row multi-line"><div><b>관리자 예외</b><span>관리자 계정은 테스트를 위해 성인인증, 필수문서 동의, 사업자인증 없이도 상품등록이 가능합니다.</span></div></div>
+                  </div>
+                </section>
+                <section className="notification-section-card">
+                  <div className="notification-section-head">
+                    <div><strong>필수 문서 바로가기</strong><p>문서를 열어 최신 버전을 확인합니다.</p></div>
+                  </div>
+                  <div className="notification-policy-links">
+                    <a className="ghost-link-btn" href={`${getApiBase()}/legal/terms-of-service`} target="_blank" rel="noreferrer">이용약관</a>
+                    <a className="ghost-link-btn" href={`${getApiBase()}/legal/privacy-policy`} target="_blank" rel="noreferrer">개인정보 처리방침</a>
+                    <a className="ghost-link-btn" href={`${getApiBase()}/legal/youth-policy`} target="_blank" rel="noreferrer">청소년 보호정책</a>
+                    <a className="ghost-link-btn" href={`${getApiBase()}/legal/refund-policy`} target="_blank" rel="noreferrer">환불정책</a>
+                  </div>
+                  <div className="legacy-box compact">
+                    <h3>현재 동의 상태</h3>
+                    <p>{reconsentRequired ? "재동의 필요 상태" : "최신 버전 동의 상태"}</p>
+                    <p>적용 방식: {reconsentMode === "login_block" ? "로그인 전 재동의" : "즉시 쓰기 기능 제한"}</p>
+                    <p>유예기간: {authSummary?.consent_status?.grace_period_days ?? 0}일</p>
+                  </div>
+                </section>
+                <div className="copy-action-row">
+                  <button type="button" onClick={() => { setHomeShopConsentGuideSeen(true); setOverlayMode(null); }}>확인 완료</button>
+                  <button type="button" className="ghost-btn" onClick={() => { setOverlayMode("settings"); setSettingsCategory("일반"); }}>설정으로 이동</button>
+                </div>
               </div>
             ) : null}
 
@@ -3167,7 +3236,7 @@ export default function App() {
                     <button type="button" className="ghost-btn" onClick={openBusinessVerificationTab}>사업자인증</button>
                   </div>
                 </div>
-                {reconsentWriteRestricted ? <div className="legacy-box compact"><p>재동의 유예가 끝난 계정은 주문·문의·상품등록 같은 쓰기 기능이 제한됩니다. 먼저 재동의 화면에서 최신 필수 문서에 동의해야 합니다.</p></div> : null}
+                {reconsentWriteRestricted ? <div className="legacy-box compact"><p>유예기간 없이 최신 필수 문서 재동의가 필요합니다. 먼저 필수 문서 안내 화면에서 재동의 정보를 확인한 뒤 주문·문의·상품등록 같은 쓰기 기능을 진행하세요.</p><div className="copy-action-row"><button type="button" className="ghost-btn" onClick={() => { setHomeShopConsentGuideSeen(true); setOverlayMode("reconsent_info"); }}>필수 문서 안내 열기</button></div></div> : null}
                 <div className="legacy-grid three">
                   <div className="legacy-box compact"><h3>추천노출 수익화</h3><p>브랜드관/기획전 대신 홈 피드와 질문 피드 사이에 자연스럽게 제품이 노출되는 추천 슬롯만 운영합니다.</p><p>운영 검수 후 문구·이미지·노출 위치를 통제하는 방식으로 설계합니다.</p></div>
                   <div className="legacy-box compact"><h3>프리미엄 배송 멤버십</h3><p>구매자 회원제 기준으로 익명포장, 빠른 출고, 보호포장, 프리미엄 CS를 묶어 제공합니다.</p><ul className="compact-bullet-list">{premiumMemberBenefits.map((item) => <li key={item}>{item}</li>)}</ul></div>
@@ -3319,7 +3388,7 @@ export default function App() {
                         <label className="wide"><span>상품소개</span><textarea value={productRegistrationDraft.description} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, description: e.target.value }))} placeholder="상품 소개" /></label>
                         <label className="wide"><span>사진 등록 (최대 5장 URL)</span><div className="photo-url-grid">{productRegistrationDraft.imageUrls.map((value, idx) => <input key={idx} value={value} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, imageUrls: prev.imageUrls.map((item, itemIdx) => itemIdx === idx ? e.target.value : item) }))} placeholder={`사진 ${idx + 1} URL`} />)}</div></label>
                       </div>
-                      {reconsentWriteRestricted ? <p className="muted-mini">재동의 유예 종료 계정은 상품 등록 전에 최신 필수 문서 재동의가 필요합니다.</p> : null}
+                      {reconsentWriteRestricted ? <p className="muted-mini">유예기간 없이 최신 필수 문서 재동의가 필요합니다. 먼저 필수 문서 안내 화면에서 최신 약관과 재동의 절차를 확인하세요.</p> : null}
                       <div className="copy-action-row">
                         <button type="button" onClick={submitProductRegistration} disabled={!sellerApprovalReady || !productDraftReady || reconsentWriteRestricted}>임시저장</button>
                         <button type="button" className="ghost-btn" onClick={openBusinessVerificationTab}>사업자인증 수정</button>
