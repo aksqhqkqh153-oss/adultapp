@@ -1856,8 +1856,6 @@ export default function App() {
 
   const handleLogout = async () => {
     if (typeof window === "undefined") return;
-    const confirmed = window.confirm("현재 테스트 로그인 상태를 종료하고 로그인 화면으로 이동하시겠습니까?");
-    if (!confirmed) return;
 
     try {
       const refreshToken = getRefreshToken();
@@ -1913,7 +1911,6 @@ export default function App() {
     setAuthMessage("로그아웃 완료 · 로그인 화면으로 이동했습니다.");
     setHomeShopConsentGuideSeen(false);
 
-    window.alert("로그아웃이 완료되었습니다. 로그인 화면으로 이동합니다.");
   };
 
   const homeMenuItems = [
@@ -2253,6 +2250,32 @@ export default function App() {
     setAuthEmail(email);
     setAuthPassword(password);
     setAuthMessage(`테스트 계정 입력 완료: ${email}`);
+  };
+
+  const loginWithTestAccount = async (email: string, password: string) => {
+    setAuthEmail(email);
+    setAuthPassword(password);
+    setAuthMessage(`테스트 계정으로 로그인 중: ${email}`);
+    try {
+      const response = await postJson<{ access_token: string; refresh_token: string; role: string; two_factor_required?: boolean }>("/auth/login", {
+        email: email.trim(),
+        password,
+        device_name: "web-browser",
+      });
+      if (response.two_factor_required) {
+        setAuthMessage("관리자 테스트 계정은 현재 2차 인증 없이 바로 로그인되도록 서버에서 비활성화하거나 계정을 재시드해야 합니다.");
+        return;
+      }
+      setAuthToken(response.access_token);
+      setRefreshToken(response.refresh_token);
+      await applyLoggedInUser();
+      setAuthStandaloneScreen(null);
+      setActiveTab("쇼핑");
+      setShoppingTab("목록");
+      setAdultGateView("success");
+    } catch (error) {
+      setAuthMessage(error instanceof Error ? error.message : "테스트 계정 로그인에 실패했습니다.");
+    }
   };
 
   const loginWithCredentials = async () => {
@@ -2765,11 +2788,8 @@ export default function App() {
           <section className="auth-standalone-card">
             <div className="auth-standalone-head">
               <div>
-                <span className="auth-standalone-kicker">adultapp account</span>
                 <h1>{authStandaloneScreen === "login" ? "로그인" : "회원가입"}</h1>
-                <p>{authStandaloneScreen === "login" ? "상단바와 하단바 없이 로그인만 진행하는 별도 화면입니다." : "상단바와 하단바 없이 회원가입만 진행하는 별도 화면입니다."}</p>
               </div>
-              <button type="button" className="ghost-btn" onClick={() => { setAuthStandaloneScreen(null); setActiveTab("프로필"); }}>앱으로 돌아가기</button>
             </div>
             {authStandaloneScreen === "login" ? (
               <div className="auth-standalone-body stack-gap">
@@ -2779,17 +2799,17 @@ export default function App() {
                 </div>
                 <div className="copy-action-row">
                   <button type="button" onClick={loginWithCredentials}>로그인</button>
-                  <button type="button" className="ghost-btn" onClick={() => { setSignupStep("consent"); setAuthStandaloneScreen("signup"); }}>회원가입 화면으로</button>
+                  <button type="button" className="ghost-btn" onClick={() => { setSignupStep("consent"); setAuthStandaloneScreen("signup"); }}>회원가입</button>
                 </div>
                 <div className="legacy-box compact auth-summary-box">
                   <h3>테스트 계정</h3>
                   <div className="chip-checklist auth-account-chiplist">
-                    <button type="button" className="chip-check" onClick={() => fillTestAccount("customer@example.com", "customer1234")}>회원</button>
-                    <button type="button" className="chip-check" onClick={() => fillTestAccount("admin@example.com", "admin1234")}>관리자</button>
-                    <button type="button" className="chip-check" onClick={() => fillTestAccount("seller@example.com", "seller1234")}>판매자</button>
-                    <button type="button" className="chip-check" onClick={() => fillTestAccount("general@example.com", "general1234")}>일반회원</button>
+                    <button type="button" className="chip-check" onClick={() => loginWithTestAccount("customer@example.com", "customer1234")}>회원</button>
+                    <button type="button" className="chip-check" onClick={() => loginWithTestAccount("admin@example.com", "admin1234")}>관리자</button>
+                    <button type="button" className="chip-check" onClick={() => loginWithTestAccount("seller@example.com", "seller1234")}>판매자</button>
+                    <button type="button" className="chip-check" onClick={() => loginWithTestAccount("general@example.com", "general1234")}>일반회원</button>
                   </div>
-                  {authMessage ? <p>{authMessage}</p> : <p>테스트 계정을 자동 입력한 뒤 바로 로그인할 수 있습니다.</p>}
+                  {authMessage ? <p>{authMessage}</p> : <p>테스트 계정을 누르면 바로 로그인합니다.</p>}
                 </div>
               </div>
             ) : (

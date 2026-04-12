@@ -31,38 +31,46 @@ from .models import (
 
 
 def seed_database(session: Session) -> None:
-    existing = session.exec(select(User)).first()
+    def ensure_user(email: str, *, name: str, password: str, grade: MemberGrade, adult_verified: bool, identity_verified: bool = False, seller_status: SellerOnboardingStatus | None = None, gender: str | None = None, age_band: str | None = None, region_code: str | None = None, member_status: str = "active") -> User:
+        user = session.exec(select(User).where(User.email == email)).first()
+        if not user:
+            user = User(email=email, name=name, password_hash=hash_password(password), grade=grade)
+        else:
+            user.name = name
+            user.password_hash = hash_password(password)
+            user.grade = grade
+        user.adult_verified = adult_verified
+        user.identity_verified = identity_verified
+        user.seller_onboarding_status = seller_status
+        user.gender = gender
+        user.age_band = age_band
+        user.region_code = region_code
+        user.member_status = member_status
+        user.admin_2fa_secret = None
+        user.admin_2fa_confirmed = False
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+        return user
+
+    admin = ensure_user("admin@example.com", name="관리자", password="admin1234", grade=MemberGrade.ADMIN, adult_verified=True, identity_verified=True, seller_status=SellerOnboardingStatus.ACTIVE, gender="남성", age_band="30대", region_code="서울")
+    seller_user = ensure_user("seller@example.com", name="사업자A", password="seller1234", grade=MemberGrade.SELLER, adult_verified=True, identity_verified=True, seller_status=SellerOnboardingStatus.ACTIVE, gender="여성", age_band="30대", region_code="경기")
+    customer = ensure_user("customer@example.com", name="고객A", password="customer1234", grade=MemberGrade.CUSTOMER, adult_verified=True, identity_verified=True, gender="남성", age_band="20대", region_code="서울")
+    general_user = ensure_user("general@example.com", name="일반회원A", password="general1234", grade=MemberGrade.GENERAL, adult_verified=False, identity_verified=False, gender="여성", age_band="20대", region_code="인천", member_status="pending_adult_verification")
+
+    existing = session.exec(select(Product)).first()
     if existing:
         existing_seller = session.exec(select(User).where(User.grade == MemberGrade.SELLER)).first()
         if existing_seller:
+            if not session.exec(select(SellerProfile).where(SellerProfile.user_id == admin.id)).first():
+                session.add(SellerProfile(user_id=admin.id, business_number="999-99-99999", settlement_account_verified=True, return_address="서울시 관리자구 관리자로 1", cs_contact="02-111-1111", seller_contract_agreed=True))
+            if not session.exec(select(SellerProfile).where(SellerProfile.user_id == existing_seller.id)).first():
+                session.add(SellerProfile(user_id=existing_seller.id, business_number="123-45-67890", settlement_account_verified=True, return_address="서울시 예시구 예시로 1", cs_contact="02-000-0000", seller_contract_agreed=True))
+            session.commit()
             seed_operational_tables(session, existing_seller.id)
         seed_community_tables(session)
         seed_social_chat_tables(session)
         return
-
-    admin = User(email="admin@example.com", name="관리자", password_hash=hash_password("admin1234"), grade=MemberGrade.ADMIN, adult_verified=True, identity_verified=True, seller_onboarding_status=SellerOnboardingStatus.ACTIVE, gender="남성", age_band="30대", region_code="서울")
-    seller_user = User(
-        email="seller@example.com",
-        name="사업자A",
-        password_hash=hash_password("seller1234"),
-        grade=MemberGrade.SELLER,
-        adult_verified=True,
-        seller_onboarding_status=SellerOnboardingStatus.ACTIVE,
-        gender="여성",
-        age_band="30대",
-        region_code="경기",
-    )
-    customer = User(email="customer@example.com", name="고객A", password_hash=hash_password("customer1234"), grade=MemberGrade.CUSTOMER, adult_verified=True, gender="남성", age_band="20대", region_code="서울")
-    general_user = User(email="general@example.com", name="일반회원A", password_hash=hash_password("general1234"), grade=MemberGrade.GENERAL, adult_verified=False, gender="여성", age_band="20대", region_code="인천", member_status="pending_adult_verification")
-    session.add(admin)
-    session.add(seller_user)
-    session.add(customer)
-    session.add(general_user)
-    session.commit()
-    session.refresh(seller_user)
-    session.refresh(customer)
-    session.refresh(general_user)
-    session.refresh(admin)
 
     session.add(SellerProfile(user_id=admin.id, business_number="999-99-99999", settlement_account_verified=True, return_address="서울시 관리자구 관리자로 1", cs_contact="02-111-1111", seller_contract_agreed=True))
     session.add(SellerProfile(user_id=seller_user.id, business_number="123-45-67890", settlement_account_verified=True, return_address="서울시 예시구 예시로 1", cs_contact="02-000-0000", seller_contract_agreed=True))
