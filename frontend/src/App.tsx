@@ -2285,7 +2285,7 @@ export default function App() {
       setRefreshToken(response.refresh_token);
       await applyLoggedInUser();
       setAuthStandaloneScreen(null);
-      setActiveTab("쇼핑");
+      setActiveTab("홈");
       setShoppingTab("목록");
       setAdultGateView("success");
     } catch (error) {
@@ -2310,7 +2310,7 @@ export default function App() {
       setRefreshToken(response.refresh_token);
       await applyLoggedInUser();
       setAuthStandaloneScreen(null);
-      setActiveTab("쇼핑");
+      setActiveTab("홈");
       setShoppingTab("목록");
       setAdultGateView("success");
     } catch (error) {

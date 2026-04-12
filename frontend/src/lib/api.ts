@@ -32,12 +32,18 @@ function collectApiBases() {
 }
 
 const API_BASES = collectApiBases();
-const DEFAULT_TIMEOUT_MS = 8000;
+const DEFAULT_TIMEOUT_MS = 15000;
 
 let activeApiBase = API_BASES[0];
 
 let accessToken = localStorage.getItem("adultapp_access_token") ?? "";
 let refreshToken = localStorage.getItem("adultapp_refresh_token") ?? "";
+
+function timeoutForPath(path: string) {
+  if (path.startsWith("/auth/login")) return 30000;
+  if (path.startsWith("/auth/me")) return 20000;
+  return DEFAULT_TIMEOUT_MS;
+}
 
 export function getApiBase() {
   return activeApiBase;
@@ -75,7 +81,8 @@ async function requestOnce<T>(base: string, path: string, init?: RequestInit): P
   if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
 
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+  const timeoutMs = timeoutForPath(path);
+  const timeout = window.setTimeout(() => controller.abort(new DOMException(`timeout after ${timeoutMs}ms`, "TimeoutError")), timeoutMs);
 
   try {
     const response = await fetch(`${base}${path}`, { ...init, headers, signal: controller.signal });
@@ -88,6 +95,11 @@ async function requestOnce<T>(base: string, path: string, init?: RequestInit): P
     }
     activeApiBase = base;
     return (await response.json()) as T;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error(`${init?.method ?? "GET"} ${path} timeout`);
+    }
+    throw error;
   } finally {
     window.clearTimeout(timeout);
   }

@@ -1,3 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
-exec bash ./backend/start.sh
+cd backend
+exec bash ./start.sh
