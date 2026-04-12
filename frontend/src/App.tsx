@@ -1596,7 +1596,7 @@ export default function App() {
     try { return JSON.parse(window.localStorage.getItem("adultapp_saved_product_ids") ?? "[]"); } catch { return []; }
   });
   const [savedTab, setSavedTab] = useState<"피드" | "상품">("피드");
-  const [authStandaloneScreen, setAuthStandaloneScreen] = useState<AuthStandaloneScreen | null>(null);
+  const [authStandaloneScreen, setAuthStandaloneScreen] = useState<AuthStandaloneScreen | null>("login");
   const [homeShopConsentGuideSeen, setHomeShopConsentGuideSeen] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem("adultapp_home_shop_consent_guide_seen") === "1";
