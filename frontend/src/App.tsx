@@ -277,6 +277,30 @@ type ApiOrder = {
   item_count: number;
 };
 
+type ApiOrderDetail = {
+  order: ApiOrder & { supply_amount?: number; vat_amount?: number; approved_at?: string | null };
+  items: Array<{ product_id: number; sku_code?: string; qty: number; unit_price: number; supply_amount?: number; vat_amount?: number; refund_status?: string | null }>;
+  payment_record?: {
+    confirmed?: boolean;
+    payment_id?: string;
+    provider?: string;
+    method?: string;
+    paid_amount?: number;
+    cancelled_amount?: number;
+    refunded_amount?: number;
+    latest_status?: string;
+    history?: Array<Record<string, unknown>>;
+  };
+  amount_snapshot?: {
+    order_total: number;
+    paid_amount: number;
+    cancelled_amount: number;
+    refunded_amount: number;
+    remaining: number;
+  };
+  checkout?: { mode?: string; store_id?: string; channel_key?: string; client_key?: string; mid?: string };
+};
+
 type SellerVerificationState = {
   companyName: string;
   representativeName: string;
@@ -1576,6 +1600,8 @@ export default function App() {
   const [apiProducts, setApiProducts] = useState<ApiProduct[]>([]);
   const [cartItems, setCartItems] = useState<Array<{ productId: number; qty: number }>>([]);
   const [orders, setOrders] = useState<ApiOrder[]>([]);
+  const [selectedOrderNo, setSelectedOrderNo] = useState("");
+  const [orderDetail, setOrderDetail] = useState<ApiOrderDetail | null>(null);
   const [orderMessage, setOrderMessage] = useState("");
   const [orderActionAmount, setOrderActionAmount] = useState("5500");
 
@@ -1742,6 +1768,11 @@ export default function App() {
     if (typeof window === "undefined") return;
     window.localStorage.setItem("adultapp_home_shop_consent_guide_seen", homeShopConsentGuideSeen ? "1" : "0");
   }, [homeShopConsentGuideSeen]);
+  useEffect(() => {
+    if (!selectedOrderNo) return;
+    getJson<ApiOrderDetail>(`/orders/${selectedOrderNo}`).then(setOrderDetail).catch(() => setOrderDetail(null));
+  }, [selectedOrderNo]);
+
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -2155,7 +2186,11 @@ export default function App() {
       getJson<SellerProductItem[]>('/seller/products/mine').then(setSellerProducts).catch(() => null);
       getJson<ApiProduct[]>('/products').then(setApiProducts).catch(() => null);
       if (isAdmin) getJson<{ items: ProductApprovalItem[] }>('/admin/product-approvals').then((res) => setProductApprovalQueue(res.items ?? [])).catch(() => null);
-    } catch {}
+      setOrderMessage(`상품 등록 완료: ${created.name} · ${isAdmin ? '즉시 공개 처리' : '승인대기 또는 검토 상태'}`);
+    } catch (error) {
+      setOrderMessage(error instanceof Error ? error.message : '상품 등록 실패');
+      return;
+    }
     setSubmittedProducts((prev) => [productRegistrationDraft, ...prev]);
     setProductRegistrationDraft({ category: '뷰티', name: '', imageUrls: ['', '', '', '', ''], description: '', price: '', stockQty: '', skuCode: '' });
   };
@@ -2194,6 +2229,18 @@ export default function App() {
     setAdultVerified(Boolean(me.adult_verified));
     const nextOrders = await getJson<ApiOrder[]>("/orders");
     setOrders(nextOrders);
+    const firstOrderNo = nextOrders.length ? nextOrders[nextOrders.length - 1].order_no : "";
+    setSelectedOrderNo(firstOrderNo);
+    if (firstOrderNo) {
+      try {
+        const detail = await getJson<ApiOrderDetail>(`/orders/${firstOrderNo}`);
+        setOrderDetail(detail);
+      } catch {
+        setOrderDetail(null);
+      }
+    } else {
+      setOrderDetail(null);
+    }
     setAuthMessage(`${me.email ?? "계정"} 로그인 완료 · 역할 ${nextRole}`);
   };
 
@@ -2242,7 +2289,39 @@ export default function App() {
 
   const cartTotalAmount = useMemo(() => cartDetailedItems.reduce((sum, item) => sum + (Number(item.product.price || 0) * item.qty), 0), [cartDetailedItems]);
 
-  const refreshOrders = () => getJson<ApiOrder[]>("/orders").then(setOrders).catch(() => null);
+  const refreshOrders = async (preferredOrderNo?: string) => {
+    try {
+      const nextOrders = await getJson<ApiOrder[]>("/orders");
+      setOrders(nextOrders);
+      const fallbackOrderNo = preferredOrderNo || selectedOrderNo || nextOrders.length ? nextOrders[nextOrders.length - 1].order_no : "";
+      if (fallbackOrderNo) {
+        setSelectedOrderNo(fallbackOrderNo);
+        try {
+          const detail = await getJson<ApiOrderDetail>(`/orders/${fallbackOrderNo}`);
+          setOrderDetail(detail);
+        } catch {
+          setOrderDetail(null);
+        }
+      } else {
+        setOrderDetail(null);
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  };
+
+  const selectOrderForTesting = async (orderNo: string) => {
+    setSelectedOrderNo(orderNo);
+    try {
+      const detail = await getJson<ApiOrderDetail>(`/orders/${orderNo}`);
+      setOrderDetail(detail);
+      setOrderMessage(`테스트 대상 주문 선택: ${orderNo}`);
+    } catch (error) {
+      setOrderDetail(null);
+      setOrderMessage(error instanceof Error ? error.message : "주문 상세 조회 실패");
+    }
+  };
 
   const createOrderFromCart = async () => {
     const first = cartDetailedItems[0];
@@ -2258,14 +2337,14 @@ export default function App() {
         payment_pg: "demo-pg",
       });
       setOrderMessage(`주문 생성 완료: ${created.order_no} · ${created.total_amount.toLocaleString()}원 · mode ${created.payment_init?.mode ?? "-"}`);
-      await refreshOrders();
+      await refreshOrders(created.order_no);
       setShoppingTab("주문");
     } catch (error) {
       setOrderMessage(error instanceof Error ? error.message : "주문 생성 실패");
     }
   };
 
-  const confirmLatestPendingOrder = async () => {
+  const confirmSelectedOrder = async () => {
     const target = [...orders].reverse().find((item) => item.status === "payment_pending") ?? orders[orders.length - 1];
     if (!target) {
       setOrderMessage("확인할 주문이 없습니다.");
@@ -2281,14 +2360,14 @@ export default function App() {
         method: "card",
       });
       setOrderMessage(`결제 승인 완료: ${target.order_no} → ${result.status}`);
-      await refreshOrders();
+      await refreshOrders(target.order_no);
     } catch (error) {
       setOrderMessage(error instanceof Error ? error.message : "결제 승인 실패");
     }
   };
 
-  const cancelLatestPaidOrder = async (partial = false) => {
-    const target = [...orders].reverse().find((item) => ["paid", "partial_cancelled"].includes(item.status));
+  const cancelSelectedOrder = async (partial = false) => {
+    const target = (selectedOrderNo ? orders.find((item) => item.order_no === selectedOrderNo) : null) ?? [...orders].reverse().find((item) => ["paid", "partial_cancelled"].includes(item.status));
     if (!target) {
       setOrderMessage("취소할 결제완료 주문이 없습니다.");
       return;
@@ -2301,14 +2380,14 @@ export default function App() {
         idempotency_key: `cancel_${partial ? 'partial' : 'full'}_${Date.now()}`,
       });
       setOrderMessage(`취소 완료: ${target.order_no} · ${result.cancel_amount.toLocaleString()}원 · ${result.status}`);
-      await refreshOrders();
+      await refreshOrders(target.order_no);
     } catch (error) {
       setOrderMessage(error instanceof Error ? error.message : "취소 실패");
     }
   };
 
-  const refundLatestPaidOrder = async (partial = false) => {
-    const target = [...orders].reverse().find((item) => ["paid", "partial_cancelled"].includes(item.status));
+  const refundSelectedOrder = async (partial = false) => {
+    const target = (selectedOrderNo ? orders.find((item) => item.order_no === selectedOrderNo) : null) ?? [...orders].reverse().find((item) => ["paid", "partial_cancelled"].includes(item.status));
     if (!target) {
       setOrderMessage("환불할 결제완료 주문이 없습니다.");
       return;
@@ -2321,7 +2400,7 @@ export default function App() {
         idempotency_key: `refund_${partial ? 'partial' : 'full'}_${Date.now()}`,
       });
       setOrderMessage(`환불 완료: ${target.order_no} · ${result.refund_amount.toLocaleString()}원 · ${result.status}`);
-      await refreshOrders();
+      await refreshOrders(target.order_no);
     } catch (error) {
       setOrderMessage(error instanceof Error ? error.message : "환불 실패");
     }
@@ -3290,19 +3369,32 @@ export default function App() {
                     <label><span>API Base</span><input value={getApiBase()} readOnly /></label>
                   </div>
                   <div className="product-card-actions">
-                    <button type="button" onClick={confirmLatestPendingOrder}>최근 대기주문 결제승인</button>
-                    <button type="button" className="ghost-btn" onClick={() => cancelLatestPaidOrder(false)}>전체취소</button>
-                    <button type="button" className="ghost-btn" onClick={() => cancelLatestPaidOrder(true)}>부분취소</button>
-                    <button type="button" className="ghost-btn" onClick={() => refundLatestPaidOrder(false)}>전체환불</button>
-                    <button type="button" className="ghost-btn" onClick={() => refundLatestPaidOrder(true)}>부분환불</button>
+                    <button type="button" onClick={confirmSelectedOrder}>선택 주문 결제승인</button>
+                    <button type="button" className="ghost-btn" onClick={() => cancelSelectedOrder(false)}>선택 주문 전체취소</button>
+                    <button type="button" className="ghost-btn" onClick={() => cancelSelectedOrder(true)}>선택 주문 부분취소</button>
+                    <button type="button" className="ghost-btn" onClick={() => refundSelectedOrder(false)}>선택 주문 전체환불</button>
+                    <button type="button" className="ghost-btn" onClick={() => refundSelectedOrder(true)}>선택 주문 부분환불</button>
                     <button type="button" className="ghost-btn" onClick={runWebhookSignatureTest}>webhook 점검</button>
                   </div>
+                  {selectedOrderNo ? <p className="muted-mini">현재 테스트 대상 주문: {selectedOrderNo}</p> : <p className="muted-mini">주문 목록에서 테스트할 주문을 먼저 선택하세요.</p>}
                   {orderMessage ? <p className="muted-mini">{orderMessage}</p> : null}
+                </div>
+                <div className="legacy-box compact">
+                  <h3>선택 주문 상세 / 결제 스냅샷</h3>
+                  {orderDetail ? (
+                    <div className="consent-record-list">
+                      <div className="simple-list-row multi-line"><div><b>{orderDetail.order.order_no}</b><span>상태 {orderDetail.order.status} · 결제수단 {orderDetail.order.payment_method} · PG {orderDetail.order.payment_pg}</span><span>총액 ₩{Number(orderDetail.order.total_amount || 0).toLocaleString()} · 공급가 ₩{Number(orderDetail.order.supply_amount || 0).toLocaleString()} · VAT ₩{Number(orderDetail.order.vat_amount || 0).toLocaleString()}</span></div></div>
+                      <div className="simple-list-row multi-line"><div><b>금액 스냅샷</b><span>결제 ₩{Number(orderDetail.amount_snapshot?.paid_amount || 0).toLocaleString()} · 취소 ₩{Number(orderDetail.amount_snapshot?.cancelled_amount || 0).toLocaleString()} · 환불 ₩{Number(orderDetail.amount_snapshot?.refunded_amount || 0).toLocaleString()} · 잔액 ₩{Number(orderDetail.amount_snapshot?.remaining || 0).toLocaleString()}</span></div></div>
+                      <div className="simple-list-row multi-line"><div><b>결제 레코드</b><span>confirmed {String(Boolean(orderDetail.payment_record?.confirmed))} · payment_id {String(orderDetail.payment_record?.payment_id || '-')} · latest {String(orderDetail.payment_record?.latest_status || '-')}</span></div></div>
+                      <div className="simple-list-row multi-line"><div><b>주문 품목</b><span>{orderDetail.items.map((item) => `${item.sku_code || item.product_id} x${item.qty}`).join(' · ') || '없음'}</span></div></div>
+                      <div className="simple-list-row multi-line"><div><b>결제 이력</b><span>{(orderDetail.payment_record?.history || []).length ? (orderDetail.payment_record?.history || []).map((item) => String(item.action || '-')).join(' → ') : '이력 없음'}</span></div></div>
+                    </div>
+                  ) : <p>선택한 주문의 상세 정보가 여기에 표시됩니다.</p>}
                 </div>
                 <div className="legacy-box">
                   <h3>최근 주문</h3>
                   <div className="chat-list">
-                    {orders.length ? orders.slice().reverse().map((item, index) => <article key={item.order_no} className="chat-row simple-row"><div className="avatar-circle">{String(index + 1).padStart(2, '0')}</div><div className="chat-copy"><strong>{item.order_no}</strong><span>총액 ₩{Number(item.total_amount || 0).toLocaleString()} · PG {item.payment_pg}</span><p>상태 {item.status} · 정산 {item.settlement_status} · 품목 {item.item_count}건</p></div><div className="chat-meta"><span>{item.payment_method}</span><b>{item.status}</b></div></article>) : <p>로그인 후 주문을 생성하면 이곳에 표시됩니다.</p>}
+                    {orders.length ? orders.slice().reverse().map((item, index) => <article key={item.order_no} className="chat-row simple-row"><div className="avatar-circle">{String(index + 1).padStart(2, '0')}</div><div className="chat-copy"><strong>{item.order_no}</strong><span>총액 ₩{Number(item.total_amount || 0).toLocaleString()} · PG {item.payment_pg}</span><p>상태 {item.status} · 정산 {item.settlement_status} · 품목 {item.item_count}건</p></div><div className="chat-meta"><span>{item.payment_method}</span><b>{item.status}</b><button type="button" className="ghost-btn" onClick={() => selectOrderForTesting(item.order_no)}>주문선택</button></div></article>) : <p>로그인 후 주문을 생성하면 이곳에 표시됩니다.</p>}
                   </div>
                 </div>
               </div>

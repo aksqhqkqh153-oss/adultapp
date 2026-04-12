@@ -3158,6 +3158,49 @@ def list_orders(current_user: User = Depends(get_current_user), session: Session
     return rows
 
 
+@router.get("/orders/{order_no}")
+def order_detail(order_no: str, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    order = session.exec(select(Order).where(Order.order_no == order_no)).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="order not found")
+    if not _can_view_order(current_user, order):
+        raise HTTPException(status_code=403, detail="forbidden")
+    items = session.exec(select(OrderItem).where(OrderItem.order_id == order.id)).all()
+    record = _payment_record(session, order.order_no)
+    return {
+        "order": {
+            "id": order.id,
+            "order_no": order.order_no,
+            "member_id": order.member_id,
+            "seller_id": order.seller_id,
+            "status": order.order_status,
+            "payment_method": order.payment_method,
+            "payment_pg": order.payment_pg,
+            "total_amount": order.total_amount,
+            "settlement_status": order.settlement_status,
+            "item_count": len(items),
+            "supply_amount": order.supply_amount,
+            "vat_amount": order.vat_amount,
+            "approved_at": order.approved_at.isoformat() if order.approved_at else None,
+        },
+        "items": [
+            {
+                "product_id": item.product_id,
+                "sku_code": item.sku_code,
+                "qty": item.qty,
+                "unit_price": item.unit_price,
+                "supply_amount": item.supply_amount,
+                "vat_amount": item.vat_amount,
+                "refund_status": item.refund_status,
+            }
+            for item in items
+        ],
+        "payment_record": record,
+        "amount_snapshot": _payment_amount_snapshot(order, record),
+        "checkout": _current_checkout_values(),
+    }
+
+
 @router.post("/orders")
 def create_order(payload: OrderCreateRequest, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     _enforce_route_rate_limit(request, "orders_create", session)
