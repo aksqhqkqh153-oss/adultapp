@@ -1,7 +1,8 @@
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session, select
 
@@ -28,6 +29,33 @@ media_dir = Path(settings.uploads_dir)
 media_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/media", StaticFiles(directory=str(media_dir)), name="media")
 app.include_router(api_router, prefix="/api")
+
+
+def _is_allowed_origin(origin: str | None) -> bool:
+    if not origin:
+        return False
+    allowed = {origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()}
+    if origin in allowed:
+        return True
+    import re
+    try:
+        return bool(settings.cors_origin_regex and re.fullmatch(settings.cors_origin_regex, origin))
+    except re.error:
+        return False
+
+
+@app.middleware("http")
+async def unhandled_exception_to_json(request: Request, call_next):
+    try:
+        return await call_next(request)
+    except Exception as exc:
+        origin = request.headers.get("origin")
+        headers = {}
+        if _is_allowed_origin(origin):
+            headers["Access-Control-Allow-Origin"] = origin
+            headers["Access-Control-Allow-Credentials"] = "true"
+            headers["Vary"] = "Origin"
+        return JSONResponse(status_code=500, content={"detail": f"server_error: {exc.__class__.__name__}"}, headers=headers)
 
 
 @app.on_event("startup")

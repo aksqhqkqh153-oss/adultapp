@@ -116,16 +116,8 @@ def ensure_test_accounts(session: Session) -> None:
         session.commit()
         session.refresh(user)
 
-        if email in {"admin@example.com", "seller@example.com"}:
-            profile = session.exec(select(SellerProfile).where(SellerProfile.user_id == (user.id or 0))).first()
-            if not profile:
-                profile = SellerProfile(user_id=user.id or 0, business_number="999-99-99999" if email == "admin@example.com" else "123-45-67890")
-            profile.settlement_account_verified = True
-            profile.return_address = "서울시 관리자구 관리자로 1" if email == "admin@example.com" else "서울시 예시구 예시로 1"
-            profile.cs_contact = "02-111-1111" if email == "admin@example.com" else "02-000-0000"
-            profile.seller_contract_agreed = True
-            session.add(profile)
-            session.commit()
+        # 로그인 경로에서는 User 레코드만 안전하게 보정한다.
+        # SellerProfile/기타 운영 테이블은 시드 전용 단계에서만 생성한다.
 
 
 def seed_database(session: Session) -> None:
