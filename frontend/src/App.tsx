@@ -243,6 +243,8 @@ type AuthSummary = {
   random_chat_profile_ready?: boolean;
 };
 
+type AuthStandaloneScreen = "login" | "signup";
+
 type AuthMeResponse = AuthSummary & {
   id?: number;
   email?: string;
@@ -365,7 +367,7 @@ type AdminDbManage = {
 const mobileTabs = ["홈", "쇼핑", "소통", "채팅", "프로필"] as const;
 const legacyMenu = ["운영현황", "주문관리", "보안", "앱심사", "포럼 분리 정책", "배포가이드"] as const;
 const homeTabs = ["피드", "상품", "보관함"] as const;
-const shoppingTabs = ["목록", "주문", "바구니", "등록관리"] as const;
+const shoppingTabs = ["목록", "주문", "바구니", "사업자인증", "상품등록"] as const;
 const communityTabs = ["커뮤", "포럼", "후기", "이벤트"] as const;
 const chatTabs = ["채팅", "질문"] as const;
 const chatTabLabels: Record<ChatTab, string> = { "채팅": "채팅", "질문": "질문" };
@@ -387,7 +389,7 @@ const interestCategoryOptions = ["뷰티", "케어", "건강", "커뮤니티", "
 
 const defaultHeaderFavorites: HeaderFavoriteMap = {
   "홈": ["피드", "상품", "보관함"],
-  "쇼핑": ["목록", "주문", "바구니", "등록관리"],
+  "쇼핑": ["목록", "주문", "바구니", "사업자인증", "상품등록"],
   "소통": ["커뮤", "포럼", "후기"],
   "채팅": ["채팅", "질문"],
   "프로필": ["내정보"],
@@ -1563,6 +1565,7 @@ export default function App() {
     try { return JSON.parse(window.localStorage.getItem("adultapp_saved_product_ids") ?? "[]"); } catch { return []; }
   });
   const [savedTab, setSavedTab] = useState<"피드" | "상품">("피드");
+  const [authStandaloneScreen, setAuthStandaloneScreen] = useState<AuthStandaloneScreen | null>(null);
   const [authEmail, setAuthEmail] = useState("customer@example.com");
   const [authPassword, setAuthPassword] = useState("customer1234");
   const [authMessage, setAuthMessage] = useState("");
@@ -1857,11 +1860,12 @@ export default function App() {
     setSettingsCategory("일반");
     setOverlayMode(null);
     setActiveTab("프로필");
+    setAuthStandaloneScreen("login");
     setHomeTab("피드");
     setProfileTab("내정보");
-    setAuthMessage("로그아웃 완료 · 테스트 로그인 화면으로 이동했습니다.");
+    setAuthMessage("로그아웃 완료 · 로그인 화면으로 이동했습니다.");
 
-    window.alert("로그아웃이 완료되었습니다. 프로필 화면의 로그인 영역에서 다시 접속할 수 있습니다.");
+    window.alert("로그아웃이 완료되었습니다. 로그인 화면으로 이동합니다.");
   };
 
   const homeMenuItems = [
@@ -1993,6 +1997,8 @@ export default function App() {
   const randomProfileMissing = [!demoProfile.gender ? "성별" : null, !demoProfile.ageBand ? "연령대" : null, !demoProfile.regionCode ? "지역" : null].filter(Boolean) as string[];
   const randomProfileReady = randomProfileMissing.length === 0;
   const sellerApprovalReady = isAdmin || sellerVerification.status === "approved";
+  const openBusinessVerificationTab = () => setShoppingTab("사업자인증");
+  const openProductRegistrationTab = () => setShoppingTab(isAdmin || sellerApprovalReady ? "상품등록" : "사업자인증");
   const sellerApplicationComplete = Boolean(
     sellerVerification.companyName.trim()
     && sellerVerification.representativeName.trim()
@@ -2077,6 +2083,10 @@ export default function App() {
     if (skipOptional) {
       setDemoProfile((prev) => ({ ...prev, marketingOptIn: signupConsents.marketing }));
     }
+    setAuthEmail(signupForm.email);
+    setAuthPassword(signupForm.password);
+    setAuthMessage("회원가입 입력이 저장되었습니다. 로그인 화면에서 바로 로그인할 수 있습니다.");
+    setAuthStandaloneScreen("login");
   };
 
   const toggleInterestCategory = (category: string) => {
@@ -2108,7 +2118,7 @@ export default function App() {
       });
     } catch {}
     setSellerVerification((prev) => ({ ...prev, status: 'pending' }));
-    setShoppingTab('등록관리');
+    setShoppingTab('사업자인증');
   };
 
   const submitProductRegistration = async () => {
@@ -2126,8 +2136,13 @@ export default function App() {
       risk_grade: 'A',
     };
     try {
-      await postJson('/products', payload);
+      const created = await postJson<SellerProductItem>('/products', payload);
+      if (isAdmin && created?.id) {
+        await postJson(`/admin/product-approvals/${created.id}/decision`, { decision: 'approved', note: '관리자 즉시 공개 테스트 등록' });
+      }
       getJson<SellerProductItem[]>('/seller/products/mine').then(setSellerProducts).catch(() => null);
+      getJson<ApiProduct[]>('/products').then(setApiProducts).catch(() => null);
+      if (isAdmin) getJson<{ items: ProductApprovalItem[] }>('/admin/product-approvals').then((res) => setProductApprovalQueue(res.items ?? [])).catch(() => null);
     } catch {}
     setSubmittedProducts((prev) => [productRegistrationDraft, ...prev]);
     setProductRegistrationDraft({ category: '뷰티', name: '', imageUrls: ['', '', '', '', ''], description: '', price: '', stockQty: '', skuCode: '' });
@@ -2190,6 +2205,7 @@ export default function App() {
       setAuthToken(response.access_token);
       setRefreshToken(response.refresh_token);
       await applyLoggedInUser();
+      setAuthStandaloneScreen(null);
       setActiveTab("쇼핑");
       setShoppingTab("목록");
       setAdultGateView("success");
@@ -2530,7 +2546,21 @@ export default function App() {
       return homeTabs.map((tab) => ({ label: tab, active: homeTab === tab, onClick: () => setHomeTab(tab) }));
     }
     if (activeTab === "쇼핑") {
-      return shoppingTabs.map((tab) => ({ label: tab, active: shoppingTab === tab, onClick: () => setShoppingTab(tab) }));
+      return shoppingTabs.map((tab) => ({
+        label: tab,
+        active: shoppingTab === tab,
+        onClick: () => {
+          if (tab === "상품등록") {
+            openProductRegistrationTab();
+            return;
+          }
+          if (tab === "사업자인증") {
+            openBusinessVerificationTab();
+            return;
+          }
+          setShoppingTab(tab);
+        },
+      }));
     }
     if (activeTab === "소통") {
       return communityTabs.map((tab) => ({ label: tab, active: communityTab === tab, onClick: () => setCommunityTab(tab) }));
@@ -2619,6 +2649,127 @@ export default function App() {
       return `${item.author} ${item.title} ${item.caption}`.toLowerCase().includes(keyword);
     });
   }, [globalKeyword, searchFilter]);
+
+  if (authStandaloneScreen) {
+    return (
+      <div className="auth-standalone-shell">
+        <main className="auth-standalone-main">
+          <section className="auth-standalone-card">
+            <div className="auth-standalone-head">
+              <div>
+                <span className="auth-standalone-kicker">adultapp account</span>
+                <h1>{authStandaloneScreen === "login" ? "로그인" : "회원가입"}</h1>
+                <p>{authStandaloneScreen === "login" ? "상단바와 하단바 없이 로그인만 진행하는 별도 화면입니다." : "상단바와 하단바 없이 회원가입만 진행하는 별도 화면입니다."}</p>
+              </div>
+              <button type="button" className="ghost-btn" onClick={() => { setAuthStandaloneScreen(null); setActiveTab("프로필"); }}>앱으로 돌아가기</button>
+            </div>
+            {authStandaloneScreen === "login" ? (
+              <div className="auth-standalone-body stack-gap">
+                <div className="signup-form-grid auth-login-grid">
+                  <label><span>이메일</span><input value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} placeholder="customer@example.com" /></label>
+                  <label><span>비밀번호</span><input type="password" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} placeholder="비밀번호 입력" /></label>
+                </div>
+                <div className="copy-action-row">
+                  <button type="button" onClick={loginWithCredentials}>로그인</button>
+                  <button type="button" className="ghost-btn" onClick={() => { setSignupStep("consent"); setAuthStandaloneScreen("signup"); }}>회원가입 화면으로</button>
+                </div>
+                <div className="legacy-box compact auth-summary-box">
+                  <h3>테스트 계정</h3>
+                  <div className="chip-checklist auth-account-chiplist">
+                    <button type="button" className="chip-check" onClick={() => fillTestAccount("customer@example.com", "customer1234")}>회원</button>
+                    <button type="button" className="chip-check" onClick={() => fillTestAccount("admin@example.com", "admin1234")}>관리자</button>
+                    <button type="button" className="chip-check" onClick={() => fillTestAccount("seller@example.com", "seller1234")}>판매자</button>
+                    <button type="button" className="chip-check" onClick={() => fillTestAccount("general@example.com", "general1234")}>일반회원</button>
+                  </div>
+                  {authMessage ? <p>{authMessage}</p> : <p>테스트 계정을 자동 입력한 뒤 바로 로그인할 수 있습니다.</p>}
+                </div>
+              </div>
+            ) : (
+              <div className="auth-standalone-body stack-gap">
+                <div className="signup-step-strip">
+                  {[
+                    ["consent", "1단계 법정 문서 확인"],
+                    ["account", "2단계 가입 입력"],
+                    ["profile", "3단계 선택 정보 입력"],
+                  ].map(([step, label]) => (
+                    <button key={step} type="button" className={`signup-step-btn ${signupStep === step ? "active" : ""}`} onClick={() => {
+                      if (step === "consent") { setSignupStep("consent"); return; }
+                      if (step === "account" && requiredConsentAccepted) { setSignupStep("account"); return; }
+                      if (step === "profile" && signupAccountValid) { setSignupStep("profile"); }
+                    }}>{label}</button>
+                  ))}
+                </div>
+                {signupStep === "consent" ? (
+                  <div className="stack-gap">
+                    <div className="legacy-box compact signup-legal-copy">
+                      <h3>개인정보 수집·이용 안내</h3>
+                      <p>수집·이용 목적 : 회원 식별, 로그인, 본인확인, 성인인증, 고객지원</p>
+                      <p>수집 항목 : 이메일, 비밀번호, 이름, 본인확인 결과값</p>
+                      <p>보유 및 이용 기간 : 법령상 보존기간까지</p>
+                      <p>동의 거부권 및 불이익 : 필수 항목 미동의 시 회원가입이 제한될 수 있음</p>
+                      <div className="copy-action-row legal-link-row">
+                        <a className="ghost-link-btn" href={`${getApiBase()}/legal/terms-of-service`} target="_blank" rel="noreferrer">이용약관</a>
+                        <a className="ghost-link-btn" href={`${getApiBase()}/legal/privacy-policy`} target="_blank" rel="noreferrer">개인정보 처리방침 보기</a>
+                        <a className="ghost-link-btn" href={`${getApiBase()}/legal/youth-policy`} target="_blank" rel="noreferrer">청소년 보호정책 보기</a>
+                      </div>
+                    </div>
+                    <div className="consent-checklist">
+                      <label className={`consent-row ${signupConsents.terms ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.terms} onChange={(e) => setSignupConsents((prev) => ({ ...prev, terms: e.target.checked }))} /><span>[필수] 이용약관 확인</span></label>
+                      <label className={`consent-row ${signupConsents.privacy ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.privacy} onChange={(e) => setSignupConsents((prev) => ({ ...prev, privacy: e.target.checked }))} /><span>[필수] 개인정보 처리방침 확인</span></label>
+                      <label className={`consent-row ${signupConsents.adultNotice ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.adultNotice} onChange={(e) => setSignupConsents((prev) => ({ ...prev, adultNotice: e.target.checked }))} /><span>[필수] 만 19세 이상 및 성인 서비스 이용 고지 확인</span></label>
+                      <label className={`consent-row ${signupConsents.identityNotice ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.identityNotice} onChange={(e) => setSignupConsents((prev) => ({ ...prev, identityNotice: e.target.checked }))} /><span>[필수] 본인확인/성인인증 결과 처리 안내 확인</span></label>
+                      <label className={`consent-row ${signupConsents.marketing ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.marketing} onChange={(e) => setSignupConsents((prev) => ({ ...prev, marketing: e.target.checked }))} /><span>[선택] 마케팅 정보 수신 동의</span></label>
+                      <label className={`consent-row ${signupConsents.profileOptional ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.profileOptional} onChange={(e) => setSignupConsents((prev) => ({ ...prev, profileOptional: e.target.checked }))} /><span>[선택] 맞춤 추천을 위한 프로필 정보 수집 동의</span></label>
+                    </div>
+                    <div className="copy-action-row">
+                      <button type="button" onClick={advanceSignupStep} disabled={!requiredConsentAccepted}>다음</button>
+                      <button type="button" className="ghost-btn" onClick={() => setAuthStandaloneScreen("login")}>로그인 화면으로</button>
+                    </div>
+                  </div>
+                ) : null}
+                {signupStep === "account" ? (
+                  <div className="stack-gap">
+                    <div className="signup-form-grid">
+                      <label><span>로그인 수단</span><select value={signupForm.loginMethod} onChange={(e) => setSignupForm((prev) => ({ ...prev, loginMethod: e.target.value as LoginMethod }))}><option value="이메일">이메일</option><option value="카카오">카카오</option></select></label>
+                      <label><span>이메일</span><input value={signupForm.email} onChange={(e) => setSignupForm((prev) => ({ ...prev, email: e.target.value }))} placeholder="you@example.com" /></label>
+                      <label><span>비밀번호</span><input type="password" value={signupForm.password} onChange={(e) => setSignupForm((prev) => ({ ...prev, password: e.target.value }))} placeholder="비밀번호 입력" /></label>
+                      <label><span>표시 이름</span><input value={signupForm.displayName} onChange={(e) => setSignupForm((prev) => ({ ...prev, displayName: e.target.value }))} placeholder="앱에서 보일 이름" /></label>
+                      <label className="wide"><span>휴대폰 본인확인 결과 토큰</span><input value={identityVerificationToken} readOnly placeholder="PASS/휴대폰 본인확인 완료 시 서버 토큰이 자동 입력됩니다" /></label>
+                      <label><span>성인인증 상태</span><input value={adultVerified ? "완료" : "가입 후 홈/쇼핑 진입 시 1회 추가 인증"} readOnly /></label>
+                    </div>
+                    <div className="legacy-grid three auth-option-grid">
+                      <div className="legacy-box compact"><h3>PASS 인증</h3><p>PASS 기반 본인확인 흐름을 테스트합니다.</p><button type="button" onClick={() => startIdentitySignup("PASS")}>PASS 인증 완료 처리</button></div>
+                      <div className="legacy-box compact"><h3>휴대폰 인증</h3><p>휴대폰 인증 흐름을 테스트합니다.</p><button type="button" onClick={() => startIdentitySignup("휴대폰")}>휴대폰 인증 완료 처리</button></div>
+                      <div className="legacy-box compact"><h3>카카오 로그인</h3><p>카카오는 로그인 편의 수단으로만 사용합니다.</p><button type="button" className="ghost-btn" onClick={() => setDemoLoginProvider("카카오")}>카카오 로그인 방식 선택</button></div>
+                    </div>
+                    <div className="copy-action-row">
+                      <button type="button" className="ghost-btn" onClick={() => setSignupStep("consent")}>이전</button>
+                      <button type="button" onClick={advanceSignupStep} disabled={!signupAccountValid}>다음</button>
+                    </div>
+                  </div>
+                ) : null}
+                {signupStep === "profile" ? (
+                  <div className="stack-gap">
+                    <div className="signup-form-grid profile-edit-grid">
+                      <label><span>성별</span><select value={demoProfile.gender} onChange={(e) => setDemoProfile((prev) => ({ ...prev, gender: e.target.value }))}>{profileGenderOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
+                      <label><span>연령대</span><select value={demoProfile.ageBand} onChange={(e) => setDemoProfile((prev) => ({ ...prev, ageBand: e.target.value }))}>{profileAgeBandOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
+                      <label><span>지역</span><select value={demoProfile.regionCode} onChange={(e) => setDemoProfile((prev) => ({ ...prev, regionCode: e.target.value }))}>{profileRegionOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
+                      <label className="wide"><span>관심 카테고리</span><div className="chip-checklist">{interestCategoryOptions.map((item) => <button key={item} type="button" className={`chip-check ${demoProfile.interests.includes(item) ? "active" : ""}`} onClick={() => toggleInterestCategory(item)}>{item}</button>)}</div></label>
+                    </div>
+                    <div className="copy-action-row">
+                      <button type="button" className="ghost-btn" onClick={() => setSignupStep("account")}>이전</button>
+                      <button type="button" className="ghost-btn" onClick={() => completeSignupFlow(true)}>선택 정보 없이 가입 완료</button>
+                      <button type="button" onClick={() => completeSignupFlow(false)}>회원가입 완료</button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </section>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="mobile-app-shell">
@@ -2886,100 +3037,34 @@ export default function App() {
 
         {showBaseTabContent && blockedByIdentity ? (
           <section className="tab-pane fill-pane auth-gate-pane">
-            <div className="auth-gate-card stack-gap compact-scroll-list">
+            <div className="auth-gate-card stack-gap compact-scroll-list auth-entry-pane">
               <div className="section-head compact-head">
-                <div><h2>회원가입 / 본인확인</h2><p>필수 동의 → 가입 정보 입력 → 선택 프로필 입력 순서로 구성했습니다. 선택 동의 미체크만으로는 회원가입을 막지 않고, 필수 항목만 모두 충족되면 다음 단계로 진행됩니다.</p></div>
+                <div><h2>로그인 / 회원가입</h2><p>로그인과 회원가입은 상단바·하단바가 없는 별도 화면으로 분리했습니다. 아래 버튼으로 독립 화면으로 이동해 진행할 수 있습니다.</p></div>
               </div>
-              <div className="signup-step-strip">
-                {[
-                  ["consent", "1단계 법정 문서 확인"],
-                  ["account", "2단계 가입 입력"],
-                  ["profile", "3단계 선택 정보 입력"],
-                ].map(([step, label]) => (
-                  <button key={step} type="button" className={`signup-step-btn ${signupStep === step ? "active" : ""}`} onClick={() => {
-                    if (step === "consent") { setSignupStep("consent"); return; }
-                    if (step === "account" && requiredConsentAccepted) { setSignupStep("account"); return; }
-                    if (step === "profile" && signupAccountValid) { setSignupStep("profile"); }
-                  }}>{label}</button>
-                ))}
+              <div className="legacy-grid two auth-entry-grid">
+                <div className="legacy-box compact auth-entry-card">
+                  <h3>로그인 화면</h3>
+                  <p>테스트 계정 입력, 일반 로그인, 관리자 로그인 확인을 독립 화면에서 진행합니다.</p>
+                  <div className="copy-action-row">
+                    <button type="button" onClick={() => setAuthStandaloneScreen("login")}>로그인 화면 열기</button>
+                  </div>
+                </div>
+                <div className="legacy-box compact auth-entry-card">
+                  <h3>회원가입 화면</h3>
+                  <p>필수 동의 → 가입정보 입력 → 선택 프로필 입력 순서의 별도 회원가입 화면으로 이동합니다.</p>
+                  <div className="copy-action-row">
+                    <button type="button" className="ghost-btn" onClick={() => { setSignupStep("consent"); setAuthStandaloneScreen("signup"); }}>회원가입 화면 열기</button>
+                  </div>
+                </div>
               </div>
-              {signupStep === "consent" ? (
-                <div className="stack-gap">
-                  <div className="legacy-box compact signup-legal-copy">
-                    <h3>개인정보 수집·이용 안내</h3>
-                    <p>수집·이용 목적 : 회원 식별, 로그인, 본인확인, 성인인증, 고객지원</p>
-                    <p>수집 항목 : 이메일, 비밀번호, 이름, 본인확인 결과값</p>
-                    <p>보유 및 이용 기간 : 법령상 보존기간까지</p>
-                    <p>동의 거부권 및 불이익 : 필수 항목 미동의 시 회원가입이 제한될 수 있음</p>
-                    <div className="copy-action-row legal-link-row">
-                      <a className="ghost-link-btn" href={`${getApiBase()}/legal/terms-of-service`} target="_blank" rel="noreferrer">이용약관</a>
-                      <a className="ghost-link-btn" href={`${getApiBase()}/legal/privacy-policy`} target="_blank" rel="noreferrer">개인정보 처리방침 보기</a>
-                      <a className="ghost-link-btn" href={`${getApiBase()}/legal/youth-policy`} target="_blank" rel="noreferrer">청소년 보호정책 보기</a>
-                    </div>
-                    {legalDocuments ? <p className="muted-mini">약관 버전: {legalDocuments.items.terms_of_service?.version ?? "-"} · 처리방침 버전: {legalDocuments.items.privacy_policy?.version ?? "-"}</p> : null}
-                    {authSummary?.consent_status?.next_reconsent_deadline ? <p className="muted-mini">재동의 유예는 이미 가입해 필수 문서에 동의했던 사용자에게 새 버전 동의 전까지 7일의 정리 기간을 주는 의미입니다. 다음 유예 종료: {String(authSummary.consent_status.next_reconsent_deadline).slice(0,10)}</p> : null}
-                  </div>
-                  <div className="consent-checklist">
-                    <label className={`consent-row ${signupConsents.terms ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.terms} onChange={(e) => setSignupConsents((prev) => ({ ...prev, terms: e.target.checked }))} /><span>[필수] 이용약관 확인</span></label>
-                    <label className={`consent-row ${signupConsents.privacy ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.privacy} onChange={(e) => setSignupConsents((prev) => ({ ...prev, privacy: e.target.checked }))} /><span>[필수] 개인정보 처리방침 확인</span></label>
-                    <label className={`consent-row ${signupConsents.adultNotice ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.adultNotice} onChange={(e) => setSignupConsents((prev) => ({ ...prev, adultNotice: e.target.checked }))} /><span>[필수] 만 19세 이상 및 성인 서비스 이용 고지 확인</span></label>
-                    <label className={`consent-row ${signupConsents.identityNotice ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.identityNotice} onChange={(e) => setSignupConsents((prev) => ({ ...prev, identityNotice: e.target.checked }))} /><span>[필수] 본인확인/성인인증 결과 처리 안내 확인</span></label>
-                    <label className={`consent-row ${signupConsents.marketing ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.marketing} onChange={(e) => setSignupConsents((prev) => ({ ...prev, marketing: e.target.checked }))} /><span>[선택] 마케팅 정보 수신 동의</span></label>
-                    <label className={`consent-row ${signupConsents.profileOptional ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.profileOptional} onChange={(e) => setSignupConsents((prev) => ({ ...prev, profileOptional: e.target.checked }))} /><span>[선택] 맞춤 추천을 위한 프로필 정보 수집 동의</span></label>
-                  </div>
-                  <div className="copy-action-row">
-                    <button type="button" onClick={advanceSignupStep} disabled={!requiredConsentAccepted}>다음</button>
-                    <button type="button" className="ghost-btn" onClick={() => setSignupConsents((prev) => ({ ...prev, marketing: false, profileOptional: false }))}>선택 동의만 해제</button>
-                  </div>
+              <div className="legacy-box compact auth-summary-box">
+                <h3>테스트 계정 바로 입력</h3>
+                <div className="chip-checklist auth-account-chiplist">
+                  <button type="button" className="chip-check" onClick={() => { fillTestAccount("customer@example.com", "customer1234"); setAuthStandaloneScreen("login"); }}>회원 계정</button>
+                  <button type="button" className="chip-check" onClick={() => { fillTestAccount("admin@example.com", "admin1234"); setAuthStandaloneScreen("login"); }}>관리자 계정</button>
+                  <button type="button" className="chip-check" onClick={() => { fillTestAccount("seller@example.com", "seller1234"); setAuthStandaloneScreen("login"); }}>판매자 계정</button>
                 </div>
-              ) : null}
-              {signupStep === "account" ? (
-                <div className="stack-gap">
-                  <div className="signup-form-grid">
-                    <label><span>로그인 수단</span><select value={signupForm.loginMethod} onChange={(e) => setSignupForm((prev) => ({ ...prev, loginMethod: e.target.value as LoginMethod }))}><option value="이메일">이메일</option><option value="카카오">카카오</option></select></label>
-                    <label><span>이메일</span><input value={signupForm.email} onChange={(e) => setSignupForm((prev) => ({ ...prev, email: e.target.value }))} placeholder="you@example.com" /></label>
-                    <label><span>비밀번호</span><input type="password" value={signupForm.password} onChange={(e) => setSignupForm((prev) => ({ ...prev, password: e.target.value }))} placeholder="비밀번호 입력" /></label>
-                    <label><span>표시 이름</span><input value={signupForm.displayName} onChange={(e) => setSignupForm((prev) => ({ ...prev, displayName: e.target.value }))} placeholder="앱에서 보일 이름" /></label>
-                    <label className="wide"><span>휴대폰 본인확인 결과 토큰</span><input value={identityVerificationToken} readOnly placeholder="PASS/휴대폰 본인확인 완료 시 서버 토큰이 자동 입력됩니다" /></label>
-                    <label><span>성인인증 상태</span><input value={adultVerified ? "완료" : "가입 후 홈/쇼핑 진입 시 1회 추가 인증"} readOnly /></label>
-                  </div>
-                  <div className="legacy-grid three auth-option-grid">
-                    <div className="legacy-box compact"><h3>PASS 인증</h3><p>1차 오픈은 PASS 기반 통합 연동으로 시작합니다. 운영 안정화 후 NICE 또는 Danal 직접 전환 여부를 검토하며, 공개 베타 전에는 본인확인 실연동·콜백 검증·서버 저장·장애 알림·운영 점검표 완료 후 운영키로 전환합니다.</p><button type="button" onClick={() => startIdentitySignup("PASS")}>PASS 인증 완료 처리</button></div>
-                    <div className="legacy-box compact"><h3>휴대폰 인증</h3><p>문자/앱 기반 본인확인 결과를 받아 가입 상태를 이어갑니다. 운영 시 실패코드, 재시도, 장애 대체 경로를 함께 정의해야 합니다.</p><button type="button" onClick={() => startIdentitySignup("휴대폰")}>휴대폰 인증 완료 처리</button></div>
-                    <div className="legacy-box compact"><h3>카카오 로그인</h3><p>카카오는 로그인 편의 수단으로만 사용하고, 본인확인 결과 토큰은 별도로 저장합니다.</p><button type="button" className="ghost-btn" onClick={() => setDemoLoginProvider("카카오")}>카카오 로그인 방식 선택</button></div>
-                  </div>
-                  <div className="legacy-box compact auth-summary-box">
-                    <h3>가입 입력 점검</h3>
-                    <p>로그인 수단: {signupForm.loginMethod} · 가입 전 본인확인: {identityVerified ? `${identityMethod} 완료` : "미완료"} · 홈/쇼핑 추가 성인인증: {adultVerified ? "완료" : "추가 필요"}</p>
-                    <p>필수 동의만 모두 체크되어 있으면 선택 동의 미체크와 무관하게 진행할 수 있습니다.</p>
-                  </div>
-                  <div className="copy-action-row">
-                    <button type="button" className="ghost-btn" onClick={() => setSignupStep("consent")}>이전</button>
-                    <button type="button" onClick={advanceSignupStep} disabled={!signupAccountValid}>다음</button>
-                  </div>
-                </div>
-              ) : null}
-              {signupStep === "profile" ? (
-                <div className="stack-gap">
-                  <div className="legacy-box compact signup-optional-note">
-                    <h3>선택 정보 입력</h3>
-                    <p>이 단계는 건너뛸 수 있습니다. 다만 성별, 연령대, 지역을 입력하지 않으면 추천/탐색 정확도가 낮아질 수 있고, 제한 웹 포럼 승인 심사 시 추가 보완 요청이 생길 수 있습니다.</p>
-                    <p>앱 공개영역에서는 직접 소통 매칭 기능을 열지 않고, 제한 웹 포럼은 성인인증·운영정책 동의·승인제 심사를 거쳐 별도 운영합니다.</p>
-                  </div>
-                  <div className="signup-form-grid">
-                    <label><span>성별</span><select value={demoProfile.gender} onChange={(e) => setDemoProfile((prev) => ({ ...prev, gender: e.target.value }))}>{profileGenderOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
-                    <label><span>연령대</span><select value={demoProfile.ageBand} onChange={(e) => setDemoProfile((prev) => ({ ...prev, ageBand: e.target.value }))}>{profileAgeBandOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
-                    <label><span>지역</span><select value={demoProfile.regionCode} onChange={(e) => setDemoProfile((prev) => ({ ...prev, regionCode: e.target.value }))}>{profileRegionOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
-                    <label className="wide"><span>관심 카테고리</span><div className="chip-checklist">{interestCategoryOptions.map((item) => <button key={item} type="button" className={`chip-check ${demoProfile.interests.includes(item) ? "active" : ""}`} onClick={() => toggleInterestCategory(item)}>{item}</button>)}</div></label>
-                    <label className="wide consent-row inline"><input type="checkbox" checked={demoProfile.marketingOptIn || signupConsents.marketing} onChange={(e) => { setDemoProfile((prev) => ({ ...prev, marketingOptIn: e.target.checked })); setSignupConsents((prev) => ({ ...prev, marketing: e.target.checked })); }} /><span>마케팅 수신 설정 반영</span></label>
-                  </div>
-                  <div className="copy-action-row">
-                    <button type="button" className="ghost-btn" onClick={() => setSignupStep("account")}>이전</button>
-                    <button type="button" className="ghost-btn" onClick={() => completeSignupFlow(true)}>건너뛰고 가입 완료</button>
-                    <button type="button" onClick={() => completeSignupFlow(false)}>저장 후 가입 완료</button>
-                  </div>
-                </div>
-              ) : null}
+              </div>
             </div>
           </section>
         ) : null}
@@ -3078,7 +3163,8 @@ export default function App() {
                   <div><h2>상품 목록</h2><p>카테고리와 검색을 조합해 한 화면 안에서 탐색합니다.</p></div>
                   <div className="section-tools slim-tools">
                     <input value={shopKeyword} onChange={(e) => setShopKeyword(e.target.value)} placeholder="상품명/설명 검색" />
-                    <button type="button" className="ghost-btn" onClick={() => setShoppingTab('등록관리')}>상품 등록</button>
+                    <button type="button" className="ghost-btn" onClick={openProductRegistrationTab}>상품등록</button>
+                    <button type="button" className="ghost-btn" onClick={openBusinessVerificationTab}>사업자인증</button>
                   </div>
                 </div>
                 {reconsentWriteRestricted ? <div className="legacy-box compact"><p>재동의 유예가 끝난 계정은 주문·문의·상품등록 같은 쓰기 기능이 제한됩니다. 먼저 재동의 화면에서 최신 필수 문서에 동의해야 합니다.</p></div> : null}
@@ -3171,26 +3257,15 @@ export default function App() {
           </section>
         ) : null}
 
-            {shoppingTab === "등록관리" ? (
+            {shoppingTab === "사업자인증" ? (
               <div className="stack-gap compact-scroll-list">
-                <div className="section-head compact-head">
-                  <div><h2>상품 등록 / 사업자 승인</h2><p>사업자 인증 계정만 상품 등록이 가능하며, 사업자 등록 인증 사진 제출과 관리자 승인 후 등록 권한이 활성화됩니다.</p></div>
-                </div>
-                <div className="legacy-grid three">
-                  <div className="legacy-box compact"><h3>사업자 인증 상태</h3><p>{sellerVerification.status === 'approved' ? '관리자 승인 완료' : sellerVerification.status === 'pending' ? '승인 대기 중' : '신청 전'}</p><p>필수 입력: 상호/법인명, 대표자명, 사업자번호, 통신판매업 신고번호, CS, 반품지, 정산계좌, 청소년보호책임자, 취급 카테고리</p></div>
-                  <div className="legacy-box compact"><h3>등록 가능 여부</h3><p>{sellerApprovalReady ? '상품 등록 가능' : '사업자 인증 및 관리자 승인이 필요합니다.'}</p><p>최초에는 내부 승인 문서 + 감사로그 방식으로 운영하고, 이후 전용 백오피스 승인 화면으로 전환합니다.</p></div>
-                  <div className="legacy-box compact"><h3>PG/결제 준비</h3><p>PortOne 기반 PASS 통합 연동과 별도로 PG 연동은 통신판매중개 구조 기준으로 준비합니다.</p><p>남은 핵심: PortOne V2 webhook 서명 검증, 운영 MID/merchant 실제값, 취소/환불 상태머신, 정산 정책.</p></div>
-                </div>
-                <div className="legacy-grid three">
-                  {marketplaceDirectionCards.map((item) => <div key={item.title} className="legacy-box compact"><h3>{item.title}</h3><p>{item.body}</p></div>)}
-                </div>
-                <div className="legacy-grid three">
-                  <div className="legacy-box compact"><h3>판매자 과금 방향</h3><p>입점과 상품 등록은 자유롭게 유지하고, 판매자 월 구독은 두지 않습니다.</p><p>대신 판매중개 수수료 + 추천노출 + B2B 리포트/대시보드 유료화로 수익을 만듭니다.</p></div>
-                  <div className="legacy-box compact"><h3>프리미엄 배송 연동 판매자</h3><p>익명포장, 빠른 출고, 보호포장, 프리미엄 CS 조건을 충족하는 판매자 상품만 멤버십 배지를 부여합니다.</p><p>쿠팡 와우처럼 구매자 회원제 혜택과 연결하는 구조를 가정합니다.</p></div>
-                  <div className="legacy-box compact"><h3>B2B 운영툴 유료화</h3><ul className="compact-bullet-list">{sellerB2BTools.map((item) => <li key={item}>{item}</li>)}</ul></div>
+                <div className="section-head compact-head"><div><h2>사업자인증</h2><p>사업자 미인증 계정은 먼저 인증 정보를 등록한 뒤 관리자 승인 또는 관리자 예외 기준에 따라 상품등록으로 이동합니다.</p></div></div>
+                <div className="legacy-grid two-col compact-grid">
+                  <div className="legacy-box compact"><h3>인증 진행 상태</h3><p>{isAdmin ? '관리자 계정은 사업자 인증 없이도 테스트용 상품등록이 가능합니다.' : sellerVerification.status === 'approved' ? '관리자 승인 완료 · 상품등록 가능' : sellerVerification.status === 'pending' ? '승인 대기 중 · 관리자 승인 후 상품등록 가능' : '신청 전 · 아래 입력칸을 채운 뒤 사업자 인증을 신청해주세요.'}</p><p>필수 입력: 상호/법인명, 대표자명, 사업자번호, 통신판매업 신고번호, CS, 반품지, 정산계좌, 청소년보호책임자, 취급 카테고리</p></div>
+                  <div className="legacy-box compact"><h3>진행 안내</h3><div className="consent-record-list"><div className="simple-list-row"><b>1단계</b><span>사업자등록 정보와 정산계좌를 입력합니다.</span></div><div className="simple-list-row"><b>2단계</b><span>사업자 인증 신청을 제출하면 관리자 승인 대기 상태로 전환됩니다.</span></div><div className="simple-list-row"><b>3단계</b><span>승인 완료 후 상단바의 상품등록 탭에서 상품을 등록합니다.</span></div><div className="simple-list-row"><b>관리자</b><span>관리자 계정은 별도 인증 없이 바로 상품등록 테스트가 가능합니다.</span></div></div></div>
                 </div>
                 <div className="legacy-box compact">
-                  <h3>사업자 인증 신청</h3>
+                  <h3>사업자 인증 등록/수정</h3>
                   <div className="profile-form-grid">
                     <label><span>상호/법인명</span><input value={sellerVerification.companyName} onChange={(e) => setSellerVerification((prev) => ({ ...prev, companyName: e.target.value }))} placeholder="상호 또는 법인명" /></label>
                     <label><span>대표자명</span><input value={sellerVerification.representativeName} onChange={(e) => setSellerVerification((prev) => ({ ...prev, representativeName: e.target.value }))} placeholder="대표자명" /></label>
@@ -3207,131 +3282,77 @@ export default function App() {
                     <label className="wide"><span>사업자 등록 인증 사진 URL</span><input value={sellerVerification.businessDocumentUrl} onChange={(e) => setSellerVerification((prev) => ({ ...prev, businessDocumentUrl: e.target.value }))} placeholder="/media/business-doc.jpg 또는 외부 저장 URL" /></label>
                   </div>
                   <div className="copy-action-row">
-                    <button type="button" onClick={submitSellerVerification} disabled={!sellerApplicationComplete}>사업자 인증 신청</button>
+                    <button type="button" onClick={submitSellerVerification} disabled={!sellerApplicationComplete || isAdmin}>사업자 인증 신청</button>
                     <button type="button" className="ghost-btn" onClick={() => setSellerVerification((prev) => ({ ...prev, status: 'approved' }))}>데모 승인 반영</button>
+                    <button type="button" className="ghost-btn" onClick={openProductRegistrationTab}>상품등록으로 이동</button>
                   </div>
+                  {isAdmin ? <p className="muted-mini">관리자 계정은 사업자 인증 제출 없이 바로 상품등록 테스트를 진행할 수 있습니다.</p> : null}
                 </div>
-                <div className="legacy-box compact">
-                  <h3>상품 등록 화면</h3>
-                  <div className="profile-form-grid">
-                    <label><span>카테고리</span><select value={productRegistrationDraft.category} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, category: e.target.value }))}>{shopCategories.flatMap((group) => group.items).map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}</select></label>
-                    <label><span>상품명</span><input value={productRegistrationDraft.name} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, name: e.target.value }))} placeholder="상품명" /></label>
-                    <label><span>가격</span><input value={productRegistrationDraft.price} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, price: e.target.value }))} placeholder="10000" /></label>
-                    <label><span>개수</span><input value={productRegistrationDraft.stockQty} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, stockQty: e.target.value }))} placeholder="10" /></label>
-                    <label><span>상품 코드</span><input value={productRegistrationDraft.skuCode} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, skuCode: e.target.value }))} placeholder="SKU-0001" /></label>
-                    <label className="wide"><span>상품소개</span><textarea value={productRegistrationDraft.description} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, description: e.target.value }))} placeholder="상품 소개" /></label>
-                    <label className="wide"><span>사진 등록 (최대 5장 URL)</span><div className="photo-url-grid">{productRegistrationDraft.imageUrls.map((value, idx) => <input key={idx} value={value} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, imageUrls: prev.imageUrls.map((item, itemIdx) => itemIdx === idx ? e.target.value : item) }))} placeholder={`사진 ${idx + 1} URL`} />)}</div></label>
-                  </div>
-                  {!sellerApprovalReady ? <p className="muted-mini">사업자 인증 계정만 등록 가능하며, 사업자 등록 인증 사진 제출과 관리자 승인 후 등록할 수 있습니다.</p> : null}
-                  {reconsentWriteRestricted ? <p className="muted-mini">재동의 유예 종료 계정은 상품 등록 전에 최신 필수 문서 재동의가 필요합니다.</p> : null}
-                  <div className="copy-action-row">
-                    <button type="button" onClick={submitProductRegistration} disabled={!sellerApprovalReady || !productDraftReady || reconsentWriteRestricted}>임시저장</button>
-                  </div>
-                </div>
-                <div className="legacy-box compact">
-                  <h3>내 등록 상품 상태</h3>
-                  <div className="compact-scroll-list">
-                    {sellerProducts.map((item) => (
-                      <div key={item.id} className="simple-list-row multi-line">
-                        <div><b>{item.name}</b><span>{item.sku_code} · {item.category}</span><span>{item.status} · ₩{item.price.toLocaleString()}</span></div>
-                        <div className="copy-action-row">
-                          {item.status !== 'approved' ? <button type="button" onClick={() => submitProductForReview(item.id)}>승인대기 제출</button> : <span className="muted-mini">공개중</span>}
-                        </div>
-                      </div>
-                    ))}
-                    {!sellerProducts.length ? <p className="muted-mini">등록된 내 상품이 없습니다.</p> : null}
-                  </div>
-                </div>
-                <div className="legacy-box compact">
-                  <h3>통신판매중개 고지 화면 기준</h3>
-                  <div className="consent-record-list">
-                    <div className="simple-list-row"><b>푸터</b><span>어른플랫폼은 통신판매중개자이며, 판매의 당사자가 아닙니다.</span></div>
-                    {marketplaceDisclosureItems.map((item) => <div key={item} className="simple-list-row"><b>상품상세</b><span>{item}</span></div>)}
-                    <div className="simple-list-row"><b>주문서</b><span>구매계약의 당사자는 판매자이며, 플랫폼은 통신판매중개를 제공합니다.</span></div>
-                  </div>
-                </div>
-                <div className="legacy-box compact">
-                  <h3>테스트 단계 권장 설정값</h3>
-                  <div className="consent-record-list">
-                    {testStageDefaults.map((item) => <div key={item.title} className="simple-list-row multi-line"><div><b>{item.title}</b><span>{item.body}</span></div></div>)}
-                  </div>
-                </div>
-                <div className="legacy-box compact">
-                  <h3>실운영 전환에 가장 적합한 적용 방식</h3>
-                  <div className="consent-record-list">
-                    {goLiveBestFitCards.map((item) => <div key={item.title} className="simple-list-row multi-line"><div><b>{item.title}</b><span>{item.body}</span></div></div>)}
-                  </div>
-                  <div className="simple-list-row multi-line"><div><b>현재 PortOne 상태</b><span>{paymentProviderStatus?.test_env_ready ? '테스트 결제 설정값 준비 완료' : '테스트 결제 설정값 일부 미입력'} · {paymentProviderStatus?.live_env_ready ? '운영 live 값 입력됨' : '운영 live 값은 아직 마지막 단계에서 입력 예정'}</span></div></div>
-                </div>
-                <div className="legacy-box compact">
-                  <h3>출시 우선순위 1~10</h3>
-                  <div className="consent-record-list">
-                    {launchPriorityTop10.map((item) => <div key={item.title} className="simple-list-row multi-line"><div><b>{item.title}</b><span>{item.body}</span></div></div>)}
-                  </div>
-                </div>
-                <div className="legacy-box compact">
-                  <h3>지금 추가로 진행할 것</h3>
-                  <div className="consent-record-list">
-                    {testStageExtraActions.map((item, index) => <div key={item} className="simple-list-row"><b>{index + 1}단계</b><span>{item}</span></div>)}
-                  </div>
-                </div>
-                <div className="legacy-box compact">
-                  <h3>PG 심사 제출용 사업 정보 패키지</h3>
-                  <div className="consent-record-list">
-                    {pgSubmissionPackageItems.map((item) => <div key={item} className="simple-list-row"><b>제출</b><span>{item}</span></div>)}
-                  </div>
-                </div>
-                <div className="legacy-box compact">
-                  <h3>SKU 정책 뼈대</h3>
-                  <div className="consent-record-list">
-                    {skuPolicySeed.map((item) => <div key={item.category} className="simple-list-row multi-line"><div><b>{item.category}</b><span>{item.note}</span></div><div><span>{item.grade}</span></div></div>)}
-                  </div>
-                </div>
-                <div className="legacy-box compact">
-                  <h3>환불/취소/정산 기준</h3>
-                  <div className="consent-record-list">
-                    {refundSettlementPolicySeed.map((item) => <div key={item} className="simple-list-row"><b>기준</b><span>{item}</span></div>)}
-                  </div>
-                </div>
-                <div className="legacy-box compact">
-                  <h3>프리미엄 배송 SLA 기준</h3>
-                  <div className="consent-record-list">
-                    {premiumSlaSeed.map((item) => <div key={item.title} className="simple-list-row multi-line"><div><b>{item.title}</b><span>{item.detail}</span></div></div>)}
-                  </div>
-                </div>
-                <div className="legacy-box compact">
-                  <h3>스토어 제출용 보수 메타데이터 가이드</h3>
-                  <div className="consent-record-list">
-                    {storeSafeMetadataGuide.map((item) => <div key={item} className="simple-list-row"><b>SAFE</b><span>{item}</span></div>)}
-                  </div>
-                </div>
-                <div className="legacy-box compact">
-                  <h3>다음 진행 순서</h3>
-                  <div className="consent-record-list">
-                    {pgExecutionSteps.map((item, index) => <div key={item} className="simple-list-row"><b>{index + 1}순서</b><span>{item}</span></div>)}
-                  </div>
-                </div>
-                <div className="legacy-box compact">
-                  <h3>등록 준비 체크</h3>
-                  <ul className="compact-bullet-list">
-                    <li>카테고리, 상품명, 사진등록 5장, 상품소개, 가격, 개수, 상품 코드</li>
-                    <li>사업자 인증 승인 계정 여부</li>
-                    <li>PG 연동 전 상품 정책/환불정책/금지상품 규칙 확정</li>
-                    <li>성인 노출 등급 및 결제 가능 범위 지정</li>
-                  </ul>
-                </div>
-                {submittedProducts.length ? (
-                  <div className="legacy-box compact">
-                    <h3>임시 등록 상품</h3>
-                    <div className="chat-list">
-                      {submittedProducts.map((item, idx) => <article key={`${item.skuCode}-${idx}`} className="chat-row simple-row"><div className="avatar-circle">P</div><div className="chat-copy"><strong>{item.name}</strong><span>{item.category} · {item.skuCode}</span><p>{item.description}</p></div><div className="chat-meta"><span>{item.stockQty}개</span><b>{item.price}원</b></div></article>)}
-                    </div>
-                  </div>
-                ) : null}
               </div>
             ) : null}
 
-        {showAppTabContent && activeTab === "소통" ? (
+            {shoppingTab === "상품등록" ? (
+              <div className="stack-gap compact-scroll-list">
+                <div className="section-head compact-head"><div><h2>상품등록</h2><p>{sellerApprovalReady ? '테스트용 상품을 등록하고 주문·결제·취소·환불·webhook 흐름 검증에 사용할 수 있습니다.' : '사업자 미인증 계정은 먼저 사업자인증 탭에서 인증 신청과 승인 절차를 완료해야 합니다.'}</p></div></div>
+                {!sellerApprovalReady ? (
+                  <div className="legacy-box compact">
+                    <h3>사업자 인증이 먼저 필요합니다</h3>
+                    <p>현재 계정은 상품등록 권한이 없습니다. 사업자등록 정보와 정산 정보를 입력한 뒤 사업자인증을 신청해주세요.</p>
+                    <div className="copy-action-row">
+                      <button type="button" onClick={openBusinessVerificationTab}>사업자인증으로 이동</button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="legacy-grid two-col compact-grid">
+                      <div className="legacy-box compact"><h3>등록 준비 체크</h3><ul className="compact-bullet-list"><li>카테고리, 상품명, 사진등록 5장, 상품소개, 가격, 개수, 상품 코드</li><li>{isAdmin ? '관리자 계정 예외로 즉시 테스트 등록 가능' : '사업자 인증 승인 계정 여부 확인'}</li><li>PG 연동 전 상품 정책/환불정책/금지상품 규칙 확정</li><li>성인 노출 등급 및 결제 가능 범위 지정</li></ul></div>
+                      <div className="legacy-box compact"><h3>공개 조건</h3><p>{isAdmin ? '관리자 계정이 등록한 상품은 자동 공개 처리되어 일반 회원 목록에서도 바로 확인할 수 있게 반영됩니다.' : '일반 사업자 계정은 임시저장 후 승인대기 제출을 거쳐 관리자 승인 시 공개됩니다.'}</p><p>이 구조로 주문 생성 후 결제/취소/부분취소/환불/webhook 흐름을 점검할 수 있습니다.</p></div>
+                    </div>
+                    <div className="legacy-box compact">
+                      <h3>상품 등록 화면</h3>
+                      <div className="profile-form-grid">
+                        <label><span>카테고리</span><select value={productRegistrationDraft.category} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, category: e.target.value }))}>{shopCategories.flatMap((group) => group.items).map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}</select></label>
+                        <label><span>상품명</span><input value={productRegistrationDraft.name} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, name: e.target.value }))} placeholder="상품명" /></label>
+                        <label><span>가격</span><input value={productRegistrationDraft.price} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, price: e.target.value }))} placeholder="10000" /></label>
+                        <label><span>개수</span><input value={productRegistrationDraft.stockQty} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, stockQty: e.target.value }))} placeholder="10" /></label>
+                        <label><span>상품 코드</span><input value={productRegistrationDraft.skuCode} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, skuCode: e.target.value }))} placeholder="SKU-0001" /></label>
+                        <label className="wide"><span>상품소개</span><textarea value={productRegistrationDraft.description} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, description: e.target.value }))} placeholder="상품 소개" /></label>
+                        <label className="wide"><span>사진 등록 (최대 5장 URL)</span><div className="photo-url-grid">{productRegistrationDraft.imageUrls.map((value, idx) => <input key={idx} value={value} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, imageUrls: prev.imageUrls.map((item, itemIdx) => itemIdx === idx ? e.target.value : item) }))} placeholder={`사진 ${idx + 1} URL`} />)}</div></label>
+                      </div>
+                      {reconsentWriteRestricted ? <p className="muted-mini">재동의 유예 종료 계정은 상품 등록 전에 최신 필수 문서 재동의가 필요합니다.</p> : null}
+                      <div className="copy-action-row">
+                        <button type="button" onClick={submitProductRegistration} disabled={!sellerApprovalReady || !productDraftReady || reconsentWriteRestricted}>임시저장</button>
+                        <button type="button" className="ghost-btn" onClick={openBusinessVerificationTab}>사업자인증 수정</button>
+                      </div>
+                    </div>
+                    <div className="legacy-box compact">
+                      <h3>내 등록 상품 상태</h3>
+                      <div className="compact-scroll-list">
+                        {sellerProducts.map((item) => (
+                          <div key={item.id} className="simple-list-row multi-line">
+                            <div><b>{item.name}</b><span>{item.sku_code} · {item.category}</span><span>{item.status} · ₩{item.price.toLocaleString()}</span></div>
+                            <div className="copy-action-row">
+                              {item.status !== 'approved' ? <button type="button" onClick={() => submitProductForReview(item.id)}>승인대기 제출</button> : <span className="muted-mini">공개중</span>}
+                            </div>
+                          </div>
+                        ))}
+                        {!sellerProducts.length ? <p className="muted-mini">등록된 내 상품이 없습니다.</p> : null}
+                      </div>
+                    </div>
+                    {submittedProducts.length ? (
+                      <div className="legacy-box compact">
+                        <h3>임시 등록 상품</h3>
+                        <div className="chat-list">
+                          {submittedProducts.map((item, idx) => <article key={`${item.skuCode}-${idx}`} className="chat-row simple-row"><div className="avatar-circle">P</div><div className="chat-copy"><strong>{item.name}</strong><span>{item.category} · {item.skuCode}</span><p>{item.description}</p></div><div className="chat-meta"><span>{item.stockQty}개</span><b>{item.price}원</b></div></article>)}
+                        </div>
+                      </div>
+                    ) : null}
+                  </>
+                )}
+              </div>
+            ) : null}
+
+{showAppTabContent && activeTab === "소통" ? (
           <section className="tab-pane fill-pane">
             {communityTab === "포럼" ? (
               <div className="stack-gap compact-scroll-list">
@@ -3568,6 +3589,8 @@ export default function App() {
                   <div><b>{randomProfileReady ? "완료" : "보완필요"}</b><span>포럼 심사 참고값</span></div>
                 </div>
                 <div className="copy-action-row">
+                  <button type="button" onClick={() => setAuthStandaloneScreen("login")}>로그인 화면</button>
+                  <button type="button" className="ghost-btn" onClick={() => { setSignupStep("consent"); setAuthStandaloneScreen("signup"); }}>회원가입 화면</button>
                   <button type="button" className="ghost-btn" onClick={() => startIdentitySignup("PASS")}>PASS 인증</button>
                   <button type="button" className="ghost-btn" onClick={() => setDemoLoginProvider("카카오")}>카카오 로그인</button>
                   <button type="button" onClick={() => attemptAdultVerification("success")}>성인인증 성공</button>
