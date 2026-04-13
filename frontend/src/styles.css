@@ -2209,3 +2209,9 @@ pre {
     grid-column: 1 / -1;
   }
 }
+
+@media (min-width: 1024px) {
+  .topbar-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .topbar-right { justify-self: end; }
+  .topbar-inline-actions-right { justify-content: flex-end; }
+}

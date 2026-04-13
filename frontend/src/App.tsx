@@ -1695,17 +1695,17 @@ export default function App() {
     getJson<ApiProduct[]>("/products").then(setApiProducts).catch(() => null);
 
     (async () => {
-      const restored = hasAuthToken() || await ensureAuthSession();
-      if (!restored) {
-        setAuthSummary(null);
-        setCurrentUserRole("GUEST");
-        if (typeof window !== "undefined") window.localStorage.setItem("adultapp_demo_role", "GUEST");
-        setOrders([]);
-        setSellerProducts([]);
-        return;
-      }
-
       try {
+        const restored = hasAuthToken() || await ensureAuthSession();
+        if (!restored) {
+          setAuthSummary(null);
+          setCurrentUserRole("GUEST");
+          if (typeof window !== "undefined") window.localStorage.setItem("adultapp_demo_role", "GUEST");
+          setOrders([]);
+          setSellerProducts([]);
+          return;
+        }
+
         const me = await getJson<AuthMeResponse>("/auth/me");
         setAuthSummary(me);
         const nextRole = String(me.grade ?? "GUEST").toUpperCase();
@@ -1716,13 +1716,10 @@ export default function App() {
         getJson<ApiOrder[]>("/orders").then(setOrders).catch(() => null);
         getJson<SellerProductItem[]>("/seller/products/mine").then(setSellerProducts).catch(() => null);
         if (["ADMIN", "1", "GRADE_1"].includes(nextRole)) {
-          getJson<BusinessInfoResponse>("/legal/business-info").then(setBusinessInfo).catch(() => null);
-          getJson<ReleaseReadinessResponse>("/legal/release-readiness").then(setReleaseReadiness).catch(() => null);
           getJson<MinorPurgePreview>("/ops/minor-purge/preview").then(setMinorPurgePreview).catch(() => null);
           getJson<{ items: SellerApprovalItem[] }>("/admin/seller-approvals").then((res) => setSellerApprovalQueue(res.items ?? [])).catch(() => null);
           getJson<{ items: ProductApprovalItem[] }>("/admin/product-approvals").then((res) => setProductApprovalQueue(res.items ?? [])).catch(() => null);
           getJson<SettlementPreviewResponse>("/settlements/preview").then(setSettlementPreview).catch(() => null);
-          getJson<AdminDbManage>("/admin/chat-random/db-manage").then(setAdminDbManage).catch(() => null);
         } else {
           setBusinessInfo(null);
           setReleaseReadiness(null);
@@ -1734,6 +1731,8 @@ export default function App() {
         if (typeof window !== "undefined") window.localStorage.setItem("adultapp_demo_role", "GUEST");
         setOrders([]);
         setSellerProducts([]);
+      } finally {
+        setAuthBootstrapDone(true);
       }
     })();
   }, []);
@@ -3852,7 +3851,7 @@ export default function App() {
               </div>
             ) : (
               <>
-                <div className="section-head compact-head"><div><h2>채팅</h2><p>요청 → 수락 이후 시작되는 1:1과 운영 문의/주문 문의 채팅을 확인합니다.</p></div></div>
+                <div className="section-head compact-head"><div><h2>채팅</h2></div></div>
                 <div className="chat-toolbar kakao-toolbar">
                   <div className="chat-category-scroll">
                     {chatCategories.map((category) => (
