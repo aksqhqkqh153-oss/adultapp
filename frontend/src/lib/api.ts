@@ -17,9 +17,13 @@ function collectApiBases() {
   }
 
   if (typeof window !== "undefined") {
+    const savedBase = window.localStorage.getItem("adultapp_active_api_base")?.trim();
+    if (savedBase) bases.push(normalizeBase(savedBase));
+
     const { hostname, origin } = window.location;
     if (hostname === "localhost" || hostname === "127.0.0.1") {
       bases.push("http://localhost:8000/api");
+      bases.push("http://127.0.0.1:8000/api");
     } else if (hostname.endsWith("pages.dev")) {
       bases.push("https://adultapp-production.up.railway.app/api");
     } else if (hostname.endsWith("up.railway.app")) {
@@ -32,17 +36,63 @@ function collectApiBases() {
 }
 
 const API_BASES = collectApiBases();
-const DEFAULT_TIMEOUT_MS = 15000;
+const DEFAULT_TIMEOUT_MS = 10000;
 
 let activeApiBase = API_BASES[0];
 
 let accessToken = localStorage.getItem("adultapp_access_token") ?? "";
 let refreshToken = localStorage.getItem("adultapp_refresh_token") ?? "";
+let refreshPromise: Promise<boolean> | null = null;
 
 function timeoutForPath(path: string) {
-  if (path.startsWith("/auth/login")) return 30000;
-  if (path.startsWith("/auth/me")) return 20000;
+  if (path.startsWith("/auth/login")) return 12000;
+  if (path.startsWith("/auth/me")) return 8000;
+  if (path.startsWith("/auth/refresh")) return 8000;
   return DEFAULT_TIMEOUT_MS;
+}
+
+function saveActiveApiBase(base: string) {
+  activeApiBase = base;
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem("adultapp_active_api_base", base);
+  }
+}
+
+function shouldSkipRefresh(path: string) {
+  return path.startsWith("/auth/login") || path.startsWith("/auth/refresh") || path.startsWith("/auth/logout");
+}
+
+async function refreshAccessToken(): Promise<boolean> {
+  if (!refreshToken) return false;
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    for (const base of [activeApiBase, ...API_BASES.filter((item) => item !== activeApiBase)]) {
+      try {
+        const response = await requestOnce<{ access_token: string; refresh_token: string }>(
+          base,
+          "/auth/refresh",
+          {
+            method: "POST",
+            body: JSON.stringify({ refresh_token: refreshToken }),
+          },
+          false,
+        );
+        if (response.access_token) setAuthToken(response.access_token);
+        if (response.refresh_token) setRefreshToken(response.refresh_token);
+        saveActiveApiBase(base);
+        return true;
+      } catch {
+        // try next base
+      }
+    }
+    clearTokens();
+    return false;
+  })().finally(() => {
+    refreshPromise = null;
+  });
+
+  return refreshPromise;
 }
 
 export function getApiBase() {
@@ -74,7 +124,7 @@ export function clearTokens() {
   setRefreshToken("");
 }
 
-async function requestOnce<T>(base: string, path: string, init?: RequestInit): Promise<T> {
+async function requestOnce<T>(base: string, path: string, init?: RequestInit, allowRefresh = true): Promise<T> {
   const headers = new Headers(init?.headers ?? {});
   const isFormData = typeof FormData !== "undefined" && init?.body instanceof FormData;
   if (!headers.has("Content-Type") && init?.body && !isFormData) headers.set("Content-Type", "application/json");
@@ -88,12 +138,18 @@ async function requestOnce<T>(base: string, path: string, init?: RequestInit): P
     const response = await fetch(`${base}${path}`, { ...init, headers, signal: controller.signal });
     if (!response.ok) {
       const text = await response.text();
-      if (response.status === 401) {
+      if (response.status === 401 && allowRefresh && refreshToken && !shouldSkipRefresh(path)) {
+        const refreshed = await refreshAccessToken();
+        if (refreshed) {
+          return requestOnce<T>(base, path, init, false);
+        }
+      }
+      if (response.status === 401 && shouldSkipRefresh(path)) {
         clearTokens();
       }
       throw new Error(`${init?.method ?? "GET"} ${path} failed: ${response.status} ${text}`);
     }
-    activeApiBase = base;
+    saveActiveApiBase(base);
     return (await response.json()) as T;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
