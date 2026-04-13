@@ -3527,7 +3527,7 @@ export default function App() {
 
             {shoppingTab === "상품등록" ? (
               <div className="stack-gap compact-scroll-list">
-                <div className="section-head compact-head"><div><h2>상품등록</h2><p>{sellerApprovalReady ? '테스트용 상품을 등록하고 주문·결제·취소·환불·webhook 흐름 검증에 사용할 수 있습니다.' : '사업자 미인증 계정은 먼저 사업자인증 탭에서 인증 신청과 승인 절차를 완료해야 합니다.'}</p></div></div>
+                <div className="section-head compact-head"><div><h2>상품등록</h2>{!sellerApprovalReady ? <p>사업자 미인증 계정은 먼저 사업자인증 탭에서 인증 신청과 승인 절차를 완료해야 합니다.</p> : null}</div></div>
                 {!sellerApprovalReady ? (
                   <div className="legacy-box compact">
                     <h3>사업자 인증이 먼저 필요합니다</h3>
@@ -3538,10 +3538,6 @@ export default function App() {
                   </div>
                 ) : (
                   <>
-                    <div className="legacy-grid two-col compact-grid">
-                      <div className="legacy-box compact"><h3>등록 준비 체크</h3><ul className="compact-bullet-list"><li>카테고리, 상품명, 사진등록 5장, 상품소개, 가격, 개수, 상품 코드</li><li>{isAdmin ? '관리자 계정 예외로 즉시 테스트 등록 가능' : '사업자 인증 승인 계정 여부 확인'}</li><li>PG 연동 전 상품 정책/환불정책/금지상품 규칙 확정</li><li>성인 노출 등급 및 결제 가능 범위 지정</li></ul></div>
-                      <div className="legacy-box compact"><h3>공개 조건</h3><p>{isAdmin ? '관리자 계정이 등록한 상품은 자동 공개 처리되어 일반 회원 목록에서도 바로 확인할 수 있게 반영됩니다.' : '일반 사업자 계정은 임시저장 후 승인대기 제출을 거쳐 관리자 승인 시 공개됩니다.'}</p><p>이 구조로 주문 생성 후 결제/취소/부분취소/환불/webhook 흐름을 점검할 수 있습니다.</p></div>
-                    </div>
                     <div className="legacy-box compact">
                       <h3>상품 등록 화면</h3>
                       <div className="profile-form-grid">
