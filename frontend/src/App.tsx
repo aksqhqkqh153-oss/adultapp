@@ -220,6 +220,16 @@ type MinorPurgePreview = {
   candidate_count?: number;
 };
 
+type UiCategoryGroupResponse = {
+  items?: Array<{ group: string; items: string[] }>;
+};
+
+type SkuPolicyResponse = {
+  payment_method_mapping?: Array<{ risk_grade: string; payment_scope: string; display_scope: string }>;
+  forbidden_product_rules?: Array<{ rule: string; action: string }>;
+  refund_reject_codes?: Array<{ code: string; description: string }>;
+};
+
 type ReleaseReadinessResponse = {
   status: "blocked" | "warning" | "ready" | string;
   blockers: { key: string; title: string; action: string }[];
@@ -1434,6 +1444,7 @@ function SettingSection({ category, isAdmin, legacySection, setLegacySection, pr
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<MobileTab>("홈");
+  const [authBootstrapDone, setAuthBootstrapDone] = useState(false);
   const [legacySection, setLegacySection] = useState<LegacyTab>("운영현황");
   const [overlayMode, setOverlayMode] = useState<OverlayMode>(null);
   const [htmlInspectorEnabled, setHtmlInspectorEnabled] = useState(() => {
@@ -1480,6 +1491,8 @@ export default function App() {
   const [releaseReadiness, setReleaseReadiness] = useState<ReleaseReadinessResponse | null>(null);
   const [paymentProviderStatus, setPaymentProviderStatus] = useState<PaymentProviderStatusResponse | null>(null);
   const [minorPurgePreview, setMinorPurgePreview] = useState<MinorPurgePreview | null>(null);
+  const [uiCategoryGroups, setUiCategoryGroups] = useState<Array<{ group: string; items: string[] }>>([]);
+  const [skuPolicy, setSkuPolicy] = useState<SkuPolicyResponse | null>(null);
   const [authSummary, setAuthSummary] = useState<AuthSummary | null>(null);
   const [adminDbManage, setAdminDbManage] = useState<AdminDbManage | null>(null);
   const [randomRooms, setRandomRooms] = useState<RandomRoom[]>(randomRoomSeed);
@@ -1555,7 +1568,7 @@ export default function App() {
     if (!raw) return defaultSellerVerification;
     try { return { ...defaultSellerVerification, ...JSON.parse(raw) }; } catch { return defaultSellerVerification; }
   });
-  const [productRegistrationDraft, setProductRegistrationDraft] = useState<ProductRegistrationDraft>(() => ({ category: "뷰티", name: "", imageUrls: ["", "", "", "", ""], description: "", price: "", stockQty: "", skuCode: "" }));
+  const [productRegistrationDraft, setProductRegistrationDraft] = useState<ProductRegistrationDraft>(() => ({ category: "위생/보관", name: "", imageUrls: ["", "", "", "", ""], description: "", price: "", stockQty: "", skuCode: "" }));
   const [submittedProducts, setSubmittedProducts] = useState<ProductRegistrationDraft[]>(() => []);
   const [sellerApprovalQueue, setSellerApprovalQueue] = useState<SellerApprovalItem[]>([]);
   const [productApprovalQueue, setProductApprovalQueue] = useState<ProductApprovalItem[]>([]);
@@ -1597,7 +1610,7 @@ export default function App() {
     try { return JSON.parse(window.localStorage.getItem("adultapp_saved_product_ids") ?? "[]"); } catch { return []; }
   });
   const [savedTab, setSavedTab] = useState<"피드" | "상품">("피드");
-  const [authStandaloneScreen, setAuthStandaloneScreen] = useState<AuthStandaloneScreen | null>("login");
+  const [authStandaloneScreen, setAuthStandaloneScreen] = useState<AuthStandaloneScreen | null>(null);
   const [homeShopConsentGuideSeen, setHomeShopConsentGuideSeen] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem("adultapp_home_shop_consent_guide_seen") === "1";
@@ -1614,6 +1627,11 @@ export default function App() {
   const [orderActionAmount, setOrderActionAmount] = useState("5500");
 
   const isAdmin = ["ADMIN", "1", "GRADE_1"].includes(currentUserRole);
+  const productCategoryOptions = useMemo(() => {
+    const backendCategories = uiCategoryGroups.flatMap((group) => group.items).filter((item) => !["상품등록", "사진/영상 첨부", "SKU 관리", "재고/상태 변경"].includes(item));
+    const fallbackCategories = shopCategories.flatMap((group) => group.items.map((item) => item.name));
+    return [...new Set((backendCategories.length ? backendCategories : fallbackCategories).filter(Boolean))];
+  }, [uiCategoryGroups]);
   const mutualFollowIds = useMemo(() => followingUserIds.filter((id) => followerUserIds.includes(id)), [followingUserIds, followerUserIds]);
   const forumVisibleUsers = useMemo(() => forumStarterUsers.filter((item) => item.topic === forumTopic), [forumTopic]);
 
@@ -1666,6 +1684,8 @@ export default function App() {
     getJson<DeployGuide>("/deploy/cloudflare-pages-manual").then(setDeployGuide).catch(() => null);
     getJson<LegalDocumentsResponse>("/legal/documents").then(setLegalDocuments).catch(() => null);
     getJson<PaymentProviderStatusResponse>("/payments/provider-status").then(setPaymentProviderStatus).catch(() => null);
+    getJson<UiCategoryGroupResponse>("/ui/category-groups").then((res) => setUiCategoryGroups(res.items ?? [])).catch(() => null);
+    getJson<SkuPolicyResponse>("/sku-policy").then(setSkuPolicy).catch(() => null);
     getJson<ApiProduct[]>("/products").then(setApiProducts).catch(() => null);
 
     (async () => {
@@ -2213,7 +2233,7 @@ export default function App() {
       return;
     }
     setSubmittedProducts((prev) => [productRegistrationDraft, ...prev]);
-    setProductRegistrationDraft({ category: '뷰티', name: '', imageUrls: ['', '', '', '', ''], description: '', price: '', stockQty: '', skuCode: '' });
+    setProductRegistrationDraft({ category: productCategoryOptions[0] ?? '위생/보관', name: '', imageUrls: ['', '', '', '', ''], description: '', price: '', stockQty: '', skuCode: '' });
   };
 
   const submitProductForReview = async (productId: number) => {
@@ -2811,6 +2831,23 @@ export default function App() {
       return `${item.author} ${item.title} ${item.caption}`.toLowerCase().includes(keyword);
     });
   }, [globalKeyword, searchFilter]);
+
+  if (!authBootstrapDone) {
+    return (
+      <div className="auth-standalone-shell">
+        <main className="auth-standalone-main">
+          <section className="auth-standalone-card">
+            <div className="auth-standalone-head">
+              <div>
+                <h1>세션 확인 중</h1>
+                <p>저장된 로그인 정보를 먼저 확인하고 있습니다.</p>
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
+    );
+  }
 
   if (authStandaloneScreen) {
     return (
@@ -3545,7 +3582,7 @@ export default function App() {
                     <div className="legacy-box compact">
                       <h3>상품 등록 화면</h3>
                       <div className="profile-form-grid">
-                        <label><span>카테고리</span><select value={productRegistrationDraft.category} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, category: e.target.value }))}>{shopCategories.flatMap((group) => group.items).map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}</select></label>
+                        <label><span>카테고리</span><select value={productRegistrationDraft.category} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, category: e.target.value }))}>{productCategoryOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
                         <label><span>상품명</span><input value={productRegistrationDraft.name} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, name: e.target.value }))} placeholder="상품명" /></label>
                         <label><span>가격</span><input value={productRegistrationDraft.price} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, price: e.target.value }))} placeholder="10000" /></label>
                         <label><span>개수</span><input value={productRegistrationDraft.stockQty} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, stockQty: e.target.value }))} placeholder="10" /></label>
@@ -3560,6 +3597,34 @@ export default function App() {
                         <button type="button" className="ghost-btn" onClick={openBusinessVerificationTab}>사업자인증 수정</button>
                       </div>
                     </div>
+                    <div className="legacy-box compact">
+                      <h3>현재 상품군 / SKU 반영 기준</h3>
+                      <div className="consent-record-list">
+                        {uiCategoryGroups.map((group) => (
+                          <div key={group.group} className="simple-list-row multi-line">
+                            <div><b>{group.group}</b><span>{group.items.join(' · ')}</span></div>
+                          </div>
+                        ))}
+                        {!uiCategoryGroups.length ? <p className="muted-mini">카테고리 그룹 정보를 불러오지 못했습니다.</p> : null}
+                      </div>
+                      <div className="legacy-grid three compact-grid top-gap-12">
+                        {(skuPolicy?.payment_method_mapping ?? []).map((item) => (
+                          <div key={`${item.risk_grade}-${item.payment_scope}`} className="legacy-box compact">
+                            <h3>등급 {item.risk_grade}</h3>
+                            <p>결제: {item.payment_scope}</p>
+                            <p>노출: {item.display_scope}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="consent-record-list top-gap-12">
+                        {skuPolicySeed.map((item) => (
+                          <div key={`${item.category}-${item.grade}`} className="simple-list-row multi-line">
+                            <div><b>{item.category}</b><span>{item.grade}</span><span>{item.note}</span></div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
                     <div className="legacy-box compact">
                       <h3>내 등록 상품 상태</h3>
                       <div className="compact-scroll-list">
