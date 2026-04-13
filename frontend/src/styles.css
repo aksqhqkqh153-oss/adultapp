@@ -2168,3 +2168,44 @@ pre {
     font-size: 28px;
   }
 }
+
+
+.community-board-head {
+  align-items: center;
+}
+.community-search-toolbar {
+  display: grid;
+  grid-template-columns: 120px 120px minmax(220px, 1fr);
+  width: 100%;
+}
+.community-search-toolbar select,
+.community-search-toolbar input {
+  width: 100%;
+}
+.community-board-layout {
+  align-items: stretch;
+}
+.community-category-panel {
+  min-height: 100%;
+}
+.community-post-panel {
+  min-height: 420px;
+}
+.community-card-topline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.muted-chip {
+  background: rgba(148, 163, 184, 0.12);
+  color: #cdd6e3;
+}
+@media (max-width: 900px) {
+  .community-search-toolbar {
+    grid-template-columns: 1fr 1fr;
+  }
+  .community-search-toolbar input {
+    grid-column: 1 / -1;
+  }
+}

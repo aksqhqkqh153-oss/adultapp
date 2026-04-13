@@ -49,6 +49,8 @@ type CommunityPost = {
   title: string;
   summary: string;
   meta: string;
+  audience?: string;
+  sortScore?: number;
 };
 
 
@@ -786,17 +788,19 @@ const forumStarterUsers: ForumStarterUser[] = [
 ];
 
 
-const communityCategories = ["공지", "정보공유", "후기", "판매자소식", "이벤트"] as const;
+const communityCategories = ["공지", "정보", "후기", "토론", "이벤트"] as const;
+const communityPrimaryFilters = ["전체", "공식", "회원", "운영"] as const;
+const communitySecondaryFilters = ["전체", "최신순", "공지우선", "인기순"] as const;
 
 const communitySeed: CommunityPost[] = [
-  { id: 1, category: "공지", title: "안전모드 기준 및 커뮤니티 운영 원칙", summary: "앱 공개영역에서 허용되는 표현과 금지되는 표현을 한 번에 정리합니다.", meta: "관리자 · 오늘" },
-  { id: 2, category: "정보공유", title: "익명포장 SOP와 반품 회수 체크포인트", summary: "판매자/고객 모두 확인할 수 있는 실무형 요약 카드입니다.", meta: "운영팀 · 2시간 전" },
-  { id: 3, category: "후기", title: "사진 피드형 상품 리뷰 구성 예시", summary: "사진·짧은 영상·요약문이 결합된 소통 공간 예시입니다.", meta: "brand_note · 4시간 전" },
-  { id: 4, category: "판매자소식", title: "신규 카테고리 승인 대기 상품 현황", summary: "판매자센터에서 확인 중인 상품들을 카테고리별로 묶어서 보여줍니다.", meta: "seller_studio · 어제" },
-  { id: 5, category: "이벤트", title: "앱 심사 safe UI 점검 이벤트", summary: "모바일 노출 점검과 신고 흐름 확인용 공지입니다.", meta: "프로덕트팀 · 어제" },
-  { id: 6, category: "공지", title: "이용약관 및 개인정보 처리방침 안내", summary: "앱 내 약관, 개인정보 처리방침, 청소년 보호정책, 환불정책은 알림 > 공지사항과 커뮤니티 공지 카테고리에서 확인할 수 있습니다.", meta: "운영공지 · 오늘" },
-  { id: 7, category: "공지", title: "청소년 보호정책 및 제한 웹 포럼 운영 기준", summary: "앱 공개영역에서는 랜덤채팅을 열지 않고, 제한 웹 영역에서만 안전·동의·세척/보관 정보 포럼을 승인제로 운영합니다.", meta: "안전운영팀 · 오늘" },
-  { id: 8, category: "정보공유", title: "구매자 활성화를 위한 앱 내 소통 기능 10선", summary: "안전수칙 토론, 초보 Q&A, 익명 고민상담, 주간 토크방처럼 법적 리스크가 낮은 소통 구조를 정리했습니다.", meta: "기획팀 · 오늘" },
+  { id: 1, category: "공지", title: "안전모드 기준 및 커뮤니티 운영 원칙", summary: "앱 공개영역에서 허용되는 표현과 금지되는 표현을 한 번에 정리합니다.", meta: "관리자 · 오늘", audience: "공식", sortScore: 100 },
+  { id: 2, category: "정보", title: "익명포장 SOP와 반품 회수 체크포인트", summary: "판매자/고객 모두 확인할 수 있는 실무형 요약 카드입니다.", meta: "운영팀 · 2시간 전", audience: "운영", sortScore: 92 },
+  { id: 3, category: "후기", title: "사진 피드형 상품 리뷰 구성 예시", summary: "사진·짧은 영상·요약문이 결합된 소통 공간 예시입니다.", meta: "brand_note · 4시간 전", audience: "회원", sortScore: 88 },
+  { id: 4, category: "토론", title: "신규 카테고리 승인 대기 상품 현황", summary: "판매자센터에서 확인 중인 상품들을 카테고리별로 묶어서 보여줍니다.", meta: "seller_studio · 어제", audience: "회원", sortScore: 81 },
+  { id: 5, category: "이벤트", title: "앱 심사 safe UI 점검 이벤트", summary: "모바일 노출 점검과 신고 흐름 확인용 공지입니다.", meta: "프로덕트팀 · 어제", audience: "공식", sortScore: 90 },
+  { id: 6, category: "공지", title: "이용약관 및 개인정보 처리방침 안내", summary: "앱 내 약관, 개인정보 처리방침, 청소년 보호정책, 환불정책은 알림 > 공지사항과 커뮤니티 공지 카테고리에서 확인할 수 있습니다.", meta: "운영공지 · 오늘", audience: "공식", sortScore: 99 },
+  { id: 7, category: "공지", title: "청소년 보호정책 및 제한 웹 포럼 운영 기준", summary: "앱 공개영역에서는 랜덤채팅을 열지 않고, 제한 웹 영역에서만 안전·동의·세척/보관 정보 포럼을 승인제로 운영합니다.", meta: "안전운영팀 · 오늘", audience: "공식", sortScore: 97 },
+  { id: 8, category: "정보", title: "구매자 활성화를 위한 앱 내 소통 기능 10선", summary: "안전수칙 토론, 초보 Q&A, 익명 고민상담, 주간 토크방처럼 법적 리스크가 낮은 소통 구조를 정리했습니다.", meta: "기획팀 · 오늘", audience: "운영", sortScore: 84 },
 ];
 
 const notificationSeed: NotificationItem[] = [
@@ -1465,6 +1469,8 @@ export default function App() {
   const [adminModeTab, setAdminModeTab] = useState<AdminModeTab>("DB관리");
   const [selectedShopCategory, setSelectedShopCategory] = useState("전체");
   const [selectedCommunityCategory, setSelectedCommunityCategory] = useState<string>("전체");
+  const [communityPrimaryFilter, setCommunityPrimaryFilter] = useState<string>("전체");
+  const [communitySecondaryFilter, setCommunitySecondaryFilter] = useState<string>("전체");
   const [randomRoomCategory, setRandomRoomCategory] = useState<RandomRoomCategory>("전체");
   const [oneToOneCategory, setOneToOneCategory] = useState<OneToOneRandomCategory>("고민상담");
   const [randomGenderOption, setRandomGenderOption] = useState<RandomGenderOption>("무관");
@@ -1985,13 +1991,28 @@ export default function App() {
 
   const filteredCommunity = useMemo(() => {
     const keyword = `${communityKeyword} ${globalKeyword}`.trim().toLowerCase();
-    return communitySeed.filter((post) => {
-      const tabMatch = communityTab === "커뮤" ? ["공지", "정보공유", "판매자소식"].includes(post.category) : post.category === communityTab;
+    const visiblePosts = communitySeed.filter((post) => {
       const categoryMatch = selectedCommunityCategory === "전체" || post.category === selectedCommunityCategory;
-      const keywordMatch = !keyword || `${post.title} ${post.summary}`.toLowerCase().includes(keyword);
-      return tabMatch && categoryMatch && keywordMatch;
+      const primaryMatch = communityPrimaryFilter === "전체" || post.audience === communityPrimaryFilter;
+      const keywordMatch = !keyword || `${post.title} ${post.summary} ${post.category}`.toLowerCase().includes(keyword);
+      return categoryMatch && primaryMatch && keywordMatch;
     });
-  }, [selectedCommunityCategory, communityKeyword, globalKeyword, communityTab]);
+
+    if (communitySecondaryFilter === "최신순" || communitySecondaryFilter === "전체") {
+      return visiblePosts;
+    }
+    if (communitySecondaryFilter === "공지우선") {
+      return [...visiblePosts].sort((a, b) => {
+        if (a.category === "공지" && b.category !== "공지") return -1;
+        if (a.category !== "공지" && b.category === "공지") return 1;
+        return (b.sortScore ?? 0) - (a.sortScore ?? 0);
+      });
+    }
+    if (communitySecondaryFilter === "인기순") {
+      return [...visiblePosts].sort((a, b) => (b.sortScore ?? 0) - (a.sortScore ?? 0));
+    }
+    return visiblePosts;
+  }, [selectedCommunityCategory, communityKeyword, globalKeyword, communityPrimaryFilter, communitySecondaryFilter]);
 
   const filteredThreads = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
@@ -3733,32 +3754,40 @@ export default function App() {
               </div>
             ) : (
               <>
-                <div className="section-head compact-head">
-                  <div><h2>소통</h2><p>{communityTab === "커뮤" ? "커뮤니티 글과 공지, 정보공유를 확인합니다." : communityTab === "후기" ? "후기 글 모음을 확인합니다." : "이벤트 공지를 확인합니다."}</p></div>
-                  <div className="section-tools slim-tools"><input value={communityKeyword} onChange={(e) => setCommunityKeyword(e.target.value)} placeholder="게시글 검색" /></div>
-                </div>
-                <div className="legacy-box compact">
-                  <h3>앱 내 구매자 활성화용 소통 구조</h3>
-                  <div className="consent-record-list">
-                    {safeCommunityIdeas.map((item, idx) => <div key={item} className="simple-list-row"><b>{idx + 1}</b><span>{item}</span></div>)}
+                <div className="section-head compact-head community-board-head">
+                  <div><h2>소통</h2></div>
+                  <div className="section-tools slim-tools community-search-toolbar">
+                    <select value={communityPrimaryFilter} onChange={(e) => setCommunityPrimaryFilter(e.target.value)}>
+                      {communityPrimaryFilters.map((filter) => <option key={filter} value={filter}>{filter === "전체" ? "1차필터" : filter}</option>)}
+                    </select>
+                    <select value={communitySecondaryFilter} onChange={(e) => setCommunitySecondaryFilter(e.target.value)}>
+                      {communitySecondaryFilters.map((filter) => <option key={filter} value={filter}>{filter === "전체" ? "2차필터" : filter}</option>)}
+                    </select>
+                    <input value={communityKeyword} onChange={(e) => setCommunityKeyword(e.target.value)} placeholder="게시글 검색" />
                   </div>
                 </div>
-                <div className="split-layout mobile-split">
-                  <aside className="left-menu always-open slim-left-menu">
-                    <button className={`left-link ${selectedCommunityCategory === "전체" ? "active" : ""}`} onClick={() => setSelectedCommunityCategory("전체")}>전체 글</button>
+                <div className="split-layout mobile-split community-board-layout">
+                  <aside className="left-menu always-open slim-left-menu community-category-panel">
+                    <button className={`left-link ${selectedCommunityCategory === "전체" ? "active" : ""}`} onClick={() => setSelectedCommunityCategory("전체")}>전체</button>
                     {communityCategories.map((category) => (
                       <button key={category} className={`left-link ${selectedCommunityCategory === category ? "active" : ""}`} onClick={() => setSelectedCommunityCategory(category)}>{category}</button>
                     ))}
                   </aside>
-                  <div className="community-list compact-scroll-list">
+                  <div className="community-list compact-scroll-list community-post-panel">
                     {filteredCommunity.map((post) => (
                       <article key={post.id} className="community-card">
-                        <span className="community-chip">{post.category}</span>
+                        <div className="community-card-topline">
+                          <span className="community-chip">{post.category}</span>
+                          <span className="community-chip muted-chip">{post.audience ?? "전체"}</span>
+                        </div>
                         <strong>{post.title}</strong>
                         <p>{post.summary}</p>
                         <div className="community-meta">{post.meta}</div>
                       </article>
                     ))}
+                    {filteredCommunity.length === 0 ? (
+                      <div className="legacy-box compact"><p>조건에 맞는 게시글이 없습니다.</p></div>
+                    ) : null}
                   </div>
                 </div>
               </>
