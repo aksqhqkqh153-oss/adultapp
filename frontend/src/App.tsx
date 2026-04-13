@@ -1,5 +1,5 @@
 import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
-import { clearTokens, getApiBase, getJson, getRefreshToken, hasAuthToken, postJson, setAuthToken, setRefreshToken } from "./lib/api";
+import { clearTokens, ensureAuthSession, getApiBase, getJson, getRefreshToken, hasAuthToken, postJson, setAuthToken, setRefreshToken } from "./lib/api";
 
 type FeedItem = {
   id: number;
@@ -1668,44 +1668,48 @@ export default function App() {
     getJson<PaymentProviderStatusResponse>("/payments/provider-status").then(setPaymentProviderStatus).catch(() => null);
     getJson<ApiProduct[]>("/products").then(setApiProducts).catch(() => null);
 
-    if (!hasAuthToken()) {
-      setAuthSummary(null);
-      setCurrentUserRole("GUEST");
-      if (typeof window !== "undefined") window.localStorage.setItem("adultapp_demo_role", "GUEST");
-      setOrders([]);
-      setSellerProducts([]);
-      return;
-    }
-
-    getJson<AuthMeResponse>("/auth/me").then((me) => {
-      setAuthSummary(me);
-      const nextRole = String(me.grade ?? "GUEST").toUpperCase();
-      setCurrentUserRole(nextRole);
-      if (typeof window !== "undefined") window.localStorage.setItem("adultapp_demo_role", nextRole);
-      setIdentityVerified(Boolean(me.identity_verified));
-      setAdultVerified(Boolean(me.adult_verified));
-      getJson<ApiOrder[]>("/orders").then(setOrders).catch(() => null);
-      getJson<SellerProductItem[]>("/seller/products/mine").then(setSellerProducts).catch(() => null);
-      if (["ADMIN", "1", "GRADE_1"].includes(nextRole)) {
-        getJson<BusinessInfoResponse>("/legal/business-info").then(setBusinessInfo).catch(() => null);
-        getJson<ReleaseReadinessResponse>("/legal/release-readiness").then(setReleaseReadiness).catch(() => null);
-        getJson<MinorPurgePreview>("/ops/minor-purge/preview").then(setMinorPurgePreview).catch(() => null);
-        getJson<{ items: SellerApprovalItem[] }>("/admin/seller-approvals").then((res) => setSellerApprovalQueue(res.items ?? [])).catch(() => null);
-        getJson<{ items: ProductApprovalItem[] }>("/admin/product-approvals").then((res) => setProductApprovalQueue(res.items ?? [])).catch(() => null);
-        getJson<SettlementPreviewResponse>("/settlements/preview").then(setSettlementPreview).catch(() => null);
-        getJson<AdminDbManage>("/admin/chat-random/db-manage").then(setAdminDbManage).catch(() => null);
-      } else {
-        setBusinessInfo(null);
-        setReleaseReadiness(null);
+    (async () => {
+      const restored = hasAuthToken() || await ensureAuthSession();
+      if (!restored) {
+        setAuthSummary(null);
+        setCurrentUserRole("GUEST");
+        if (typeof window !== "undefined") window.localStorage.setItem("adultapp_demo_role", "GUEST");
+        setOrders([]);
+        setSellerProducts([]);
+        return;
       }
-    }).catch(() => {
-      clearTokens();
-      setAuthSummary(null);
-      setCurrentUserRole("GUEST");
-      if (typeof window !== "undefined") window.localStorage.setItem("adultapp_demo_role", "GUEST");
-      setOrders([]);
-      setSellerProducts([]);
-    });
+
+      try {
+        const me = await getJson<AuthMeResponse>("/auth/me");
+        setAuthSummary(me);
+        const nextRole = String(me.grade ?? "GUEST").toUpperCase();
+        setCurrentUserRole(nextRole);
+        if (typeof window !== "undefined") window.localStorage.setItem("adultapp_demo_role", nextRole);
+        setIdentityVerified(Boolean(me.identity_verified));
+        setAdultVerified(Boolean(me.adult_verified));
+        getJson<ApiOrder[]>("/orders").then(setOrders).catch(() => null);
+        getJson<SellerProductItem[]>("/seller/products/mine").then(setSellerProducts).catch(() => null);
+        if (["ADMIN", "1", "GRADE_1"].includes(nextRole)) {
+          getJson<BusinessInfoResponse>("/legal/business-info").then(setBusinessInfo).catch(() => null);
+          getJson<ReleaseReadinessResponse>("/legal/release-readiness").then(setReleaseReadiness).catch(() => null);
+          getJson<MinorPurgePreview>("/ops/minor-purge/preview").then(setMinorPurgePreview).catch(() => null);
+          getJson<{ items: SellerApprovalItem[] }>("/admin/seller-approvals").then((res) => setSellerApprovalQueue(res.items ?? [])).catch(() => null);
+          getJson<{ items: ProductApprovalItem[] }>("/admin/product-approvals").then((res) => setProductApprovalQueue(res.items ?? [])).catch(() => null);
+          getJson<SettlementPreviewResponse>("/settlements/preview").then(setSettlementPreview).catch(() => null);
+          getJson<AdminDbManage>("/admin/chat-random/db-manage").then(setAdminDbManage).catch(() => null);
+        } else {
+          setBusinessInfo(null);
+          setReleaseReadiness(null);
+        }
+      } catch {
+        clearTokens();
+        setAuthSummary(null);
+        setCurrentUserRole("GUEST");
+        if (typeof window !== "undefined") window.localStorage.setItem("adultapp_demo_role", "GUEST");
+        setOrders([]);
+        setSellerProducts([]);
+      }
+    })();
   }, []);
 
   useEffect(() => {
@@ -3972,5 +3976,4 @@ export default function App() {
     </div>
   );
 }
-
 

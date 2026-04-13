@@ -124,6 +124,12 @@ export function clearTokens() {
   setRefreshToken("");
 }
 
+export async function ensureAuthSession() {
+  if (accessToken) return true;
+  if (!refreshToken) return false;
+  return refreshAccessToken();
+}
+
 async function requestOnce<T>(base: string, path: string, init?: RequestInit, allowRefresh = true): Promise<T> {
   const headers = new Headers(init?.headers ?? {});
   const isFormData = typeof FormData !== "undefined" && init?.body instanceof FormData;
