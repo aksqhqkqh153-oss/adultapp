@@ -4,7 +4,7 @@ from pathlib import Path
 import logging
 import os
 import sqlite3
-from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
+from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode, quote_plus
 
 from sqlalchemy import create_engine as sa_create_engine, inspect
 from sqlmodel import SQLModel, Session
@@ -26,6 +26,26 @@ def _looks_unresolved_placeholder(value: str) -> bool:
     return (not text) or '${{' in text or '}}' in text or 'Postgres.DATABASE_URL' in text
 
 
+
+
+def _first_env(*names: str) -> str:
+    for name in names:
+        value = _strip_wrapping_quotes(os.getenv(name, ''))
+        if value and not _looks_unresolved_placeholder(value):
+            return value
+    return ''
+
+
+def _build_postgres_url_from_parts() -> str:
+    host = _first_env('PGHOST', 'POSTGRES_HOST', 'POSTGRESQL_HOST', 'DB_HOST')
+    port = _first_env('PGPORT', 'POSTGRES_PORT', 'POSTGRESQL_PORT', 'DB_PORT') or '5432'
+    user = _first_env('PGUSER', 'POSTGRES_USER', 'POSTGRESQL_USER', 'DB_USER')
+    password = _first_env('PGPASSWORD', 'POSTGRES_PASSWORD', 'POSTGRESQL_PASSWORD', 'DB_PASSWORD')
+    database = _first_env('PGDATABASE', 'POSTGRES_DB', 'POSTGRES_DATABASE', 'POSTGRESQL_DATABASE', 'DB_NAME')
+    if not (host and user and password and database):
+        return ''
+    return f"postgresql://{quote_plus(user)}:{quote_plus(password)}@{host}:{port}/{quote_plus(database)}"
+
 def _resolve_database_url(raw: str | None) -> tuple[str, bool]:
     candidates = [
         raw or '',
@@ -33,12 +53,21 @@ def _resolve_database_url(raw: str | None) -> tuple[str, bool]:
         os.getenv('POSTGRES_URL', ''),
         os.getenv('POSTGRESQL_URL', ''),
         os.getenv('SQLALCHEMY_DATABASE_URL', ''),
+        os.getenv('RAILWAY_DATABASE_URL', ''),
+        os.getenv('DATABASE_PRIVATE_URL', ''),
+        os.getenv('DATABASE_PUBLIC_URL', ''),
     ]
     for candidate in candidates:
         value = _strip_wrapping_quotes(candidate)
-        if value and not _looks_unresolved_placeholder(value):
-            return value, False
-    return 'sqlite:///./adult_platform.db', True
+        if not value or _looks_unresolved_placeholder(value):
+            continue
+        if settings.app_env.lower() in {'production', 'staging'} and value.startswith('sqlite:'):
+            continue
+        return value, False
+    derived = _build_postgres_url_from_parts()
+    if derived:
+        return derived, False
+    return 'sqlite:////tmp/adult_platform.db', True
 
 
 def _normalize_database_url(raw: str | None) -> tuple[str, bool]:
@@ -69,6 +98,9 @@ engine = sa_create_engine(
 
 if settings.app_env.lower() in {'production', 'staging'} and IS_SQLITE and not DATABASE_URL_USED_FALLBACK:
     raise RuntimeError('SQLite is restricted to local development only. Set DATABASE_URL to PostgreSQL for staging/production.')
+
+if settings.app_env.lower() in {'production', 'staging'} and DATABASE_URL_USED_FALLBACK:
+    logger.warning('production_database_url_missing_or_unresolved_using_tmp_sqlite_fallback')
 
 if DATABASE_URL_USED_FALLBACK:
     logger.warning('database_url_fallback_used_sqlite')
