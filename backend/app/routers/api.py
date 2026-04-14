@@ -2892,6 +2892,9 @@ def upsert_product(payload: ProductUpsertRequest, request: Request, current_user
         product.status = "draft"
         product.is_active = False
     product.updated_at = utcnow()
+    primary_image_url = next((item for item in payload.image_urls if str(item).strip()), None) if payload.image_urls else None
+    if primary_image_url:
+        product.thumbnail_url = primary_image_url
     session.add(product)
     session.commit()
     session.refresh(product)

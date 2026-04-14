@@ -1,33 +1,62 @@
 from __future__ import annotations
 
 from pathlib import Path
+import logging
+import os
 import sqlite3
 from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 
-from sqlalchemy import create_engine as sa_create_engine, inspect, text
+from sqlalchemy import create_engine as sa_create_engine, inspect
 from sqlmodel import SQLModel, Session
 
 from .config import settings
 
+logger = logging.getLogger(__name__)
 
-def _normalize_database_url(raw: str) -> str:
-    url = (raw or '').strip()
-    if not url:
-        return 'sqlite:///./adult_platform.db'
+
+def _strip_wrapping_quotes(value: str) -> str:
+    text = (value or '').strip()
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in {'"', "'"}:
+        return text[1:-1].strip()
+    return text
+
+
+def _looks_unresolved_placeholder(value: str) -> bool:
+    text = _strip_wrapping_quotes(value)
+    return (not text) or '${{' in text or '}}' in text or 'Postgres.DATABASE_URL' in text
+
+
+def _resolve_database_url(raw: str | None) -> tuple[str, bool]:
+    candidates = [
+        raw or '',
+        os.getenv('DATABASE_URL', ''),
+        os.getenv('POSTGRES_URL', ''),
+        os.getenv('POSTGRESQL_URL', ''),
+        os.getenv('SQLALCHEMY_DATABASE_URL', ''),
+    ]
+    for candidate in candidates:
+        value = _strip_wrapping_quotes(candidate)
+        if value and not _looks_unresolved_placeholder(value):
+            return value, False
+    return 'sqlite:///./adult_platform.db', True
+
+
+def _normalize_database_url(raw: str | None) -> tuple[str, bool]:
+    url, used_fallback = _resolve_database_url(raw)
     if url.startswith('postgres://'):
-        url = 'postgresql://' + url[len('postgres://'): ]
+        url = 'postgresql://' + url[len('postgres://'):]
     if url.startswith('postgresql+psycopg2://'):
-        url = 'postgresql://' + url[len('postgresql+psycopg2://'): ]
+        url = 'postgresql://' + url[len('postgresql+psycopg2://'):]
     if url.startswith('postgresql://'):
         parts = urlsplit(url)
         query = dict(parse_qsl(parts.query, keep_blank_values=True))
         query.setdefault('connect_timeout', str(max(settings.postgres_connect_timeout_seconds, 1)))
         query.setdefault('sslmode', 'require')
-        return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
-    return url
+        return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment)), used_fallback
+    return url, used_fallback
 
 
-DATABASE_URL = _normalize_database_url(settings.database_url)
+DATABASE_URL, DATABASE_URL_USED_FALLBACK = _normalize_database_url(settings.database_url)
 IS_SQLITE = DATABASE_URL.startswith('sqlite')
 connect_args = {'check_same_thread': False} if IS_SQLITE else {}
 engine = sa_create_engine(
@@ -38,46 +67,14 @@ engine = sa_create_engine(
     pool_recycle=300 if not IS_SQLITE else -1,
 )
 
-if settings.app_env.lower() in {'production', 'staging'} and IS_SQLITE:
-    print('WARNING: DATABASE_URL was not detected in production/staging. Falling back to local SQLite for startup. Check Railway environment variables.')
+if settings.app_env.lower() in {'production', 'staging'} and IS_SQLITE and not DATABASE_URL_USED_FALLBACK:
+    raise RuntimeError('SQLite is restricted to local development only. Set DATABASE_URL to PostgreSQL for staging/production.')
+
+if DATABASE_URL_USED_FALLBACK:
+    logger.warning('database_url_fallback_used_sqlite')
 
 
-POSTGRES_MIGRATIONS = {
-    "product": [
-        "ALTER TABLE product ADD COLUMN IF NOT EXISTS description VARCHAR",
-        "ALTER TABLE product ADD COLUMN IF NOT EXISTS price INTEGER DEFAULT 0",
-        "ALTER TABLE product ADD COLUMN IF NOT EXISTS stock_qty INTEGER DEFAULT 0",
-        "ALTER TABLE product ADD COLUMN IF NOT EXISTS thumbnail_url VARCHAR",
-        "ALTER TABLE product ADD COLUMN IF NOT EXISTS status VARCHAR DEFAULT 'draft'",
-        "ALTER TABLE product ADD COLUMN IF NOT EXISTS created_at TIMESTAMP",
-        "ALTER TABLE product ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP",
-    ],
-    "order": [
-        'ALTER TABLE "order" ADD COLUMN IF NOT EXISTS order_status VARCHAR DEFAULT ''paid''',
-        'ALTER TABLE "order" ADD COLUMN IF NOT EXISTS payment_method VARCHAR DEFAULT ''card''',
-        'ALTER TABLE "order" ADD COLUMN IF NOT EXISTS payment_pg VARCHAR DEFAULT ''pending''',
-        'ALTER TABLE "order" ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP',
-        'ALTER TABLE "order" ADD COLUMN IF NOT EXISTS cancel_at TIMESTAMP',
-        'ALTER TABLE "order" ADD COLUMN IF NOT EXISTS supply_amount INTEGER DEFAULT 0',
-        'ALTER TABLE "order" ADD COLUMN IF NOT EXISTS vat_amount INTEGER DEFAULT 0',
-        'ALTER TABLE "order" ADD COLUMN IF NOT EXISTS total_amount INTEGER DEFAULT 0',
-        'ALTER TABLE "order" ADD COLUMN IF NOT EXISTS fee_rate DOUBLE PRECISION DEFAULT 0.08',
-        'ALTER TABLE "order" ADD COLUMN IF NOT EXISTS settlement_status VARCHAR DEFAULT ''open''',
-    ],
-    "orderitem": [
-        "ALTER TABLE orderitem ADD COLUMN IF NOT EXISTS supply_amount INTEGER DEFAULT 0",
-        "ALTER TABLE orderitem ADD COLUMN IF NOT EXISTS vat_amount INTEGER DEFAULT 0",
-        "ALTER TABLE orderitem ADD COLUMN IF NOT EXISTS fee_rate DOUBLE PRECISION DEFAULT 0.08",
-        "ALTER TABLE orderitem ADD COLUMN IF NOT EXISTS coupon_burden_owner VARCHAR DEFAULT 'platform'",
-        "ALTER TABLE orderitem ADD COLUMN IF NOT EXISTS refund_status VARCHAR",
-    ],
-    "adminactionlog": [
-        "ALTER TABLE adminactionlog ADD COLUMN IF NOT EXISTS chain_prev_hash VARCHAR",
-        "ALTER TABLE adminactionlog ADD COLUMN IF NOT EXISTS chain_hash VARCHAR",
-    ],
-}
-
-SQLITE_MIGRATIONS =  {
+SQLITE_MIGRATIONS = {
     "user": [
         ("password_changed_at", "ALTER TABLE user ADD COLUMN password_changed_at DATETIME"),
         ("reset_required", "ALTER TABLE user ADD COLUMN reset_required BOOLEAN DEFAULT 0"),
@@ -142,12 +139,8 @@ SQLITE_MIGRATIONS =  {
         ("female_rematch_min_seconds", "ALTER TABLE randomchatrule ADD COLUMN female_rematch_min_seconds INTEGER DEFAULT 5"),
         ("female_rematch_max_seconds", "ALTER TABLE randomchatrule ADD COLUMN female_rematch_max_seconds INTEGER DEFAULT 10"),
     ],
-    "refreshtoken": [
-        ("session_id", "ALTER TABLE refreshtoken ADD COLUMN session_id INTEGER"),
-    ],
-    "loginchallenge": [
-        ("device_session_id", "ALTER TABLE loginchallenge ADD COLUMN device_session_id INTEGER"),
-    ],
+    "refreshtoken": [("session_id", "ALTER TABLE refreshtoken ADD COLUMN session_id INTEGER")],
+    "loginchallenge": [("device_session_id", "ALTER TABLE loginchallenge ADD COLUMN device_session_id INTEGER")],
     "product": [
         ("description", "ALTER TABLE product ADD COLUMN description VARCHAR"),
         ("price", "ALTER TABLE product ADD COLUMN price INTEGER DEFAULT 0"),
@@ -169,35 +162,57 @@ SQLITE_MIGRATIONS =  {
     ],
 }
 
+POSTGRES_MIGRATIONS = {
+    'product': {
+        'description': 'ALTER TABLE product ADD COLUMN description VARCHAR',
+        'price': 'ALTER TABLE product ADD COLUMN price INTEGER DEFAULT 0',
+        'stock_qty': 'ALTER TABLE product ADD COLUMN stock_qty INTEGER DEFAULT 0',
+        'thumbnail_url': 'ALTER TABLE product ADD COLUMN thumbnail_url VARCHAR',
+        'status': "ALTER TABLE product ADD COLUMN status VARCHAR DEFAULT 'draft'",
+        'created_at': 'ALTER TABLE product ADD COLUMN created_at TIMESTAMP',
+        'updated_at': 'ALTER TABLE product ADD COLUMN updated_at TIMESTAMP',
+    },
+    'order': {
+        'approved_at': 'ALTER TABLE "order" ADD COLUMN approved_at TIMESTAMP',
+        'cancel_at': 'ALTER TABLE "order" ADD COLUMN cancel_at TIMESTAMP',
+        'payment_method': 'ALTER TABLE "order" ADD COLUMN payment_method VARCHAR DEFAULT \'card\'',
+        'payment_pg': 'ALTER TABLE "order" ADD COLUMN payment_pg VARCHAR DEFAULT \'pending\'',
+        'supply_amount': 'ALTER TABLE "order" ADD COLUMN supply_amount INTEGER DEFAULT 0',
+        'vat_amount': 'ALTER TABLE "order" ADD COLUMN vat_amount INTEGER DEFAULT 0',
+        'total_amount': 'ALTER TABLE "order" ADD COLUMN total_amount INTEGER DEFAULT 0',
+        'fee_rate': 'ALTER TABLE "order" ADD COLUMN fee_rate DOUBLE PRECISION DEFAULT 0.08',
+        'settlement_status': 'ALTER TABLE "order" ADD COLUMN settlement_status VARCHAR DEFAULT \'open\'',
+    },
+    'orderitem': {
+        'supply_amount': 'ALTER TABLE orderitem ADD COLUMN supply_amount INTEGER DEFAULT 0',
+        'vat_amount': 'ALTER TABLE orderitem ADD COLUMN vat_amount INTEGER DEFAULT 0',
+        'fee_rate': 'ALTER TABLE orderitem ADD COLUMN fee_rate DOUBLE PRECISION DEFAULT 0.08',
+        'coupon_burden_owner': "ALTER TABLE orderitem ADD COLUMN coupon_burden_owner VARCHAR DEFAULT 'platform'",
+        'refund_status': 'ALTER TABLE orderitem ADD COLUMN refund_status VARCHAR',
+    },
+    'directmessage': {
+        'original_message_backup': 'ALTER TABLE directmessage ADD COLUMN original_message_backup VARCHAR',
+        'is_deleted_for_all': 'ALTER TABLE directmessage ADD COLUMN is_deleted_for_all BOOLEAN DEFAULT FALSE',
+        'deleted_by_id': 'ALTER TABLE directmessage ADD COLUMN deleted_by_id INTEGER',
+        'deleted_at': 'ALTER TABLE directmessage ADD COLUMN deleted_at TIMESTAMP',
+    },
+    'adminactionlog': {
+        'chain_prev_hash': 'ALTER TABLE adminactionlog ADD COLUMN chain_prev_hash VARCHAR',
+        'chain_hash': 'ALTER TABLE adminactionlog ADD COLUMN chain_hash VARCHAR',
+    },
+}
+
+
 
 def create_db_and_tables() -> None:
     SQLModel.metadata.create_all(engine)
     run_migrations()
 
 
-def run_migrations() -> None:
-    Path(settings.uploads_dir).mkdir(parents=True, exist_ok=True)
-    Path(settings.password_reset_outbox_dir).mkdir(parents=True, exist_ok=True)
-
-    if not settings.database_url.startswith("sqlite"):
-        try:
-            with engine.begin() as conn:
-                inspector = inspect(conn)
-                existing_tables = set(inspector.get_table_names())
-                for table_name, statements in POSTGRES_MIGRATIONS.items():
-                    physical_table_name = "order" if table_name == "order" else table_name
-                    if physical_table_name not in existing_tables:
-                        continue
-                    for statement in statements:
-                        conn.execute(text(statement))
-        except Exception as exc:
-            print(f"WARNING: postgres schema sync skipped: {exc}")
-        return
-
+def _run_sqlite_migrations() -> None:
     db_path = engine.url.database
     if not db_path:
         return
-
     conn = sqlite3.connect(db_path)
     try:
         cur = conn.cursor()
@@ -214,7 +229,30 @@ def run_migrations() -> None:
     finally:
         conn.close()
 
+
+def _run_postgres_migrations() -> None:
+    inspector = inspect(engine)
+    existing_tables = set(inspector.get_table_names())
+    if 'order' not in existing_tables and 'orderitem' not in existing_tables and 'product' not in existing_tables:
+        return
+    with engine.begin() as conn:
+        for table_name, alters in POSTGRES_MIGRATIONS.items():
+            if table_name not in existing_tables:
+                continue
+            existing_columns = {column['name'] for column in inspector.get_columns(table_name)}
+            for column_name, sql in alters.items():
+                if column_name in existing_columns:
+                    continue
+                conn.exec_driver_sql(sql)
+
+
+def run_migrations() -> None:
     Path(settings.uploads_dir).mkdir(parents=True, exist_ok=True)
+    Path(settings.password_reset_outbox_dir).mkdir(parents=True, exist_ok=True)
+    if IS_SQLITE:
+        _run_sqlite_migrations()
+    else:
+        _run_postgres_migrations()
 
 
 def get_session():

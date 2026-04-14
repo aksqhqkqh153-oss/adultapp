@@ -2120,7 +2120,6 @@ export default function App() {
     && sellerVerification.handledCategories.trim()
   );
   const productDraftReady = Boolean(productRegistrationDraft.category && productRegistrationDraft.name.trim() && productRegistrationDraft.description.trim() && productRegistrationDraft.price.trim() && productRegistrationDraft.stockQty.trim() && productRegistrationDraft.skuCode.trim());
-  const productImageCount = productRegistrationDraft.imageUrls.filter(Boolean).length;
   const consentRecordsPreview = [
     { consent_type: "terms_of_service", agreed: signupConsents.terms, required: true, version: consentVersionMap.terms },
     { consent_type: "privacy_policy", agreed: signupConsents.privacy, required: true, version: consentVersionMap.privacy },
@@ -3611,9 +3610,7 @@ export default function App() {
                         <label className="wide"><span>상품소개</span><textarea value={productRegistrationDraft.description} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, description: e.target.value }))} placeholder="상품 소개" /></label>
                         <label className="wide"><span>사진 등록 (선택, 최대 5장 URL)</span><div className="photo-url-grid">{productRegistrationDraft.imageUrls.map((value, idx) => <input key={idx} value={value} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, imageUrls: prev.imageUrls.map((item, itemIdx) => itemIdx === idx ? e.target.value : item) }))} placeholder={`사진 ${idx + 1} URL`} />)}</div></label>
                       </div>
-                      {reconsentWriteRestricted ? <p className="muted-mini">유예기간 없이 최신 필수 문서 재동의가 필요합니다. 먼저 필수 문서 안내 화면에서 최신 약관과 재동의 절차를 확인하세요.</p> : null}
-                      {!productDraftReady ? <p className="muted-mini">필수 입력: 카테고리, 상품명, 가격, 개수, 상품 코드, 상품소개</p> : null}
-                      {productDraftReady && productImageCount === 0 ? <p className="muted-mini">사진 URL 없이도 등록 가능합니다. 나중에 수정 화면에서 추가할 수 있습니다.</p> : null}
+                      {!productDraftReady ? <p className="muted-mini">카테고리, 상품명, 가격, 개수, 상품 코드, 상품소개를 입력해야 등록할 수 있습니다. 사진 URL은 선택입니다.</p> : null}{reconsentWriteRestricted ? <p className="muted-mini">유예기간 없이 최신 필수 문서 재동의가 필요합니다. 먼저 필수 문서 안내 화면에서 최신 약관과 재동의 절차를 확인하세요.</p> : null}
                       <div className="copy-action-row">
                         <button type="button" onClick={() => submitProductRegistration("draft")} disabled={!sellerApprovalReady || !productDraftReady || reconsentWriteRestricted}>임시저장</button>
                         <button type="button" onClick={() => submitProductRegistration("publish")} disabled={!sellerApprovalReady || !productDraftReady || reconsentWriteRestricted}>상품등록</button>

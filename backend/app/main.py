@@ -8,7 +8,7 @@ from sqlmodel import Session, select
 
 from .auth import decode_token
 from .config import settings
-from .database import create_db_and_tables, run_migrations, engine
+from .database import create_db_and_tables, engine
 from .models import DirectMessage, DirectMessageThread, User, UserBlock
 from .routers.api import router as api_router, validate_exchange_text
 from .services.realtime import thread_connection_manager
@@ -63,8 +63,6 @@ def on_startup() -> None:
     media_dir.mkdir(parents=True, exist_ok=True)
     if settings.startup_db_init_enabled:
         create_db_and_tables()
-    else:
-        run_migrations()
     if settings.startup_seed_enabled:
         with Session(engine) as session:
             seed_database(session)
