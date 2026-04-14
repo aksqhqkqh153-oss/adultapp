@@ -169,7 +169,7 @@ class Settings(BaseSettings):
     alembic_config_path: str = "./alembic.ini"
     mobile_web_fallback_url: str = "https://m.example.com/safe"
 
-    startup_db_init_enabled: bool = False
+    startup_db_init_enabled: bool = True
     startup_seed_enabled: bool = False
     postgres_connect_timeout_seconds: int = 5
     postgres_statement_timeout_ms: int = 10000

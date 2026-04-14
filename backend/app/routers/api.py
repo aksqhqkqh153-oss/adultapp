@@ -2891,15 +2891,18 @@ def upsert_product(payload: ProductUpsertRequest, request: Request, current_user
     else:
         product.status = "draft"
         product.is_active = False
+    image_urls = [str(url).strip() for url in (payload.image_urls or []) if str(url).strip()]
+    if image_urls and not (product.thumbnail_url or '').strip():
+        product.thumbnail_url = image_urls[0]
     product.updated_at = utcnow()
     session.add(product)
     session.commit()
     session.refresh(product)
     _save_product_policy_meta(session, product.id or 0, {**classification, "category": product.category, "sku_code": product.sku_code, "name": product.name, "submit_mode": submit_mode})
-    if payload.image_urls:
+    if image_urls:
         existing = session.exec(select(ProductMedia).where(ProductMedia.product_id == (product.id or 0)).order_by(ProductMedia.sort_order)).all()
         existing_urls = {item.file_url for item in existing}
-        for idx, url in enumerate(payload.image_urls[:5], start=1):
+        for idx, url in enumerate(image_urls[:5], start=1):
             if not url or url in existing_urls:
                 continue
             media = ProductMedia(product_id=product.id or 0, file_name=f"image_{idx}.jpg", file_url=url, media_type="image", sort_order=idx)
