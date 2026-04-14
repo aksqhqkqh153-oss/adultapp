@@ -1,4 +1,5 @@
 from pathlib import Path
+import logging
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,6 +15,7 @@ from .routers.api import router as api_router, validate_exchange_text
 from .services.realtime import thread_connection_manager
 from .seed_db import seed_database
 
+logger = logging.getLogger(__name__)
 app = FastAPI(title=settings.app_name)
 
 app.add_middleware(
@@ -62,10 +64,16 @@ async def unhandled_exception_to_json(request: Request, call_next):
 def on_startup() -> None:
     media_dir.mkdir(parents=True, exist_ok=True)
     if settings.startup_db_init_enabled:
-        create_db_and_tables()
+        try:
+            create_db_and_tables()
+        except Exception as exc:
+            logger.exception("startup_db_init_failed: %s", exc)
     if settings.startup_seed_enabled:
-        with Session(engine) as session:
-            seed_database(session)
+        try:
+            with Session(engine) as session:
+                seed_database(session)
+        except Exception as exc:
+            logger.exception("startup_seed_failed: %s", exc)
 
 
 @app.websocket("/ws/chat/{thread_id}")
