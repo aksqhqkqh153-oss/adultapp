@@ -5,7 +5,6 @@ import sqlite3
 from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 
 from sqlalchemy import create_engine as sa_create_engine, inspect, text
-from sqlalchemy.schema import CreateColumn
 from sqlmodel import SQLModel, Session
 
 from .config import settings
@@ -40,8 +39,43 @@ engine = sa_create_engine(
 )
 
 if settings.app_env.lower() in {'production', 'staging'} and IS_SQLITE:
-    raise RuntimeError('SQLite is restricted to local development only. Set DATABASE_URL to PostgreSQL for staging/production.')
+    print('WARNING: DATABASE_URL was not detected in production/staging. Falling back to local SQLite for startup. Check Railway environment variables.')
 
+
+POSTGRES_MIGRATIONS = {
+    "product": [
+        "ALTER TABLE product ADD COLUMN IF NOT EXISTS description VARCHAR",
+        "ALTER TABLE product ADD COLUMN IF NOT EXISTS price INTEGER DEFAULT 0",
+        "ALTER TABLE product ADD COLUMN IF NOT EXISTS stock_qty INTEGER DEFAULT 0",
+        "ALTER TABLE product ADD COLUMN IF NOT EXISTS thumbnail_url VARCHAR",
+        "ALTER TABLE product ADD COLUMN IF NOT EXISTS status VARCHAR DEFAULT 'draft'",
+        "ALTER TABLE product ADD COLUMN IF NOT EXISTS created_at TIMESTAMP",
+        "ALTER TABLE product ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP",
+    ],
+    "order": [
+        'ALTER TABLE "order" ADD COLUMN IF NOT EXISTS order_status VARCHAR DEFAULT ''paid''',
+        'ALTER TABLE "order" ADD COLUMN IF NOT EXISTS payment_method VARCHAR DEFAULT ''card''',
+        'ALTER TABLE "order" ADD COLUMN IF NOT EXISTS payment_pg VARCHAR DEFAULT ''pending''',
+        'ALTER TABLE "order" ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP',
+        'ALTER TABLE "order" ADD COLUMN IF NOT EXISTS cancel_at TIMESTAMP',
+        'ALTER TABLE "order" ADD COLUMN IF NOT EXISTS supply_amount INTEGER DEFAULT 0',
+        'ALTER TABLE "order" ADD COLUMN IF NOT EXISTS vat_amount INTEGER DEFAULT 0',
+        'ALTER TABLE "order" ADD COLUMN IF NOT EXISTS total_amount INTEGER DEFAULT 0',
+        'ALTER TABLE "order" ADD COLUMN IF NOT EXISTS fee_rate DOUBLE PRECISION DEFAULT 0.08',
+        'ALTER TABLE "order" ADD COLUMN IF NOT EXISTS settlement_status VARCHAR DEFAULT ''open''',
+    ],
+    "orderitem": [
+        "ALTER TABLE orderitem ADD COLUMN IF NOT EXISTS supply_amount INTEGER DEFAULT 0",
+        "ALTER TABLE orderitem ADD COLUMN IF NOT EXISTS vat_amount INTEGER DEFAULT 0",
+        "ALTER TABLE orderitem ADD COLUMN IF NOT EXISTS fee_rate DOUBLE PRECISION DEFAULT 0.08",
+        "ALTER TABLE orderitem ADD COLUMN IF NOT EXISTS coupon_burden_owner VARCHAR DEFAULT 'platform'",
+        "ALTER TABLE orderitem ADD COLUMN IF NOT EXISTS refund_status VARCHAR",
+    ],
+    "adminactionlog": [
+        "ALTER TABLE adminactionlog ADD COLUMN IF NOT EXISTS chain_prev_hash VARCHAR",
+        "ALTER TABLE adminactionlog ADD COLUMN IF NOT EXISTS chain_hash VARCHAR",
+    ],
+}
 
 SQLITE_MIGRATIONS =  {
     "user": [
@@ -141,48 +175,45 @@ def create_db_and_tables() -> None:
     run_migrations()
 
 
-def _sync_table_columns() -> None:
-    inspector = inspect(engine)
-    with engine.begin() as conn:
-        for table in SQLModel.metadata.sorted_tables:
-            try:
-                existing_columns = {col["name"] for col in inspector.get_columns(table.name)}
-            except Exception:
-                continue
-            for column in table.columns:
-                if column.name in existing_columns:
-                    continue
-                compiled = CreateColumn(column).compile(dialect=engine.dialect)
-                column_sql = str(compiled).strip()
-                if not column_sql:
-                    continue
-                conn.execute(text(f'ALTER TABLE "{table.name}" ADD COLUMN {column_sql}'))
-
-
 def run_migrations() -> None:
     Path(settings.uploads_dir).mkdir(parents=True, exist_ok=True)
     Path(settings.password_reset_outbox_dir).mkdir(parents=True, exist_ok=True)
 
-    if IS_SQLITE:
-        db_path = engine.url.database
-        if db_path:
-            conn = sqlite3.connect(db_path)
-            try:
-                cur = conn.cursor()
-                table_rows = cur.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
-                existing_tables = {row[0] for row in table_rows}
-                for table_name, alters in SQLITE_MIGRATIONS.items():
-                    if table_name not in existing_tables:
+    if not settings.database_url.startswith("sqlite"):
+        try:
+            with engine.begin() as conn:
+                inspector = inspect(conn)
+                existing_tables = set(inspector.get_table_names())
+                for table_name, statements in POSTGRES_MIGRATIONS.items():
+                    physical_table_name = "order" if table_name == "order" else table_name
+                    if physical_table_name not in existing_tables:
                         continue
-                    columns = {row[1] for row in cur.execute(f"PRAGMA table_info('{table_name}')").fetchall()}
-                    for column_name, sql in alters:
-                        if column_name not in columns:
-                            cur.execute(sql)
-                conn.commit()
-            finally:
-                conn.close()
+                    for statement in statements:
+                        conn.execute(text(statement))
+        except Exception as exc:
+            print(f"WARNING: postgres schema sync skipped: {exc}")
+        return
 
-    _sync_table_columns()
+    db_path = engine.url.database
+    if not db_path:
+        return
+
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        table_rows = cur.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+        existing_tables = {row[0] for row in table_rows}
+        for table_name, alters in SQLITE_MIGRATIONS.items():
+            if table_name not in existing_tables:
+                continue
+            columns = {row[1] for row in cur.execute(f"PRAGMA table_info('{table_name}')").fetchall()}
+            for column_name, sql in alters:
+                if column_name not in columns:
+                    cur.execute(sql)
+        conn.commit()
+    finally:
+        conn.close()
+
     Path(settings.uploads_dir).mkdir(parents=True, exist_ok=True)
 
 

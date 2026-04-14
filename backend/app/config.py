@@ -1,14 +1,15 @@
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     app_name: str = "Adult Commerce Platform API"
-    app_env: str = "development"
+    app_env: str = Field(default="development", validation_alias=AliasChoices("APP_ENV", "app_env"))
     app_review_mode: bool = True
-    database_url: str = "sqlite:///./adult_platform.db"
-    cors_origins: str = "http://localhost:5173,http://localhost:8000,https://adultapp.pages.dev"
-    cors_origin_regex: str = r"https://.*\.adultapp\.pages\.dev"
-    backend_public_base_url: str = "https://adultapp-production.up.railway.app"
+    database_url: str = Field(default="sqlite:///./adult_platform.db", validation_alias=AliasChoices("DATABASE_URL", "database_url", "POSTGRES_URL", "POSTGRESQL_URL"))
+    cors_origins: str = Field(default="http://localhost:5173,http://localhost:8000,https://adultapp.pages.dev", validation_alias=AliasChoices("CORS_ORIGINS", "cors_origins"))
+    cors_origin_regex: str = Field(default=r"https://.*\.adultapp\.pages\.dev", validation_alias=AliasChoices("CORS_ORIGIN_REGEX", "cors_origin_regex"))
+    backend_public_base_url: str = Field(default="https://adultapp-production.up.railway.app", validation_alias=AliasChoices("BACKEND_PUBLIC_BASE_URL", "backend_public_base_url", "RAILWAY_PUBLIC_DOMAIN"))
 
     jwt_secret_key: str = "change-me-jwt-secret"
     jwt_algorithm: str = "HS256"
@@ -169,10 +170,10 @@ class Settings(BaseSettings):
     alembic_config_path: str = "./alembic.ini"
     mobile_web_fallback_url: str = "https://m.example.com/safe"
 
-    startup_db_init_enabled: bool = True
-    startup_seed_enabled: bool = False
-    postgres_connect_timeout_seconds: int = 5
-    postgres_statement_timeout_ms: int = 10000
+    startup_db_init_enabled: bool = Field(default=True, validation_alias=AliasChoices("STARTUP_DB_INIT_ENABLED", "startup_db_init_enabled"))
+    startup_seed_enabled: bool = Field(default=False, validation_alias=AliasChoices("STARTUP_SEED_ENABLED", "startup_seed_enabled"))
+    postgres_connect_timeout_seconds: int = Field(default=5, validation_alias=AliasChoices("POSTGRES_CONNECT_TIMEOUT_SECONDS", "postgres_connect_timeout_seconds"))
+    postgres_statement_timeout_ms: int = Field(default=10000, validation_alias=AliasChoices("POSTGRES_STATEMENT_TIMEOUT_MS", "postgres_statement_timeout_ms"))
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
