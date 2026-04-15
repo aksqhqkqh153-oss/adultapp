@@ -1,0 +1,7 @@
+BUILD CHECK - 2026-04-10 v8
+- frontend: npm install 완료
+- frontend: npm run build 완료
+- frontend dist 갱신 완료
+- backend: python -m compileall app 완료
+- random chat UI: 단일 range 바(연령/거리), 목록 진입형 채팅방, 20분 유지시간, 종료 3분/1분 알림, 최근 종료 목록 반영
+- admin mode: 조회 전용 안내 유지

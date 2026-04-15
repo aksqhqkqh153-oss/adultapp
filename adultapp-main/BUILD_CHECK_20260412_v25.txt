@@ -1,0 +1,8 @@
+[2026-04-12 build check]
+- backend python compile: PASS
+- backend protected endpoint smoke: PASS
+- frontend npm install: PASS
+- frontend npm run build: PASS
+- notable hardening: auth/rbac for delete/upload/orders/settlement/reports/admin logs/tax download
+- moderation extension: contact exchange, offline meetup, sexual solicitation, disguised review-like solicitation, repeated private-contact inducement
+- release caveat: real PortOne PASS production keys, real business info, final legal docs, PG webhook production values are still required before production launch

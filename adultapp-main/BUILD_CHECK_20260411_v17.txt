@@ -1,0 +1,7 @@
+[adultapp build check v17]
+- backend compileall: OK
+- backend requirements install: OK
+- backend api import smoke: OK
+- frontend npm run build: OK
+- legal docs versions updated to v3
+- verification provider config + callback signature skeleton added

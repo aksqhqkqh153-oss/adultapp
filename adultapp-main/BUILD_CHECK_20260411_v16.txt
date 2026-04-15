@@ -1,0 +1,7 @@
+[adultapp build check v16]
+- frontend: npm run build OK
+- backend: python -m compileall backend/app OK
+- backend import smoke: app.main import OK
+- updated assets:
+  - frontend/dist/assets/index-CtihscrO.css
+  - frontend/dist/assets/index-DtKUglIk.js

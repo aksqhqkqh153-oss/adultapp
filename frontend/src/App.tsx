@@ -1633,6 +1633,7 @@ export default function App() {
   const [orderActionAmount, setOrderActionAmount] = useState("5500");
 
   const isAdmin = ["ADMIN", "1", "GRADE_1"].includes(currentUserRole);
+  const isMinorBlocked = !isAdmin && ["minor_blocked", "blocked_minor", "login_blocked_minor"].includes(String(authSummary?.member_status ?? "").toLowerCase());
   const productCategoryOptions = useMemo(() => {
     const backendCategories = uiCategoryGroups.flatMap((group) => group.items).filter((item) => !["상품등록", "사진/영상 첨부", "SKU 관리", "재고/상태 변경"].includes(item));
     const fallbackCategories = shopCategories.flatMap((group) => group.items.map((item) => item.name));
@@ -1898,6 +1899,31 @@ export default function App() {
     setOverlayMode(null);
   };
 
+  const moveToLoginScreen = (message: string, options?: { clearSession?: boolean; resetIdentity?: boolean }) => {
+    const clearSession = options?.clearSession ?? false;
+    const resetIdentity = options?.resetIdentity ?? false;
+    if (clearSession) {
+      clearTokens();
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("adultapp_demo_role", "GUEST");
+      }
+      setAuthSummary(null);
+      setCurrentUserRole("GUEST");
+    }
+    if (resetIdentity) {
+      setIdentityVerified(false);
+      setIdentityMethod("미완료");
+      setIdentityVerificationToken("");
+    }
+    setAdultVerified(false);
+    setAdultPromptOpen(false);
+    setAdultGateView("intro");
+    setOverlayMode(null);
+    setActiveTab("프로필");
+    setAuthStandaloneScreen("login");
+    setAuthMessage(message);
+  };
+
   const handleLogout = async () => {
     if (typeof window === "undefined") return;
 
@@ -2092,6 +2118,18 @@ export default function App() {
   const blockedByIdentity = !isAdmin && !identityVerified;
   const requiresAdultGate = !isAdmin && !adultVerified && ["홈", "쇼핑"].includes(activeTab);
   const showAppTabContent = showBaseTabContent && !blockedByIdentity && !requiresAdultGate;
+
+  useEffect(() => {
+    if (!authBootstrapDone) return;
+    if (authStandaloneScreen) return;
+    if (isMinorBlocked) {
+      moveToLoginScreen("미성년자는 로그인 및 앱 접근이 제한됩니다.", { clearSession: true, resetIdentity: true });
+      return;
+    }
+    if (!hasAuthToken() && !getRefreshToken()) {
+      moveToLoginScreen("로그인 후 이용 가능합니다.", { clearSession: true, resetIdentity: true });
+    }
+  }, [authBootstrapDone, authStandaloneScreen, isMinorBlocked]);
   const adultCooldownRemainMinutes = adultCooldownUntil > Date.now() ? Math.ceil((adultCooldownUntil - Date.now()) / 60000) : 0;
   const requiredConsentAccepted = requiredConsentKeys.every((key) => signupConsents[key]);
   const reconsentRequired = Boolean(authSummary?.reconsent_required || authSummary?.consent_status?.reconsent_required);
@@ -2340,7 +2378,7 @@ export default function App() {
       setAuthStandaloneScreen(null);
       setActiveTab("홈");
       setShoppingTab("목록");
-      setAdultGateView("success");
+      setAdultGateView("intro");
     } catch (error) {
       clearTokens();
       setAuthMessage(error instanceof Error ? error.message : "테스트 계정 로그인에 실패했습니다.");
@@ -2365,7 +2403,7 @@ export default function App() {
       setAuthStandaloneScreen(null);
       setActiveTab("홈");
       setShoppingTab("목록");
-      setAdultGateView("success");
+      setAdultGateView("intro");
     } catch (error) {
       clearTokens();
       setAuthMessage(error instanceof Error ? error.message : "로그인에 실패했습니다.");
@@ -2545,8 +2583,8 @@ export default function App() {
       return;
     }
     if (mode === "minor") {
-      setAdultVerified(false);
       setAdultGateView("minor");
+      moveToLoginScreen("미성년자는 로그인 및 앱 접근이 제한됩니다.", { clearSession: true, resetIdentity: true });
       return;
     }
     try {
@@ -3321,31 +3359,11 @@ export default function App() {
           <section className="tab-pane fill-pane auth-gate-pane">
             <div className="auth-gate-card stack-gap compact-scroll-list auth-entry-pane">
               <div className="section-head compact-head">
-                <div><h2>로그인 / 회원가입</h2><p>로그인과 회원가입은 상단바·하단바가 없는 별도 화면으로 분리했습니다. 아래 버튼으로 독립 화면으로 이동해 진행할 수 있습니다.</p></div>
+                <div><h2>로그인</h2></div>
               </div>
-              <div className="legacy-grid two auth-entry-grid">
-                <div className="legacy-box compact auth-entry-card">
-                  <h3>로그인 화면</h3>
-                  <p>테스트 계정 입력, 일반 로그인, 관리자 로그인 확인을 독립 화면에서 진행합니다.</p>
-                  <div className="copy-action-row">
-                    <button type="button" onClick={() => setAuthStandaloneScreen("login")}>로그인 화면 열기</button>
-                  </div>
-                </div>
-                <div className="legacy-box compact auth-entry-card">
-                  <h3>회원가입 화면</h3>
-                  <p>필수 동의 → 가입정보 입력 → 선택 프로필 입력 순서의 별도 회원가입 화면으로 이동합니다.</p>
-                  <div className="copy-action-row">
-                    <button type="button" className="ghost-btn" onClick={() => { setSignupStep("consent"); setAuthStandaloneScreen("signup"); }}>회원가입 화면 열기</button>
-                  </div>
-                </div>
-              </div>
-              <div className="legacy-box compact auth-summary-box">
-                <h3>테스트 계정 바로 입력</h3>
-                <div className="chip-checklist auth-account-chiplist">
-                  <button type="button" className="chip-check" onClick={() => { fillTestAccount("customer@example.com", "customer1234"); setAuthStandaloneScreen("login"); }}>회원 계정</button>
-                  <button type="button" className="chip-check" onClick={() => { fillTestAccount("admin@example.com", "admin1234"); setAuthStandaloneScreen("login"); }}>관리자 계정</button>
-                  <button type="button" className="chip-check" onClick={() => { fillTestAccount("seller@example.com", "seller1234"); setAuthStandaloneScreen("login"); }}>판매자 계정</button>
-                </div>
+              <div className="copy-action-row">
+                <button type="button" onClick={() => setAuthStandaloneScreen("login")}>로그인 화면으로 이동</button>
+                <button type="button" className="ghost-btn" onClick={() => { setSignupStep("consent"); setAuthStandaloneScreen("signup"); }}>회원가입</button>
               </div>
             </div>
           </section>

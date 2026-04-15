@@ -1,0 +1,3 @@
+frontend npm run build: PASS
+backend python -m compileall backend/app: PASS
+update: shopping business verification / product registration split + admin auto publish

@@ -1,0 +1,5 @@
+backend deploy fix v2
+- import app.main OK in production-style env
+- DATABASE_URL normalization OK
+- startup DB init/seed disabled by default
+- manual DB init script added

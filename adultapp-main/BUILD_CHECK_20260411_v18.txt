@@ -1,0 +1,18 @@
+[BUILD CHECK]
+- backend: python -m compileall backend/app -> PASS
+- backend: python import smoke check -> PASS
+- frontend: npm install -> PASS
+- frontend: npm run build -> PASS
+- frontend dist assets:
+  - dist/assets/index-CNk8i5uc.css
+  - dist/assets/index-CPhahkLb.js
+
+[UPDATED POLICY SNAPSHOT]
+- 인증사: PASS + 휴대폰 본인확인
+- 카카오: 로그인 편의 수단 전용
+- 운영키: 공개 베타 직전 전환
+- 미성년자: 로그인 및 접속 차단
+- 성인 회원: 홈/쇼핑 최초 접근 시 1회 추가 성인인증
+- 관리자 예외: 최상위 관리자만 예외
+- 재동의: 필수 문서 변경 시 7일 유예 후 강제
+- 위탁/제3자 제공: 정식 계약 완료 공급사만 처리방침 확정 기재

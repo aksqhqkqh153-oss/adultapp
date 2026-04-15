@@ -1,0 +1,5 @@
+BUILD CHECK v19
+- backend compileall: OK
+- frontend npm install: OK
+- frontend npm run build: OK
+- policy decisions applied: PASS integrated rollout, minor retention, admin exception audit-only approval, reconsent grace explanation

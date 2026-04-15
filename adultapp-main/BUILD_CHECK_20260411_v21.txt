@@ -1,0 +1,18 @@
+BUILD CHECK v21
+Date: 2026-04-11
+
+[backend]
+- python -m compileall backend/app -> OK
+- python import backend.app.main:app -> OK (routes=113)
+
+[frontend]
+- npm run build -> OK
+- dist/assets/index-BKiS-b7r.css
+- dist/assets/index-ClPe1nCG.js
+
+[updated focus]
+- legal business info/config endpoint added
+- legal release readiness endpoint added
+- frontend legal release banner and business footer added
+- legal templates updated for Korea release display items
+- release legal gaps document added
