@@ -280,8 +280,8 @@ pre {
   padding: 0 14px;
 }
 .settings-category-btn.active {
-  background: rgba(255, 211, 122, 0.12);
-  border-color: rgba(255, 211, 122, 0.42);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.18);
   color: var(--accent-strong);
 }
 .settings-logout-btn {
@@ -302,9 +302,9 @@ pre {
   color: #fafafa;
 }
 .toggle-pill.on {
-  background: rgba(84, 214, 136, 0.16);
-  border-color: rgba(84, 214, 136, 0.34);
-  color: #baffd3;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: rgba(255,255,255,0.94);
 }
 .toggle-pill.off {
   background: rgba(255,255,255,0.04);
@@ -2476,7 +2476,7 @@ pre {
 .shorts-more-icon-btn:hover,
 .shorts-more-icon-btn:focus-visible {
   border: 0;
-  background: rgba(255,255,255,0.08);
+  background: transparent;
 }
 .shorts-viewer-overlay {
   position: fixed;
@@ -2498,6 +2498,13 @@ pre {
   justify-content: space-between;
   padding: max(12px, env(safe-area-inset-top)) 12px 0;
   pointer-events: none;
+  opacity: 0;
+  transform: translateY(-12px);
+  transition: opacity .28s ease, transform .28s ease;
+}
+.shorts-viewer-topbar.visible {
+  opacity: 1;
+  transform: translateY(0);
 }
 .shorts-viewer-topbar-actions {
   display: flex;
@@ -2570,7 +2577,15 @@ pre {
   color: rgba(255,255,255,0.92);
   font-size: 24px;
   font-weight: 800;
-  background: linear-gradient(180deg, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0.28) 40%, rgba(0,0,0,0.64) 100%);
+  background: linear-gradient(180deg, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.22) 42%, rgba(0,0,0,0.72) 100%);
+}
+.shorts-viewer-video-poster {
+  padding: 8px 10px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(0,0,0,0.38);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 .shorts-viewer-side-actions {
   position: absolute;
@@ -2596,9 +2611,11 @@ pre {
   display: grid;
   justify-items: center;
   align-items: center;
+  align-content: center;
   gap: 4px;
   font-size: 12px;
   padding: 0;
+  min-width: 44px;
 }
 .shorts-viewer-action-btn span {
   width: 42px;
@@ -2607,6 +2624,8 @@ pre {
   background: transparent;
   display: grid;
   place-items: center;
+  justify-content: center;
+  align-content: center;
   font-size: 20px;
 }
 .shorts-viewer-action-btn span svg {
@@ -2707,6 +2726,8 @@ pre {
   transition: transform .24s ease, opacity .24s ease;
 }
 .shorts-category-strip {
+  position: relative;
+  z-index: 8;
   display: flex;
   gap: 8px;
   overflow-x: auto;
@@ -2741,4 +2762,32 @@ pre {
 }
 .shorts-viewer-action-btn.active svg {
   fill: currentColor;
+}
+.shorts-viewer-topbar .shorts-icon-btn,
+.shorts-viewer-action-btn,
+.shorts-viewer-author-link,
+.shorts-viewer-full-title,
+.shorts-viewer-description {
+  background: transparent;
+  border: 0;
+}
+.shorts-viewer-side-actions.visible,
+.shorts-viewer-bottom.visible {
+  transition-duration: .32s;
+}
+
+
+.shop-list-head { justify-content: flex-end; }
+.shop-list-head > div:first-child { display:none; }
+
+.shorts-video-poster-tag {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 5px 8px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(0,0,0,0.46);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: rgba(255,255,255,0.92);
 }
