@@ -544,6 +544,73 @@ function BellIcon() {
   );
 }
 
+function BackArrowIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M15.5 5 8.5 12l7 7" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function MoreDotsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <circle cx="6" cy="12" r="1.8" fill="currentColor" />
+      <circle cx="12" cy="12" r="1.8" fill="currentColor" />
+      <circle cx="18" cy="12" r="1.8" fill="currentColor" />
+    </svg>
+  );
+}
+
+function ThumbUpIcon({ filled = false }: { filled?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M10 10V5.8c0-1.05.83-1.8 1.55-2.52.65-.64 1.27-1.26 1.45-2.22.06-.34.52-.42.72-.13.84 1.21 1.28 2.76 1.28 4.73V10h4.1c1.04 0 1.84.93 1.68 1.95l-1.23 7.9A2 2 0 0 1 17.58 21H9.7A1.7 1.7 0 0 1 8 19.3V10h2Z"
+        fill={filled ? "currentColor" : "none"}
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path d="M4 10h4v11H5.2A1.2 1.2 0 0 1 4 19.8V10Z" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ThumbDownIcon({ filled = false }: { filled?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <g transform="translate(24 24) rotate(180)">
+        <path
+          d="M10 10V5.8c0-1.05.83-1.8 1.55-2.52.65-.64 1.27-1.26 1.45-2.22.06-.34.52-.42.72-.13.84 1.21 1.28 2.76 1.28 4.73V10h4.1c1.04 0 1.84.93 1.68 1.95l-1.23 7.9A2 2 0 0 1 17.58 21H9.7A1.7 1.7 0 0 1 8 19.3V10h2Z"
+          fill={filled ? "currentColor" : "none"}
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinejoin="round"
+        />
+        <path d="M4 10h4v11H5.2A1.2 1.2 0 0 1 4 19.8V10Z" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      </g>
+    </svg>
+  );
+}
+
+function CommentBubbleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M6 6.5h12A2.5 2.5 0 0 1 20.5 9v6A2.5 2.5 0 0 1 18 17.5H11l-4.5 3v-3H6A2.5 2.5 0 0 1 3.5 15V9A2.5 2.5 0 0 1 6 6.5Z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ShareArrowIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M13 5.5 20 12l-7 6.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M19.5 12H10a5.5 5.5 0 0 0-5.5 5.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 const feedSeed: FeedItem[] = Array.from({ length: 18 }, (_, idx) => ({
   id: idx + 1,
   type: idx % 3 === 0 ? "video" : "image",
@@ -1000,7 +1067,7 @@ function ShortsListCard({ item, onOpenMore, onOpenViewer }: { item: FeedItem; on
                   onOpenMore(item);
                 }}
               >
-                ⋯
+                <MoreDotsIcon />
               </button>
             </div>
             <span className="shorts-inline-meta">{item.author} · 조회수 {(item.views ?? 0).toLocaleString()}회 · {item.postedAt ?? "방금"} · 추천수 {item.likes.toLocaleString()}</span>
@@ -1069,10 +1136,10 @@ function ShortsViewer({
   return (
     <div className="shorts-viewer-overlay">
       <div className="shorts-viewer-topbar">
-        <button type="button" className="shorts-icon-btn" onClick={onClose} aria-label="뒤로가기">←</button>
+        <button type="button" className="shorts-icon-btn shorts-back-btn" onClick={onClose} aria-label="뒤로가기"><BackArrowIcon /></button>
         <div className="shorts-viewer-topbar-actions">
-          <button type="button" className="shorts-icon-btn" onClick={() => setSearchOpen((prev) => !prev)} aria-label="쇼츠 검색">⌕</button>
-          <button type="button" className="shorts-icon-btn" onClick={() => onOpenMore(activeItem)} aria-label="쇼츠 더보기">⋯</button>
+          <button type="button" className="shorts-icon-btn" onClick={() => setSearchOpen((prev) => !prev)} aria-label="쇼츠 검색"><SearchIcon /></button>
+          <button type="button" className="shorts-icon-btn" onClick={() => onOpenMore(activeItem)} aria-label="쇼츠 더보기"><MoreDotsIcon /></button>
         </div>
       </div>
 
@@ -1095,10 +1162,10 @@ function ShortsViewer({
               </button>
 
               <div className={`shorts-viewer-side-actions${paused ? " visible" : ""}`}>
-                <button type="button" className={`shorts-viewer-action-btn${liked ? " active" : ""}`} onClick={() => toggleReaction("like", item.id)}><span>👍</span><b>{item.likes.toLocaleString()}</b></button>
-                <button type="button" className={`shorts-viewer-action-btn${disliked ? " active" : ""}`} onClick={() => toggleReaction("dislike", item.id)}><span>👎</span><b>{Math.max(12, Math.round(item.likes / 11)).toLocaleString()}</b></button>
-                <button type="button" className="shorts-viewer-action-btn"><span>💬</span><b>{item.comments.toLocaleString()}</b></button>
-                <button type="button" className="shorts-viewer-action-btn"><span>↗</span><b>공유</b></button>
+                <button type="button" className={`shorts-viewer-action-btn${liked ? " active" : ""}`} onClick={() => toggleReaction("like", item.id)}><span><ThumbUpIcon filled={liked} /></span><b>{item.likes.toLocaleString()}</b></button>
+                <button type="button" className={`shorts-viewer-action-btn${disliked ? " active" : ""}`} onClick={() => toggleReaction("dislike", item.id)}><span><ThumbDownIcon filled={disliked} /></span><b>{Math.max(12, Math.round(item.likes / 11)).toLocaleString()}</b></button>
+                <button type="button" className="shorts-viewer-action-btn"><span><CommentBubbleIcon /></span><b>{item.comments.toLocaleString()}</b></button>
+                <button type="button" className="shorts-viewer-action-btn"><span><ShareArrowIcon /></span><b>공유</b></button>
               </div>
 
               <div className={`shorts-viewer-bottom${paused ? " visible" : ""}`}>
@@ -1775,6 +1842,9 @@ export default function App() {
   const [shortsVisibleCount, setShortsVisibleCount] = useState(10);
   const [shortsMoreItem, setShortsMoreItem] = useState<FeedItem | null>(null);
   const [shortsViewerItemId, setShortsViewerItemId] = useState<number | null>(null);
+  const [shortsHeaderHidden, setShortsHeaderHidden] = useState(false);
+  const [shortsCategoryVisible, setShortsCategoryVisible] = useState(true);
+  const [lastShortsScrollTop, setLastShortsScrollTop] = useState(0);
   const [authStandaloneScreen, setAuthStandaloneScreen] = useState<AuthStandaloneScreen | null>(null);
   const [homeShopConsentGuideSeen, setHomeShopConsentGuideSeen] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -2118,15 +2188,29 @@ export default function App() {
 
   const handleShortsScroll = (event: UIEvent<HTMLDivElement>) => {
     const target = event.currentTarget;
-    const remain = target.scrollHeight - target.scrollTop - target.clientHeight;
+    const currentTop = target.scrollTop;
+    const remain = target.scrollHeight - currentTop - target.clientHeight;
     if (remain < 240) {
       setShortsVisibleCount((prev) => Math.min(prev + 10, shortsFeedItems.length));
     }
+    const scrollingDown = currentTop > lastShortsScrollTop + 6;
+    const scrollingUp = currentTop < lastShortsScrollTop - 6;
+    if (scrollingDown && currentTop > 24) {
+      setShortsHeaderHidden(true);
+      setShortsCategoryVisible(false);
+    } else if (scrollingUp) {
+      setShortsHeaderHidden(false);
+      setShortsCategoryVisible(true);
+    } else if (currentTop <= 8) {
+      setShortsHeaderHidden(false);
+      setShortsCategoryVisible(true);
+    }
+    setLastShortsScrollTop(currentTop);
   };
 
   const homeMenuItems = [
     { label: "피드", onClick: () => { setHomeTab("피드"); setOverlayMode(null); } },
-    { label: "쇼츠", onClick: () => { setHomeTab("쇼츠"); setOverlayMode(null); } },
+    { label: "쇼츠", onClick: () => { setHomeTab("쇼츠"); setOverlayMode(null); setShortsHeaderHidden(false); setShortsCategoryVisible(true); } },
     { label: "상품", onClick: () => { setHomeTab("상품"); setOverlayMode(null); } },
     { label: "보관함", onClick: goToSavedBox },
   ];
@@ -3191,7 +3275,7 @@ export default function App() {
 
   return (
     <div className="mobile-app-shell">
-      <header className="top-header">
+      <header className={`top-header${activeTab === "홈" && homeTab === "쇼츠" && shortsHeaderHidden ? " shorts-top-header-hidden" : ""}`}>
         <div className="topbar-row">
           <div className="topbar-side topbar-left">
             <div className="topbar-inline-actions topbar-inline-actions-left">
@@ -3222,6 +3306,13 @@ export default function App() {
           </div>
         </div>
       </header>
+      {showBaseTabContent && activeTab === "홈" && homeTab === "쇼츠" ? (
+        <div className={`shorts-category-strip${shortsCategoryVisible ? " visible" : ""}`}>
+          {["전체", "추천", "브랜드", "리뷰", "실사용", "이벤트", "보관팁", "신상품"].map((category, idx) => (
+            <button key={category} type="button" className={`shorts-category-chip${idx === 0 ? " active" : ""}`}>{category}</button>
+          ))}
+        </div>
+      ) : null}
 
       <main className="mobile-main">
         {showBaseTabContent && reconsentRequired ? (

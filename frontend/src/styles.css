@@ -11,10 +11,10 @@
   --text: #f4f4f5;
   --soft: #a1a1aa;
   --muted: #71717a;
-  --accent: #d4af37;
-  --accent-soft: rgba(212, 175, 55, 0.18);
-  --accent-strong: #f5deb3;
-  --mobile-nav-height: 45px;
+  --accent: rgba(255, 255, 255, 0.9);
+  --accent-soft: rgba(255, 255, 255, 0.1);
+  --accent-strong: rgba(255, 255, 255, 0.94);
+  --mobile-nav-height: 40px;
 }
 * { box-sizing: border-box; }
 html, body, #root {
@@ -41,9 +41,9 @@ button {
 }
 button:hover { border-color: var(--line-strong); }
 button.active {
-  border-color: rgba(212, 175, 55, 0.42);
-  background: var(--accent-soft);
-  color: var(--accent-strong);
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.94);
 }
 input,
 select {
@@ -184,7 +184,7 @@ pre {
 }
 .header-inline-btn.active {
   background: var(--accent-soft);
-  border-color: rgba(212, 175, 55, 0.38);
+  border-color: rgba(255, 255, 255, 0.16);
   color: var(--accent-strong);
 }
 .mobile-main {
@@ -1067,12 +1067,12 @@ pre {
   border-top: 1px solid var(--line-strong);
   background: rgba(0, 0, 0, 0.98);
   backdrop-filter: blur(14px);
-  min-height: var(--mobile-nav-height, 45px);
+  min-height: var(--mobile-nav-height, 40px);
   position: relative;
   z-index: 72;
 }
 .bottom-nav-btn {
-  min-height: var(--mobile-nav-height, 45px);
+  min-height: var(--mobile-nav-height, 40px);
   border: 0;
   border-right: 1px solid var(--line);
   border-radius: 0;
@@ -1083,8 +1083,8 @@ pre {
 }
 .bottom-nav-btn:last-child { border-right: 0; }
 .bottom-nav-btn.active {
-  background: var(--accent-soft);
-  color: var(--accent-strong);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.94);
 }
 .modal-backdrop {
   position: fixed;
@@ -2262,7 +2262,9 @@ pre {
 }
 .shorts-video-stage {
   position: relative;
-  min-height: 300px;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  min-height: 0;
   border: 1px solid rgba(255,255,255,0.08);
   background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%);
   display: grid;
@@ -2506,12 +2508,22 @@ pre {
   height: 38px;
   border: 0;
   border-radius: 999px;
-  background: rgba(0,0,0,0.42);
+  background: transparent;
   color: #fff;
   display: inline-grid;
   place-items: center;
   font-size: 22px;
   pointer-events: auto;
+  padding: 0;
+}
+.shorts-icon-btn svg {
+  width: 24px;
+  height: 24px;
+  display: block;
+}
+.shorts-back-btn svg {
+  width: 26px;
+  height: 26px;
 }
 .shorts-viewer-searchbar {
   position: absolute;
@@ -2583,21 +2595,28 @@ pre {
   color: #fff;
   display: grid;
   justify-items: center;
+  align-items: center;
   gap: 4px;
   font-size: 12px;
+  padding: 0;
 }
 .shorts-viewer-action-btn span {
   width: 42px;
   height: 42px;
   border-radius: 999px;
-  background: rgba(0,0,0,0.42);
+  background: transparent;
   display: grid;
   place-items: center;
   font-size: 20px;
 }
+.shorts-viewer-action-btn span svg {
+  width: 24px;
+  height: 24px;
+  display: block;
+}
 .shorts-viewer-action-btn.active span {
-  background: rgba(212, 175, 55, 0.96);
-  color: #050505;
+  background: transparent;
+  color: #ffffff;
 }
 .shorts-viewer-bottom {
   position: absolute;
@@ -2653,6 +2672,7 @@ pre {
 .shorts-subscribe-btn.subscribed {
   background: transparent;
   color: #fff;
+  border-color: rgba(255,255,255,0.3);
 }
 .shorts-viewer-full-title {
   font-weight: 700;
@@ -2675,4 +2695,50 @@ pre {
   padding: 12px 14px calc(18px + env(safe-area-inset-bottom));
   display: grid;
   gap: 12px;
+}
+
+.top-header.shorts-top-header-hidden {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+.top-header,
+.shorts-category-strip {
+  transition: transform .24s ease, opacity .24s ease;
+}
+.shorts-category-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.98);
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+.shorts-category-strip.visible {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+.shorts-category-chip {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: #f4f4f5;
+}
+.shorts-category-chip.active {
+  background: rgba(255,255,255,0.1);
+  border-color: rgba(255,255,255,0.16);
+  color: rgba(255,255,255,0.94);
+}
+.shorts-viewer-action-btn b {
+  font-weight: 700;
+}
+.shorts-viewer-action-btn.active svg {
+  fill: currentColor;
 }
