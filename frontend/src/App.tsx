@@ -15,7 +15,7 @@ type FeedItem = {
   postedAt?: string;
 };
 
-type ShortOption = "관심 없음" | "보관함" | "공유" | "신고";
+type ShortOption = "공유" | "보관함저장" | "관심없음" | "채널 추천 안함" | "신고";
 
 type StoryItem = {
   id: number;
@@ -983,22 +983,17 @@ function ShortsListCard({ item, saved, onToggleSave, onOpenMore }: { item: FeedI
   return (
     <article className="shorts-list-card">
       <div className={`shorts-video-stage ${item.accent}`}>
-        <div className="shorts-video-badge">SHORTS</div>
         <div className="shorts-video-center">영상</div>
       </div>
-      <div className="shorts-list-copy">
-        <div className="shorts-title-row">
+      <div className="shorts-list-copy shorts-list-copy-detailed">
+        <div className="shorts-detail-row shorts-detail-title-row">
+          <span className="shorts-profile-avatar" aria-hidden="true">{item.author.slice(0, 1).toUpperCase()}</span>
           <strong>{item.title}</strong>
           <button type="button" className="shorts-more-btn" aria-label={`${item.title} 더보기`} onClick={() => onOpenMore(item)}>…</button>
         </div>
-        <div className="shorts-meta-row">
-          <span>{item.author}</span>
-          <span>조회수 {(item.views ?? 0).toLocaleString()}</span>
-          <span>{item.postedAt ?? "방금"}</span>
-        </div>
-        <div className="shorts-action-row">
-          <button type="button" className="ghost-btn" onClick={() => onToggleSave(item.id)}>{saved ? "보관해제" : "보관함"}</button>
-          <button type="button">공유</button>
+        <div className="shorts-detail-row shorts-detail-meta-row">
+          <span className="shorts-profile-avatar" aria-hidden="true">{item.author.slice(0, 1).toUpperCase()}</span>
+          <span className="shorts-inline-meta">{item.author} · 조회수 {(item.views ?? 0).toLocaleString()}회 · {item.postedAt ?? "방금"} · 추천수 {item.likes.toLocaleString()}</span>
         </div>
       </div>
     </article>
@@ -3441,7 +3436,7 @@ export default function App() {
         ) : null}
 
         {showAppTabContent && activeTab === "홈" ? (
-          <section className="tab-pane fill-pane home-feed-pane">
+          <section className={`tab-pane fill-pane home-feed-pane${homeTab === "쇼츠" ? " home-feed-pane-shorts" : ""}`}>
             {homeTab === "피드" ? (
               <>
                 <StoryStrip onOpenStory={setSelectedStory} />
@@ -3455,7 +3450,6 @@ export default function App() {
               </>
             ) : homeTab === "쇼츠" ? (
               <>
-                <div className="section-head compact-head"><div><h2>쇼츠</h2></div></div>
                 <div className="shorts-list-wrap compact-scroll-list" onScroll={handleShortsScroll}>
                   {pagedShorts.length ? pagedShorts.map((item) => (
                     <ShortsListCard
@@ -4074,13 +4068,13 @@ export default function App() {
                 <span>{shortsMoreItem.author}</span>
               </div>
               <div className="shorts-sheet-actions">
-                {(["관심 없음", "보관함", "공유", "신고"] as ShortOption[]).map((option) => (
+                {(["공유", "보관함저장", "관심없음", "채널 추천 안함", "신고"] as ShortOption[]).map((option) => (
                   <button
                     key={option}
                     type="button"
                     className="shorts-sheet-btn"
                     onClick={() => {
-                      if (option === "보관함") toggleSavedFeed(shortsMoreItem.id);
+                      if (option === "보관함저장") toggleSavedFeed(shortsMoreItem.id);
                       setShortsMoreItem(null);
                     }}
                   >
