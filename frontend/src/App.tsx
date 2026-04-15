@@ -1,4 +1,4 @@
-import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, UIEvent, useEffect, useMemo, useRef, useState } from "react";
 import { clearTokens, ensureAuthSession, getApiBase, getJson, getRefreshToken, hasAuthToken, postJson, setAuthToken, setRefreshToken } from "./lib/api";
 
 type FeedItem = {
@@ -11,7 +11,11 @@ type FeedItem = {
   likes: number;
   comments: number;
   accent: string;
+  views?: number;
+  postedAt?: string;
 };
+
+type ShortOption = "관심 없음" | "보관함" | "공유" | "신고";
 
 type StoryItem = {
   id: number;
@@ -553,6 +557,8 @@ const feedSeed: FeedItem[] = Array.from({ length: 18 }, (_, idx) => ({
   likes: 160 + idx * 7,
   comments: 12 + (idx % 9),
   accent: ["sunrise", "violet", "teal", "rose"][idx % 4],
+  views: 1200 + idx * 173,
+  postedAt: ["12분 전", "35분 전", "1시간 전", "2시간 전", "오늘", "어제"][idx % 6],
 }));
 
 const storySeed: StoryItem[] = [
@@ -970,6 +976,32 @@ function StoryStrip({ onOpenStory }: { onOpenStory: (story: StoryItem) => void }
         ))}
       </div>
     </section>
+  );
+}
+
+function ShortsListCard({ item, saved, onToggleSave, onOpenMore }: { item: FeedItem; saved: boolean; onToggleSave: (id: number) => void; onOpenMore: (item: FeedItem) => void }) {
+  return (
+    <article className="shorts-list-card">
+      <div className={`shorts-video-stage ${item.accent}`}>
+        <div className="shorts-video-badge">SHORTS</div>
+        <div className="shorts-video-center">영상</div>
+      </div>
+      <div className="shorts-list-copy">
+        <div className="shorts-title-row">
+          <strong>{item.title}</strong>
+          <button type="button" className="shorts-more-btn" aria-label={`${item.title} 더보기`} onClick={() => onOpenMore(item)}>…</button>
+        </div>
+        <div className="shorts-meta-row">
+          <span>{item.author}</span>
+          <span>조회수 {(item.views ?? 0).toLocaleString()}</span>
+          <span>{item.postedAt ?? "방금"}</span>
+        </div>
+        <div className="shorts-action-row">
+          <button type="button" className="ghost-btn" onClick={() => onToggleSave(item.id)}>{saved ? "보관해제" : "보관함"}</button>
+          <button type="button">공유</button>
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -1616,6 +1648,8 @@ export default function App() {
     try { return JSON.parse(window.localStorage.getItem("adultapp_saved_product_ids") ?? "[]"); } catch { return []; }
   });
   const [savedTab, setSavedTab] = useState<"피드" | "상품">("피드");
+  const [shortsVisibleCount, setShortsVisibleCount] = useState(10);
+  const [shortsMoreItem, setShortsMoreItem] = useState<FeedItem | null>(null);
   const [authStandaloneScreen, setAuthStandaloneScreen] = useState<AuthStandaloneScreen | null>(null);
   const [homeShopConsentGuideSeen, setHomeShopConsentGuideSeen] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -1957,6 +1991,14 @@ export default function App() {
 
   };
 
+  const handleShortsScroll = (event: UIEvent<HTMLDivElement>) => {
+    const target = event.currentTarget;
+    const remain = target.scrollHeight - target.scrollTop - target.clientHeight;
+    if (remain < 240) {
+      setShortsVisibleCount((prev) => Math.min(prev + 10, shortsFeedItems.length));
+    }
+  };
+
   const homeMenuItems = [
     { label: "피드", onClick: () => { setHomeTab("피드"); setOverlayMode(null); } },
     { label: "쇼츠", onClick: () => { setHomeTab("쇼츠"); setOverlayMode(null); } },
@@ -1971,6 +2013,28 @@ export default function App() {
   }, [globalKeyword]);
 
   const visibleShorts = useMemo(() => visibleFeed.filter((item) => item.type === "video" || item.category.includes("숏")), [visibleFeed]);
+
+  const shortsFeedItems = useMemo(() => {
+    const source = visibleShorts.length ? visibleShorts : feedSeed.filter((item) => item.type === "video" || item.category.includes("숏"));
+    return Array.from({ length: 60 }, (_, idx) => {
+      const base = source[idx % source.length];
+      return {
+        ...base,
+        id: 1000 + idx,
+        category: "숏클립",
+        title: `${base.title} ${idx + 1}`,
+        views: (base.views ?? 1000) + idx * 91,
+        postedAt: ["방금", "9분 전", "26분 전", "1시간 전", "3시간 전", "어제"][idx % 6],
+      };
+    });
+  }, [visibleShorts]);
+
+  const pagedShorts = useMemo(() => shortsFeedItems.slice(0, shortsVisibleCount), [shortsFeedItems, shortsVisibleCount]);
+
+  useEffect(() => {
+    setShortsVisibleCount(10);
+  }, [globalKeyword]);
+
 
   const allShopItems = useMemo(() => {
     const keyword = `${shopKeyword} ${globalKeyword}`.trim().toLowerCase();
@@ -3391,8 +3455,19 @@ export default function App() {
               </>
             ) : homeTab === "쇼츠" ? (
               <>
-                <div className="section-head compact-head"><div><h2>쇼츠</h2><p>세로형 짧은 영상 중심으로 빠르게 넘겨보는 홈 탭입니다.</p></div></div>
-                <div className="feed-post-list compact-scroll-list">{visibleShorts.length ? visibleShorts.map((item) => <FeedPoster key={`short-${item.id}`} item={{ ...item, category: item.category.includes("숏") ? item.category : "숏클립" }} onAsk={openAskFromFeed} saved={savedFeedIds.includes(item.id)} onToggleSave={toggleSavedFeed} />) : <div className="legacy-box compact"><p>표시할 쇼츠가 없습니다.</p></div>}</div>
+                <div className="section-head compact-head"><div><h2>쇼츠</h2></div></div>
+                <div className="shorts-list-wrap compact-scroll-list" onScroll={handleShortsScroll}>
+                  {pagedShorts.length ? pagedShorts.map((item) => (
+                    <ShortsListCard
+                      key={`short-${item.id}`}
+                      item={item}
+                      saved={savedFeedIds.includes(item.id)}
+                      onToggleSave={toggleSavedFeed}
+                      onOpenMore={setShortsMoreItem}
+                    />
+                  )) : <div className="legacy-box compact"><p>표시할 쇼츠가 없습니다.</p></div>}
+                  {pagedShorts.length < shortsFeedItems.length ? <div className="shorts-loading-row">쇼츠 10개 단위로 추가 로딩 중</div> : null}
+                </div>
               </>
             ) : homeTab === "상품" ? (
               <>
@@ -3990,7 +4065,34 @@ export default function App() {
         </section>
       ) : null}
 
-      {adultPromptOpen ? (
+              {shortsMoreItem ? (
+          <div className="shorts-sheet-backdrop" onClick={() => setShortsMoreItem(null)}>
+            <div className="shorts-sheet" onClick={(event) => event.stopPropagation()}>
+              <div className="shorts-sheet-handle" />
+              <div className="shorts-sheet-header">
+                <strong>{shortsMoreItem.title}</strong>
+                <span>{shortsMoreItem.author}</span>
+              </div>
+              <div className="shorts-sheet-actions">
+                {(["관심 없음", "보관함", "공유", "신고"] as ShortOption[]).map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    className="shorts-sheet-btn"
+                    onClick={() => {
+                      if (option === "보관함") toggleSavedFeed(shortsMoreItem.id);
+                      setShortsMoreItem(null);
+                    }}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+{adultPromptOpen ? (
         <div className="modal-backdrop">
           <div className="modal-card adult-auth-modal">
             <div className="modal-header-row">
