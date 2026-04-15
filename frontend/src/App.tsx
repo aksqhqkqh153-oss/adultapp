@@ -979,24 +979,153 @@ function StoryStrip({ onOpenStory }: { onOpenStory: (story: StoryItem) => void }
   );
 }
 
-function ShortsListCard({ item, saved, onToggleSave, onOpenMore }: { item: FeedItem; saved: boolean; onToggleSave: (id: number) => void; onOpenMore: (item: FeedItem) => void }) {
+function ShortsListCard({ item, onOpenMore, onOpenViewer }: { item: FeedItem; onOpenMore: (item: FeedItem) => void; onOpenViewer: (item: FeedItem) => void }) {
   return (
-    <article className="shorts-list-card">
-      <div className={`shorts-video-stage ${item.accent}`}>
+    <article className="shorts-list-card" onClick={() => onOpenViewer(item)}>
+      <button type="button" className={`shorts-video-stage ${item.accent}`} onClick={() => onOpenViewer(item)}>
         <div className="shorts-video-center">영상</div>
-      </div>
+      </button>
       <div className="shorts-list-copy shorts-list-copy-detailed">
-        <div className="shorts-detail-row shorts-detail-title-row">
+        <div className="shorts-detail-identity-row">
           <span className="shorts-profile-avatar" aria-hidden="true">{item.author.slice(0, 1).toUpperCase()}</span>
-          <strong>{item.title}</strong>
-          <button type="button" className="shorts-more-btn" aria-label={`${item.title} 더보기`} onClick={() => onOpenMore(item)}>…</button>
-        </div>
-        <div className="shorts-detail-row shorts-detail-meta-row">
-          <span className="shorts-profile-avatar" aria-hidden="true">{item.author.slice(0, 1).toUpperCase()}</span>
-          <span className="shorts-inline-meta">{item.author} · 조회수 {(item.views ?? 0).toLocaleString()}회 · {item.postedAt ?? "방금"} · 추천수 {item.likes.toLocaleString()}</span>
+          <div className="shorts-detail-copy-block">
+            <div className="shorts-detail-title-bar">
+              <strong>{item.title}</strong>
+              <button
+                type="button"
+                className="shorts-more-btn shorts-more-icon-btn"
+                aria-label={`${item.title} 더보기`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onOpenMore(item);
+                }}
+              >
+                ⋯
+              </button>
+            </div>
+            <span className="shorts-inline-meta">{item.author} · 조회수 {(item.views ?? 0).toLocaleString()}회 · {item.postedAt ?? "방금"} · 추천수 {item.likes.toLocaleString()}</span>
+          </div>
         </div>
       </div>
     </article>
+  );
+}
+
+function ShortsViewer({
+  items,
+  initialIndex,
+  onClose,
+  onOpenMore,
+}: {
+  items: FeedItem[];
+  initialIndex: number;
+  onClose: () => void;
+  onOpenMore: (item: FeedItem) => void;
+}) {
+  const [activeIndex, setActiveIndex] = useState(initialIndex);
+  const [pausedMap, setPausedMap] = useState<Record<number, boolean>>(() => ({ [items[initialIndex]?.id ?? 0]: false }));
+  const [likedIds, setLikedIds] = useState<number[]>([]);
+  const [dislikedIds, setDislikedIds] = useState<number[]>([]);
+  const [subscribedIds, setSubscribedIds] = useState<number[]>([]);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const [descriptionItem, setDescriptionItem] = useState<FeedItem | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const target = scrollRef.current?.querySelector<HTMLElement>(`[data-short-index="${initialIndex}"]`);
+    target?.scrollIntoView({ block: "start" });
+  }, [initialIndex]);
+
+  const activeItem = items[activeIndex] ?? items[0];
+  const isPaused = !!pausedMap[activeItem?.id ?? 0];
+
+  const togglePause = (itemId: number) => {
+    setPausedMap((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
+  };
+
+  const handleViewerScroll = (event: UIEvent<HTMLDivElement>) => {
+    const container = event.currentTarget;
+    const nextIndex = Math.round(container.scrollTop / Math.max(container.clientHeight, 1));
+    if (nextIndex !== activeIndex && items[nextIndex]) {
+      setActiveIndex(nextIndex);
+    }
+  };
+
+  const toggleReaction = (kind: "like" | "dislike", itemId: number) => {
+    if (kind === "like") {
+      setLikedIds((prev) => prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]);
+      setDislikedIds((prev) => prev.filter((id) => id !== itemId));
+      return;
+    }
+    setDislikedIds((prev) => prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]);
+    setLikedIds((prev) => prev.filter((id) => id !== itemId));
+  };
+
+  const toggleSubscribe = (itemId: number) => {
+    setSubscribedIds((prev) => prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]);
+  };
+
+  return (
+    <div className="shorts-viewer-overlay">
+      <div className="shorts-viewer-topbar">
+        <button type="button" className="shorts-icon-btn" onClick={onClose} aria-label="뒤로가기">←</button>
+        <div className="shorts-viewer-topbar-actions">
+          <button type="button" className="shorts-icon-btn" onClick={() => setSearchOpen((prev) => !prev)} aria-label="쇼츠 검색">⌕</button>
+          <button type="button" className="shorts-icon-btn" onClick={() => onOpenMore(activeItem)} aria-label="쇼츠 더보기">⋯</button>
+        </div>
+      </div>
+
+      {searchOpen ? (
+        <div className="shorts-viewer-searchbar">
+          <input value={searchText} onChange={(event) => setSearchText(event.target.value)} placeholder="쇼츠 검색" />
+        </div>
+      ) : null}
+
+      <div className="shorts-viewer-scroll" ref={scrollRef} onScroll={handleViewerScroll}>
+        {items.map((item, idx) => {
+          const paused = !!pausedMap[item.id];
+          const liked = likedIds.includes(item.id);
+          const disliked = dislikedIds.includes(item.id);
+          const subscribed = subscribedIds.includes(item.id);
+          return (
+            <section key={`viewer-${item.id}`} className={`shorts-viewer-page ${item.accent}`} data-short-index={idx}>
+              <button type="button" className="shorts-viewer-video" onClick={() => togglePause(item.id)} aria-label={paused ? "영상 재생" : "영상 정지"}>
+                <div className="shorts-viewer-video-fill">영상</div>
+              </button>
+
+              <div className={`shorts-viewer-side-actions${paused ? " visible" : ""}`}>
+                <button type="button" className={`shorts-viewer-action-btn${liked ? " active" : ""}`} onClick={() => toggleReaction("like", item.id)}><span>👍</span><b>{item.likes.toLocaleString()}</b></button>
+                <button type="button" className={`shorts-viewer-action-btn${disliked ? " active" : ""}`} onClick={() => toggleReaction("dislike", item.id)}><span>👎</span><b>{Math.max(12, Math.round(item.likes / 11)).toLocaleString()}</b></button>
+                <button type="button" className="shorts-viewer-action-btn"><span>💬</span><b>{item.comments.toLocaleString()}</b></button>
+                <button type="button" className="shorts-viewer-action-btn"><span>↗</span><b>공유</b></button>
+              </div>
+
+              <div className={`shorts-viewer-bottom${paused ? " visible" : ""}`}>
+                <div className="shorts-viewer-author-row">
+                  <span className="shorts-profile-avatar shorts-profile-avatar-small" aria-hidden="true">{item.author.slice(0, 1).toUpperCase()}</span>
+                  <button type="button" className="shorts-viewer-author-link">{item.author}</button>
+                  <button type="button" className={`shorts-subscribe-btn${subscribed ? " subscribed" : ""}`} onClick={() => toggleSubscribe(item.id)}>{subscribed ? "구독 중" : "구독"}</button>
+                </div>
+                <button type="button" className="shorts-viewer-full-title">풀영상 {item.title}</button>
+                <button type="button" className="shorts-viewer-description" onClick={() => setDescriptionItem(item)}>{item.caption}</button>
+              </div>
+            </section>
+          );
+        })}
+      </div>
+
+      {descriptionItem ? (
+        <div className="shorts-description-sheet-backdrop" onClick={() => setDescriptionItem(null)}>
+          <div className="shorts-description-sheet" onClick={(event) => event.stopPropagation()}>
+            <div className="shorts-sheet-handle" />
+            <strong>{descriptionItem.title}</strong>
+            <p>{descriptionItem.caption}</p>
+            <button type="button" className="ghost-btn" onClick={() => setDescriptionItem(null)}>닫기</button>
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -1645,6 +1774,7 @@ export default function App() {
   const [savedTab, setSavedTab] = useState<"피드" | "상품">("피드");
   const [shortsVisibleCount, setShortsVisibleCount] = useState(10);
   const [shortsMoreItem, setShortsMoreItem] = useState<FeedItem | null>(null);
+  const [shortsViewerItemId, setShortsViewerItemId] = useState<number | null>(null);
   const [authStandaloneScreen, setAuthStandaloneScreen] = useState<AuthStandaloneScreen | null>(null);
   const [homeShopConsentGuideSeen, setHomeShopConsentGuideSeen] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -2025,6 +2155,7 @@ export default function App() {
   }, [visibleShorts]);
 
   const pagedShorts = useMemo(() => shortsFeedItems.slice(0, shortsVisibleCount), [shortsFeedItems, shortsVisibleCount]);
+  const shortsViewerInitialIndex = useMemo(() => shortsViewerItemId === null ? 0 : Math.max(0, shortsFeedItems.findIndex((item) => item.id === shortsViewerItemId)), [shortsFeedItems, shortsViewerItemId]);
 
   useEffect(() => {
     setShortsVisibleCount(10);
@@ -3455,13 +3586,20 @@ export default function App() {
                     <ShortsListCard
                       key={`short-${item.id}`}
                       item={item}
-                      saved={savedFeedIds.includes(item.id)}
-                      onToggleSave={toggleSavedFeed}
                       onOpenMore={setShortsMoreItem}
+                      onOpenViewer={(selected) => setShortsViewerItemId(selected.id)}
                     />
                   )) : <div className="legacy-box compact"><p>표시할 쇼츠가 없습니다.</p></div>}
                   {pagedShorts.length < shortsFeedItems.length ? <div className="shorts-loading-row">쇼츠 10개 단위로 추가 로딩 중</div> : null}
                 </div>
+                {shortsViewerItemId !== null ? (
+                  <ShortsViewer
+                    items={shortsFeedItems}
+                    initialIndex={shortsViewerInitialIndex}
+                    onClose={() => setShortsViewerItemId(null)}
+                    onOpenMore={setShortsMoreItem}
+                  />
+                ) : null}
               </>
             ) : homeTab === "상품" ? (
               <>
