@@ -1791,6 +1791,9 @@ export default function App() {
   const randomRoomLifetimeMinutes = 20;
   const [shopKeyword, setShopKeyword] = useState("");
   const [shopHomeBannerIndex, setShopHomeBannerIndex] = useState(0);
+  const [shopHomeBannerDragOffset, setShopHomeBannerDragOffset] = useState(0);
+  const shopHomeBannerPointerStartXRef = useRef<number | null>(null);
+  const shopHomeBannerPointerActiveRef = useRef(false);
   const [shopHomeVisibleCount, setShopHomeVisibleCount] = useState(9);
   const [communityKeyword, setCommunityKeyword] = useState("");
   const [projectStatus, setProjectStatus] = useState<ProjectStatus | null>(null);
@@ -2429,15 +2432,53 @@ export default function App() {
     if (activeTab !== "쇼핑" || shoppingTab !== "홈") return;
     setShopHomeVisibleCount(9);
     setShopHomeBannerIndex(0);
+    setShopHomeBannerDragOffset(0);
   }, [activeTab, shoppingTab, shopKeyword, globalKeyword, selectedShopCategory]);
 
   useEffect(() => {
-    if (activeTab !== "쇼핑" || shoppingTab !== "홈" || shopHomeHeroSlides.length <= 1) return;
+    if (activeTab !== "쇼핑" || shoppingTab !== "홈" || shopHomeHeroSlides.length <= 1 || shopHomeBannerPointerActiveRef.current) return;
     const timer = window.setInterval(() => {
       setShopHomeBannerIndex((prev) => (prev + 1) % shopHomeHeroSlides.length);
     }, 3000);
     return () => window.clearInterval(timer);
-  }, [activeTab, shoppingTab, shopHomeHeroSlides.length]);
+  }, [activeTab, shoppingTab, shopHomeHeroSlides.length, shopHomeBannerIndex]);
+
+  const goPrevShopHomeBanner = () => {
+    setShopHomeBannerIndex((prev) => (prev - 1 + shopHomeHeroSlides.length) % shopHomeHeroSlides.length);
+  };
+
+  const goNextShopHomeBanner = () => {
+    setShopHomeBannerIndex((prev) => (prev + 1) % shopHomeHeroSlides.length);
+  };
+
+  const handleShopHomeBannerPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (shopHomeHeroSlides.length <= 1) return;
+    shopHomeBannerPointerActiveRef.current = true;
+    shopHomeBannerPointerStartXRef.current = event.clientX;
+    setShopHomeBannerDragOffset(0);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleShopHomeBannerPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!shopHomeBannerPointerActiveRef.current || shopHomeBannerPointerStartXRef.current === null) return;
+    setShopHomeBannerDragOffset(event.clientX - shopHomeBannerPointerStartXRef.current);
+  };
+
+  const finishShopHomeBannerDrag = (event?: React.PointerEvent<HTMLDivElement>) => {
+    if (event && event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    if (!shopHomeBannerPointerActiveRef.current) return;
+    const dragThreshold = 42;
+    if (shopHomeBannerDragOffset <= -dragThreshold) {
+      goNextShopHomeBanner();
+    } else if (shopHomeBannerDragOffset >= dragThreshold) {
+      goPrevShopHomeBanner();
+    }
+    shopHomeBannerPointerActiveRef.current = false;
+    shopHomeBannerPointerStartXRef.current = null;
+    setShopHomeBannerDragOffset(0);
+  };
 
   const handleShopHomeScroll = (event: UIEvent<HTMLDivElement>) => {
     const node = event.currentTarget;
@@ -4094,8 +4135,16 @@ export default function App() {
           <section className="tab-pane fill-pane">
             {shoppingTab === "홈" ? (
               <div className="compact-scroll-list shop-home-feed-pane" onScroll={handleShopHomeScroll}>
-                <div className="shop-home-hero-carousel" aria-label="쇼핑 홈 배너">
-                  <div className="shop-home-hero-track" style={{ transform: `translateX(-${shopHomeBannerIndex * 100}%)` }}>
+                <div
+                  className="shop-home-hero-carousel"
+                  aria-label="쇼핑 홈 배너"
+                  onPointerDown={handleShopHomeBannerPointerDown}
+                  onPointerMove={handleShopHomeBannerPointerMove}
+                  onPointerUp={finishShopHomeBannerDrag}
+                  onPointerCancel={finishShopHomeBannerDrag}
+                  onPointerLeave={finishShopHomeBannerDrag}
+                >
+                  <div className="shop-home-hero-track" style={{ transform: `translateX(calc(-${shopHomeBannerIndex * 100}% + ${shopHomeBannerDragOffset}px))`, transition: shopHomeBannerPointerActiveRef.current ? "none" : undefined }}>
                     {shopHomeHeroSlides.map((item, index) => (
                       <button
                         key={`hero-${item.id}-${index}`}
