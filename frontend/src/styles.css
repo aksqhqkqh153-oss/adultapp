@@ -3912,3 +3912,28 @@ pre,
     padding: 8px;
   }
 }
+
+
+#app-boot-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  background: #000000;
+  transition: opacity 240ms ease, visibility 240ms ease;
+}
+
+#app-boot-splash.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.app-boot-splash__logo {
+  width: min(38vw, 168px);
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+  border-radius: 28px;
+  box-shadow: 0 18px 48px rgba(255, 255, 255, 0.08);
+}
