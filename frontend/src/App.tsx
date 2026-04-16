@@ -718,6 +718,53 @@ function extractInterestTokens(source: string) {
     .filter((token) => token.length >= 2);
 }
 
+function buildKeywordSignalMap({
+  shopKeywordSignals,
+  shortsKeywordSignals,
+  globalKeyword,
+  followingUserIds,
+  savedFeedIds,
+  feedItems,
+  forumUsers,
+}: {
+  shopKeywordSignals: Record<string, number>;
+  shortsKeywordSignals: Record<string, number>;
+  globalKeyword: string;
+  followingUserIds: number[];
+  savedFeedIds: number[];
+  feedItems: FeedItem[];
+  forumUsers: ForumStarterUser[];
+}) {
+  const signalMap = new Map<string, number>();
+  Object.entries(shopKeywordSignals).forEach(([token, score]) => signalMap.set(token.toLowerCase(), (signalMap.get(token.toLowerCase()) ?? 0) + score * 1.4));
+  Object.entries(shortsKeywordSignals).forEach(([token, score]) => signalMap.set(token.toLowerCase(), (signalMap.get(token.toLowerCase()) ?? 0) + score * 1.8));
+  extractInterestTokens(globalKeyword).forEach((token) => signalMap.set(token, (signalMap.get(token) ?? 0) + 4));
+
+  const followedTopicKeywords = followingUserIds
+    .map((id) => forumUsers.find((user) => user.id === id))
+    .filter((user): user is ForumStarterUser => Boolean(user))
+    .flatMap((user) => extractInterestTokens(`${user.name} ${user.topic} ${user.role}`));
+  followedTopicKeywords.forEach((token) => signalMap.set(token, (signalMap.get(token) ?? 0) + 2.5));
+
+  const savedKeywords = feedItems
+    .filter((item) => savedFeedIds.includes(item.id))
+    .flatMap((item) => extractInterestTokens(`${item.title} ${item.caption} ${item.category} ${item.author}`));
+  savedKeywords.forEach((token) => signalMap.set(token, (signalMap.get(token) ?? 0) + 3.5));
+  return signalMap;
+}
+
+function getTopMatchedKeywords(item: FeedItem, signalMap: Map<string, number>) {
+  const content = `${item.title} ${item.caption} ${item.category} ${item.author}`.toLowerCase();
+  const directMatches = Array.from(signalMap.entries())
+    .filter(([token]) => content.includes(token))
+    .sort((a, b) => b[1] - a[1])
+    .map(([token]) => token);
+  const fallback = [item.category, ...extractInterestTokens(item.title), ...extractInterestTokens(item.caption)]
+    .map((token) => token.toLowerCase())
+    .filter((token, index, array) => token && array.indexOf(token) === index);
+  return Array.from(new Set([...directMatches, ...fallback])).slice(0, 2);
+}
+
 function deterministicHash(value: string) {
   let hash = 0;
   for (let index = 0; index < value.length; index += 1) {
@@ -1065,7 +1112,7 @@ function DualRangeSlider({ min, max, valueMin, valueMax, step = 1, leftLabel, ri
   );
 }
 
-function FeedPoster({ item, onAsk, saved, onToggleSave }: { item: FeedItem; onAsk: (item: FeedItem) => void; saved: boolean; onToggleSave: (feedId: number) => void }) {
+function FeedPoster({ item, onAsk, saved, onToggleSave, keywordTags = [] }: { item: FeedItem; onAsk: (item: FeedItem) => void; saved: boolean; onToggleSave: (feedId: number) => void; keywordTags?: string[] }) {
   return (
     <article className={`feed-card history-feed-card ${item.accent}`}>
       <div className="history-feed-head">
@@ -1079,6 +1126,13 @@ function FeedPoster({ item, onAsk, saved, onToggleSave }: { item: FeedItem; onAs
         <button type="button" className="feed-question-btn" onClick={() => onAsk(item)}>질문</button>
       </div>
       <div className="feed-media">
+        {keywordTags.length ? (
+          <div className="content-keyword-stack content-keyword-stack--feed">
+            {keywordTags.slice(0, 2).map((keyword) => (
+              <span key={`${item.id}-${keyword}`} className="content-keyword-pill">#{keyword}</span>
+            ))}
+          </div>
+        ) : null}
         <div className="feed-visual-copy">{item.title}</div>
       </div>
       <div className="feed-copy">
@@ -1179,11 +1233,13 @@ function ShortsViewer({
   initialIndex,
   onClose,
   onOpenMore,
+  getKeywordTags,
 }: {
   items: FeedItem[];
   initialIndex: number;
   onClose: () => void;
   onOpenMore: (item: FeedItem) => void;
+  getKeywordTags: (item: FeedItem) => string[];
 }) {
   const [activeIndex, setActiveIndex] = useState(initialIndex);
   const [pausedMap, setPausedMap] = useState<Record<number, boolean>>(() => ({ [items[initialIndex]?.id ?? 0]: false }));
@@ -1251,7 +1307,14 @@ function ShortsViewer({
   return (
     <div className="shorts-viewer-overlay">
       <div className={`shorts-viewer-topbar${overlayVisible ? " visible" : ""}`}>
-        <button type="button" className="shorts-icon-btn shorts-back-btn" onClick={onClose} aria-label="뒤로가기"><BackArrowIcon /></button>
+        <div className="shorts-viewer-topbar-left">
+          <button type="button" className="shorts-icon-btn shorts-back-btn" onClick={onClose} aria-label="뒤로가기"><BackArrowIcon /></button>
+          <div className="content-keyword-stack content-keyword-stack--viewer">
+            {getKeywordTags(activeItem).slice(0, 2).map((keyword) => (
+              <span key={`viewer-${activeItem?.id ?? 0}-${keyword}`} className="content-keyword-pill">#{keyword}</span>
+            ))}
+          </div>
+        </div>
         <div className="shorts-viewer-topbar-actions">
           <button type="button" className="shorts-icon-btn" onClick={() => setSearchOpen((prev) => !prev)} aria-label="쇼츠 검색"><SearchIcon /></button>
           <button type="button" className="shorts-icon-btn" onClick={() => onOpenMore(activeItem)} aria-label="쇼츠 더보기"><MoreDotsIcon /></button>
@@ -2464,28 +2527,28 @@ export default function App() {
     return ["전체", ...dynamic];
   }, []);
 
+  const keywordSignalMap = useMemo(() => buildKeywordSignalMap({
+    shopKeywordSignals,
+    shortsKeywordSignals,
+    globalKeyword,
+    followingUserIds,
+    savedFeedIds,
+    feedItems: feedSeed,
+    forumUsers: forumStarterUsers,
+  }), [shopKeywordSignals, shortsKeywordSignals, globalKeyword, followingUserIds, savedFeedIds]);
+
+  const followedTopicKeywords = useMemo(() => followingUserIds
+    .map((id) => forumStarterUsers.find((user) => user.id === id))
+    .filter((user): user is ForumStarterUser => Boolean(user))
+    .flatMap((user) => extractInterestTokens(`${user.name} ${user.topic} ${user.role}`)), [followingUserIds]);
+
+  const getContentKeywordTags = (item: FeedItem) => getTopMatchedKeywords(item, keywordSignalMap);
+
   const recommendedShorts = useMemo(() => {
     const base = feedSeed.filter((item) => item.type === "video" || item.category.includes("숏"));
-    const signalMap = new Map<string, number>();
-
-    Object.entries(shopKeywordSignals).forEach(([token, score]) => signalMap.set(token.toLowerCase(), (signalMap.get(token.toLowerCase()) ?? 0) + score * 1.4));
-    Object.entries(shortsKeywordSignals).forEach(([token, score]) => signalMap.set(token.toLowerCase(), (signalMap.get(token.toLowerCase()) ?? 0) + score * 1.8));
-    extractInterestTokens(globalKeyword).forEach((token) => signalMap.set(token, (signalMap.get(token) ?? 0) + 4));
-
-    const followedTopicKeywords = followingUserIds
-      .map((id) => forumStarterUsers.find((user) => user.id === id))
-      .filter((user): user is ForumStarterUser => Boolean(user))
-      .flatMap((user) => extractInterestTokens(`${user.name} ${user.topic} ${user.role}`));
-    followedTopicKeywords.forEach((token) => signalMap.set(token, (signalMap.get(token) ?? 0) + 2.5));
-
-    const savedKeywords = feedSeed
-      .filter((item) => savedFeedIds.includes(item.id))
-      .flatMap((item) => extractInterestTokens(`${item.title} ${item.caption} ${item.category} ${item.author}`));
-    savedKeywords.forEach((token) => signalMap.set(token, (signalMap.get(token) ?? 0) + 3.5));
-
     const ranked = base.map((item, idx) => {
       const content = `${item.title} ${item.caption} ${item.category} ${item.author}`.toLowerCase();
-      const matchedSignalScore = Array.from(signalMap.entries()).reduce((sum, [token, score]) => sum + (content.includes(token) ? score : 0), 0);
+      const matchedSignalScore = Array.from(keywordSignalMap.entries()).reduce((sum, [token, score]) => sum + (content.includes(token) ? score : 0), 0);
       const freshnessMinutes = parseRelativeMinutes(item.postedAt);
       const freshnessScore = Math.max(0, 36 - Math.min(freshnessMinutes / 12, 36));
       const followScore = followedTopicKeywords.some((token) => content.includes(token)) ? 18 : 0;
@@ -2507,7 +2570,7 @@ export default function App() {
 
     ranked.sort((a, b) => (b.sortScore ?? 0) - (a.sortScore ?? 0) || (b.likes - a.likes));
     return ranked;
-  }, [shopKeywordSignals, shortsKeywordSignals, globalKeyword, followingUserIds, savedFeedIds]);
+  }, [keywordSignalMap, followedTopicKeywords, savedFeedIds]);
 
   const visibleShorts = useMemo(() => {
     const source = recommendedShorts;
@@ -3576,21 +3639,11 @@ export default function App() {
       return homeTabs.map((tab) => ({ label: tab, active: homeTab === tab, onClick: () => setHomeTab(tab) }));
     }
     if (activeTab === "쇼핑") {
-      return shoppingTabs.map((tab) => ({
-        label: tab,
-        active: shoppingTab === tab,
-        onClick: () => {
-          if (tab === "상품등록") {
-            openProductRegistrationTab();
-            return;
-          }
-          if (tab === "사업자인증") {
-            openBusinessVerificationTab();
-            return;
-          }
-          setShoppingTab(tab);
-        },
-      }));
+      return [{
+        label: "홈",
+        active: shoppingTab === "홈",
+        onClick: () => setShoppingTab("홈"),
+      }];
     }
     if (activeTab === "소통") {
       return communityTabs.map((tab) => ({ label: tab, active: communityTab === tab, onClick: () => setCommunityTab(tab) }));
@@ -4243,7 +4296,7 @@ export default function App() {
           <section className={`tab-pane fill-pane home-feed-pane${homeTab === "쇼츠" ? " home-feed-pane-shorts" : ""}`}>
             {homeTab === "피드" ? (
               <>
-                <div className="feed-post-list compact-scroll-list">{visibleFeed.map((item, idx) => (<><FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} saved={savedFeedIds.includes(item.id)} onToggleSave={toggleSavedFeed} />{(idx + 1) % 4 === 0 ? <SponsoredFeedProductCard key={`sponsored-${item.id}`} item={sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length]} saved={savedProductIds.includes(sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length].id)} onToggleSave={toggleSavedProduct} /> : null}</>))}</div>
+                <div className="feed-post-list compact-scroll-list">{visibleFeed.map((item, idx) => (<><FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} saved={savedFeedIds.includes(item.id)} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} />{(idx + 1) % 4 === 0 ? <SponsoredFeedProductCard key={`sponsored-${item.id}`} item={sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length]} saved={savedProductIds.includes(sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length].id)} onToggleSave={toggleSavedProduct} /> : null}</>))}</div>
               </>
             ) : homeTab === "쇼츠" ? (
               <>
@@ -4264,6 +4317,7 @@ export default function App() {
                     initialIndex={shortsViewerInitialIndex}
                     onClose={() => setShortsViewerItemId(null)}
                     onOpenMore={setShortsMoreItem}
+                    getKeywordTags={getContentKeywordTags}
                   />
                 ) : null}
               </>
@@ -4277,7 +4331,7 @@ export default function App() {
                 </div>
                 {savedTab === "피드" ? (
                   <div className="feed-post-list compact-scroll-list">
-                    {savedFeedItems.length ? savedFeedItems.map((item) => <FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} saved={true} onToggleSave={toggleSavedFeed} />) : <div className="legacy-box compact"><p>보관한 피드가 없습니다.</p></div>}
+                    {savedFeedItems.length ? savedFeedItems.map((item) => <FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} saved={true} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} />) : <div className="legacy-box compact"><p>보관한 피드가 없습니다.</p></div>}
                   </div>
                 ) : (
                   <div className="content-grid product-grid compact-scroll-list">
