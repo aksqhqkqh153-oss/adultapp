@@ -3377,22 +3377,32 @@ pre,
 }
 
 .shop-home-pane {
-  padding: 4px 0 20px;
+  --shop-home-gap: clamp(6px, 1.2vw, 10px);
+  --shop-home-side-padding: clamp(8px, 2.4vw, 12px);
+  --shop-grid-size: min(
+    calc((100vw - (var(--shop-home-side-padding) * 2) - (var(--shop-home-gap) * 3) - 2px) / 4),
+    calc((100dvh - 178px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) / 8)
+  );
+  height: 100%;
+  padding: 4px var(--shop-home-side-padding) 10px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--shop-home-gap);
+  overflow: hidden;
 }
 
 .shop-home-search-wrap {
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 4;
-  padding-bottom: 8px;
+  flex: 0 0 auto;
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.98) 0%, rgba(0, 0, 0, 0.9) 100%);
 }
 
 .shop-home-search-bar {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px;
+  gap: clamp(6px, 1.5vw, 10px);
+  padding: clamp(6px, 1.6vw, 10px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.04);
@@ -3402,20 +3412,29 @@ pre,
 .shop-home-search-bar input {
   flex: 1;
   min-width: 0;
-  height: 46px;
+  height: clamp(38px, 5vw, 46px);
   border-radius: 999px;
+  font-size: clamp(12px, 2.8vw, 14px);
 }
 
 .shop-home-search-btn {
-  min-width: 72px;
-  height: 46px;
+  min-width: clamp(56px, 14vw, 72px);
+  height: clamp(38px, 5vw, 46px);
   border-radius: 999px;
+  font-size: clamp(12px, 2.8vw, 14px);
+  padding: 0 clamp(10px, 2vw, 14px);
 }
 
 .shop-home-keyword-grid {
+  flex: 1 1 auto;
+  min-height: 0;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(4, var(--shop-grid-size));
+  grid-template-rows: repeat(8, var(--shop-grid-size));
+  justify-content: space-between;
+  align-content: space-between;
+  gap: var(--shop-home-gap);
+  overflow: hidden;
 }
 
 .shop-home-keyword-tile {
@@ -3423,13 +3442,16 @@ pre,
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  min-height: 96px;
-  padding: 14px 8px;
-  border-radius: 20px;
+  gap: clamp(4px, 1vw, 8px);
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 1 / 1;
+  padding: clamp(6px, 1.1vw, 10px);
+  border-radius: clamp(14px, 2.6vw, 20px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.03) 100%);
   transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+  overflow: hidden;
 }
 
 .shop-home-keyword-tile:hover,
@@ -3443,21 +3465,28 @@ pre,
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 42px;
-  height: 42px;
+  width: clamp(18px, 4.4vw, 34px);
+  height: clamp(18px, 4.4vw, 34px);
   border-radius: 50%;
   background: rgba(29, 155, 240, 0.16);
   color: #f5f7fa;
   font-weight: 800;
-  font-size: 1rem;
+  font-size: clamp(0.6rem, 2vw, 0.92rem);
+  flex-shrink: 0;
 }
 
 .shop-home-keyword-label {
-  font-size: 0.86rem;
-  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: clamp(0.56rem, 1.9vw, 0.8rem);
+  line-height: 1.15;
   color: #f5f7fa;
   text-align: center;
   word-break: keep-all;
+  overflow-wrap: anywhere;
+  max-width: 100%;
 }
 
 .shop-list-grid-only {
@@ -3465,34 +3494,17 @@ pre,
 }
 
 @media (max-width: 640px) {
+  .shop-home-pane {
+    --shop-home-gap: clamp(5px, 1.6vw, 8px);
+    --shop-home-side-padding: clamp(6px, 2vw, 10px);
+    --shop-grid-size: min(
+      calc((100vw - (var(--shop-home-side-padding) * 2) - (var(--shop-home-gap) * 3) - 2px) / 4),
+      calc((100dvh - 166px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) / 8)
+    );
+    padding-bottom: 8px;
+  }
+
   .shop-home-search-bar {
-    gap: 8px;
-    padding: 8px;
     border-radius: 16px;
-  }
-
-  .shop-home-search-bar input,
-  .shop-home-search-btn {
-    height: 42px;
-  }
-
-  .shop-home-keyword-grid {
-    gap: 10px;
-  }
-
-  .shop-home-keyword-tile {
-    min-height: 88px;
-    padding: 12px 6px;
-    border-radius: 18px;
-  }
-
-  .shop-home-keyword-icon {
-    width: 38px;
-    height: 38px;
-    font-size: 0.95rem;
-  }
-
-  .shop-home-keyword-label {
-    font-size: 0.78rem;
   }
 }
