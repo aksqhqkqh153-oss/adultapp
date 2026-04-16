@@ -2937,8 +2937,12 @@ def product_detail(product_id: int, request: Request, session: Session = Depends
             'customer_center_visible': bool(seller_profile and seller_profile.cs_contact),
             'minimum_refund_window_days': 7,
         },
+        'shipping_fee': 3000,
         'seller_contact': {
             'name': seller.name if seller else '판매자',
+            'business_name': settings.operator_legal_name,
+            'business_registration_no': settings.operator_business_registration_no,
+            'business_address': settings.operator_business_address,
             'cs_contact': seller_profile.cs_contact if seller_profile else settings.operator_support_phone,
             'return_address': seller_profile.return_address if seller_profile else settings.operator_business_address,
             'support_email': settings.operator_support_email,

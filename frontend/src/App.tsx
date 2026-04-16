@@ -47,6 +47,7 @@ type ProductCard = {
   price: string;
   badge: string;
   reviewCount?: number;
+  stock_qty?: number;
   thumbnailUrl?: string | null;
 };
 
@@ -263,6 +264,7 @@ type AuthSummary = {
 };
 
 type AuthStandaloneScreen = "login" | "signup";
+type CheckoutStage = "cart" | "order_form" | "payment_request" | "payment_complete" | "order_confirm";
 
 type AuthMeResponse = AuthSummary & {
   id?: number;
@@ -278,6 +280,7 @@ type ApiProduct = {
   name: string;
   description?: string;
   price: number;
+  shipping_fee?: number;
   status?: string;
   sku_code?: string;
   stock_qty?: number;
@@ -299,6 +302,9 @@ type ProductDetailResponse = {
   };
   seller_contact?: {
     name?: string;
+    business_name?: string;
+    business_registration_no?: string;
+    business_address?: string;
     cs_contact?: string;
     return_address?: string;
     support_email?: string;
@@ -2078,6 +2084,14 @@ export default function App() {
   const [orderDetail, setOrderDetail] = useState<ApiOrderDetail | null>(null);
   const [orderMessage, setOrderMessage] = useState("");
   const [orderActionAmount, setOrderActionAmount] = useState("5500");
+  const [checkoutStage, setCheckoutStage] = useState<CheckoutStage>("cart");
+  const [checkoutDraft, setCheckoutDraft] = useState({
+    recipientName: "성인회원",
+    phone: "010-0000-0000",
+    email: "aksqhqkqh153@gmail.com",
+    address: "배송지 입력 필요",
+    requestNote: "익명 포장 요청",
+  });
 
   const isAdmin = ["ADMIN", "1", "GRADE_1"].includes(currentUserRole);
   const productCategoryOptions = useMemo(() => {
@@ -2153,6 +2167,7 @@ export default function App() {
     getJson<ProjectStatus>("/project-status").then(setProjectStatus).catch(() => null);
     getJson<DeployGuide>("/deploy/cloudflare-pages-manual").then(setDeployGuide).catch(() => null);
     getJson<LegalDocumentsResponse>("/legal/documents").then(setLegalDocuments).catch(() => null);
+    getJson<BusinessInfoResponse>("/legal/business-info").then(setBusinessInfo).catch(() => null);
     getJson<PaymentProviderStatusResponse>("/payments/provider-status").then(setPaymentProviderStatus).catch(() => null);
     getJson<UiCategoryGroupResponse>("/ui/category-groups").then((res) => setUiCategoryGroups(res.items ?? [])).catch(() => null);
     getJson<SkuPolicyResponse>("/sku-policy").then(setSkuPolicy).catch(() => null);
@@ -2185,7 +2200,6 @@ export default function App() {
           getJson<{ items: ProductApprovalItem[] }>("/admin/product-approvals").then((res) => setProductApprovalQueue(res.items ?? [])).catch(() => null);
           getJson<SettlementPreviewResponse>("/settlements/preview").then(setSettlementPreview).catch(() => null);
         } else {
-          setBusinessInfo(null);
           setReleaseReadiness(null);
         }
       } catch {
@@ -2818,6 +2832,37 @@ export default function App() {
     });
   }, [globalKeyword, searchFilter]);
 
+  const legalQuickLinks = [
+    { key: "terms_of_service", label: "이용약관", href: `${getApiBase()}/legal/terms-of-service` },
+    { key: "privacy_policy", label: "개인정보 처리방침", href: `${getApiBase()}/legal/privacy-policy` },
+    { key: "refund_policy", label: "환불정책", href: `${getApiBase()}/legal/refund-policy` },
+    { key: "age_verification_policy", label: "연령 정책", href: `${getApiBase()}/legal/age-verification-policy` },
+  ] as const;
+
+  const disclosedBusinessInfo = useMemo(() => ({
+    operatorName: String(businessInfo?.business_info?.operator_legal_name || businessInfo?.business_info?.operator_brand_name || "사업자 정보 등록 필요"),
+    representative: String(businessInfo?.business_info?.representative_name || "대표자 정보 등록 필요"),
+    registrationNo: String(businessInfo?.business_info?.business_registration_no || "사업자번호 등록 필요"),
+    phone: String(businessInfo?.business_info?.support_phone || "연락처 등록 필요"),
+    address: String(businessInfo?.business_info?.business_address || "주소 등록 필요"),
+    email: "aksqhqkqh153@gmail.com",
+    privacyEmail: String(businessInfo?.business_info?.privacy_contact_email || "aksqhqkqh153@gmail.com"),
+  }), [businessInfo]);
+
+  const checkoutStepMeta: Array<{ key: CheckoutStage; label: string }> = [
+    { key: "cart", label: "장바구니" },
+    { key: "order_form", label: "주문서 작성" },
+    { key: "payment_request", label: "결제 요청" },
+    { key: "payment_complete", label: "결제 완료" },
+    { key: "order_confirm", label: "주문 확인" },
+  ];
+
+  const checkoutStageIndex = checkoutStepMeta.findIndex((item) => item.key === checkoutStage);
+  const checkoutSelectedOrder = useMemo(() => {
+    if (!orders.length) return null;
+    return (selectedOrderNo ? orders.find((item) => item.order_no === selectedOrderNo) : null) ?? [...orders].reverse()[0] ?? null;
+  }, [orders, selectedOrderNo]);
+
   const showBaseTabContent = overlayMode === null;
   const blockedByIdentity = !isAdmin && !identityVerified;
   const requiresAdultGate = !isAdmin && !adultVerified && ["홈", "쇼핑"].includes(activeTab);
@@ -3247,6 +3292,7 @@ export default function App() {
       if (found) return prev.map((item) => item.productId === productId ? { ...item, qty: item.qty + 1 } : item);
       return [...prev, { productId, qty: 1 }];
     });
+    setCheckoutStage("cart");
     setShoppingTab("바구니");
   };
 
@@ -3284,6 +3330,7 @@ export default function App() {
     try {
       const detail = await getJson<ApiOrderDetail>(`/orders/${orderNo}`);
       setOrderDetail(detail);
+      setCheckoutStage("order_confirm");
       setOrderMessage(`테스트 대상 주문 선택: ${orderNo}`);
     } catch (error) {
       setOrderDetail(null);
@@ -3305,6 +3352,7 @@ export default function App() {
         payment_pg: "verotel",
       });
       setSelectedOrderNo(created.order_no);
+      setCheckoutStage("payment_request");
       setOrderMessage(`상품 주문 생성 완료: ${created.order_no} · ${created.total_amount.toLocaleString()}원`);
       await refreshOrders(created.order_no);
       setShoppingTab("주문");
@@ -3326,6 +3374,7 @@ export default function App() {
         payment_method: "card",
         payment_pg: "demo-pg",
       });
+      setCheckoutStage("payment_request");
       setOrderMessage(`주문 생성 완료: ${created.order_no} · ${created.total_amount.toLocaleString()}원 · mode ${created.payment_init?.mode ?? "-"}`);
       await refreshOrders(created.order_no);
       setShoppingTab("주문");
@@ -3349,6 +3398,7 @@ export default function App() {
         provider: "tosspayments",
         method: "card",
       });
+      setCheckoutStage("payment_complete");
       setOrderMessage(`결제 승인 완료: ${target.order_no} → ${result.status}`);
       await refreshOrders(target.order_no);
     } catch (error) {
@@ -3896,6 +3946,18 @@ export default function App() {
                     <div className="copy-action-row signup-action-row signup-action-row--single">
                       <button type="button" onClick={advanceSignupStep}>다음</button>
                     </div>
+                    <div className="legal-disclosure-card compact">
+                      <strong>사업자 정보 및 고객센터</strong>
+                      <span>문의 이메일: {disclosedBusinessInfo.email}</span>
+                      <span>상호명: {disclosedBusinessInfo.operatorName}</span>
+                      <span>대표자: {disclosedBusinessInfo.representative}</span>
+                      <span>사업자번호: {disclosedBusinessInfo.registrationNo}</span>
+                      <span>연락처: {disclosedBusinessInfo.phone}</span>
+                      <span>주소: {disclosedBusinessInfo.address}</span>
+                      <div className="notification-policy-links legal-link-row">
+                        {legalQuickLinks.map((item) => <a key={item.key} className="ghost-link-btn" href={item.href} target="_blank" rel="noreferrer">{item.label}</a>)}
+                      </div>
+                    </div>
                   </div>
                 ) : null}
 {signupStep === "account" ? (
@@ -4342,6 +4404,7 @@ export default function App() {
                         <strong>{product.name}</strong>
                         <p>{product.subtitle}</p>
                         <div className="product-meta"><span>{product.category}</span><b>{product.price}</b></div>
+                      <div className="product-submeta"><span>배송비 ₩3,000</span><span>재고 {product.stock_qty ?? 12}개</span></div>
                         <div className="product-card-actions">
                           <button type="button" className="ghost-btn" onClick={() => toggleSavedProduct(product.id)}>보관해제</button>
                         </div>
@@ -4445,6 +4508,7 @@ export default function App() {
                       <strong>{product.name}</strong>
                       <p>{product.subtitle}</p>
                       <div className="product-meta"><span>{product.category}</span><b>{product.price}</b></div>
+                      <div className="product-submeta"><span>배송비 ₩3,000</span><span>재고 {product.stock_qty ?? 12}개</span></div>
                       <div className="product-card-actions">
                         <button type="button" onClick={() => addToCart(product.id)}>장바구니 담기</button>
                         <button type="button" className="ghost-btn" onClick={() => openProductDetail(product.id)}>상세보기</button>
@@ -4465,8 +4529,10 @@ export default function App() {
                         <h3>{productDetail.product.name}</h3>
                         <p><strong>성인용품</strong> · {productDetail.product.category}</p>
                         <p>{productDetail.product.description || "상품 설명 준비중"}</p>
-                        <p>판매가: <strong>₩{Number(productDetail.product.price || 0).toLocaleString()}</strong></p>
-                        <p>재고: {Number(productDetail.product.stock_qty || 0)}개</p>
+                        <p>판매가: <strong>{`₩${Number(productDetail.product.price || 0).toLocaleString()}`}</strong></p>
+                        <p>배송비: <strong>{`₩${Number(productDetail.product.shipping_fee || 3000).toLocaleString()}`}</strong></p>
+                        <p>재고 상태: {Number(productDetail.product.stock_qty || 0) > 0 ? `${Number(productDetail.product.stock_qty || 0)}개 보유` : '품절'}</p>
+                        <p>판매자 정보: {productDetail.seller_contact?.business_name || productDetail.seller_contact?.name || disclosedBusinessInfo.operatorName}</p>
                         <div className="profile-form-grid">
                           <label><span>생년월일</span><input type="date" value={adultBirthdate} onChange={(e) => setAdultBirthdate(e.target.value)} /></label>
                           <label><span>접근 상태</span><input readOnly value={adultGateStatus?.allowed_to_shop ? "쇼핑 가능" : adultGateStatus?.member_status || "미확인"} /></label>
@@ -4501,10 +4567,12 @@ export default function App() {
                       <div className="legacy-box compact">
                         <h3>고객센터 정보</h3>
                         <div className="consent-record-list">
-                          <div className="simple-list-row"><b>판매자</b><span>{productDetail.seller_contact?.name || "-"}</span></div>
-                          <div className="simple-list-row"><b>CS 연락처</b><span>{productDetail.seller_contact?.cs_contact || "-"}</span></div>
-                          <div className="simple-list-row multi-line"><div><b>반품 주소</b><span>{productDetail.seller_contact?.return_address || "-"}</span></div></div>
-                          <div className="simple-list-row"><b>이메일</b><span>{productDetail.seller_contact?.support_email || "-"}</span></div>
+                          <div className="simple-list-row"><b>상호명</b><span>{productDetail.seller_contact?.business_name || productDetail.seller_contact?.name || disclosedBusinessInfo.operatorName}</span></div>
+                          <div className="simple-list-row"><b>사업자번호</b><span>{productDetail.seller_contact?.business_registration_no || disclosedBusinessInfo.registrationNo}</span></div>
+                          <div className="simple-list-row"><b>CS 연락처</b><span>{productDetail.seller_contact?.cs_contact || disclosedBusinessInfo.phone}</span></div>
+                          <div className="simple-list-row multi-line"><div><b>주소</b><span>{productDetail.seller_contact?.business_address || disclosedBusinessInfo.address}</span></div></div>
+                          <div className="simple-list-row multi-line"><div><b>반품 주소</b><span>{productDetail.seller_contact?.return_address || disclosedBusinessInfo.address}</span></div></div>
+                          <div className="simple-list-row"><b>문의 이메일</b><span>{productDetail.seller_contact?.support_email || disclosedBusinessInfo.email}</span></div>
                         </div>
                       </div>
                     </div>
@@ -4529,7 +4597,7 @@ export default function App() {
             {shoppingTab === "주문" ? (
               <div className="stack-gap compact-scroll-list">
                 <div className="legacy-grid three">
-                  <div className="legacy-box"><h3>주문 진행</h3><p>주문 {orders.length}건 · 결제대기 {orders.filter((item) => item.status === "payment_pending").length}건 · 결제완료 {orders.filter((item) => item.status === "paid").length}건</p></div>
+                  <div className="legacy-box"><h3>주문 진행</h3><p>주문 {orders.length}건 · 결제대기 {orders.filter((item) => item.status === "payment_pending").length}건 · 결제완료 {orders.filter((item) => item.status === "paid").length}건</p><p>흐름: 장바구니 → 주문서 작성 → 결제 요청 → 결제 완료 → 주문 확인</p></div>
                   <div className="legacy-box"><h3>취소/환불 검증</h3><p>부분 처리 금액 입력값: ₩{Number(orderActionAmount || "0").toLocaleString()}</p></div>
                   <div className="legacy-box"><h3>webhook 점검</h3><p>서명 점검 API와 주문 상태머신을 한 화면에서 검증합니다.</p></div>
                 </div>
@@ -4563,6 +4631,20 @@ export default function App() {
                     </div>
                   ) : <p>선택한 주문의 상세 정보가 여기에 표시됩니다.</p>}
                 </div>
+                {checkoutSelectedOrder ? (
+                  <div className="legacy-box compact legal-disclosure-card">
+                    <h3>5. 주문 확인</h3>
+                    <span>주문번호: {checkoutSelectedOrder.order_no}</span>
+                    <span>결제금액: ₩{Number(checkoutSelectedOrder.total_amount || 0).toLocaleString()}</span>
+                    <span>상품 목록: {orderDetail?.items?.length ? orderDetail.items.map((item) => `${item.sku_code || item.product_id} x${item.qty}`).join(' · ') : `${checkoutSelectedOrder.item_count}건`}</span>
+                    <span>결제상태: {checkoutSelectedOrder.status}</span>
+                    <div className="product-card-actions">
+                      <button type="button" onClick={() => setCheckoutStage('order_confirm')}>주문 확인 보기</button>
+                      <button type="button" className="ghost-btn" onClick={() => setShoppingTab('바구니')}>장바구니로</button>
+                    </div>
+                  </div>
+                ) : null}
+
                 <div className="legacy-box">
                   <h3>최근 주문</h3>
                   <div className="chat-list">
@@ -4573,16 +4655,41 @@ export default function App() {
             ) : null}
 
             {shoppingTab === "바구니" ? (
-              <div className="cart-box compact-scroll-list">
-                {cartDetailedItems.length ? cartDetailedItems.map((item) => (
-                  <div key={item.productId} className="cart-row"><div><strong>{item.product.name}</strong><span>{item.product.category} · 수량 {item.qty}</span></div><b>₩{(Number(item.product.price || 0) * item.qty).toLocaleString()}</b></div>
-                )) : cartSeed.map((item) => (
-                  <div key={item.id} className="cart-row"><div><strong>{item.name}</strong><span>{item.option} · 수량 {item.qty}</span></div><b>{item.price}</b></div>
-                ))}
-                <div className="cart-summary"><span>총 결제 예정</span><strong>{cartDetailedItems.length ? `₩${cartTotalAmount.toLocaleString()}` : '₩112,500'}</strong></div>
-                <div className="product-card-actions">
-                  <button type="button" onClick={createOrderFromCart}>주문 생성</button>
-                  <button type="button" className="ghost-btn" onClick={() => setShoppingTab('주문')}>주문 탭 보기</button>
+              <div className="cart-box compact-scroll-list stack-gap">
+                <div className="checkout-stepper">
+                  {checkoutStepMeta.map((item, index) => <div key={item.key} className={`checkout-step-chip ${index <= checkoutStageIndex ? 'active' : ''}`}>{index + 1}. {item.label}</div>)}
+                </div>
+                <div className="legacy-box compact legal-disclosure-card">
+                  <strong>성인 전용 접근 안내</strong>
+                  <span>본 서비스는 만 19세 이상만 이용 가능합니다.</span>
+                  <span>인증 방식: PASS / NICE / Danal 등 본인확인 결과 연동 예정</span>
+                  <span>인증 미완료 시 상품/결제/채팅/커뮤니티 접근이 차단됩니다.</span>
+                </div>
+                <div className="legacy-box compact">
+                  <h3>1. 장바구니</h3>
+                  {cartDetailedItems.length ? cartDetailedItems.map((item) => (
+                    <div key={item.productId} className="cart-row"><div><strong>{item.product.name}</strong><span>{item.product.category} · 수량 {item.qty}</span></div><b>₩{(Number(item.product.price || 0) * item.qty).toLocaleString()}</b></div>
+                  )) : cartSeed.map((item) => (
+                    <div key={item.id} className="cart-row"><div><strong>{item.name}</strong><span>{item.option} · 수량 {item.qty}</span></div><b>{item.price}</b></div>
+                  ))}
+                  <div className="cart-summary"><span>총 결제 예정</span><strong>{cartDetailedItems.length ? `₩${cartTotalAmount.toLocaleString()}` : '₩112,500'}</strong></div>
+                  <div className="product-card-actions">
+                    <button type="button" onClick={() => setCheckoutStage('order_form')}>주문서 작성</button>
+                    <button type="button" className="ghost-btn" onClick={() => { setCheckoutStage('payment_request'); createOrderFromCart(); }}>주문하기</button>
+                  </div>
+                </div>
+                <div className="legacy-box compact">
+                  <h3>2. 주문서 작성</h3>
+                  <div className="profile-form-grid">
+                    <label><span>수령인</span><input value={checkoutDraft.recipientName} onChange={(e) => setCheckoutDraft((prev) => ({ ...prev, recipientName: e.target.value }))} /></label>
+                    <label><span>연락처</span><input value={checkoutDraft.phone} onChange={(e) => setCheckoutDraft((prev) => ({ ...prev, phone: e.target.value }))} /></label>
+                    <label className="wide"><span>이메일</span><input value={checkoutDraft.email} onChange={(e) => setCheckoutDraft((prev) => ({ ...prev, email: e.target.value }))} /></label>
+                    <label className="wide"><span>주소</span><input value={checkoutDraft.address} onChange={(e) => setCheckoutDraft((prev) => ({ ...prev, address: e.target.value }))} /></label>
+                    <label className="wide"><span>배송 요청사항</span><input value={checkoutDraft.requestNote} onChange={(e) => setCheckoutDraft((prev) => ({ ...prev, requestNote: e.target.value }))} /></label>
+                  </div>
+                  <div className="notification-policy-links legal-link-row">
+                    {legalQuickLinks.map((item) => <a key={item.key} className="ghost-link-btn" href={item.href} target="_blank" rel="noreferrer">{item.label}</a>)}
+                  </div>
                 </div>
                 {orderMessage ? <p className="muted-mini">{orderMessage}</p> : null}
               </div>
@@ -5083,6 +5190,23 @@ export default function App() {
           </div>
         </div>
       ) : null}
+
+      <footer className="business-info-footer app-global-footer">
+        <div className="business-footer-title-row">
+          <strong>사업자 정보 · 고객센터</strong>
+          <span>문의 이메일 {disclosedBusinessInfo.email}</span>
+        </div>
+        <div className="business-footer-grid">
+          <span>상호명 {disclosedBusinessInfo.operatorName}</span>
+          <span>대표자 {disclosedBusinessInfo.representative}</span>
+          <span>사업자번호 {disclosedBusinessInfo.registrationNo}</span>
+          <span>연락처 {disclosedBusinessInfo.phone}</span>
+          <span>주소 {disclosedBusinessInfo.address}</span>
+        </div>
+        <div className="legal-fixed-links app-legal-links">
+          {legalQuickLinks.map((item) => <a key={item.key} className="ghost-link-btn" href={item.href} target="_blank" rel="noreferrer">{item.label}</a>)}
+        </div>
+      </footer>
 
       <nav className="bottom-nav">        {mobileTabs.map((tab) => (
           <button key={tab} className={`bottom-nav-btn ${overlayMode === null && activeTab === tab ? "active" : ""}`} onClick={() => selectBottomTab(tab)}>

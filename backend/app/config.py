@@ -106,12 +106,12 @@ class Settings(BaseSettings):
     operator_business_registration_no: str = "미정-사업자번호입력필요"
     operator_mail_order_report_no: str = "미정-통신판매업신고번호입력필요"
     operator_business_address: str = "미정-사업장주소입력필요"
-    operator_support_email: str = "support@example.com"
+    operator_support_email: str = "aksqhqkqh153@gmail.com"
     operator_support_phone: str = "000-0000-0000"
     operator_hosting_provider: str = "Railway + Cloudflare"
     operator_youth_protection_officer: str = "미정-청소년보호책임자입력필요"
     operator_dispute_contact_url: str = "https://example.com/support"
-    operator_privacy_contact_email: str = "privacy@example.com"
+    operator_privacy_contact_email: str = "aksqhqkqh153@gmail.com"
     location_based_features_enabled: bool = True
     location_feature_mode: str = "region_band_only"
     location_realtime_sharing_enabled: bool = False
