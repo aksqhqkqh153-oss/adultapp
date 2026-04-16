@@ -453,7 +453,7 @@ type AdminDbManage = {
 const mobileTabs = ["홈", "쇼핑", "소통", "채팅", "프로필"] as const;
 const legacyMenu = ["운영현황", "주문관리", "보안", "앱심사", "포럼 분리 정책", "배포가이드"] as const;
 const homeTabs = ["피드", "쇼츠", "보관함"] as const;
-const shoppingTabs = ["목록", "상품", "주문", "바구니", "사업자인증", "상품등록"] as const;
+const shoppingTabs = ["홈", "목록", "상품", "주문", "바구니", "사업자인증", "상품등록"] as const;
 const communityTabs = ["커뮤", "포럼", "후기", "이벤트"] as const;
 const chatTabs = ["채팅", "질문"] as const;
 const chatTabLabels: Record<ChatTab, string> = { "채팅": "채팅", "질문": "질문" };
@@ -475,7 +475,7 @@ const interestCategoryOptions = ["뷰티", "케어", "건강", "커뮤니티", "
 
 const defaultHeaderFavorites: HeaderFavoriteMap = {
   "홈": ["피드", "쇼츠", "보관함"],
-  "쇼핑": ["목록", "상품", "주문", "바구니", "사업자인증", "상품등록"],
+  "쇼핑": ["홈", "목록", "상품", "주문", "바구니", "사업자인증", "상품등록"],
   "소통": ["커뮤", "포럼", "후기"],
   "채팅": ["채팅", "질문"],
   "프로필": ["내정보"],
@@ -691,11 +691,7 @@ const storyPreviewText: Record<string, string> = {
   "event pick": "진행 중인 이벤트와 공지를 바로 확인해보세요.",
 };
 
-const shopCategories: ShopCategory[] = [
-  { group: "입문/기본", icon: "◎", items: [{ name: "입문 액세서리", count: 18 }, { name: "위생·보관", count: 24 }, { name: "케어/세정", count: 14 }] },
-  { group: "브랜드관", icon: "◇", items: [{ name: "국내 브랜드", count: 12 }, { name: "수입 브랜드", count: 21 }, { name: "안전 기획전", count: 9 }] },
-  { group: "판매자센터", icon: "▣", items: [{ name: "신규 등록 상품", count: 8 }, { name: "승인 대기", count: 5 }, { name: "재고/상태", count: 11 }] },
-];
+const shopCategories: ShopCategory[] = [];
 
 const productsSeed: ProductCard[] = [
   { id: 1, category: "위생·보관", name: "뉴트럴 케어 파우치", subtitle: "익명 포장/보관 가이드 포함", price: "₩18,000", badge: "안전노출" },
@@ -1744,7 +1740,7 @@ export default function App() {
   const [globalKeyword, setGlobalKeyword] = useState("");
   const [searchFilter, setSearchFilter] = useState("전체");
   const [homeTab, setHomeTab] = useState<HomeTab>("피드");
-  const [shoppingTab, setShoppingTab] = useState<ShoppingTab>("목록");
+  const [shoppingTab, setShoppingTab] = useState<ShoppingTab>("홈");
   const [communityTab, setCommunityTab] = useState<CommunityTab>("커뮤");
   const [chatTab, setChatTab] = useState<ChatTab>("채팅");
   const [chatCategory, setChatCategory] = useState<ChatCategory>("전체");
@@ -1752,6 +1748,14 @@ export default function App() {
   const [settingsCategory, setSettingsCategory] = useState<SettingsCategory>("일반");
   const [adminModeTab, setAdminModeTab] = useState<AdminModeTab>("DB관리");
   const [selectedShopCategory, setSelectedShopCategory] = useState("전체");
+  const [shopKeywordSignals, setShopKeywordSignals] = useState<Record<string, number>>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      return JSON.parse(window.localStorage.getItem("adultapp_shop_keyword_signals") ?? "{}");
+    } catch {
+      return {};
+    }
+  });
   const [selectedCommunityCategory, setSelectedCommunityCategory] = useState<string>("전체");
   const [communityPrimaryFilter, setCommunityPrimaryFilter] = useState<string>("전체");
   const [communitySecondaryFilter, setCommunitySecondaryFilter] = useState<string>("전체");
@@ -2114,6 +2118,33 @@ export default function App() {
     if (typeof window === "undefined") return;
     window.localStorage.setItem("adultapp_home_shop_consent_guide_seen", homeShopConsentGuideSeen ? "1" : "0");
   }, [homeShopConsentGuideSeen]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_shop_keyword_signals", JSON.stringify(shopKeywordSignals));
+  }, [shopKeywordSignals]);
+
+  const lastTrackedShopSearchRef = useRef("");
+  useEffect(() => {
+    if (activeTab !== "쇼핑") return;
+    const raw = `${shopKeyword} ${globalKeyword}`.trim();
+    if (!raw) return;
+    const normalized = raw
+      .split(/[,#\s/]+/)
+      .map((token) => token.trim())
+      .filter((token) => token.length >= 2)
+      .join("|")
+      .toLowerCase();
+    if (!normalized || lastTrackedShopSearchRef.current === normalized) return;
+    lastTrackedShopSearchRef.current = normalized;
+    setShopKeywordSignals((prev) => {
+      const next = { ...prev };
+      normalized.split("|").forEach((token) => {
+        next[token] = (next[token] ?? 0) + 1;
+      });
+      return next;
+    });
+  }, [activeTab, shopKeyword, globalKeyword]);
   useEffect(() => {
     if (!selectedOrderNo) return;
     getJson<ApiOrderDetail>(`/orders/${selectedOrderNo}`).then(setOrderDetail).catch(() => setOrderDetail(null));
@@ -2316,7 +2347,7 @@ export default function App() {
     const source = apiProducts.length
       ? apiProducts.filter((item) => (item.status ?? "published") === "published").map((item) => ({
           id: item.id,
-          category: item.category,
+          category: item.category ?? "기타",
           name: item.name,
           subtitle: item.description ?? "",
           price: `₩${Number(item.price || 0).toLocaleString()}`,
@@ -2329,6 +2360,40 @@ export default function App() {
       return matchCategory && matchKeyword;
     });
   }, [selectedShopCategory, shopKeyword, globalKeyword, apiProducts]);
+
+  const shoppingHomeKeywords = useMemo(() => {
+    const roleSeedMap: Record<string, string[]> = {
+      ADMIN: ["판매자", "신상품", "베스트", "위생", "보관", "케어", "세정", "입문", "브랜드", "기획전"],
+      SELLER: ["신상품", "입문", "브랜드", "베스트", "위생", "보관", "케어", "세정", "기획전", "인기"],
+      GUEST: ["입문", "위생", "보관", "케어", "세정", "베스트", "브랜드", "기획전", "추천", "인기"],
+      MEMBER: ["입문", "위생", "보관", "케어", "세정", "베스트", "브랜드", "기획전", "추천", "인기"],
+    };
+    const roleSeeds = roleSeedMap[currentUserRole] ?? roleSeedMap.MEMBER;
+    const pool = [
+      ...Object.entries(shopKeywordSignals)
+        .sort((a, b) => b[1] - a[1])
+        .map(([token]) => token),
+      ...roleSeeds,
+      ...allShopItems.flatMap((item) => [item.category, item.name]),
+      ...productsSeed.flatMap((item) => [item.category, item.name]),
+    ];
+
+    const normalized = pool
+      .flatMap((entry) => String(entry).split(/[·,/]/))
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length >= 2)
+      .filter((entry) => !/^(전체|상품|판매중|재고확인)$/.test(entry));
+
+    const unique: string[] = [];
+    for (const item of normalized) {
+      if (!unique.includes(item)) unique.push(item);
+      if (unique.length >= 32) break;
+    }
+    while (unique.length < 32) {
+      unique.push(`추천 ${unique.length + 1}`);
+    }
+    return unique.slice(0, 32);
+  }, [shopKeywordSignals, currentUserRole, allShopItems]);
 
   const filteredCommunity = useMemo(() => {
     const keyword = `${communityKeyword} ${globalKeyword}`.trim().toLowerCase();
@@ -3321,7 +3386,7 @@ export default function App() {
     setOverlayMode(null);
     setRoomModalOpen(false);
     if (tab !== "홈") setHomeTab("피드");
-    if (tab !== "쇼핑") setShoppingTab("목록");
+    if (tab !== "쇼핑") setShoppingTab("홈");
     if (tab !== "소통") setCommunityTab("커뮤");
     if (tab !== "채팅") {
       setChatTab("채팅");
@@ -3977,6 +4042,44 @@ export default function App() {
 
         {showAppTabContent && activeTab === "쇼핑" ? (
           <section className="tab-pane fill-pane">
+            {shoppingTab === "홈" ? (
+              <div className="stack-gap compact-scroll-list shop-home-pane">
+                <div className="shop-home-search-wrap">
+                  <div className="shop-home-search-bar">
+                    <input
+                      value={shopKeyword}
+                      onChange={(e) => setShopKeyword(e.target.value)}
+                      placeholder="상품명, 카테고리, 브랜드 검색"
+                    />
+                    <button
+                      type="button"
+                      className="shop-home-search-btn"
+                      onClick={() => setShoppingTab("목록")}
+                    >
+                      검색
+                    </button>
+                  </div>
+                </div>
+                <div className="shop-home-keyword-grid">
+                  {shoppingHomeKeywords.map((keyword, index) => (
+                    <button
+                      key={`${keyword}-${index}`}
+                      type="button"
+                      className="shop-home-keyword-tile"
+                      onClick={() => {
+                        setShopKeyword(keyword);
+                        setSelectedShopCategory("전체");
+                        setShoppingTab("목록");
+                      }}
+                    >
+                      <span className="shop-home-keyword-icon">{keyword.slice(0, 1)}</span>
+                      <span className="shop-home-keyword-label">{keyword}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
             {shoppingTab === "목록" ? (
               <>
                 <div className="section-head compact-head shop-list-head">
@@ -3985,37 +4088,21 @@ export default function App() {
                   </div>
                 </div>
                 {reconsentWriteRestricted ? <div className="legacy-box compact"><p>유예기간 없이 최신 필수 문서 재동의가 필요합니다. 먼저 필수 문서 안내 화면에서 재동의 정보를 확인한 뒤 주문·문의·상품등록 같은 쓰기 기능을 진행하세요.</p><div className="copy-action-row"><button type="button" className="ghost-btn" onClick={() => { setHomeShopConsentGuideSeen(true); setOverlayMode("reconsent_info"); }}>필수 문서 안내 열기</button></div></div> : null}
-                <div className="split-layout mobile-split">
-                  <aside className="left-menu always-open">
-                    <button className={`left-link ${selectedShopCategory === "전체" ? "active" : ""}`} onClick={() => setSelectedShopCategory("전체")}>전체 보기</button>
-                    {shopCategories.map((group) => (
-                      <div key={group.group} className="menu-group">
-                        <div className="menu-group-title">{group.icon} {group.group}</div>
-                        {group.items.map((item) => (
-                          <button key={item.name} className={`left-link ${selectedShopCategory === item.name ? "active" : ""}`} onClick={() => setSelectedShopCategory(item.name)}>
-                            <span>{item.name}</span>
-                            <b>{item.count}</b>
-                          </button>
-                        ))}
+                <div className="content-grid product-grid compact-scroll-list shop-list-grid-only">
+                  {allShopItems.map((product) => (
+                    <article key={product.id} className="product-card">
+                      <div className="product-thumb" />
+                      <span className="product-badge">{product.badge}</span>
+                      <strong>{product.name}</strong>
+                      <p>{product.subtitle}</p>
+                      <div className="product-meta"><span>{product.category}</span><b>{product.price}</b></div>
+                      <div className="product-card-actions">
+                        <button type="button" onClick={() => addToCart(product.id)}>장바구니 담기</button>
+                        <button type="button" className="ghost-btn" onClick={() => openProductDetail(product.id)}>상세보기</button>
+                        <button type="button" className="ghost-btn" onClick={() => toggleSavedProduct(product.id)}>{savedProductIds.includes(product.id) ? "보관해제" : "보관함"}</button>
                       </div>
-                    ))}
-                  </aside>
-                  <div className="content-grid product-grid compact-scroll-list">
-                    {allShopItems.map((product) => (
-                      <article key={product.id} className="product-card">
-                        <div className="product-thumb" />
-                        <span className="product-badge">{product.badge}</span>
-                        <strong>{product.name}</strong>
-                        <p>{product.subtitle}</p>
-                        <div className="product-meta"><span>{product.category}</span><b>{product.price}</b></div>
-                        <div className="product-card-actions">
-                          <button type="button" onClick={() => addToCart(product.id)}>장바구니 담기</button>
-                          <button type="button" className="ghost-btn" onClick={() => openProductDetail(product.id)}>상세보기</button>
-                          <button type="button" className="ghost-btn" onClick={() => toggleSavedProduct(product.id)}>{savedProductIds.includes(product.id) ? "보관해제" : "보관함"}</button>
-                        </div>
-                      </article>
-                    ))}
-                  </div>
+                    </article>
+                  ))}
                 </div>
               </>
             ) : null}
