@@ -4880,54 +4880,69 @@ export default function App() {
         ) : null}
 
                 {showAppTabContent && activeTab === "프로필" ? (
-          <section className="tab-pane fill-pane">
-            <div className="profile-shell compact-scroll-list profile-shell-single">
-              <div className="profile-card">
-                <div className="profile-avatar">A</div>
-                <strong>adult official</strong>
-                <span>운영/브랜드/판매자 통합 프로필 예시</span>
-                <div className="profile-stats">
-                  {profileStats.map((stat) => (
-                    <div key={stat.label}><b>{stat.value}</b><span>{stat.label}</span></div>
-                  ))}
+          <section className="tab-pane fill-pane profile-pane-instagram">
+            <div className="profile-ig-shell compact-scroll-list">
+              <div className="profile-ig-header">
+                <div className="profile-ig-avatar-wrap">
+                  <div className="profile-ig-avatar">A</div>
+                </div>
+                <div className="profile-ig-main">
+                  <div className="profile-ig-topline">
+                    <strong className="profile-ig-username">adult official</strong>
+                    <button type="button" className="ghost-btn profile-ig-mini-btn" onClick={() => setAuthStandaloneScreen("login")}>프로필 편집</button>
+                  </div>
+                  <div className="profile-ig-stats">
+                    <div><b>94</b><span>게시물</span></div>
+                    <div><b>2,184</b><span>팔로워</span></div>
+                    <div><b>318</b><span>팔로잉</span></div>
+                  </div>
+                  <div className="profile-ig-bio">
+                    <strong>adult official</strong>
+                    <p>운영 · 브랜드 · 셀러 큐레이션을 한 곳에서 정리하는 공식 계정입니다.</p>
+                    <span>#브랜드 #추천 #리뷰 #쇼핑</span>
+                  </div>
                 </div>
               </div>
-              <div className="profile-card auth-status-card">
-                <strong>회원가입 / 인증 상태</strong>
-                <span>로그인 수단: {demoLoginProvider} · 가입 전 본인확인: {identityVerified ? `${identityMethod} 완료` : "미완료"} · 성인인증: {adultVerified ? "완료" : "미완료"}</span>
-                <div className="profile-stats">
-                  <div><b>{adultFailCount}</b><span>실패횟수</span></div>
-                  <div><b>{adultCooldownRemainMinutes > 0 ? `${adultCooldownRemainMinutes}분` : "없음"}</b><span>쿨타임</span></div>
-                  <div><b>{randomProfileReady ? "완료" : "보완필요"}</b><span>포럼 심사 참고값</span></div>
-                </div>
-                <div className="copy-action-row">
-                  <button type="button" onClick={() => setAuthStandaloneScreen("login")}>로그인 화면</button>
-                  <button type="button" className="ghost-btn" onClick={() => { setSignupStep("consent"); setAuthStandaloneScreen("signup"); }}>회원가입 화면</button>
-                  <button type="button" className="ghost-btn" onClick={() => startIdentitySignup("PASS")}>PASS 인증</button>
-                  <button type="button" className="ghost-btn" onClick={() => setDemoLoginProvider("카카오")}>카카오 로그인</button>
-                  <button type="button" onClick={() => attemptAdultVerification("success")}>성인인증 성공</button>
-                  <button type="button" className="ghost-btn" onClick={resetAdultFlow}>상태 초기화</button>
-                </div>
+
+              <div className="profile-ig-actions">
+                <button type="button">공유하기</button>
+                <button type="button" className="ghost-btn" onClick={() => setActiveTab("쇼핑")}>상품 보기</button>
+                <button type="button" className="ghost-btn" onClick={() => setActiveTab("채팅")}>문의하기</button>
               </div>
-              <div className="profile-card auth-status-card">
-                <strong>선택 프로필 / 제한 포럼 심사용 참고값</strong>
-                <span>성별, 연령대, 지역은 일반 가입 단계에서는 선택 입력이며, 제한 웹 포럼 운영 시에는 내부 심사/안전 운영 참고 정보로만 사용합니다.</span>
-                <div className="signup-form-grid profile-edit-grid">
-                  <label><span>성별</span><select value={demoProfile.gender} onChange={(e) => setDemoProfile((prev) => ({ ...prev, gender: e.target.value }))}>{profileGenderOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
-                  <label><span>연령대</span><select value={demoProfile.ageBand} onChange={(e) => setDemoProfile((prev) => ({ ...prev, ageBand: e.target.value }))}>{profileAgeBandOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
-                  <label><span>지역</span><select value={demoProfile.regionCode} onChange={(e) => setDemoProfile((prev) => ({ ...prev, regionCode: e.target.value }))}>{profileRegionOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
-                  <label className="wide"><span>관심 카테고리</span><div className="chip-checklist">{interestCategoryOptions.map((item) => <button key={item} type="button" className={`chip-check ${demoProfile.interests.includes(item) ? "active" : ""}`} onClick={() => toggleInterestCategory(item)}>{item}</button>)}</div></label>
-                </div>
-                {!randomProfileReady ? <p>미입력 항목: {randomProfileMissing.join(", ")} · 미입력 시에도 앱 공개영역 이용은 가능하지만, 제한 웹 포럼 승인 심사 시 보완 요청이 발생할 수 있습니다.</p> : <p>제한 웹 포럼 심사용 선택 프로필 입력이 완료되었습니다.</p>}
+
+              <div className="profile-ig-highlights">
+                {[
+                  { label: "추천", sub: "오늘의 픽" },
+                  { label: "리뷰", sub: "후기 모음" },
+                  { label: "브랜드", sub: "공식관" },
+                  { label: "케어", sub: "관리 팁" },
+                ].map((item) => (
+                  <button type="button" key={item.label} className="profile-ig-highlight">
+                    <span>{item.label.slice(0, 1)}</span>
+                    <b>{item.label}</b>
+                    <small>{item.sub}</small>
+                  </button>
+                ))}
               </div>
-              <div className="profile-card auth-status-card">
-                <strong>동의 이력 저장 예시</strong>
-                <span>필수·선택 동의를 분리 저장하고, 약관/처리방침 버전을 함께 기록하는 구조를 권장합니다.</span>
-                <div className="consent-record-list">
-                  {consentRecordsPreview.map((item) => (
-                    <div key={item.consent_type} className="simple-list-row"><b>{item.consent_type}</b><span>{item.agreed ? "동의" : "미동의"} · {item.required ? "필수" : "선택"} · {item.version}</span></div>
-                  ))}
-                </div>
+
+              <div className="profile-ig-tabbar" aria-label="프로필 탭">
+                <button type="button" className="active">게시물</button>
+                <button type="button">릴스</button>
+                <button type="button">태그됨</button>
+              </div>
+
+              <div className="profile-ig-grid">
+                {feedSeed.filter((item) => item.type === "image").slice(0, 12).map((item) => (
+                  <article key={item.id} className={`profile-ig-tile ${item.accent}`}>
+                    <div className="profile-ig-tile-media">
+                      <span>{item.category}</span>
+                    </div>
+                    <div className="profile-ig-tile-meta">
+                      <strong>{item.title}</strong>
+                      <span>♥ {item.likes} · 💬 {item.comments}</span>
+                    </div>
+                  </article>
+                ))}
               </div>
             </div>
           </section>
