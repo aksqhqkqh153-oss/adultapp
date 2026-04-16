@@ -1829,6 +1829,7 @@ export default function App() {
   const [adultPromptOpen, setAdultPromptOpen] = useState(false);
   const [signupStep, setSignupStep] = useState<SignupStep>("consent");
   const [signupLegalOpen, setSignupLegalOpen] = useState<string | null>(null);
+  const [signupConsentModal, setSignupConsentModal] = useState<keyof SignupConsentState | null>(null);
   const [identityMethod, setIdentityMethod] = useState<"PASS" | "휴대폰" | "미완료">(() => {
     if (typeof window === "undefined") return "미완료";
     return (window.localStorage.getItem("adultapp_identity_method") as "PASS" | "휴대폰" | "미완료" | null) ?? "미완료";
@@ -2442,6 +2443,81 @@ export default function App() {
     setAuthMessage("로그인이 필요합니다. 청소년은 이용할 수 없습니다.");
   }, [shouldForceAuthStandalone]);
   const adultCooldownRemainMinutes = adultCooldownUntil > Date.now() ? Math.ceil((adultCooldownUntil - Date.now()) / 60000) : 0;
+  const signupConsentMeta: Record<keyof SignupConsentState, {
+    title: string;
+    summary: string;
+    body: string[];
+    href?: string;
+  }> = {
+    terms: {
+      title: "[필수] 이용약관 확인",
+      summary: "서비스 이용 조건, 회원 의무, 금지 행위, 게시물 운영원칙, 주문/환불 기본 정책을 확인합니다.",
+      body: [
+        "회원은 성인 전용 서비스 정책과 커뮤니티 운영 원칙을 준수해야 합니다.",
+        "불법 행위, 타인 권리 침해, 청소년 관련 위반, 결제 악용, 운영 방해 행위는 제한 대상입니다.",
+        "주문·환불·제재·계정 제한과 관련된 기본 기준은 이용약관 및 운영정책에 따릅니다.",
+      ],
+      href: `${getApiBase()}/legal/terms-of-service`,
+    },
+    privacy: {
+      title: "[필수] 개인정보 처리방침 확인",
+      summary: "수집 항목, 이용 목적, 보관 기간, 제3자 제공 및 처리위탁 기준을 확인합니다.",
+      body: [
+        "회원 식별, 로그인 유지, 본인확인, 성인인증, 고객지원 및 법령상 의무 이행을 위해 필요한 정보를 처리합니다.",
+        "법령상 보존이 필요한 정보는 해당 기간 동안 안전하게 보관될 수 있습니다.",
+        "처리방침은 변경 시 공지되며, 필수 항목 변경 시 재동의가 요구될 수 있습니다.",
+      ],
+      href: `${getApiBase()}/legal/privacy-policy`,
+    },
+    adultNotice: {
+      title: "[필수] 만 19세 이상 및 성인 서비스 이용 고지 확인",
+      summary: "본 서비스는 만 19세 이상 성인만 이용할 수 있으며, 청소년은 이용할 수 없습니다.",
+      body: [
+        "회원가입 및 로그인은 만 19세 이상 본인확인 가능자만 진행할 수 있습니다.",
+        "청소년 또는 비정상 인증으로 확인되는 경우 서비스 접근이 제한되거나 계정이 차단될 수 있습니다.",
+        "성인 전용 영역은 별도 인증 절차 후에만 접근할 수 있습니다.",
+      ],
+    },
+    identityNotice: {
+      title: "[필수] 본인확인/성인인증 결과 처리 안내 확인",
+      summary: "본인확인 및 성인인증 결과는 계정 생성, 접근 권한 판단, 법적 의무 이행을 위해 처리됩니다.",
+      body: [
+        "인증 결과값은 회원 상태 판정, 청소년 차단, 성인 영역 접근 제어, 부정 이용 방지에 사용됩니다.",
+        "인증 실패, 미완료, 불일치 상태에서는 회원가입 또는 일부 기능 이용이 제한될 수 있습니다.",
+        "관련 법령과 내부 보안 기준에 따라 필요한 범위 내에서만 저장·처리됩니다.",
+      ],
+    },
+    marketing: {
+      title: "[선택] 마케팅 정보 수신 동의",
+      summary: "이벤트, 혜택, 프로모션, 신규 기능 안내를 수신할지 선택합니다.",
+      body: [
+        "선택 동의이며, 동의하지 않아도 기본 서비스 이용에는 영향이 없습니다.",
+        "수신 채널과 항목은 운영정책에 따라 조정될 수 있습니다.",
+        "언제든지 설정에서 수신 동의를 변경할 수 있습니다.",
+      ],
+    },
+    profileOptional: {
+      title: "[선택] 맞춤 추천을 위한 프로필 정보 수집 동의",
+      summary: "성별, 연령대, 지역, 관심 카테고리 등 선택 입력 정보를 추천 품질 향상에 활용할 수 있습니다.",
+      body: [
+        "선택 동의이며, 동의하지 않아도 기본 서비스 이용에는 영향이 없습니다.",
+        "입력한 선택 정보는 맞춤 추천, 제한 영역 심사 참고, 운영 안전성 보조 정보로 사용될 수 있습니다.",
+        "언제든지 프로필 또는 설정에서 변경할 수 있습니다.",
+      ],
+    },
+  };
+
+  const openSignupConsentModal = (key: keyof SignupConsentState) => {
+    setSignupConsentModal(key);
+  };
+
+  const toggleSignupConsent = (key: keyof SignupConsentState, checked: boolean) => {
+    setSignupConsents((prev) => ({ ...prev, [key]: checked }));
+    if (checked) {
+      openSignupConsentModal(key);
+    }
+  };
+
   const requiredConsentAccepted = requiredConsentKeys.every((key) => signupConsents[key]);
   const reconsentRequired = Boolean(authSummary?.reconsent_required || authSummary?.consent_status?.reconsent_required);
   const reconsentMode = (authSummary?.reconsent_enforcement_mode as string | undefined) ?? "limited_access";
@@ -2502,7 +2578,10 @@ export default function App() {
 
   const advanceSignupStep = () => {
     if (signupStep === "consent") {
-      if (!requiredConsentAccepted) return;
+      if (!requiredConsentAccepted) {
+        window.alert("필수 체크 항목을 체크 후 다음을 눌러주세요");
+        return;
+      }
       setSignupStep("account");
       return;
     }
@@ -3319,10 +3398,25 @@ export default function App() {
         ) : null}
         <main className="auth-standalone-main">
           <section className="auth-standalone-card">
-            <div className="auth-standalone-head">
-              <div>
-                <h1>{authStandaloneScreen === "login" ? "로그인" : "회원가입"}</h1>
-              </div>
+            <div className={`auth-standalone-head ${authStandaloneScreen === "signup" ? "auth-standalone-head--signup" : ""}`}>
+              {authStandaloneScreen === "signup" ? (
+                <div className="auth-standalone-headbar">
+                  <button
+                    type="button"
+                    className="header-inline-btn header-icon-btn auth-back-icon-btn"
+                    onClick={() => setAuthStandaloneScreen("login")}
+                    aria-label="뒤로가기"
+                  >
+                    <BackArrowIcon />
+                  </button>
+                  <h1>회원가입</h1>
+                  <span className="auth-standalone-headbar-spacer" aria-hidden="true" />
+                </div>
+              ) : (
+                <div>
+                  <h1>로그인</h1>
+                </div>
+              )}
             </div>
             {authStandaloneScreen === "login" ? (
               <div className="auth-standalone-body stack-gap">
@@ -3362,42 +3456,71 @@ export default function App() {
                 </div>
                 {signupStep === "consent" ? (
                   <div className="stack-gap signup-step-panel signup-step-panel-consent">
-                    <div className="legacy-box compact signup-legal-copy signup-panel">
-                      <h3>약관 및 필수 안내</h3>
-                      <p>회원가입 전에 필수 문서 제목만 확인하고 체크할 수 있도록 정리했습니다. 자세한 내용은 아래 문서를 눌러 펼쳐서 읽을 수 있습니다.</p>
-                      <div className="consent-record-list">
-                        <details className="legacy-box compact" open={signupLegalOpen === "terms"} onToggle={(e) => setSignupLegalOpen((e.currentTarget as HTMLDetailsElement).open ? "terms" : signupLegalOpen === "terms" ? null : signupLegalOpen)}>
-                          <summary><strong>이용약관 자세히 보기</strong></summary>
-                          <p>서비스 이용 조건, 회원 의무, 금지 행위, 게시물 운영원칙, 주문/환불 기본 정책을 안내합니다.</p>
-                          <a className="ghost-link-btn" href={`${getApiBase()}/legal/terms-of-service`} target="_blank" rel="noreferrer">전체 약관 문서 열기</a>
-                        </details>
-                        <details className="legacy-box compact" open={signupLegalOpen === "privacy"} onToggle={(e) => setSignupLegalOpen((e.currentTarget as HTMLDetailsElement).open ? "privacy" : signupLegalOpen === "privacy" ? null : signupLegalOpen)}>
-                          <summary><strong>개인정보 처리방침 자세히 보기</strong></summary>
-                          <p>수집 항목은 이메일, 비밀번호, 이름, 본인확인 결과값이며 회원 식별, 로그인, 고객지원, 성인인증 처리에 사용됩니다. 법령상 보존기간 동안 보관할 수 있습니다.</p>
-                          <a className="ghost-link-btn" href={`${getApiBase()}/legal/privacy-policy`} target="_blank" rel="noreferrer">전체 처리방침 문서 열기</a>
-                        </details>
-                        <details className="legacy-box compact" open={signupLegalOpen === "youth"} onToggle={(e) => setSignupLegalOpen((e.currentTarget as HTMLDetailsElement).open ? "youth" : signupLegalOpen === "youth" ? null : signupLegalOpen)}>
-                          <summary><strong>청소년 보호정책 자세히 보기</strong></summary>
-                          <p>만 19세 미만은 이용이 제한되며, 성인 서비스 접근 전 본인확인과 성인인증이 필요합니다. 정책 위반 시 서비스 제한이 적용될 수 있습니다.</p>
-                          <a className="ghost-link-btn" href={`${getApiBase()}/legal/youth-policy`} target="_blank" rel="noreferrer">전체 청소년 보호정책 문서 열기</a>
-                        </details>
+                    {signupConsentModal ? (
+                      <div className="modal-backdrop">
+                        <div className="modal-card signup-consent-modal">
+                          <div className="modal-header-row">
+                            <strong>{signupConsentMeta[signupConsentModal].title}</strong>
+                            <button type="button" className="ghost-btn" onClick={() => setSignupConsentModal(null)}>닫기</button>
+                          </div>
+                          <div className="stack-gap">
+                            <div className="legacy-box compact signup-consent-modal-copy">
+                              <p>{signupConsentMeta[signupConsentModal].summary}</p>
+                              {signupConsentMeta[signupConsentModal].body.map((item) => (
+                                <p key={item}>{item}</p>
+                              ))}
+                            </div>
+                            {signupConsentMeta[signupConsentModal].href ? (
+                              <div className="legacy-box compact signup-consent-modal-frame">
+                                <iframe
+                                  title={signupConsentMeta[signupConsentModal].title}
+                                  src={signupConsentMeta[signupConsentModal].href}
+                                  className="signup-consent-iframe"
+                                />
+                              </div>
+                            ) : null}
+                            <div className="copy-action-row signup-consent-modal-actions">
+                              <button type="button" onClick={() => setSignupConsentModal(null)}>확인</button>
+                            </div>
+                          </div>
+                        </div>
                       </div>
+                    ) : null}
+                    <div className="legacy-box compact signup-legal-copy signup-panel">
+                      <h3>약관 안내</h3>
                     </div>
                     <div className="consent-checklist signup-consent-checklist">
-                      <label className={`consent-row ${signupConsents.terms ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.terms} onChange={(e) => setSignupConsents((prev) => ({ ...prev, terms: e.target.checked }))} /><span>[필수] 이용약관 확인</span></label>
-                      <label className={`consent-row ${signupConsents.privacy ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.privacy} onChange={(e) => setSignupConsents((prev) => ({ ...prev, privacy: e.target.checked }))} /><span>[필수] 개인정보 처리방침 확인</span></label>
-                      <label className={`consent-row ${signupConsents.adultNotice ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.adultNotice} onChange={(e) => setSignupConsents((prev) => ({ ...prev, adultNotice: e.target.checked }))} /><span>[필수] 만 19세 이상 및 성인 서비스 이용 고지 확인</span></label>
-                      <label className={`consent-row ${signupConsents.identityNotice ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.identityNotice} onChange={(e) => setSignupConsents((prev) => ({ ...prev, identityNotice: e.target.checked }))} /><span>[필수] 본인확인/성인인증 결과 처리 안내 확인</span></label>
-                      <label className={`consent-row ${signupConsents.marketing ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.marketing} onChange={(e) => setSignupConsents((prev) => ({ ...prev, marketing: e.target.checked }))} /><span>[선택] 마케팅 정보 수신 동의</span></label>
-                      <label className={`consent-row ${signupConsents.profileOptional ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.profileOptional} onChange={(e) => setSignupConsents((prev) => ({ ...prev, profileOptional: e.target.checked }))} /><span>[선택] 맞춤 추천을 위한 프로필 정보 수집 동의</span></label>
+                      <label className={`consent-row ${signupConsents.terms ? "checked" : ""}`}>
+                        <input type="checkbox" checked={signupConsents.terms} onChange={(e) => toggleSignupConsent("terms", e.target.checked)} />
+                        <span role="button" tabIndex={0} onClick={() => openSignupConsentModal("terms")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSignupConsentModal("terms"); } }}>[필수] 이용약관 확인</span>
+                      </label>
+                      <label className={`consent-row ${signupConsents.privacy ? "checked" : ""}`}>
+                        <input type="checkbox" checked={signupConsents.privacy} onChange={(e) => toggleSignupConsent("privacy", e.target.checked)} />
+                        <span role="button" tabIndex={0} onClick={() => openSignupConsentModal("privacy")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSignupConsentModal("privacy"); } }}>[필수] 개인정보 처리방침 확인</span>
+                      </label>
+                      <label className={`consent-row ${signupConsents.adultNotice ? "checked" : ""}`}>
+                        <input type="checkbox" checked={signupConsents.adultNotice} onChange={(e) => toggleSignupConsent("adultNotice", e.target.checked)} />
+                        <span role="button" tabIndex={0} onClick={() => openSignupConsentModal("adultNotice")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSignupConsentModal("adultNotice"); } }}>[필수] 만 19세 이상 및 성인 서비스 이용 고지 확인</span>
+                      </label>
+                      <label className={`consent-row ${signupConsents.identityNotice ? "checked" : ""}`}>
+                        <input type="checkbox" checked={signupConsents.identityNotice} onChange={(e) => toggleSignupConsent("identityNotice", e.target.checked)} />
+                        <span role="button" tabIndex={0} onClick={() => openSignupConsentModal("identityNotice")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSignupConsentModal("identityNotice"); } }}>[필수] 본인확인/성인인증 결과 처리 안내 확인</span>
+                      </label>
+                      <label className={`consent-row ${signupConsents.marketing ? "checked" : ""}`}>
+                        <input type="checkbox" checked={signupConsents.marketing} onChange={(e) => toggleSignupConsent("marketing", e.target.checked)} />
+                        <span role="button" tabIndex={0} onClick={() => openSignupConsentModal("marketing")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSignupConsentModal("marketing"); } }}>[선택] 마케팅 정보 수신 동의</span>
+                      </label>
+                      <label className={`consent-row ${signupConsents.profileOptional ? "checked" : ""}`}>
+                        <input type="checkbox" checked={signupConsents.profileOptional} onChange={(e) => toggleSignupConsent("profileOptional", e.target.checked)} />
+                        <span role="button" tabIndex={0} onClick={() => openSignupConsentModal("profileOptional")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSignupConsentModal("profileOptional"); } }}>[선택] 맞춤 추천을 위한 프로필 정보 수집 동의</span>
+                      </label>
                     </div>
-                    <div className="copy-action-row signup-action-row">
-                      <button type="button" onClick={advanceSignupStep} disabled={!requiredConsentAccepted}>다음</button>
-                      <button type="button" className="ghost-btn" onClick={() => setAuthStandaloneScreen("login")}>로그인 화면으로</button>
+                    <div className="copy-action-row signup-action-row signup-action-row--single">
+                      <button type="button" onClick={advanceSignupStep}>다음</button>
                     </div>
                   </div>
                 ) : null}
-                {signupStep === "account" ? (
+{signupStep === "account" ? (
                   <div className="stack-gap signup-step-panel signup-step-panel-account">
                     <div className="signup-form-grid signup-form-grid--account">
                       <label><span>로그인 수단</span><select value={signupForm.loginMethod} onChange={(e) => setSignupForm((prev) => ({ ...prev, loginMethod: e.target.value as LoginMethod }))}><option value="이메일">이메일</option><option value="카카오">카카오</option></select></label>
