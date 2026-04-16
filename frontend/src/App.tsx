@@ -3346,8 +3346,8 @@ export default function App() {
                 </div>
               </div>
             ) : (
-              <div className="auth-standalone-body stack-gap">
-                <div className="signup-step-strip">
+              <div className="auth-standalone-body stack-gap signup-screen-body">
+                <div className="signup-step-strip signup-step-strip-mobile">
                   {[
                     ["consent", "1단계 법정 문서 확인"],
                     ["account", "2단계 가입 입력"],
@@ -3361,8 +3361,8 @@ export default function App() {
                   ))}
                 </div>
                 {signupStep === "consent" ? (
-                  <div className="stack-gap">
-                    <div className="legacy-box compact signup-legal-copy">
+                  <div className="stack-gap signup-step-panel signup-step-panel-consent">
+                    <div className="legacy-box compact signup-legal-copy signup-panel">
                       <h3>약관 및 필수 안내</h3>
                       <p>회원가입 전에 필수 문서 제목만 확인하고 체크할 수 있도록 정리했습니다. 자세한 내용은 아래 문서를 눌러 펼쳐서 읽을 수 있습니다.</p>
                       <div className="consent-record-list">
@@ -3383,7 +3383,7 @@ export default function App() {
                         </details>
                       </div>
                     </div>
-                    <div className="consent-checklist">
+                    <div className="consent-checklist signup-consent-checklist">
                       <label className={`consent-row ${signupConsents.terms ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.terms} onChange={(e) => setSignupConsents((prev) => ({ ...prev, terms: e.target.checked }))} /><span>[필수] 이용약관 확인</span></label>
                       <label className={`consent-row ${signupConsents.privacy ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.privacy} onChange={(e) => setSignupConsents((prev) => ({ ...prev, privacy: e.target.checked }))} /><span>[필수] 개인정보 처리방침 확인</span></label>
                       <label className={`consent-row ${signupConsents.adultNotice ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.adultNotice} onChange={(e) => setSignupConsents((prev) => ({ ...prev, adultNotice: e.target.checked }))} /><span>[필수] 만 19세 이상 및 성인 서비스 이용 고지 확인</span></label>
@@ -3391,15 +3391,15 @@ export default function App() {
                       <label className={`consent-row ${signupConsents.marketing ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.marketing} onChange={(e) => setSignupConsents((prev) => ({ ...prev, marketing: e.target.checked }))} /><span>[선택] 마케팅 정보 수신 동의</span></label>
                       <label className={`consent-row ${signupConsents.profileOptional ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.profileOptional} onChange={(e) => setSignupConsents((prev) => ({ ...prev, profileOptional: e.target.checked }))} /><span>[선택] 맞춤 추천을 위한 프로필 정보 수집 동의</span></label>
                     </div>
-                    <div className="copy-action-row">
+                    <div className="copy-action-row signup-action-row">
                       <button type="button" onClick={advanceSignupStep} disabled={!requiredConsentAccepted}>다음</button>
                       <button type="button" className="ghost-btn" onClick={() => setAuthStandaloneScreen("login")}>로그인 화면으로</button>
                     </div>
                   </div>
                 ) : null}
                 {signupStep === "account" ? (
-                  <div className="stack-gap">
-                    <div className="signup-form-grid">
+                  <div className="stack-gap signup-step-panel signup-step-panel-account">
+                    <div className="signup-form-grid signup-form-grid--account">
                       <label><span>로그인 수단</span><select value={signupForm.loginMethod} onChange={(e) => setSignupForm((prev) => ({ ...prev, loginMethod: e.target.value as LoginMethod }))}><option value="이메일">이메일</option><option value="카카오">카카오</option></select></label>
                       <label><span>이메일</span><input value={signupForm.email} onChange={(e) => setSignupForm((prev) => ({ ...prev, email: e.target.value }))} placeholder="you@example.com" /></label>
                       <label><span>비밀번호</span><input type="password" value={signupForm.password} onChange={(e) => setSignupForm((prev) => ({ ...prev, password: e.target.value }))} placeholder="비밀번호 입력" /></label>
@@ -3407,26 +3407,26 @@ export default function App() {
                       <label className="wide"><span>휴대폰 본인확인 결과 토큰</span><input value={identityVerificationToken} readOnly placeholder="PASS/휴대폰 본인확인 완료 시 서버 토큰이 자동 입력됩니다" /></label>
                       <label><span>성인인증 상태</span><input value={adultVerified ? "완료" : "가입 후 홈/쇼핑 진입 시 1회 추가 인증"} readOnly /></label>
                     </div>
-                    <div className="legacy-grid three auth-option-grid">
+                    <div className="legacy-grid three auth-option-grid signup-auth-option-grid">
                       <div className="legacy-box compact"><h3>PASS 인증</h3><p>PASS 기반 본인확인 흐름을 테스트합니다.</p><button type="button" onClick={() => startIdentitySignup("PASS")}>PASS 인증 완료 처리</button></div>
                       <div className="legacy-box compact"><h3>휴대폰 인증</h3><p>휴대폰 인증 흐름을 테스트합니다.</p><button type="button" onClick={() => startIdentitySignup("휴대폰")}>휴대폰 인증 완료 처리</button></div>
                       <div className="legacy-box compact"><h3>카카오 로그인</h3><p>카카오는 로그인 편의 수단으로만 사용합니다.</p><button type="button" className="ghost-btn" onClick={() => setDemoLoginProvider("카카오")}>카카오 로그인 방식 선택</button></div>
                     </div>
-                    <div className="copy-action-row">
+                    <div className="copy-action-row signup-action-row">
                       <button type="button" className="ghost-btn" onClick={() => setSignupStep("consent")}>이전</button>
                       <button type="button" onClick={advanceSignupStep} disabled={!signupAccountValid}>다음</button>
                     </div>
                   </div>
                 ) : null}
                 {signupStep === "profile" ? (
-                  <div className="stack-gap">
-                    <div className="signup-form-grid profile-edit-grid">
+                  <div className="stack-gap signup-step-panel signup-step-panel-profile">
+                    <div className="signup-form-grid profile-edit-grid signup-form-grid--profile">
                       <label><span>성별</span><select value={demoProfile.gender} onChange={(e) => setDemoProfile((prev) => ({ ...prev, gender: e.target.value }))}>{profileGenderOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
                       <label><span>연령대</span><select value={demoProfile.ageBand} onChange={(e) => setDemoProfile((prev) => ({ ...prev, ageBand: e.target.value }))}>{profileAgeBandOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
                       <label><span>지역</span><select value={demoProfile.regionCode} onChange={(e) => setDemoProfile((prev) => ({ ...prev, regionCode: e.target.value }))}>{profileRegionOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
                       <label className="wide"><span>관심 카테고리</span><div className="chip-checklist">{interestCategoryOptions.map((item) => <button key={item} type="button" className={`chip-check ${demoProfile.interests.includes(item) ? "active" : ""}`} onClick={() => toggleInterestCategory(item)}>{item}</button>)}</div></label>
                     </div>
-                    <div className="copy-action-row">
+                    <div className="copy-action-row signup-action-row signup-action-row--triple">
                       <button type="button" className="ghost-btn" onClick={() => setSignupStep("account")}>이전</button>
                       <button type="button" className="ghost-btn" onClick={() => completeSignupFlow(true)}>선택 정보 없이 가입 완료</button>
                       <button type="button" onClick={() => completeSignupFlow(false)}>회원가입 완료</button>
@@ -3775,7 +3775,7 @@ export default function App() {
               <div className="section-head compact-head">
                 <div><h2>성인 인증 필요</h2><p>{activeTab} 화면은 최초 1회 성인 인증 완료 후 지속 이용 가능하도록 설계했습니다. 홈 또는 쇼핑 중 하나에서 인증이 완료되면 두 화면 모두 접근 가능합니다.</p></div>
               </div>
-              <div className="legacy-grid three auth-option-grid">
+              <div className="legacy-grid three auth-option-grid signup-auth-option-grid">
                 <div className="legacy-box compact"><h3>성인 인증 안내</h3><p>회원가입 시 PASS/휴대폰 본인확인 완료 후 계정을 생성하고, 성인 회원은 홈 또는 쇼핑 최초 접근 시 1회 추가 성인인증을 진행합니다. 카카오는 로그인 편의 수단으로만 사용합니다.</p><button type="button" className="ghost-btn" onClick={() => setAdultPromptOpen(true)}>성인인증 필요 모달 보기</button></div>
                 <div className="legacy-box compact"><h3>PASS/휴대폰 본인확인 시작</h3><p>실서비스에서는 외부 본인인증 SDK를 호출하고, 현재 데모에서는 흐름만 검증합니다.</p><div className="copy-action-row"><button type="button" onClick={() => attemptAdultVerification("success")}>PASS/휴대폰 인증 성공</button><button type="button" className="ghost-btn" onClick={() => attemptAdultVerification("fail")}>인증 실패</button></div></div>
                 <div className="legacy-box compact"><h3>차단 / 재시도 상태</h3><p>실패 {adultFailCount}회 · {adultCooldownRemainMinutes > 0 ? `${adultCooldownRemainMinutes}분 후 재시도 가능` : "현재 재시도 가능"}</p><button type="button" className="ghost-btn" onClick={() => attemptAdultVerification("minor")}>미성년 차단 화면 확인</button></div>
@@ -4531,7 +4531,7 @@ export default function App() {
                 <p><b>{pendingDmUser.name}</b> 님에게 <b>{pendingDmUser.topic}</b> 주제로 1:1 대화를 요청합니다.</p>
                 <p>요청 전에 아래 대화 규칙 동의가 필요합니다.</p>
               </div>
-              <div className="consent-checklist">
+              <div className="consent-checklist signup-consent-checklist">
                 {dmRuleNoticeItems.map((item) => (
                   <label key={item} className="consent-row">
                     <input type="checkbox" checked={!!dmRuleChecks[item]} onChange={(e) => setDmRuleChecks((prev) => ({ ...prev, [item]: e.target.checked }))} />

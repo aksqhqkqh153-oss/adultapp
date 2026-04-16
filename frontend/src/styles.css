@@ -2160,24 +2160,225 @@ pre {
   gap: 12px;
 }
 
+
+.signup-screen-body {
+  display: grid;
+  gap: 16px;
+}
+
+.signup-step-strip-mobile {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding: 10px;
+  border-radius: 18px;
+  background: rgba(11, 17, 24, 0.92);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.signup-step-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.signup-panel {
+  border-radius: 20px;
+  padding: 16px;
+}
+
+.signup-legal-copy h3 {
+  margin: 0 0 6px;
+  font-size: 18px;
+}
+
+.signup-legal-copy details {
+  border-radius: 16px;
+}
+
+.signup-legal-copy summary {
+  cursor: pointer;
+  line-height: 1.45;
+}
+
+.signup-legal-copy p {
+  line-height: 1.6;
+}
+
+.signup-consent-checklist {
+  gap: 10px;
+}
+
+.signup-consent-checklist .consent-row {
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 56px;
+  padding: 14px 16px;
+  border-radius: 16px;
+}
+
+.signup-consent-checklist .consent-row input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  flex: 0 0 auto;
+}
+
+.signup-consent-checklist .consent-row span {
+  flex: 1;
+  line-height: 1.5;
+  font-size: 15px;
+}
+
+.signup-form-grid--account,
+.signup-form-grid--profile {
+  gap: 14px;
+}
+
+.signup-form-grid--account label,
+.signup-form-grid--profile label {
+  gap: 8px;
+}
+
+.signup-form-grid--account label span,
+.signup-form-grid--profile label span {
+  font-size: 14px;
+  font-weight: 600;
+  color: #d8e1ee;
+}
+
+.signup-form-grid--account input,
+.signup-form-grid--account select,
+.signup-form-grid--profile input,
+.signup-form-grid--profile select {
+  min-height: 52px;
+  border-radius: 16px;
+  padding: 0 14px;
+  font-size: 16px;
+}
+
+.signup-auth-option-grid {
+  gap: 12px;
+}
+
+.signup-auth-option-grid .legacy-box.compact {
+  border-radius: 18px;
+  padding: 16px;
+}
+
+.signup-auth-option-grid .legacy-box.compact h3 {
+  font-size: 17px;
+}
+
+.signup-auth-option-grid .legacy-box.compact p {
+  line-height: 1.55;
+}
+
+.signup-action-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.signup-action-row--triple {
+  grid-template-columns: 1fr;
+}
+
+.signup-action-row button {
+  min-height: 52px;
+  border-radius: 16px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.signup-action-row--triple button:last-child {
+  min-height: 56px;
+}
+
 @media (max-width: 640px) {
+  .auth-standalone-shell {
+    background: #0b1118;
+  }
+
   .auth-standalone-main {
     padding: 0;
+    align-items: stretch;
   }
 
   .auth-standalone-card {
+    width: 100%;
     min-height: 100vh;
     border-radius: 0;
-    padding: 20px 16px 28px;
+    border: 0;
+    box-shadow: none;
+    padding: 18px 14px 28px;
+    background: linear-gradient(180deg, rgba(11, 17, 24, 0.98) 0%, rgba(17, 24, 39, 0.98) 100%);
   }
 
   .auth-standalone-head {
     flex-direction: column;
     align-items: stretch;
+    gap: 10px;
+    margin-bottom: 16px;
   }
 
   .auth-standalone-head h1 {
-    font-size: 28px;
+    margin: 0;
+    font-size: 26px;
+    line-height: 1.2;
+  }
+
+  .auth-standalone-body {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .signup-step-strip-mobile {
+    grid-template-columns: 1fr;
+  }
+
+  .signup-step-btn {
+    min-height: 48px;
+    text-align: left;
+    padding: 0 14px;
+    border-radius: 14px;
+    font-size: 14px;
+    line-height: 1.35;
+  }
+
+  .signup-panel {
+    padding: 14px;
+  }
+
+  .signup-legal-copy h3 {
+    font-size: 17px;
+  }
+
+  .signup-legal-copy p,
+  .signup-auth-option-grid .legacy-box.compact p {
+    font-size: 14px;
+  }
+
+  .signup-form-grid--account,
+  .signup-form-grid--profile,
+  .signup-auth-option-grid,
+  .signup-action-row {
+    grid-template-columns: 1fr;
+  }
+
+  .signup-action-row button,
+  .signup-action-row--triple button {
+    width: 100%;
+  }
+
+  .chip-checklist {
+    gap: 10px;
+  }
+
+  .chip-check {
+    min-height: 42px;
+    padding: 0 14px;
+    font-size: 14px;
   }
 }
 
