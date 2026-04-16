@@ -5199,6 +5199,24 @@ export default function App() {
                 ))}
               </div>
 
+              <div className="profile-support-card">
+                <div className="profile-support-card__head">
+                  <strong>고객센터 · 사업자 정보</strong>
+                  <span>{disclosedBusinessInfo.email}</span>
+                </div>
+                <div className="profile-support-card__grid">
+                  <span><b>상호명</b>{disclosedBusinessInfo.operatorName}</span>
+                  <span><b>대표자</b>{disclosedBusinessInfo.representative}</span>
+                  <span><b>사업자번호</b>{disclosedBusinessInfo.registrationNo}</span>
+                  <span><b>연락처</b>{disclosedBusinessInfo.phone}</span>
+                  <span className="wide"><b>주소</b>{disclosedBusinessInfo.address}</span>
+                </div>
+                <div className="profile-support-card__links">
+                  <a className="ghost-link-btn" href={`mailto:${disclosedBusinessInfo.email}`}>문의 이메일</a>
+                  {legalQuickLinks.map((item) => <a key={item.key} className="ghost-link-btn" href={item.href} target="_blank" rel="noreferrer">{item.label}</a>)}
+                </div>
+              </div>
+
               <div className="profile-ig-tabbar" aria-label="프로필 탭">
                 <button type="button" className="active">게시물</button>
                 <button type="button">릴스</button>
@@ -5304,6 +5322,7 @@ export default function App() {
         </div>
       ) : null}
 
+      {activeTab !== "홈" ? (
       <footer className="business-info-footer app-global-footer">
         <div className="business-footer-title-row">
           <strong>사업자 정보 · 고객센터</strong>
@@ -5320,6 +5339,7 @@ export default function App() {
           {legalQuickLinks.map((item) => <a key={item.key} className="ghost-link-btn" href={item.href} target="_blank" rel="noreferrer">{item.label}</a>)}
         </div>
       </footer>
+      ) : null}
 
       <nav className="bottom-nav">{mobileTabs.map((tab) => (
           <button key={tab} className={`bottom-nav-btn ${overlayMode === null && activeTab === tab ? "active" : ""}`} onClick={() => selectBottomTab(tab)}>
