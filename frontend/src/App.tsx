@@ -13,6 +13,7 @@ type FeedItem = {
   accent: string;
   views?: number;
   postedAt?: string;
+  videoUrl?: string;
 };
 
 type ShortOption = "공유" | "보관함저장" | "관심없음" | "채널 추천 안함" | "신고";
@@ -663,22 +664,38 @@ function ShareArrowIcon() {
   );
 }
 
-const feedSeed: FeedItem[] = Array.from({ length: 18 }, (_, idx) => ({
-  id: idx + 1,
-  type: idx % 3 === 0 ? "video" : "image",
-  category: idx % 2 === 0 ? "브랜드 피드" : idx % 3 === 0 ? "숏클립" : "안전 가이드",
-  title: `추천 피드 ${idx + 1}`,
-  caption:
-    idx % 3 === 0
-      ? "세로형 짧은 영상으로 위생·보관·브랜드 스토리를 확인하는 홈 피드 예시입니다."
-      : "사진 카드와 짧은 설명을 묶어 홈에서 빠르게 탐색하도록 구성한 예시입니다.",
-  author: idx % 2 === 0 ? "adult official" : "seller studio",
-  likes: 160 + idx * 7,
-  comments: 12 + (idx % 9),
-  accent: ["sunrise", "violet", "teal", "rose"][idx % 4],
-  views: 1200 + idx * 173,
-  postedAt: ["12분 전", "35분 전", "1시간 전", "2시간 전", "오늘", "어제"][idx % 6],
-}));
+const feedSeed: FeedItem[] = [
+  { id: 1, type: "video", category: "브랜드", title: "프리미엄 입문 가이드", caption: "입문용 제품을 안전하게 고르는 기준을 10초 요약 쇼츠로 정리했습니다.", author: "adult official", likes: 428, comments: 31, accent: "sunrise", views: 3200, postedAt: "방금", videoUrl: "/generated/shorts/short_1.mp4" },
+  { id: 2, type: "video", category: "추천", title: "오늘의 인기 케어 키트", caption: "관리 루틴과 함께 보기 좋은 인기 케어 키트를 짧게 소개합니다.", author: "seller studio", likes: 391, comments: 28, accent: "violet", views: 2890, postedAt: "3분 전", videoUrl: "/generated/shorts/short_2.mp4" },
+  { id: 3, type: "video", category: "보관팁", title: "위생 보관 3단계", caption: "보관 파우치, 세정, 건조 순서를 한 화면으로 확인할 수 있습니다.", author: "care lab", likes: 512, comments: 44, accent: "teal", views: 4100, postedAt: "8분 전", videoUrl: "/generated/shorts/short_3.mp4" },
+  { id: 4, type: "video", category: "리뷰", title: "초보자 추천 구성", caption: "리뷰가 많은 스타터 구성과 선택 포인트를 빠르게 보여줍니다.", author: "review crew", likes: 366, comments: 19, accent: "rose", views: 2510, postedAt: "15분 전", videoUrl: "/generated/shorts/short_4.mp4" },
+  { id: 5, type: "video", category: "실사용", title: "조용한 사용감 비교", caption: "저소음 위주로 비교한 추천 라인업을 짧게 살펴봅니다.", author: "seller studio", likes: 448, comments: 36, accent: "sunrise", views: 3670, postedAt: "22분 전", videoUrl: "/generated/shorts/short_5.mp4" },
+  { id: 6, type: "video", category: "이벤트", title: "이번 주 할인 픽", caption: "행사 중인 제품과 리뷰 수가 높은 상품을 함께 보여줍니다.", author: "event pick", likes: 299, comments: 17, accent: "violet", views: 2190, postedAt: "35분 전", videoUrl: "/generated/shorts/short_6.mp4" },
+  { id: 7, type: "video", category: "신상품", title: "신상품 언박싱 컷", caption: "이번 주 새로 올라온 상품의 포장과 구성만 간단히 확인합니다.", author: "adult official", likes: 537, comments: 48, accent: "teal", views: 4620, postedAt: "48분 전", videoUrl: "/generated/shorts/short_7.mp4" },
+  { id: 8, type: "video", category: "브랜드", title: "브랜드 큐레이션", caption: "브랜드별 무드와 포지션을 10초 요약으로 보여주는 소개 영상입니다.", author: "brand note", likes: 324, comments: 20, accent: "rose", views: 2430, postedAt: "1시간 전", videoUrl: "/generated/shorts/short_8.mp4" },
+  { id: 9, type: "video", category: "추천", title: "리뷰 순위 TOP 제품", caption: "리뷰 수와 재구매율 기준으로 정리한 오늘의 추천 제품입니다.", author: "review crew", likes: 605, comments: 52, accent: "sunrise", views: 5080, postedAt: "2시간 전", videoUrl: "/generated/shorts/short_9.mp4" },
+  { id: 10, type: "video", category: "보관팁", title: "세정 루틴 한 컷", caption: "세정 제품과 보관 방법을 아주 짧은 루틴으로 보여줍니다.", author: "care lab", likes: 417, comments: 29, accent: "violet", views: 3010, postedAt: "오늘", videoUrl: "/generated/shorts/short_10.mp4" },
+  { id: 11, type: "image", category: "브랜드", title: "무광 블랙 패키지 모음", caption: "패키지 디자인과 무드 중심으로 큐레이션한 브랜드 피드입니다.", author: "adult official", likes: 182, comments: 11, accent: "teal", views: 1280, postedAt: "방금" },
+  { id: 12, type: "image", category: "리뷰", title: "리뷰 많은 입문 제품", caption: "초보자 선호도가 높은 제품을 후기 중심으로 정리했습니다.", author: "review crew", likes: 173, comments: 13, accent: "rose", views: 1190, postedAt: "11분 전" },
+  { id: 13, type: "image", category: "추천", title: "오늘의 추천 딜도", caption: "형태, 재질, 보관 편의성을 함께 본 추천 카드입니다.", author: "seller studio", likes: 214, comments: 16, accent: "sunrise", views: 1490, postedAt: "18분 전" },
+  { id: 14, type: "image", category: "추천", title: "오늘의 추천 바이브", caption: "입문자용 저소음 바이브레이터 추천 모음입니다.", author: "seller studio", likes: 228, comments: 15, accent: "violet", views: 1560, postedAt: "24분 전" },
+  { id: 15, type: "image", category: "실사용", title: "사용감 비교 메모", caption: "실사용 후기를 짧게 정리해 제품 선택 시간을 줄여줍니다.", author: "review crew", likes: 201, comments: 14, accent: "teal", views: 1455, postedAt: "29분 전" },
+  { id: 16, type: "image", category: "보관팁", title: "보관 파우치 추천", caption: "위생적인 보관을 위한 파우치와 실링 키트를 정리했습니다.", author: "care lab", likes: 194, comments: 9, accent: "rose", views: 1332, postedAt: "38분 전" },
+  { id: 17, type: "image", category: "브랜드", title: "국내 브랜드 집중 소개", caption: "국내 브랜드별 대표 라인업을 한 장으로 묶은 카드입니다.", author: "brand note", likes: 166, comments: 8, accent: "sunrise", views: 1201, postedAt: "43분 전" },
+  { id: 18, type: "image", category: "브랜드", title: "수입 브랜드 집중 소개", caption: "수입 브랜드 중 반응이 좋은 제품군만 골라 정리했습니다.", author: "brand note", likes: 159, comments: 7, accent: "violet", views: 1172, postedAt: "52분 전" },
+  { id: 19, type: "image", category: "이벤트", title: "이번 주 기획전 소식", caption: "행사 중인 인기 카테고리와 재고 상태를 한눈에 보여줍니다.", author: "event pick", likes: 247, comments: 18, accent: "teal", views: 1880, postedAt: "1시간 전" },
+  { id: 20, type: "image", category: "신상품", title: "신상품 등록 미리보기", caption: "막 등록된 상품 중 반응이 빠른 제품만 먼저 보여줍니다.", author: "seller studio", likes: 177, comments: 9, accent: "rose", views: 1307, postedAt: "1시간 전" },
+  { id: 21, type: "image", category: "실사용", title: "리얼 사용 후기 모음", caption: "자극 강도, 소음, 보관성 중심으로 모은 후기 카드입니다.", author: "review crew", likes: 221, comments: 21, accent: "sunrise", views: 1615, postedAt: "2시간 전" },
+  { id: 22, type: "image", category: "리뷰", title: "리뷰 100+ 추천 제품", caption: "리뷰가 누적된 제품만 별도 묶음으로 보여줍니다.", author: "review crew", likes: 239, comments: 17, accent: "violet", views: 1702, postedAt: "2시간 전" },
+  { id: 23, type: "image", category: "추천", title: "본디지 테이프 큐레이션", caption: "안전하게 시작하기 좋은 본디지 테이프 위주로 정리했습니다.", author: "seller studio", likes: 187, comments: 12, accent: "teal", views: 1424, postedAt: "3시간 전" },
+  { id: 24, type: "image", category: "추천", title: "패들 & 케인 추천", caption: "입문형 패들과 케인을 비교해 보여주는 추천 카드입니다.", author: "seller studio", likes: 175, comments: 10, accent: "rose", views: 1362, postedAt: "3시간 전" },
+  { id: 25, type: "image", category: "보관팁", title: "세정제 고르는 기준", caption: "자극도와 성분 기준으로 세정제를 고르는 방법입니다.", author: "care lab", likes: 164, comments: 8, accent: "sunrise", views: 1234, postedAt: "오늘" },
+  { id: 26, type: "image", category: "보관팁", title: "보관함 정리 루틴", caption: "사용 후 말림, 보관 순서를 카드형으로 정리했습니다.", author: "care lab", likes: 154, comments: 7, accent: "violet", views: 1150, postedAt: "오늘" },
+  { id: 27, type: "image", category: "브랜드", title: "프리미엄 라인 픽", caption: "고급형 라인에서 반응이 좋은 제품만 선별했습니다.", author: "adult official", likes: 208, comments: 11, accent: "teal", views: 1538, postedAt: "어제" },
+  { id: 28, type: "image", category: "추천", title: "러브젤 인기 순위", caption: "후기와 재구매 데이터를 기준으로 러브젤을 정리했습니다.", author: "seller studio", likes: 191, comments: 13, accent: "rose", views: 1468, postedAt: "어제" },
+  { id: 29, type: "image", category: "신상품", title: "이번 주 신규 입점", caption: "이번 주 입점한 셀러와 신규 상품 정보를 모았습니다.", author: "event pick", likes: 169, comments: 9, accent: "sunrise", views: 1260, postedAt: "어제" },
+  { id: 30, type: "image", category: "리뷰", title: "입문자 만족도 상위", caption: "입문자 평점이 높은 구성만 묶은 리뷰 카드입니다.", author: "review crew", likes: 236, comments: 14, accent: "violet", views: 1741, postedAt: "어제" },
+];
 
 const storySeed: StoryItem[] = [
   { id: 1, name: "adult official", role: "브랜드 스토리", accent: "sunrise" },
@@ -707,12 +724,15 @@ const storyPreviewText: Record<string, string> = {
 const shopCategories: ShopCategory[] = [];
 
 const productsSeed: ProductCard[] = [
-  { id: 1, category: "위생·보관", name: "뉴트럴 케어 파우치", subtitle: "익명 포장/보관 가이드 포함", price: "₩18,000", badge: "안전노출", reviewCount: 18 },
-  { id: 2, category: "입문 액세서리", name: "스타터 바디 케어 세트", subtitle: "입문자용 설명 카드 제공", price: "₩29,000", badge: "베스트", reviewCount: 26 },
-  { id: 3, category: "브랜드관", name: "브랜드관 샘플 패키지", subtitle: "카드/계좌 이체 허용 SKU", price: "₩43,000", badge: "PG 친화", reviewCount: 11 },
-  { id: 4, category: "기획전", name: "정기 재구매 추천 팩", subtitle: "재구매/장바구니 연동 예시", price: "₩36,500", badge: "추천", reviewCount: 32 },
-  { id: 5, category: "위생·보관", name: "실링 보관 키트", subtitle: "보관/관리 콘텐츠 연결", price: "₩12,900", badge: "신규", reviewCount: 9 },
-  { id: 6, category: "입문 액세서리", name: "안전 가이드 번들", subtitle: "콘텐츠+상품 동시 노출 예시", price: "₩24,000", badge: "콘텐츠 연동", reviewCount: 14 },
+  { id: 1, category: "딜도", name: "슬림 입문 딜도", subtitle: "초보자용 실리콘 라인", price: "₩18,000", badge: "인기", reviewCount: 184, thumbnailUrl: "/generated/shop/dildo.png" },
+  { id: 2, category: "바이브레이터", name: "저소음 바이브레이터", subtitle: "데일리 사용감 중심", price: "₩29,000", badge: "베스트", reviewCount: 266, thumbnailUrl: "/generated/shop/vibe.png" },
+  { id: 3, category: "본디지 테이프", name: "본디지 테이프 스타터", subtitle: "입문형 패키지", price: "₩14,900", badge: "추천", reviewCount: 113, thumbnailUrl: "/generated/shop/bondage_tape.png" },
+  { id: 4, category: "패들", name: "소프트 패들", subtitle: "초보자 선호 라인", price: "₩24,500", badge: "리뷰다수", reviewCount: 98, thumbnailUrl: "/generated/shop/paddle.png" },
+  { id: 5, category: "케인", name: "플렉시블 케인", subtitle: "가벼운 탄성 타입", price: "₩32,000", badge: "신규", reviewCount: 76, thumbnailUrl: "/generated/shop/cane.png" },
+  { id: 6, category: "러브젤", name: "워터 베이스 러브젤", subtitle: "저자극 케어 라인", price: "₩12,900", badge: "재구매", reviewCount: 241, thumbnailUrl: "/generated/shop/lubricant.png" },
+  { id: 7, category: "플러그", name: "실리콘 플러그", subtitle: "보관이 쉬운 구조", price: "₩21,000", badge: "입문", reviewCount: 134, thumbnailUrl: "/generated/shop/plug.png" },
+  { id: 8, category: "마사지기", name: "프리미엄 마사지기", subtitle: "조용한 모터 라인", price: "₩39,000", badge: "프리미엄", reviewCount: 157, thumbnailUrl: "/generated/shop/massager.png" },
+  { id: 9, category: "케어 키트", name: "세정·보관 케어 키트", subtitle: "위생 루틴 번들", price: "₩17,500", badge: "안전", reviewCount: 203, thumbnailUrl: "/generated/shop/carekit.png" },
 ];
 
 const sponsoredFeedProducts = [
@@ -1024,14 +1044,12 @@ function FeedPoster({ item, onAsk, saved, onToggleSave }: { item: FeedItem; onAs
           <div className="story-mini-avatar">{item.author.slice(0, 1).toUpperCase()}</div>
           <div>
             <strong>{item.author}</strong>
-            <p>{item.category} · 방금 업데이트</p>
+            <p>방금 업데이트</p>
           </div>
         </div>
         <button type="button" className="feed-question-btn" onClick={() => onAsk(item)}>질문</button>
       </div>
       <div className="feed-media">
-        <div className="feed-badge">{item.type === "video" ? "VIDEO" : "PHOTO"}</div>
-        <div className="feed-category">{item.category}</div>
         <div className="feed-visual-copy">{item.title}</div>
       </div>
       <div className="feed-copy">
@@ -1098,7 +1116,7 @@ function ShortsListCard({ item, onOpenMore, onOpenViewer }: { item: FeedItem; on
   return (
     <article className="shorts-list-card" onClick={() => onOpenViewer(item)}>
       <button type="button" className={`shorts-video-stage ${item.accent}`} onClick={() => onOpenViewer(item)}>
-        <div className="shorts-video-poster-tag">대표 썸네일 · 30초 · 720p</div>
+        <div className="shorts-video-poster-tag">대표 썸네일 · 10초 · 저용량</div>
         <div className="shorts-video-center">쇼츠 포스터</div>
       </button>
       <div className="shorts-list-copy shorts-list-copy-detailed">
@@ -1227,7 +1245,18 @@ function ShortsViewer({
             <section key={`viewer-${item.id}`} className={`shorts-viewer-page ${item.accent}`} data-short-index={idx}>
               <button type="button" className="shorts-viewer-video" onClick={() => togglePause(item.id)} aria-label={paused ? "영상 재생" : "영상 정지"}>
                 <div className="shorts-viewer-video-fill">
-                  <div className="shorts-viewer-video-poster">30초 · 720p · 데이터 절감형 프리셋</div>
+                  {item.videoUrl ? (
+                    <video
+                      key={item.videoUrl}
+                      className="shorts-viewer-video-asset"
+                      src={item.videoUrl}
+                      autoPlay={!paused}
+                      muted
+                      loop
+                      playsInline
+                    />
+                  ) : null}
+                  <div className="shorts-viewer-video-poster">10초 · 저용량 데모 클립</div>
                 </div>
               </button>
 
@@ -1931,6 +1960,7 @@ export default function App() {
   const [shortsViewerItemId, setShortsViewerItemId] = useState<number | null>(null);
   const [shortsHeaderHidden, setShortsHeaderHidden] = useState(false);
   const [shortsCategoryVisible, setShortsCategoryVisible] = useState(true);
+  const [selectedShortsCategory, setSelectedShortsCategory] = useState("전체");
   const [lastShortsScrollTop, setLastShortsScrollTop] = useState(0);
   const [authStandaloneScreen, setAuthStandaloneScreen] = useState<AuthStandaloneScreen | null>(null);
   const [homeShopConsentGuideSeen, setHomeShopConsentGuideSeen] = useState(() => {
@@ -2325,7 +2355,7 @@ export default function App() {
 
   const homeMenuItems = [
     { label: "피드", onClick: () => { setHomeTab("피드"); setOverlayMode(null); } },
-    { label: "쇼츠", onClick: () => { setHomeTab("쇼츠"); setOverlayMode(null); setShortsHeaderHidden(false); setShortsCategoryVisible(true); } },
+    { label: "쇼츠", onClick: () => { setHomeTab("쇼츠"); setOverlayMode(null); setShortsHeaderHidden(false); setShortsCategoryVisible(true); setSelectedShortsCategory("전체"); } },
     { label: "보관함", onClick: goToSavedBox },
   ];
 
@@ -2335,21 +2365,26 @@ export default function App() {
     return !keyword ? feedSeed : feedSeed.filter((item) => `${item.title} ${item.caption} ${item.category} ${item.author}`.toLowerCase().includes(keyword));
   }, [globalKeyword]);
 
-  const visibleShorts = useMemo(() => visibleFeed.filter((item) => item.type === "video" || item.category.includes("숏")), [visibleFeed]);
+  const shortsCategories = useMemo(() => {
+    const dynamic = Array.from(new Set(feedSeed.filter((item) => item.type === "video").map((item) => item.category)));
+    return ["전체", ...dynamic];
+  }, []);
+
+  const visibleShorts = useMemo(() => {
+    const base = visibleFeed.filter((item) => item.type === "video" || item.category.includes("숏"));
+    if (selectedShortsCategory === "전체") return base;
+    return base.filter((item) => item.category === selectedShortsCategory);
+  }, [visibleFeed, selectedShortsCategory]);
 
   const shortsFeedItems = useMemo(() => {
-    const source = visibleShorts.length ? visibleShorts : feedSeed.filter((item) => item.type === "video" || item.category.includes("숏"));
-    return Array.from({ length: 60 }, (_, idx) => {
-      const base = source[idx % source.length];
-      return {
-        ...base,
-        id: 1000 + idx,
-        category: "숏클립",
-        title: `${base.title} ${idx + 1}`,
-        views: (base.views ?? 1000) + idx * 91,
-        postedAt: ["방금", "9분 전", "26분 전", "1시간 전", "3시간 전", "어제"][idx % 6],
-      };
-    });
+    const fallback = feedSeed.filter((item) => item.type === "video" || item.category.includes("숏"));
+    const source = visibleShorts.length ? visibleShorts : fallback;
+    return source.map((item, idx) => ({
+      ...item,
+      id: 1000 + idx,
+      views: (item.views ?? 1000) + idx * 91,
+      postedAt: item.postedAt ?? ["방금", "9분 전", "26분 전", "1시간 전", "3시간 전", "어제"][idx % 6],
+    }));
   }, [visibleShorts]);
 
   const pagedShorts = useMemo(() => shortsFeedItems.slice(0, shortsVisibleCount), [shortsFeedItems, shortsVisibleCount]);
@@ -2357,7 +2392,7 @@ export default function App() {
 
   useEffect(() => {
     setShortsVisibleCount(10);
-  }, [globalKeyword]);
+  }, [globalKeyword, selectedShortsCategory]);
 
 
   const allShopItems = useMemo<ProductCard[]>(() => {
@@ -3755,8 +3790,8 @@ export default function App() {
       </header>
       {showBaseTabContent && activeTab === "홈" && homeTab === "쇼츠" ? (
         <div className={`shorts-category-strip${shortsCategoryVisible ? " visible" : ""}`}>
-          {["전체", "추천", "브랜드", "리뷰", "실사용", "이벤트", "보관팁", "신상품"].map((category, idx) => (
-            <button key={category} type="button" className={`shorts-category-chip${idx === 0 ? " active" : ""}`}>{category}</button>
+          {shortsCategories.map((category) => (
+            <button key={category} type="button" className={`shorts-category-chip${selectedShortsCategory === category ? " active" : ""}`} onClick={() => { setSelectedShortsCategory(category); setShortsHeaderHidden(false); setShortsCategoryVisible(true); }}>{category}</button>
           ))}
         </div>
       ) : null}
