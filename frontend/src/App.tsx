@@ -603,6 +603,57 @@ function CartIcon() {
   );
 }
 
+function HomeIcon({ filled = false }: { filled?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M4.5 11.2 12 4.8l7.5 6.4V19a1.5 1.5 0 0 1-1.5 1.5h-3.2v-5.6h-5.6v5.6H6A1.5 1.5 0 0 1 4.5 19v-7.8Z" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ShoppingBagIcon({ filled = false }: { filled?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M6.2 8.2h11.6l-.9 10.2a1.7 1.7 0 0 1-1.7 1.5H8.8a1.7 1.7 0 0 1-1.7-1.5L6.2 8.2Z" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M9 9V7.8a3 3 0 0 1 6 0V9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function CommunityIcon({ filled = false }: { filled?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M4.5 6.8A2.3 2.3 0 0 1 6.8 4.5h10.4a2.3 2.3 0 0 1 2.3 2.3v6.8a2.3 2.3 0 0 1-2.3 2.3h-5.1l-4.6 3.2v-3.2H6.8a2.3 2.3 0 0 1-2.3-2.3V6.8Z" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ChatIcon({ filled = false }: { filled?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M5 7.2A2.2 2.2 0 0 1 7.2 5h9.6A2.2 2.2 0 0 1 19 7.2v5.6A2.2 2.2 0 0 1 16.8 15H11l-4 3v-3H7.2A2.2 2.2 0 0 1 5 12.8V7.2Z" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M8.2 9.8h7.6M8.2 12.2h4.8" fill="none" stroke={filled ? "#000" : "currentColor"} strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ProfileIcon({ filled = false }: { filled?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <circle cx="12" cy="8.2" r="3.3" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" />
+      <path d="M5.2 19.3a6.8 6.8 0 0 1 13.6 0" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function BookmarkIcon({ filled = false }: { filled?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M7 4.8h10a1 1 0 0 1 1 1V20l-6-3.6L6 20V5.8a1 1 0 0 1 1-1Z" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function BackArrowIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -670,8 +721,25 @@ function ShareArrowIcon() {
   );
 }
 
+function HeartIcon({ filled = false }: { filled?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M12 20.2 5.7 13.9a4.6 4.6 0 0 1 6.5-6.5L12 8l-.2-.2a4.6 4.6 0 1 1 6.5 6.5L12 20.2Z" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function QuestionMarkIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M9.3 9.3a2.7 2.7 0 1 1 4.6 1.9c-.85.82-1.9 1.48-1.9 3.1" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="12" cy="17.8" r="1.1" fill="currentColor" />
+    </svg>
+  );
+}
+
 const feedSeed: FeedItem[] = [
-  { id: 1, type: "video", category: "브랜드", title: "프리미엄 입문 가이드", caption: "입문용 제품을 안전하게 고르는 기준을 10초 요약 쇼츠로 정리했습니다.", author: "adult official", likes: 428, comments: 31, accent: "sunrise", views: 3200, postedAt: "방금", videoUrl: "/generated/shorts/short_1.mp4" },
+  { id: 1, type: "video", category: "브랜드", title: "입문 가이드", caption: "입문용 제품을 안전하게 고르는 기준을 10초 요약 쇼츠로 정리했습니다.", author: "adult official", likes: 428, comments: 31, accent: "sunrise", views: 3200, postedAt: "방금", videoUrl: "/generated/shorts/short_1.mp4" },
   { id: 2, type: "video", category: "추천", title: "오늘의 인기 케어 키트", caption: "관리 루틴과 함께 보기 좋은 인기 케어 키트를 짧게 소개합니다.", author: "seller studio", likes: 391, comments: 28, accent: "violet", views: 2890, postedAt: "3분 전", videoUrl: "/generated/shorts/short_2.mp4" },
   { id: 3, type: "video", category: "보관팁", title: "위생 보관 3단계", caption: "보관 파우치, 세정, 건조 순서를 한 화면으로 확인할 수 있습니다.", author: "care lab", likes: 512, comments: 44, accent: "teal", views: 4100, postedAt: "8분 전", videoUrl: "/generated/shorts/short_3.mp4" },
   { id: 4, type: "video", category: "리뷰", title: "초보자 추천 구성", caption: "리뷰가 많은 스타터 구성과 선택 포인트를 빠르게 보여줍니다.", author: "review crew", likes: 366, comments: 19, accent: "rose", views: 2510, postedAt: "15분 전", videoUrl: "/generated/shorts/short_4.mp4" },
@@ -688,6 +756,26 @@ const feedSeed: FeedItem[] = [
   { id: 15, type: "image", category: "실사용", title: "사용감 비교 메모", caption: "실사용 후기를 짧게 정리해 제품 선택 시간을 줄여줍니다.", author: "review crew", likes: 201, comments: 14, accent: "teal", views: 1455, postedAt: "29분 전" },
   { id: 16, type: "image", category: "보관팁", title: "보관 파우치 추천", caption: "위생적인 보관을 위한 파우치와 실링 키트를 정리했습니다.", author: "care lab", likes: 194, comments: 9, accent: "rose", views: 1332, postedAt: "38분 전" },
   { id: 17, type: "image", category: "브랜드", title: "국내 브랜드 집중 소개", caption: "국내 브랜드별 대표 라인업을 한 장으로 묶은 카드입니다.", author: "brand note", likes: 166, comments: 8, accent: "sunrise", views: 1201, postedAt: "43분 전" },
+  { id: 18, type: "image", category: "보관팁", title: "테스트 피드 카드 01", caption: "테스트용 피드 데이터 1번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "care lab", likes: 204, comments: 14, accent: "teal", views: 1830, postedAt: "1시간 전" },
+  { id: 19, type: "image", category: "실사용", title: "테스트 피드 카드 02", caption: "테스트용 피드 데이터 2번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "adult official", likes: 207, comments: 15, accent: "rose", views: 1865, postedAt: "2시간 전" },
+  { id: 20, type: "image", category: "추천", title: "테스트 피드 카드 03", caption: "테스트용 피드 데이터 3번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "seller studio", likes: 210, comments: 16, accent: "sunrise", views: 1900, postedAt: "3시간 전" },
+  { id: 21, type: "image", category: "리뷰", title: "테스트 피드 카드 04", caption: "테스트용 피드 데이터 4번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "review crew", likes: 213, comments: 17, accent: "violet", views: 1935, postedAt: "4시간 전" },
+  { id: 22, type: "image", category: "브랜드", title: "테스트 피드 카드 05", caption: "테스트용 피드 데이터 5번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "brand note", likes: 216, comments: 18, accent: "teal", views: 1970, postedAt: "5시간 전" },
+  { id: 23, type: "image", category: "보관팁", title: "테스트 피드 카드 06", caption: "테스트용 피드 데이터 6번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "care lab", likes: 219, comments: 19, accent: "rose", views: 2005, postedAt: "6시간 전" },
+  { id: 24, type: "image", category: "실사용", title: "테스트 피드 카드 07", caption: "테스트용 피드 데이터 7번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "adult official", likes: 222, comments: 8, accent: "sunrise", views: 2040, postedAt: "7시간 전" },
+  { id: 25, type: "image", category: "추천", title: "테스트 피드 카드 08", caption: "테스트용 피드 데이터 8번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "seller studio", likes: 225, comments: 9, accent: "violet", views: 2075, postedAt: "8시간 전" },
+  { id: 26, type: "image", category: "리뷰", title: "테스트 피드 카드 09", caption: "테스트용 피드 데이터 9번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "review crew", likes: 228, comments: 10, accent: "teal", views: 2110, postedAt: "9시간 전" },
+  { id: 27, type: "image", category: "브랜드", title: "테스트 피드 카드 10", caption: "테스트용 피드 데이터 10번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "brand note", likes: 231, comments: 11, accent: "rose", views: 2145, postedAt: "10시간 전" },
+  { id: 28, type: "image", category: "보관팁", title: "테스트 피드 카드 11", caption: "테스트용 피드 데이터 11번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "care lab", likes: 234, comments: 12, accent: "sunrise", views: 2180, postedAt: "11시간 전" },
+  { id: 29, type: "image", category: "실사용", title: "테스트 피드 카드 12", caption: "테스트용 피드 데이터 12번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "adult official", likes: 237, comments: 13, accent: "violet", views: 2215, postedAt: "12시간 전" },
+  { id: 30, type: "image", category: "추천", title: "테스트 피드 카드 13", caption: "테스트용 피드 데이터 13번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "seller studio", likes: 240, comments: 14, accent: "teal", views: 2250, postedAt: "13시간 전" },
+  { id: 31, type: "image", category: "리뷰", title: "테스트 피드 카드 14", caption: "테스트용 피드 데이터 14번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "review crew", likes: 243, comments: 15, accent: "rose", views: 2285, postedAt: "14시간 전" },
+  { id: 32, type: "image", category: "브랜드", title: "테스트 피드 카드 15", caption: "테스트용 피드 데이터 15번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "brand note", likes: 246, comments: 16, accent: "sunrise", views: 2320, postedAt: "15시간 전" },
+  { id: 33, type: "image", category: "보관팁", title: "테스트 피드 카드 16", caption: "테스트용 피드 데이터 16번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "care lab", likes: 249, comments: 17, accent: "violet", views: 2355, postedAt: "16시간 전" },
+  { id: 34, type: "image", category: "실사용", title: "테스트 피드 카드 17", caption: "테스트용 피드 데이터 17번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "adult official", likes: 252, comments: 18, accent: "teal", views: 2390, postedAt: "17시간 전" },
+  { id: 35, type: "image", category: "추천", title: "테스트 피드 카드 18", caption: "테스트용 피드 데이터 18번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "seller studio", likes: 255, comments: 19, accent: "rose", views: 2425, postedAt: "18시간 전" },
+  { id: 36, type: "image", category: "리뷰", title: "테스트 피드 카드 19", caption: "테스트용 피드 데이터 19번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "review crew", likes: 258, comments: 8, accent: "sunrise", views: 2460, postedAt: "19시간 전" },
+  { id: 37, type: "image", category: "브랜드", title: "테스트 피드 카드 20", caption: "테스트용 피드 데이터 20번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "brand note", likes: 261, comments: 9, accent: "violet", views: 2495, postedAt: "20시간 전" },
   { id: 18, type: "image", category: "브랜드", title: "수입 브랜드 집중 소개", caption: "수입 브랜드 중 반응이 좋은 제품군만 골라 정리했습니다.", author: "brand note", likes: 159, comments: 7, accent: "violet", views: 1172, postedAt: "52분 전" },
   { id: 19, type: "image", category: "이벤트", title: "이번 주 기획전 소식", caption: "행사 중인 인기 카테고리와 재고 상태를 한눈에 보여줍니다.", author: "event pick", likes: 247, comments: 18, accent: "teal", views: 1880, postedAt: "1시간 전" },
   { id: 20, type: "image", category: "신상품", title: "신상품 등록 미리보기", caption: "막 등록된 상품 중 반응이 빠른 제품만 먼저 보여줍니다.", author: "seller studio", likes: 177, comments: 9, accent: "rose", views: 1307, postedAt: "1시간 전" },
@@ -1118,18 +1206,18 @@ function DualRangeSlider({ min, max, valueMin, valueMax, step = 1, leftLabel, ri
   );
 }
 
-function FeedPoster({ item, onAsk, saved, onToggleSave, keywordTags = [] }: { item: FeedItem; onAsk: (item: FeedItem) => void; saved: boolean; onToggleSave: (feedId: number) => void; keywordTags?: string[] }) {
+function FeedPoster({ item, onAsk, saved, onToggleSave, keywordTags = [], onOpenAuthorProfile }: { item: FeedItem; onAsk: (item: FeedItem) => void; saved: boolean; onToggleSave: (feedId: number) => void; keywordTags?: string[]; onOpenAuthorProfile: (author: string) => void }) {
   return (
     <article className={`feed-card history-feed-card ${item.accent}`}>
       <div className="history-feed-head">
         <div className="history-feed-profile">
           <div className="story-mini-avatar">{item.author.slice(0, 1).toUpperCase()}</div>
           <div>
-            <strong>{item.author}</strong>
+            <button type="button" className="feed-author-link" onClick={() => onOpenAuthorProfile(item.author)}>{item.author}</button>
             <p>방금 업데이트</p>
           </div>
         </div>
-        <button type="button" className="feed-question-btn" onClick={() => onAsk(item)}>질문</button>
+        <button type="button" className="feed-question-btn" onClick={() => onAsk(item)} aria-label="질문"><QuestionMarkIcon /></button>
       </div>
       <div className="feed-media">
         {keywordTags.length ? (
@@ -1139,7 +1227,6 @@ function FeedPoster({ item, onAsk, saved, onToggleSave, keywordTags = [] }: { it
             ))}
           </div>
         ) : null}
-        <div className="feed-visual-copy">{item.title}</div>
       </div>
       <div className="feed-copy">
         <div>
@@ -1147,16 +1234,15 @@ function FeedPoster({ item, onAsk, saved, onToggleSave, keywordTags = [] }: { it
           <p>{item.caption}</p>
         </div>
         <div className="feed-meta">
-          <span>@{item.author}</span>
           <span>좋아요 {item.likes}</span>
           <span>댓글 {item.comments}</span>
         </div>
       </div>
-      <div className="history-feed-footer">
-        <button type="button">좋아요</button>
-        <button type="button">댓글</button>
-        <button type="button" onClick={() => onAsk(item)}>질문하기</button>
-        <button type="button" className="ghost-btn" onClick={() => onToggleSave(item.id)}>{saved ? "보관해제" : "보관함"}</button>
+      <div className="history-feed-footer history-feed-footer-icons">
+        <button type="button" aria-label="좋아요"><HeartIcon /></button>
+        <button type="button" aria-label="댓글"><CommentBubbleIcon /></button>
+        <button type="button" aria-label="질문하기" onClick={() => onAsk(item)}><QuestionMarkIcon /></button>
+        <button type="button" className="ghost-btn" aria-label="보관함" onClick={() => onToggleSave(item.id)}><BookmarkIcon filled={saved} /></button>
       </div>
     </article>
   );
@@ -1256,6 +1342,9 @@ function ShortsViewer({
   const [searchText, setSearchText] = useState("");
   const [descriptionItem, setDescriptionItem] = useState<FeedItem | null>(null);
   const [overlayVisible, setOverlayVisible] = useState(true);
+  const [commentOpenItemId, setCommentOpenItemId] = useState<number | null>(null);
+  const [commentDraft, setCommentDraft] = useState("");
+  const [commentMap, setCommentMap] = useState<Record<number, string[]>>(() => Object.fromEntries(items.map((item) => [item.id, [`${item.author} 취향 태그 잘 맞아요.`, `${item.title} 관련 추천이 괜찮네요.`]])));
   const hideTimerRef = useRef<number | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -1340,7 +1429,7 @@ function ShortsViewer({
           const disliked = dislikedIds.includes(item.id);
           const subscribed = subscribedIds.includes(item.id);
           return (
-            <section key={`viewer-${item.id}`} className={`shorts-viewer-page ${item.accent}`} data-short-index={idx}>
+            <section key={`viewer-${item.id}`} className={`shorts-viewer-page ${item.accent}${commentOpenItemId === item.id ? " comments-open" : ""}`} data-short-index={idx}>
               <button type="button" className="shorts-viewer-video" onClick={() => togglePause(item.id)} aria-label={paused ? "영상 재생" : "영상 정지"}>
                 <div className="shorts-viewer-video-fill">
                   {item.videoUrl ? (
@@ -1361,7 +1450,7 @@ function ShortsViewer({
               <div className={`shorts-viewer-side-actions${overlayVisible ? " visible" : ""}`}>
                 <button type="button" className={`shorts-viewer-action-btn${liked ? " active" : ""}`} onClick={() => toggleReaction("like", item.id)}><span><ThumbUpIcon filled={liked} /></span><b>{item.likes.toLocaleString()}</b></button>
                 <button type="button" className={`shorts-viewer-action-btn${disliked ? " active" : ""}`} onClick={() => toggleReaction("dislike", item.id)}><span><ThumbDownIcon filled={disliked} /></span><b>{Math.max(12, Math.round(item.likes / 11)).toLocaleString()}</b></button>
-                <button type="button" className="shorts-viewer-action-btn"><span><CommentBubbleIcon /></span><b>{item.comments.toLocaleString()}</b></button>
+                <button type="button" className={`shorts-viewer-action-btn${commentOpenItemId === item.id ? " active" : ""}`} onClick={() => { restartOverlayTimer(); setCommentOpenItemId(commentOpenItemId === item.id ? null : item.id); }}><span><CommentBubbleIcon /></span><b>{(commentMap[item.id] ?? []).length.toLocaleString()}</b></button>
                 <button type="button" className="shorts-viewer-action-btn"><span><ShareArrowIcon /></span><b>공유</b></button>
               </div>
 
@@ -1374,6 +1463,23 @@ function ShortsViewer({
                 <button type="button" className="shorts-viewer-full-title" onClick={restartOverlayTimer}>풀영상 {item.title}</button>
                 <button type="button" className="shorts-viewer-description" onClick={() => { restartOverlayTimer(); setDescriptionItem(item); }}>{item.caption}</button>
               </div>
+              {commentOpenItemId === item.id ? (
+                <div className="shorts-comments-sheet">
+                  <div className="shorts-comments-list">
+                    {(commentMap[item.id] ?? []).map((comment, commentIndex) => (
+                      <div key={`${item.id}-comment-${commentIndex}`} className="shorts-comment-row"><b>user{commentIndex + 1}</b><span>{comment}</span></div>
+                    ))}
+                  </div>
+                  <div className="shorts-comment-input-row">
+                    <input value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} placeholder="댓글을 입력하세요" />
+                    <button type="button" onClick={() => {
+                      if (!commentDraft.trim()) return;
+                      setCommentMap((prev) => ({ ...prev, [item.id]: [...(prev[item.id] ?? []), commentDraft.trim()] }));
+                      setCommentDraft("");
+                    }}>입력</button>
+                  </div>
+                </div>
+              ) : null}
             </section>
           );
         })}
@@ -2832,6 +2938,20 @@ export default function App() {
     });
   }, [globalKeyword, searchFilter]);
 
+  const openProfileFromAuthor = (author: string) => {
+    setActiveTab("프로필");
+    setProfileTab("내정보");
+    setOverlayMode(null);
+  };
+
+  const bottomNavIconMap = {
+    홈: <HomeIcon filled={overlayMode === null && activeTab === "홈"} />,
+    쇼핑: <ShoppingBagIcon filled={overlayMode === null && activeTab === "쇼핑"} />,
+    소통: <CommunityIcon filled={overlayMode === null && activeTab === "소통"} />,
+    채팅: <ChatIcon filled={overlayMode === null && activeTab === "채팅"} />,
+    프로필: <ProfileIcon filled={overlayMode === null && activeTab === "프로필"} />,
+  } satisfies Record<typeof mobileTabs[number], JSX.Element>;
+
   const legalQuickLinks = [
     { key: "terms_of_service", label: "이용약관", href: `${getApiBase()}/legal/terms-of-service` },
     { key: "privacy_policy", label: "개인정보 처리방침", href: `${getApiBase()}/legal/privacy-policy` },
@@ -4023,16 +4143,9 @@ export default function App() {
           <div className="topbar-side topbar-right">
             <div className="topbar-inline-actions topbar-inline-actions-right">
               <div className="topbar-title-inline" aria-live="polite">{currentScreenTitle}</div>
-              <button className={`header-inline-btn header-icon-btn ${overlayMode === "search" ? "active" : ""}`} onClick={() => openOverlay("search")} aria-label="검색">
-                <SearchIcon />
-              </button>
-              <button className={`header-inline-btn header-icon-btn header-notification-btn ${overlayMode === "notifications" ? "active" : ""}`} onClick={() => openOverlay("notifications")} aria-label="알림">
-                <BellIcon />
-                {unreadNotificationCount > 0 ? <span className="header-badge">{unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}</span> : null}
-              </button>
-              <button className={`header-inline-btn header-icon-btn ${overlayMode === "settings" ? "active" : ""}`} onClick={() => openOverlay("settings")} aria-label="설정">
-                <SettingsIcon />
-              </button>
+              <button className={`header-inline-btn header-icon-btn header-toolbar-btn ${overlayMode === "search" ? "active" : ""}`} onClick={() => openOverlay("search")} aria-label={`${activeTab}검색`}><SearchIcon /><span className="header-toolbar-label">{`${activeTab}검색`}</span></button>
+              <button className={`header-inline-btn header-icon-btn header-notification-btn header-toolbar-btn ${overlayMode === "notifications" ? "active" : ""}`} onClick={() => openOverlay("notifications")} aria-label={`${activeTab}알림`}><BellIcon /><span className="header-toolbar-label">{`${activeTab}알림`}</span>{unreadNotificationCount > 0 ? <span className="header-badge">{unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}</span> : null}</button>
+              <button className={`header-inline-btn header-icon-btn header-toolbar-btn ${overlayMode === "settings" ? "active" : ""}`} onClick={() => openOverlay("settings")} aria-label={`${activeTab}설정`}><SettingsIcon /><span className="header-toolbar-label">{`${activeTab}설정`}</span></button>
             </div>
           </div>
         </div>
@@ -4358,7 +4471,7 @@ export default function App() {
           <section className={`tab-pane fill-pane home-feed-pane${homeTab === "쇼츠" ? " home-feed-pane-shorts" : ""}`}>
             {homeTab === "피드" ? (
               <>
-                <div className="feed-post-list compact-scroll-list">{visibleFeed.map((item, idx) => (<><FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} saved={savedFeedIds.includes(item.id)} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} />{(idx + 1) % 4 === 0 ? <SponsoredFeedProductCard key={`sponsored-${item.id}`} item={sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length]} saved={savedProductIds.includes(sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length].id)} onToggleSave={toggleSavedProduct} /> : null}</>))}</div>
+                <div className="feed-post-list compact-scroll-list">{visibleFeed.map((item, idx) => (<><FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} saved={savedFeedIds.includes(item.id)} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} />{(idx + 1) % 4 === 0 ? <SponsoredFeedProductCard key={`sponsored-${item.id}`} item={sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length]} saved={savedProductIds.includes(sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length].id)} onToggleSave={toggleSavedProduct} /> : null}</>))}</div>
               </>
             ) : homeTab === "쇼츠" ? (
               <>
@@ -4393,7 +4506,7 @@ export default function App() {
                 </div>
                 {savedTab === "피드" ? (
                   <div className="feed-post-list compact-scroll-list">
-                    {savedFeedItems.length ? savedFeedItems.map((item) => <FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} saved={true} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} />) : <div className="legacy-box compact"><p>보관한 피드가 없습니다.</p></div>}
+                    {savedFeedItems.length ? savedFeedItems.map((item) => <FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} saved={true} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} />) : <div className="legacy-box compact"><p>보관한 피드가 없습니다.</p></div>}
                   </div>
                 ) : (
                   <div className="content-grid product-grid compact-scroll-list">
@@ -5208,12 +5321,12 @@ export default function App() {
         </div>
       </footer>
 
-      <nav className="bottom-nav">        {mobileTabs.map((tab) => (
+      <nav className="bottom-nav">{mobileTabs.map((tab) => (
           <button key={tab} className={`bottom-nav-btn ${overlayMode === null && activeTab === tab ? "active" : ""}`} onClick={() => selectBottomTab(tab)}>
-            <span>{tab}</span>
+            <span className="bottom-nav-icon">{bottomNavIconMap[tab]}</span>
+            <span className="bottom-nav-label">{tab}</span>
           </button>
-        ))}
-      </nav>
+        ))}</nav>
 
       {selectedAskProfile ? <AskProfileScreen profile={selectedAskProfile} onClose={() => setSelectedAskProfile(null)} /> : null}
 
