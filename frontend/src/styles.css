@@ -4229,3 +4229,65 @@ pre,
     align-items: flex-start;
   }
 }
+
+
+/* 2026-04-17 topbar/bottomnav refinement */
+.topbar-inline-actions-right {
+  gap: 6px;
+}
+.header-toolbar-btn {
+  width: 28px !important;
+  min-width: 28px !important;
+  height: 28px !important;
+  padding: 0 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.header-toolbar-label {
+  display: none !important;
+}
+.topbar-title-inline {
+  min-width: 0;
+  max-width: 96px;
+  margin-right: 2px;
+  font-size: 13px;
+  text-align: right;
+}
+.top-header .header-toolbar-btn svg,
+.top-header .header-icon-btn svg {
+  width: 17px;
+  height: 17px;
+}
+:root {
+  --mobile-nav-height: 35px;
+}
+.bottom-nav {
+  height: 35px !important;
+  min-height: 35px !important;
+  max-height: 35px !important;
+}
+.bottom-nav-btn {
+  height: 35px !important;
+  min-height: 35px !important;
+  max-height: 35px !important;
+  padding: 0 !important;
+  gap: 0 !important;
+}
+.bottom-nav-icon {
+  height: 17px;
+}
+.bottom-nav-icon svg {
+  width: 15px;
+  height: 15px;
+}
+.bottom-nav-label {
+  font-size: 8px;
+  line-height: 1;
+}
+@media (max-width: 480px) {
+  .topbar-title-inline {
+    max-width: 84px;
+    font-size: 12px;
+  }
+}

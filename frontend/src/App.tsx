@@ -3648,10 +3648,10 @@ export default function App() {
 
   const currentScreenTitle = overlayMode === "search"
     ? `${activeTab}검색`
-     : overlayMode === "settings"
-      ? "설정"
+    : overlayMode === "settings"
+      ? `${activeTab}설정`
       : overlayMode === "notifications"
-        ? "알림"
+        ? `${activeTab}알림`
         : activeTab;
 
   const openOverlay = (mode: Exclude<OverlayMode, null>) => {
@@ -3865,22 +3865,17 @@ export default function App() {
   const unreadNotificationCount = useMemo(() => notificationSeed.filter((item) => item.unread).length, []);
 
   const selectBottomTab = (tab: MobileTab) => {
+    if (tab === activeTab && overlayMode === null && !roomModalOpen) return;
     setActiveTab(tab);
-    setOverlayMode(null);
-    setRoomModalOpen(false);
-    if (tab !== "홈") setHomeTab("피드");
-    if (tab !== "쇼핑") setShoppingTab("홈");
-    if (tab !== "소통") setCommunityTab("커뮤");
-    if (tab !== "채팅") {
-      setChatTab("채팅");
-      setChatCategory("전체");
+    if (overlayMode !== null) setOverlayMode(null);
+    if (roomModalOpen) setRoomModalOpen(false);
+    if (activeTab === "채팅" && tab !== "채팅") {
       setRandomSettingsOpen(false);
       setMatchingRandom(false);
       setMatchedRandomUser(null);
       setRandomMatchPhase("idle");
       setRandomMatchNote("카테고리를 고른 뒤 익명 정보교류용 텍스트 채팅을 시작할 수 있습니다. 외부연락, 사람 찾기, 만남유도, 사진/영상 교환은 금지됩니다.");
     }
-    if (tab !== "프로필") setProfileTab("내정보");
   };
 
   const searchFilterOptions = activeTab === "홈"
@@ -4143,9 +4138,9 @@ export default function App() {
           <div className="topbar-side topbar-right">
             <div className="topbar-inline-actions topbar-inline-actions-right">
               <div className="topbar-title-inline" aria-live="polite">{currentScreenTitle}</div>
-              <button className={`header-inline-btn header-icon-btn header-toolbar-btn ${overlayMode === "search" ? "active" : ""}`} onClick={() => openOverlay("search")} aria-label={`${activeTab}검색`}><SearchIcon /><span className="header-toolbar-label">{`${activeTab}검색`}</span></button>
-              <button className={`header-inline-btn header-icon-btn header-notification-btn header-toolbar-btn ${overlayMode === "notifications" ? "active" : ""}`} onClick={() => openOverlay("notifications")} aria-label={`${activeTab}알림`}><BellIcon /><span className="header-toolbar-label">{`${activeTab}알림`}</span>{unreadNotificationCount > 0 ? <span className="header-badge">{unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}</span> : null}</button>
-              <button className={`header-inline-btn header-icon-btn header-toolbar-btn ${overlayMode === "settings" ? "active" : ""}`} onClick={() => openOverlay("settings")} aria-label={`${activeTab}설정`}><SettingsIcon /><span className="header-toolbar-label">{`${activeTab}설정`}</span></button>
+              <button className={`header-inline-btn header-icon-btn header-toolbar-btn ${overlayMode === "search" ? "active" : ""}`} onClick={() => openOverlay("search")} aria-label={`${activeTab}검색`} title={`${activeTab}검색`}><SearchIcon /></button>
+              <button className={`header-inline-btn header-icon-btn header-notification-btn header-toolbar-btn ${overlayMode === "notifications" ? "active" : ""}`} onClick={() => openOverlay("notifications")} aria-label={`${activeTab}알림`} title={`${activeTab}알림`}><BellIcon />{unreadNotificationCount > 0 ? <span className="header-badge">{unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}</span> : null}</button>
+              <button className={`header-inline-btn header-icon-btn header-toolbar-btn ${overlayMode === "settings" ? "active" : ""}`} onClick={() => openOverlay("settings")} aria-label={`${activeTab}설정`} title={`${activeTab}설정`}><SettingsIcon /></button>
             </div>
           </div>
         </div>
