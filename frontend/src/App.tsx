@@ -45,6 +45,8 @@ type ProductCard = {
   subtitle: string;
   price: string;
   badge: string;
+  reviewCount?: number;
+  thumbnailUrl?: string | null;
 };
 
 type CommunityPost = {
@@ -279,6 +281,7 @@ type ApiProduct = {
   sku_code?: string;
   stock_qty?: number;
   thumbnail_url?: string | null;
+  review_count?: number;
 };
 
 type ProductDetailResponse = {
@@ -475,7 +478,7 @@ const interestCategoryOptions = ["뷰티", "케어", "건강", "커뮤니티", "
 
 const defaultHeaderFavorites: HeaderFavoriteMap = {
   "홈": ["피드", "쇼츠", "보관함"],
-  "쇼핑": ["홈", "목록", "상품", "주문", "바구니", "사업자인증", "상품등록"],
+  "쇼핑": ["홈", "주문", "바구니"],
   "소통": ["커뮤", "포럼", "후기"],
   "채팅": ["채팅", "질문"],
   "프로필": ["내정보"],
@@ -579,6 +582,16 @@ function BellIcon() {
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <path d="M12 3.5a4.2 4.2 0 0 0-4.2 4.2v1.1c0 1.3-.42 2.56-1.2 3.6l-1.18 1.57c-.42.56-.02 1.36.68 1.36h12.84c.7 0 1.1-.8.68-1.36l-1.18-1.57a5.98 5.98 0 0 1-1.2-3.6V7.7A4.2 4.2 0 0 0 12 3.5Z" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round"/>
       <path d="M9.5 18.5a2.7 2.7 0 0 0 5 0" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
+function CartIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M3.5 5h2.4l1.45 8.12a1.8 1.8 0 0 0 1.77 1.48h7.78a1.8 1.8 0 0 0 1.75-1.39l1.36-5.81H7.12" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="10.2" cy="18.2" r="1.35" fill="currentColor"/>
+      <circle cx="17.2" cy="18.2" r="1.35" fill="currentColor"/>
     </svg>
   );
 }
@@ -694,12 +707,12 @@ const storyPreviewText: Record<string, string> = {
 const shopCategories: ShopCategory[] = [];
 
 const productsSeed: ProductCard[] = [
-  { id: 1, category: "위생·보관", name: "뉴트럴 케어 파우치", subtitle: "익명 포장/보관 가이드 포함", price: "₩18,000", badge: "안전노출" },
-  { id: 2, category: "입문 액세서리", name: "스타터 바디 케어 세트", subtitle: "입문자용 설명 카드 제공", price: "₩29,000", badge: "베스트" },
-  { id: 3, category: "브랜드관", name: "브랜드관 샘플 패키지", subtitle: "카드/계좌 이체 허용 SKU", price: "₩43,000", badge: "PG 친화" },
-  { id: 4, category: "기획전", name: "정기 재구매 추천 팩", subtitle: "재구매/장바구니 연동 예시", price: "₩36,500", badge: "추천" },
-  { id: 5, category: "위생·보관", name: "실링 보관 키트", subtitle: "보관/관리 콘텐츠 연결", price: "₩12,900", badge: "신규" },
-  { id: 6, category: "입문 액세서리", name: "안전 가이드 번들", subtitle: "콘텐츠+상품 동시 노출 예시", price: "₩24,000", badge: "콘텐츠 연동" },
+  { id: 1, category: "위생·보관", name: "뉴트럴 케어 파우치", subtitle: "익명 포장/보관 가이드 포함", price: "₩18,000", badge: "안전노출", reviewCount: 18 },
+  { id: 2, category: "입문 액세서리", name: "스타터 바디 케어 세트", subtitle: "입문자용 설명 카드 제공", price: "₩29,000", badge: "베스트", reviewCount: 26 },
+  { id: 3, category: "브랜드관", name: "브랜드관 샘플 패키지", subtitle: "카드/계좌 이체 허용 SKU", price: "₩43,000", badge: "PG 친화", reviewCount: 11 },
+  { id: 4, category: "기획전", name: "정기 재구매 추천 팩", subtitle: "재구매/장바구니 연동 예시", price: "₩36,500", badge: "추천", reviewCount: 32 },
+  { id: 5, category: "위생·보관", name: "실링 보관 키트", subtitle: "보관/관리 콘텐츠 연결", price: "₩12,900", badge: "신규", reviewCount: 9 },
+  { id: 6, category: "입문 액세서리", name: "안전 가이드 번들", subtitle: "콘텐츠+상품 동시 노출 예시", price: "₩24,000", badge: "콘텐츠 연동", reviewCount: 14 },
 ];
 
 const sponsoredFeedProducts = [
@@ -1777,6 +1790,8 @@ export default function App() {
   const [randomMatchNote, setRandomMatchNote] = useState("앱 공개영역에서는 직접 매칭을 제공하지 않습니다. 민감한 정보교류는 성인인증·승인제 제한 웹 포럼으로만 분리합니다.");
   const randomRoomLifetimeMinutes = 20;
   const [shopKeyword, setShopKeyword] = useState("");
+  const [shopHomeBannerIndex, setShopHomeBannerIndex] = useState(0);
+  const [shopHomeVisibleCount, setShopHomeVisibleCount] = useState(9);
   const [communityKeyword, setCommunityKeyword] = useState("");
   const [projectStatus, setProjectStatus] = useState<ProjectStatus | null>(null);
   const [deployGuide, setDeployGuide] = useState<DeployGuide | null>(null);
@@ -2342,7 +2357,7 @@ export default function App() {
   }, [globalKeyword]);
 
 
-  const allShopItems = useMemo(() => {
+  const allShopItems = useMemo<ProductCard[]>(() => {
     const keyword = `${shopKeyword} ${globalKeyword}`.trim().toLowerCase();
     const source = apiProducts.length
       ? apiProducts.filter((item) => (item.status ?? "published") === "published").map((item) => ({
@@ -2394,6 +2409,41 @@ export default function App() {
     }
     return unique.slice(0, 32);
   }, [shopKeywordSignals, currentUserRole, allShopItems]);
+
+  const shopHomeHeroSlides = useMemo(() => {
+    const source = allShopItems.length ? allShopItems : productsSeed;
+    const base = source.slice(0, 3);
+    return base.length ? base : productsSeed.slice(0, 3);
+  }, [allShopItems]);
+
+  const shopHomeFeedItems = useMemo(() => {
+    const source = allShopItems.length ? allShopItems : productsSeed;
+    const safeSource = source.length ? source : productsSeed;
+    return Array.from({ length: shopHomeVisibleCount }, (_, index) => ({
+      ...safeSource[index % safeSource.length],
+      feedIndex: index,
+    }));
+  }, [allShopItems, shopHomeVisibleCount]);
+
+  useEffect(() => {
+    if (activeTab !== "쇼핑" || shoppingTab !== "홈") return;
+    setShopHomeVisibleCount(9);
+    setShopHomeBannerIndex(0);
+  }, [activeTab, shoppingTab, shopKeyword, globalKeyword, selectedShopCategory]);
+
+  useEffect(() => {
+    if (activeTab !== "쇼핑" || shoppingTab !== "홈" || shopHomeHeroSlides.length <= 1) return;
+    const timer = window.setInterval(() => {
+      setShopHomeBannerIndex((prev) => (prev + 1) % shopHomeHeroSlides.length);
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [activeTab, shoppingTab, shopHomeHeroSlides.length]);
+
+  const handleShopHomeScroll = (event: UIEvent<HTMLDivElement>) => {
+    const node = event.currentTarget;
+    if (node.scrollTop + node.clientHeight < node.scrollHeight - 120) return;
+    setShopHomeVisibleCount((prev) => prev + 9);
+  };
 
   const filteredCommunity = useMemo(() => {
     const keyword = `${communityKeyword} ${globalKeyword}`.trim().toLowerCase();
@@ -3639,8 +3689,8 @@ export default function App() {
                 <MenuIcon />
               </button>
               {visibleHeaderNavItems.map((item) => (
-                <button key={item.label} type="button" className={`header-inline-btn ${item.active ? "active" : ""}`} onClick={item.onClick} disabled={!item.onClick}>
-                  {item.label}
+                <button key={item.label} type="button" className={`header-inline-btn ${item.active ? "active" : ""} ${item.label === "바구니" ? "header-inline-btn-icon-label" : ""}`} onClick={item.onClick} disabled={!item.onClick} aria-label={item.label}>
+                  {item.label === "바구니" ? <CartIcon /> : item.label}
                 </button>
               ))}
             </div>
@@ -4043,37 +4093,64 @@ export default function App() {
         {showAppTabContent && activeTab === "쇼핑" ? (
           <section className="tab-pane fill-pane">
             {shoppingTab === "홈" ? (
-              <div className="stack-gap compact-scroll-list shop-home-pane">
-                <div className="shop-home-search-wrap">
-                  <div className="shop-home-search-bar">
-                    <input
-                      value={shopKeyword}
-                      onChange={(e) => setShopKeyword(e.target.value)}
-                      placeholder="상품명, 카테고리, 브랜드 검색"
-                    />
-                    <button
-                      type="button"
-                      className="shop-home-search-btn"
-                      onClick={() => setShoppingTab("목록")}
-                    >
-                      검색
-                    </button>
+              <div className="compact-scroll-list shop-home-feed-pane" onScroll={handleShopHomeScroll}>
+                <div className="shop-home-hero-carousel" aria-label="쇼핑 홈 배너">
+                  <div className="shop-home-hero-track" style={{ transform: `translateX(-${shopHomeBannerIndex * 100}%)` }}>
+                    {shopHomeHeroSlides.map((item, index) => (
+                      <button
+                        key={`hero-${item.id}-${index}`}
+                        type="button"
+                        className="shop-home-hero-slide"
+                        onClick={() => {
+                          setShopKeyword(item.name);
+                          setSelectedShopCategory("전체");
+                          setShoppingTab("목록");
+                        }}
+                      >
+                        {item.thumbnailUrl ? <img src={item.thumbnailUrl} alt={item.name} className="shop-home-hero-image" /> : null}
+                        <div className={`shop-home-hero-placeholder hero-tone-${(index % 3) + 1}`} />
+                        <div className="shop-home-hero-copy">
+                          <span>{item.category}</span>
+                          <strong>{item.name}</strong>
+                          <p>{item.subtitle || item.badge}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="shop-home-hero-dots">
+                    {shopHomeHeroSlides.map((item, index) => (
+                      <button
+                        key={`dot-${item.id}-${index}`}
+                        type="button"
+                        className={`shop-home-hero-dot ${index === shopHomeBannerIndex ? "active" : ""}`}
+                        onClick={() => setShopHomeBannerIndex(index)}
+                        aria-label={`${index + 1}번 배너 보기`}
+                      />
+                    ))}
                   </div>
                 </div>
-                <div className="shop-home-keyword-grid">
-                  {shoppingHomeKeywords.map((keyword, index) => (
+
+                <div className="shop-home-product-grid">
+                  {shopHomeFeedItems.map((product) => (
                     <button
-                      key={`${keyword}-${index}`}
+                      key={`shop-feed-${product.id}-${product.feedIndex}`}
                       type="button"
-                      className="shop-home-keyword-tile"
+                      className="shop-home-product-card"
                       onClick={() => {
-                        setShopKeyword(keyword);
+                        setShopKeyword(product.name);
                         setSelectedShopCategory("전체");
                         setShoppingTab("목록");
                       }}
                     >
-                      <span className="shop-home-keyword-icon">{keyword.slice(0, 1)}</span>
-                      <span className="shop-home-keyword-label">{keyword}</span>
+                      <div className="shop-home-product-thumb">
+                        {product.thumbnailUrl ? <img src={product.thumbnailUrl} alt={product.name} className="shop-home-product-thumb-image" /> : null}
+                        <div className={`shop-home-product-thumb-placeholder hero-tone-${(product.feedIndex % 3) + 1}`} />
+                        <span className="shop-home-product-badge">{product.badge}</span>
+                      </div>
+                      <div className="shop-home-product-meta">
+                        <strong>{product.name}</strong>
+                        <span>리뷰 {product.reviewCount ?? 0}</span>
+                      </div>
                     </button>
                   ))}
                 </div>
