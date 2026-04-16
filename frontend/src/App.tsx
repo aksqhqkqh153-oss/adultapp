@@ -697,6 +697,35 @@ const feedSeed: FeedItem[] = [
   { id: 30, type: "image", category: "리뷰", title: "입문자 만족도 상위", caption: "입문자 평점이 높은 구성만 묶은 리뷰 카드입니다.", author: "review crew", likes: 236, comments: 14, accent: "violet", views: 1741, postedAt: "어제" },
 ];
 
+
+function parseRelativeMinutes(postedAt?: string) {
+  if (!postedAt) return 240;
+  if (postedAt === "방금") return 1;
+  if (postedAt === "오늘") return 180;
+  if (postedAt === "어제") return 1440;
+  const minuteMatch = postedAt.match(/(\d+)분 전/);
+  if (minuteMatch) return Number(minuteMatch[1]);
+  const hourMatch = postedAt.match(/(\d+)시간 전/);
+  if (hourMatch) return Number(hourMatch[1]) * 60;
+  return 240;
+}
+
+function extractInterestTokens(source: string) {
+  return source
+    .toLowerCase()
+    .split(/[^a-z0-9가-힣]+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 2);
+}
+
+function deterministicHash(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) % 1000003;
+  }
+  return hash;
+}
+
 const storySeed: StoryItem[] = [
   { id: 1, name: "adult official", role: "브랜드 스토리", accent: "sunrise" },
   { id: 2, name: "seller studio", role: "판매자 소식", accent: "violet" },
@@ -1798,6 +1827,14 @@ export default function App() {
       return {};
     }
   });
+  const [shortsKeywordSignals, setShortsKeywordSignals] = useState<Record<string, number>>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      return JSON.parse(window.localStorage.getItem("adultapp_shorts_keyword_signals") ?? "{}");
+    } catch {
+      return {};
+    }
+  });
   const [selectedCommunityCategory, setSelectedCommunityCategory] = useState<string>("전체");
   const [communityPrimaryFilter, setCommunityPrimaryFilter] = useState<string>("전체");
   const [communitySecondaryFilter, setCommunitySecondaryFilter] = useState<string>("전체");
@@ -1991,6 +2028,23 @@ export default function App() {
   const toggleFollowUser = (userId: number) => {
     setFollowingUserIds((prev) => prev.includes(userId) ? prev.filter((item) => item !== userId) : [...prev, userId]);
   };
+  const boostShortsSignalsFromText = (source: string, weight = 1) => {
+    const tokens = extractInterestTokens(source);
+    if (!tokens.length) return;
+    setShortsKeywordSignals((prev) => {
+      const next = { ...prev };
+      tokens.forEach((token) => {
+        next[token] = (next[token] ?? 0) + weight;
+      });
+      return next;
+    });
+  };
+
+  const openShortsViewer = (item: FeedItem) => {
+    boostShortsSignalsFromText(`${item.title} ${item.caption} ${item.category} ${item.author}`, 2);
+    setShortsViewerItemId(item.id);
+  };
+
 
   const openDmRequest = (user: ForumStarterUser) => {
     if (!adultVerified) {
@@ -2172,6 +2226,11 @@ export default function App() {
     window.localStorage.setItem("adultapp_shop_keyword_signals", JSON.stringify(shopKeywordSignals));
   }, [shopKeywordSignals]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_shorts_keyword_signals", JSON.stringify(shortsKeywordSignals));
+  }, [shortsKeywordSignals]);
+
   const lastTrackedShopSearchRef = useRef("");
   useEffect(() => {
     if (activeTab !== "쇼핑") return;
@@ -2193,6 +2252,41 @@ export default function App() {
       return next;
     });
   }, [activeTab, shopKeyword, globalKeyword]);
+
+  const lastTrackedShortsSearchRef = useRef("");
+  useEffect(() => {
+    if (activeTab !== "홈" || homeTab !== "쇼츠") return;
+    const normalized = globalKeyword
+      .split(/[,#\s/]+/)
+      .map((token) => token.trim())
+      .filter((token) => token.length >= 2)
+      .join("|")
+      .toLowerCase();
+    if (!normalized || lastTrackedShortsSearchRef.current === normalized) return;
+    lastTrackedShortsSearchRef.current = normalized;
+    setShortsKeywordSignals((prev) => {
+      const next = { ...prev };
+      normalized.split("|").forEach((token) => {
+        next[token] = (next[token] ?? 0) + 3;
+      });
+      return next;
+    });
+  }, [activeTab, homeTab, globalKeyword]);
+
+  useEffect(() => {
+    if (!savedFeedIds.length) return;
+    const savedShorts = feedSeed.filter((item) => savedFeedIds.includes(item.id));
+    if (!savedShorts.length) return;
+    setShortsKeywordSignals((prev) => {
+      const next = { ...prev };
+      savedShorts.forEach((item) => {
+        extractInterestTokens(`${item.title} ${item.caption} ${item.category} ${item.author}`).forEach((token) => {
+          next[token] = Math.max(next[token] ?? 0, 2);
+        });
+      });
+      return next;
+    });
+  }, [savedFeedIds]);
   useEffect(() => {
     if (!selectedOrderNo) return;
     getJson<ApiOrderDetail>(`/orders/${selectedOrderNo}`).then(setOrderDetail).catch(() => setOrderDetail(null));
@@ -2370,22 +2464,62 @@ export default function App() {
     return ["전체", ...dynamic];
   }, []);
 
-  const visibleShorts = useMemo(() => {
-    const base = visibleFeed.filter((item) => item.type === "video" || item.category.includes("숏"));
-    if (selectedShortsCategory === "전체") return base;
-    return base.filter((item) => item.category === selectedShortsCategory);
-  }, [visibleFeed, selectedShortsCategory]);
+  const recommendedShorts = useMemo(() => {
+    const base = feedSeed.filter((item) => item.type === "video" || item.category.includes("숏"));
+    const signalMap = new Map<string, number>();
 
-  const shortsFeedItems = useMemo(() => {
-    const fallback = feedSeed.filter((item) => item.type === "video" || item.category.includes("숏"));
-    const source = visibleShorts.length ? visibleShorts : fallback;
-    return source.map((item, idx) => ({
-      ...item,
-      id: 1000 + idx,
-      views: (item.views ?? 1000) + idx * 91,
-      postedAt: item.postedAt ?? ["방금", "9분 전", "26분 전", "1시간 전", "3시간 전", "어제"][idx % 6],
-    }));
-  }, [visibleShorts]);
+    Object.entries(shopKeywordSignals).forEach(([token, score]) => signalMap.set(token.toLowerCase(), (signalMap.get(token.toLowerCase()) ?? 0) + score * 1.4));
+    Object.entries(shortsKeywordSignals).forEach(([token, score]) => signalMap.set(token.toLowerCase(), (signalMap.get(token.toLowerCase()) ?? 0) + score * 1.8));
+    extractInterestTokens(globalKeyword).forEach((token) => signalMap.set(token, (signalMap.get(token) ?? 0) + 4));
+
+    const followedTopicKeywords = followingUserIds
+      .map((id) => forumStarterUsers.find((user) => user.id === id))
+      .filter((user): user is ForumStarterUser => Boolean(user))
+      .flatMap((user) => extractInterestTokens(`${user.name} ${user.topic} ${user.role}`));
+    followedTopicKeywords.forEach((token) => signalMap.set(token, (signalMap.get(token) ?? 0) + 2.5));
+
+    const savedKeywords = feedSeed
+      .filter((item) => savedFeedIds.includes(item.id))
+      .flatMap((item) => extractInterestTokens(`${item.title} ${item.caption} ${item.category} ${item.author}`));
+    savedKeywords.forEach((token) => signalMap.set(token, (signalMap.get(token) ?? 0) + 3.5));
+
+    const ranked = base.map((item, idx) => {
+      const content = `${item.title} ${item.caption} ${item.category} ${item.author}`.toLowerCase();
+      const matchedSignalScore = Array.from(signalMap.entries()).reduce((sum, [token, score]) => sum + (content.includes(token) ? score : 0), 0);
+      const freshnessMinutes = parseRelativeMinutes(item.postedAt);
+      const freshnessScore = Math.max(0, 36 - Math.min(freshnessMinutes / 12, 36));
+      const followScore = followedTopicKeywords.some((token) => content.includes(token)) ? 18 : 0;
+      const savedScore = savedFeedIds.includes(item.id) ? 28 : 0;
+      const popularityScore = Math.min(22, (item.likes / 40) + (item.comments / 12) + ((item.views ?? 0) / 600));
+      const nicheBoost = /딜도|바이브|본디지|패들|케인|젤|세정|보관|입문|리뷰/.test(content) ? 6 : 0;
+      const explorationScore = deterministicHash(`${item.id}-${item.title}`) % 100 < 2 ? 12 : 0;
+      const vintagePopularBoost = freshnessMinutes >= 120 && popularityScore >= 16 && matchedSignalScore > 0 ? 10 : 0;
+      const recencyPenalty = freshnessMinutes >= 1440 ? 6 : 0;
+      const totalScore = matchedSignalScore + freshnessScore + followScore + savedScore + popularityScore + nicheBoost + explorationScore + vintagePopularBoost - recencyPenalty;
+      return {
+        ...item,
+        id: 1000 + idx,
+        views: (item.views ?? 1000) + idx * 91,
+        postedAt: item.postedAt ?? ["방금", "9분 전", "26분 전", "1시간 전", "3시간 전", "어제"][idx % 6],
+        sortScore: totalScore,
+      };
+    });
+
+    ranked.sort((a, b) => (b.sortScore ?? 0) - (a.sortScore ?? 0) || (b.likes - a.likes));
+    return ranked;
+  }, [shopKeywordSignals, shortsKeywordSignals, globalKeyword, followingUserIds, savedFeedIds]);
+
+  const visibleShorts = useMemo(() => {
+    const source = recommendedShorts;
+    const keyword = globalKeyword.trim().toLowerCase();
+    return source.filter((item) => {
+      const categoryMatch = selectedShortsCategory === "전체" || item.category === selectedShortsCategory;
+      const keywordMatch = !keyword || `${item.title} ${item.caption} ${item.category} ${item.author}`.toLowerCase().includes(keyword);
+      return categoryMatch && keywordMatch;
+    });
+  }, [recommendedShorts, selectedShortsCategory, globalKeyword]);
+
+  const shortsFeedItems = useMemo(() => visibleShorts.length ? visibleShorts : recommendedShorts, [visibleShorts, recommendedShorts]);
 
   const pagedShorts = useMemo(() => shortsFeedItems.slice(0, shortsVisibleCount), [shortsFeedItems, shortsVisibleCount]);
   const shortsViewerInitialIndex = useMemo(() => shortsViewerItemId === null ? 0 : Math.max(0, shortsFeedItems.findIndex((item) => item.id === shortsViewerItemId)), [shortsFeedItems, shortsViewerItemId]);
@@ -4119,7 +4253,7 @@ export default function App() {
                       key={`short-${item.id}`}
                       item={item}
                       onOpenMore={setShortsMoreItem}
-                      onOpenViewer={(selected) => setShortsViewerItemId(selected.id)}
+                      onOpenViewer={openShortsViewer}
                     />
                   )) : <div className="legacy-box compact"><p>표시할 쇼츠가 없습니다.</p></div>}
                   {pagedShorts.length < shortsFeedItems.length ? <div className="shorts-loading-row">쇼츠 10개 단위로 추가 로딩 중</div> : null}
