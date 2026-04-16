@@ -230,7 +230,8 @@ LEGAL_DOC_VERSIONS = {
     "marketing_opt_in": "2026-04-11.v1",
     "profile_optional_opt_in": "2026-04-11.v1",
     "youth_policy": "2026-04-11.v4",
-    "refund_policy": "2026-04-11.v4",
+    "refund_policy": "2026-04-16.v1",
+    "age_verification_policy": "2026-04-16.v1",
     "seller_terms": "2026-04-11.v1",
 }
 REQUIRED_SIGNUP_CONSENT_TYPES = ["terms_of_service", "privacy_policy", "adult_service_notice", "identity_notice"]
@@ -242,7 +243,8 @@ LEGAL_DOC_RELEASED_AT = {
     "marketing_opt_in": datetime(2026, 4, 11),
     "profile_optional_opt_in": datetime(2026, 4, 11),
     "youth_policy": datetime(2026, 4, 11),
-    "refund_policy": datetime(2026, 4, 11),
+    "refund_policy": datetime(2026, 4, 16),
+    "age_verification_policy": datetime(2026, 4, 16),
     "seller_terms": datetime(2026, 4, 11),
 }
 LEGAL_TEMPLATE_FILES = {
@@ -250,6 +252,7 @@ LEGAL_TEMPLATE_FILES = {
     "privacy_policy": Path("docs/legal_templates/privacy_policy_final.md"),
     "youth_policy": Path("docs/legal_templates/youth_policy_final.md"),
     "refund_policy": Path("docs/legal_templates/refund_policy_final.md"),
+    "age_verification_policy": Path("docs/legal_templates/age_verification_policy_final.md"),
     "seller_terms": Path("docs/legal_templates/seller_terms_final.md"),
 }
 VERIFICATION_ALLOWED_PROVIDERS = [item.strip() for item in settings.adult_verification_allowed_providers.split(",") if item.strip()]
@@ -983,9 +986,11 @@ def _payment_provider_status() -> dict[str, Any]:
         "toss_live_client_key_configured": live_items["toss_client_key"],
         "toss_live_secret_key_configured": live_items["toss_secret_key"],
         "toss_live_mid_configured": live_items["toss_mid"],
+        "verotel": _verotel_config_snapshot(),
         "recommended_now": [
             "테스트 webhook secret / Store ID / channel key / API Secret만 먼저 입력",
             "결제·취소·부분취소·환불·webhook 재전송까지 테스트",
+            "Verotel shopID / signature key / success·back·postback URL 등록",
             "live merchant / 운영 MID / live webhook secret은 마지막 단계에서만 입력",
         ],
         "test_stage_defaults": {
@@ -1241,6 +1246,63 @@ def _current_checkout_values() -> dict[str, Any]:
     }
 
 
+
+
+def _public_url(path: str) -> str:
+    base = str(settings.backend_public_base_url or '').strip().rstrip('/')
+    if not path.startswith('/'):
+        path = '/' + path
+    return f"{base}{path}" if base else path
+
+
+def _verotel_signature(payload: dict[str, Any]) -> str:
+    key = str(settings.verotel_signature_key or '').strip()
+    if not key or key == 'change-me-verotel-signature-key':
+        return ''
+    parts = [
+        str(payload.get('shopID') or ''),
+        str(payload.get('priceAmount') or ''),
+        str(payload.get('currencyCode') or ''),
+        str(payload.get('referenceID') or ''),
+        str(payload.get('description') or ''),
+    ]
+    raw = '|'.join(parts + [key])
+    return hashlib.sha256(raw.encode('utf-8')).hexdigest()
+
+
+def _verotel_config_snapshot() -> dict[str, Any]:
+    return {
+        'enabled': bool(settings.verotel_enabled),
+        'provider': 'verotel',
+        'mode': settings.verotel_api_mode,
+        'shop_id_configured': settings.verotel_shop_id != 'change-me-verotel-shop-id',
+        'signature_key_configured': settings.verotel_signature_key != 'change-me-verotel-signature-key',
+        'startorder_url': settings.verotel_startorder_url,
+        'success_url': _public_url(settings.verotel_success_path),
+        'back_url': _public_url(settings.verotel_back_path),
+        'postback_url': _public_url(settings.verotel_postback_path),
+        'allowed_currencies': [item.strip() for item in str(settings.verotel_allowed_currencies or 'EUR,USD').split(',') if item.strip()],
+    }
+
+
+def _save_verotel_session(session: Session, row: VerotelPaymentSession, payload: dict[str, Any], callback: bool = False) -> VerotelPaymentSession:
+    raw = json.dumps(payload, ensure_ascii=False)
+    if callback:
+        row.callback_payload_json = raw
+    else:
+        row.request_payload_json = raw
+    row.updated_at = utcnow()
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return row
+
+
+def _record_adult_audit(session: Session, user: User | None, provider: str, outcome: str, birthdate: str | None = None, fail_reason: str | None = None, tx_id: str | None = None, is_adult_claimed: bool = False) -> None:
+    audit = AdultAccessAudit(user_id=(user.id if user else None), provider=provider, outcome=outcome, birthdate=birthdate, fail_reason=fail_reason, tx_id=tx_id, is_adult_claimed=is_adult_claimed)
+    session.add(audit)
+    session.commit()
+
 def _refund_provider_status_for_amount(refund_amount: int, remaining_before: int) -> str:
     if refund_amount >= remaining_before:
         return "Refunded"
@@ -1449,6 +1511,7 @@ def legal_public_links():
             "privacy_policy": {"version": LEGAL_DOC_VERSIONS["privacy_policy"], "url": "/api/legal/privacy-policy", "label": "개인정보 처리방침"},
             "youth_policy": {"version": LEGAL_DOC_VERSIONS["youth_policy"], "url": "/api/legal/youth-policy", "label": "청소년 보호정책"},
             "refund_policy": {"version": LEGAL_DOC_VERSIONS["refund_policy"], "url": "/api/legal/refund-policy", "label": "환불정책"},
+            "age_verification_policy": {"version": LEGAL_DOC_VERSIONS["age_verification_policy"], "url": "/api/legal/age-verification-policy", "label": "성인 인증 정책"},
         }
     }
 
@@ -2850,6 +2913,39 @@ def list_products(request: Request, session: Session = Depends(get_session)):
         return []
 
 
+@router.get("/products/{product_id}")
+def product_detail(product_id: int, request: Request, session: Session = Depends(get_session)):
+    viewer = _extract_optional_user(session, request)
+    product = session.get(Product, product_id)
+    if not product or not _product_publicly_visible(product):
+        raise HTTPException(status_code=404, detail='product not found')
+    if not _user_can_view_adult(viewer) and str(getattr(product, 'review_visibility', 'safe')) != 'safe':
+        raise HTTPException(status_code=403, detail='adult verification required')
+    media = session.exec(select(ProductMedia).where(ProductMedia.product_id == product_id).order_by(ProductMedia.sort_order)).all()
+    seller = session.get(User, product.seller_id)
+    seller_profile = session.exec(select(SellerProfile).where(SellerProfile.user_id == product.seller_id)).first()
+    policy_meta = _app_asset_json(session, 'product_policy', str(product_id)) or {}
+    return {
+        'product': product,
+        'media': media,
+        'policy': policy_meta,
+        'site_ready': {
+            'adult_only_label': '성인용품',
+            'illegal_goods_blocked': True,
+            'price_visible': int(product.price or 0) > 0,
+            'purchase_button_visible': True,
+            'customer_center_visible': bool(seller_profile and seller_profile.cs_contact),
+            'minimum_refund_window_days': 7,
+        },
+        'seller_contact': {
+            'name': seller.name if seller else '판매자',
+            'cs_contact': seller_profile.cs_contact if seller_profile else settings.operator_support_phone,
+            'return_address': seller_profile.return_address if seller_profile else settings.operator_business_address,
+            'support_email': settings.operator_support_email,
+        },
+    }
+
+
 @router.post("/products")
 def upsert_product(payload: ProductUpsertRequest, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     _enforce_route_rate_limit(request, "products_upsert", session)
@@ -3309,7 +3405,7 @@ def create_order(payload: OrderCreateRequest, request: Request, current_user: Us
         seller_id=product.seller_id,
         order_status="payment_pending",
         payment_method=payload.payment_method,
-        payment_pg=settings.pg_primary_provider,
+        payment_pg=(payload.payment_pg or settings.pg_primary_provider),
         approved_at=None,
         supply_amount=supply_amount,
         vat_amount=vat_amount,
@@ -3337,6 +3433,109 @@ def create_order(payload: OrderCreateRequest, request: Request, current_user: Us
     write_admin_log(session, current_user, "order_create", "order", str(order.id), "스타터 주문 생성", after_state=f"total={total_amount}")
     checkout = _current_checkout_values()
     return {"ok": True, "order_id": order.id, "order_no": order.order_no, "total_amount": total_amount, "payment_provider": settings.pg_primary_provider, "payment_init": {"merchant_uid": order.order_no, "store_id_configured": settings.pg_portone_store_id != "change-me-pg-store-id", "channel_key_configured": settings.pg_portone_channel_key != "change-me-pg-channel-key", "webhook_path": settings.pg_webhook_path, "store_id": checkout["store_id"], "channel_key": checkout["channel_key"], "client_key": checkout["client_key"], "mid": checkout["mid"], "mode": checkout["mode"]}}
+
+
+@router.get("/payments/verotel/config")
+def payments_verotel_config() -> dict[str, Any]:
+    return _verotel_config_snapshot()
+
+
+@router.post("/payments/verotel/start")
+def payments_verotel_start(payload: dict[str, Any], request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)) -> dict[str, Any]:
+    order_no = str(payload.get('order_no') or '').strip()
+    currency = str(payload.get('currency') or 'EUR').strip().upper()
+    allowed = set(_verotel_config_snapshot()['allowed_currencies'])
+    if currency not in allowed:
+        raise HTTPException(status_code=400, detail=f'unsupported currency: {currency}')
+    order = session.exec(select(Order).where(Order.order_no == order_no)).first()
+    if not order:
+        raise HTTPException(status_code=404, detail='order not found')
+    if not _can_view_order(current_user, order):
+        raise HTTPException(status_code=403, detail='forbidden')
+    _assert_can_access_adult(current_user)
+    product = session.exec(select(OrderItem).where(OrderItem.order_id == order.id)).first()
+    product_name = order_no
+    if product:
+        item_product = session.get(Product, product.product_id)
+        if item_product:
+            product_name = item_product.name
+    amount_minor = int(order.total_amount or 0)
+    reference_id = f"VTO-{order.order_no}"
+    success_url = _public_url(settings.verotel_success_path) + f"?order_no={order.order_no}"
+    back_url = _public_url(settings.verotel_back_path) + f"?order_no={order.order_no}"
+    postback_url = _public_url(settings.verotel_postback_path)
+    form_fields = {
+        'shopID': settings.verotel_shop_id,
+        'priceAmount': amount_minor,
+        'currencyCode': currency,
+        'referenceID': reference_id,
+        'description': f'성인용품 주문 {product_name}',
+        'successURL': success_url,
+        'backURL': back_url,
+        'postbackURL': postback_url,
+    }
+    signature = _verotel_signature(form_fields)
+    if signature:
+        form_fields['signature'] = signature
+    session_row = session.exec(select(VerotelPaymentSession).where(VerotelPaymentSession.order_no == order.order_no)).first()
+    if not session_row:
+        session_row = VerotelPaymentSession(order_no=order.order_no, order_id=order.id, member_id=current_user.id or 0, currency=currency, amount_minor=amount_minor, description=form_fields['description'], reference_id=reference_id, success_url=success_url, back_url=back_url, postback_url=postback_url, signature=signature, status='prepared')
+    else:
+        session_row.currency = currency
+        session_row.amount_minor = amount_minor
+        session_row.description = form_fields['description']
+        session_row.reference_id = reference_id
+        session_row.success_url = success_url
+        session_row.back_url = back_url
+        session_row.postback_url = postback_url
+        session_row.signature = signature
+        session_row.status = 'prepared'
+    _save_verotel_session(session, session_row, form_fields)
+    record = _payment_record(session, order.order_no)
+    record.update({'provider':'verotel','checkout_provider':'verotel','latest_status':'prepared','order_no':order.order_no,'reference_id':reference_id,'verotel_form_fields':form_fields,'checkout_started_at':utcnow().isoformat()})
+    _append_payment_history(record, 'verotel_prepared', {'action':'prepared','reference_id':reference_id})
+    _save_payment_record(session, order.order_no, record, status='configured')
+    write_admin_log(session, current_user, 'verotel_prepare', 'order', str(order.id), 'Verotel checkout prepared', after_state=reference_id, ip=request.client.host if request.client else '127.0.0.1', device=request.headers.get('user-agent'))
+    return {'ok': True, 'provider': 'verotel', 'order_no': order.order_no, 'action_url': settings.verotel_startorder_url, 'method': 'POST', 'form_fields': form_fields, 'payment_session': {'reference_id': reference_id, 'status': session_row.status}}
+
+
+@router.post("/payments/webhooks/verotel")
+async def payments_webhook_verotel(request: Request, session: Session = Depends(get_session)) -> dict[str, Any]:
+    form = await request.form()
+    payload = {k: v for k, v in form.items()} if form else {}
+    if not payload:
+        try:
+            payload = await request.json()
+        except Exception:
+            payload = {}
+    reference_id = str(payload.get('referenceID') or payload.get('reference_id') or '')
+    sale_id = str(payload.get('saleID') or payload.get('sale_id') or '')
+    status = str(payload.get('status') or payload.get('transactionStatus') or payload.get('paymentStatus') or 'approved').lower()
+    order_no = reference_id.replace('VTO-', '', 1) if reference_id.startswith('VTO-') else str(payload.get('order_no') or '')
+    if not order_no:
+        return {'ok': False, 'detail': 'order_no missing'}
+    order = session.exec(select(Order).where(Order.order_no == order_no)).first()
+    if not order:
+        return {'ok': False, 'detail': 'order not found'}
+    row = session.exec(select(VerotelPaymentSession).where(VerotelPaymentSession.order_no == order_no)).first()
+    if not row:
+        row = VerotelPaymentSession(order_no=order_no, order_id=order.id, member_id=order.member_id, amount_minor=int(order.total_amount or 0), description=f'Webhook created for {order_no}', reference_id=reference_id or f'VTO-{order_no}')
+    row.verotel_sale_id = sale_id or row.verotel_sale_id
+    mapped = 'Paid' if status in {'approved','paid','success','completed'} else 'Failed'
+    row.status = 'approved' if mapped == 'Paid' else 'failed'
+    _save_verotel_session(session, row, payload, callback=True)
+    record = _payment_record(session, order_no)
+    if mapped == 'Paid':
+        _apply_payment_status(order, mapped)
+        session.add(order)
+        session.commit()
+        record.update({'confirmed': True, 'payment_id': sale_id or reference_id, 'provider': 'verotel', 'method': 'card', 'paid_amount': int(order.total_amount or 0), 'latest_status': 'paid', 'callback_provider': 'verotel'})
+        _append_payment_history(record, 'verotel_paid', {'action':'approved','sale_id':sale_id or reference_id})
+    else:
+        record.update({'provider': 'verotel', 'latest_status': status, 'callback_provider': 'verotel'})
+        _append_payment_history(record, 'verotel_failed', {'action':'failed','sale_id':sale_id or reference_id,'status':status})
+    _save_payment_record(session, order_no, record, status='configured')
+    return {'ok': True, 'provider': 'verotel', 'order_no': order_no, 'status': row.status}
 
 
 @router.get("/payments/frontend-env-check")

@@ -278,6 +278,45 @@ type ApiProduct = {
   status?: string;
   sku_code?: string;
   stock_qty?: number;
+  thumbnail_url?: string | null;
+};
+
+type ProductDetailResponse = {
+  product: ApiProduct;
+  media?: Array<{ id?: number; file_url?: string; media_type?: string; sort_order?: number }>;
+  policy?: Record<string, unknown>;
+  site_ready?: {
+    adult_only_label?: string;
+    illegal_goods_blocked?: boolean;
+    price_visible?: boolean;
+    purchase_button_visible?: boolean;
+    customer_center_visible?: boolean;
+    minimum_refund_window_days?: number;
+  };
+  seller_contact?: {
+    name?: string;
+    cs_contact?: string;
+    return_address?: string;
+    support_email?: string;
+  };
+};
+
+type AdultGateStatusResponse = {
+  adult_verified?: boolean;
+  identity_verified?: boolean;
+  member_status?: string;
+  allowed_to_shop?: boolean;
+  latest_audit?: { provider?: string | null; outcome?: string | null; fail_reason?: string | null; created_at?: string | null };
+  policy?: { adult_only_label?: string; minor_access_blocked?: boolean; verification_methods?: string[] };
+};
+
+type VerotelStartResponse = {
+  ok?: boolean;
+  provider?: string;
+  order_no?: string;
+  action_url?: string;
+  method?: string;
+  form_fields?: Record<string, string | number>;
 };
 
 type ApiOrder = {
@@ -1741,6 +1780,10 @@ export default function App() {
   const [businessInfo, setBusinessInfo] = useState<BusinessInfoResponse | null>(null);
   const [releaseReadiness, setReleaseReadiness] = useState<ReleaseReadinessResponse | null>(null);
   const [paymentProviderStatus, setPaymentProviderStatus] = useState<PaymentProviderStatusResponse | null>(null);
+  const [productDetail, setProductDetail] = useState<ProductDetailResponse | null>(null);
+  const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
+  const [adultGateStatus, setAdultGateStatus] = useState<AdultGateStatusResponse | null>(null);
+  const [adultBirthdate, setAdultBirthdate] = useState("1990-01-01");
   const [minorPurgePreview, setMinorPurgePreview] = useState<MinorPurgePreview | null>(null);
   const [uiCategoryGroups, setUiCategoryGroups] = useState<Array<{ group: string; items: string[] }>>([]);
   const [skuPolicy, setSkuPolicy] = useState<SkuPolicyResponse | null>(null);
@@ -1874,6 +1917,7 @@ export default function App() {
   const [authEmail, setAuthEmail] = useState("customer@example.com");
   const [authPassword, setAuthPassword] = useState("customer1234");
   const [authMessage, setAuthMessage] = useState("");
+  const [authGatePopupOpen, setAuthGatePopupOpen] = useState(false);
   const [apiProducts, setApiProducts] = useState<ApiProduct[]>([]);
   const [cartItems, setCartItems] = useState<Array<{ productId: number; qty: number }>>([]);
   const [orders, setOrders] = useState<ApiOrder[]>([]);
@@ -2389,6 +2433,14 @@ export default function App() {
   const blockedByIdentity = !isAdmin && !identityVerified;
   const requiresAdultGate = !isAdmin && !adultVerified && ["홈", "쇼핑"].includes(activeTab);
   const showAppTabContent = showBaseTabContent && !blockedByIdentity && !requiresAdultGate;
+  const shouldForceAuthStandalone = authBootstrapDone && blockedByIdentity;
+
+  useEffect(() => {
+    if (!shouldForceAuthStandalone) return;
+    setAuthStandaloneScreen("login");
+    setAuthGatePopupOpen(true);
+    setAuthMessage("로그인이 필요합니다. 청소년은 이용할 수 없습니다.");
+  }, [shouldForceAuthStandalone]);
   const adultCooldownRemainMinutes = adultCooldownUntil > Date.now() ? Math.ceil((adultCooldownUntil - Date.now()) / 60000) : 0;
   const requiredConsentAccepted = requiredConsentKeys.every((key) => signupConsents[key]);
   const reconsentRequired = Boolean(authSummary?.reconsent_required || authSummary?.consent_status?.reconsent_required);
@@ -2669,6 +2721,59 @@ export default function App() {
     }
   };
 
+  const openProductDetail = async (productId: number) => {
+    setSelectedProductId(productId);
+    setShoppingTab("상품");
+    try {
+      const detail = await getJson<ProductDetailResponse>(`/products/${productId}`);
+      setProductDetail(detail);
+      setOrderMessage("");
+    } catch (error) {
+      setProductDetail(null);
+      setOrderMessage(error instanceof Error ? error.message : "상품 상세 조회 실패");
+    }
+  };
+
+  const verifyAdultSelf = async () => {
+    try {
+      const result = await postJson<{ adult_verified?: boolean }>("/auth/adult/self-check", { birthdate: adultBirthdate, provider: "self_cert" });
+      setAdultVerified(Boolean(result.adult_verified));
+      const next = await getJson<AdultGateStatusResponse>("/auth/adult/gate-status");
+      setAdultGateStatus(next);
+      setOrderMessage("성인 인증이 완료되었습니다. 쇼핑과 결제를 진행할 수 있습니다.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "성인 인증 실패";
+      setOrderMessage(message);
+      getJson<AdultGateStatusResponse>("/auth/adult/gate-status").then(setAdultGateStatus).catch(() => null);
+    }
+  };
+
+  const launchVerotelCheckout = async (orderNo?: string) => {
+    const targetOrderNo = orderNo || selectedOrderNo || orderDetail?.order?.order_no;
+    if (!targetOrderNo) {
+      setOrderMessage("먼저 주문을 생성하세요.");
+      return;
+    }
+    try {
+      const response = await postJson<VerotelStartResponse>("/payments/verotel/start", { order_no: targetOrderNo, currency: "EUR" });
+      const form = document.createElement("form");
+      form.method = response.method || "POST";
+      form.action = response.action_url || "";
+      Object.entries(response.form_fields || {}).forEach(([key, value]) => {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = key;
+        input.value = String(value);
+        form.appendChild(input);
+      });
+      document.body.appendChild(form);
+      setOrderMessage(`Verotel 결제 페이지로 이동 준비 완료: ${targetOrderNo}`);
+      form.submit();
+    } catch (error) {
+      setOrderMessage(error instanceof Error ? error.message : "Verotel 결제 시작 실패");
+    }
+  };
+
   const addToCart = (productId: number) => {
     setCartItems((prev) => {
       const found = prev.find((item) => item.productId === productId);
@@ -2716,6 +2821,28 @@ export default function App() {
     } catch (error) {
       setOrderDetail(null);
       setOrderMessage(error instanceof Error ? error.message : "주문 상세 조회 실패");
+    }
+  };
+
+  const createOrderForSelectedProduct = async () => {
+    const target = productDetail?.product;
+    if (!target) {
+      setOrderMessage("선택된 상품이 없습니다.");
+      return;
+    }
+    try {
+      const created = await postJson<{ order_no: string; total_amount: number; payment_init: { mode?: string; webhook_path?: string } }>("/orders", {
+        product_id: target.id,
+        qty: 1,
+        payment_method: "card",
+        payment_pg: "verotel",
+      });
+      setSelectedOrderNo(created.order_no);
+      setOrderMessage(`상품 주문 생성 완료: ${created.order_no} · ${created.total_amount.toLocaleString()}원`);
+      await refreshOrders(created.order_no);
+      setShoppingTab("주문");
+    } catch (error) {
+      setOrderMessage(error instanceof Error ? error.message : "상품 주문 생성 실패");
     }
   };
 
@@ -3169,6 +3296,27 @@ export default function App() {
   if (authStandaloneScreen) {
     return (
       <div className="auth-standalone-shell">
+        {authGatePopupOpen ? (
+          <div className="modal-backdrop">
+            <div className="modal-card adult-auth-modal">
+              <div className="modal-header-row">
+                <strong>로그인 필요</strong>
+                <button className="ghost-btn" onClick={() => setAuthGatePopupOpen(false)}>닫기</button>
+              </div>
+              <div className="stack-gap">
+                <div className="legacy-box compact">
+                  <p>로그인 후 이용할 수 있습니다.</p>
+                  <p>청소년은 회원가입 및 로그인할 수 없습니다.</p>
+                  <p>본인확인 결과에 따라 서비스 접속이 제한될 수 있습니다.</p>
+                </div>
+                <div className="copy-action-row">
+                  <button type="button" onClick={() => setAuthGatePopupOpen(false)}>확인</button>
+                  <button type="button" className="ghost-btn" onClick={() => { setAuthGatePopupOpen(false); setSignupStep("consent"); setAuthStandaloneScreen("signup"); }}>회원가입</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
         <main className="auth-standalone-main">
           <section className="auth-standalone-card">
             <div className="auth-standalone-head">
@@ -3621,40 +3769,6 @@ export default function App() {
           </section>
         ) : null}
 
-        {showBaseTabContent && blockedByIdentity ? (
-          <section className="tab-pane fill-pane auth-gate-pane">
-            <div className="auth-gate-card stack-gap compact-scroll-list auth-entry-pane">
-              <div className="section-head compact-head">
-                <div><h2>로그인 / 회원가입</h2><p>로그인과 회원가입은 상단바·하단바가 없는 별도 화면으로 분리했습니다. 아래 버튼으로 독립 화면으로 이동해 진행할 수 있습니다.</p></div>
-              </div>
-              <div className="legacy-grid two auth-entry-grid">
-                <div className="legacy-box compact auth-entry-card">
-                  <h3>로그인 화면</h3>
-                  <p>테스트 계정 입력, 일반 로그인, 관리자 로그인 확인을 독립 화면에서 진행합니다.</p>
-                  <div className="copy-action-row">
-                    <button type="button" onClick={() => setAuthStandaloneScreen("login")}>로그인 화면 열기</button>
-                  </div>
-                </div>
-                <div className="legacy-box compact auth-entry-card">
-                  <h3>회원가입 화면</h3>
-                  <p>필수 동의 → 가입정보 입력 → 선택 프로필 입력 순서의 별도 회원가입 화면으로 이동합니다.</p>
-                  <div className="copy-action-row">
-                    <button type="button" className="ghost-btn" onClick={() => { setSignupStep("consent"); setAuthStandaloneScreen("signup"); }}>회원가입 화면 열기</button>
-                  </div>
-                </div>
-              </div>
-              <div className="legacy-box compact auth-summary-box">
-                <h3>테스트 계정 바로 입력</h3>
-                <div className="chip-checklist auth-account-chiplist">
-                  <button type="button" className="chip-check" onClick={() => { fillTestAccount("customer@example.com", "customer1234"); setAuthStandaloneScreen("login"); }}>회원 계정</button>
-                  <button type="button" className="chip-check" onClick={() => { fillTestAccount("admin@example.com", "admin1234"); setAuthStandaloneScreen("login"); }}>관리자 계정</button>
-                  <button type="button" className="chip-check" onClick={() => { fillTestAccount("seller@example.com", "seller1234"); setAuthStandaloneScreen("login"); }}>판매자 계정</button>
-                </div>
-              </div>
-            </div>
-          </section>
-        ) : null}
-
         {showBaseTabContent && !blockedByIdentity && requiresAdultGate ? (
           <section className="tab-pane fill-pane adult-gate-pane">
             <div className="adult-gate-card stack-gap compact-scroll-list">
@@ -3773,6 +3887,7 @@ export default function App() {
                         <div className="product-meta"><span>{product.category}</span><b>{product.price}</b></div>
                         <div className="product-card-actions">
                           <button type="button" onClick={() => addToCart(product.id)}>장바구니 담기</button>
+                          <button type="button" className="ghost-btn" onClick={() => openProductDetail(product.id)}>상세보기</button>
                           <button type="button" className="ghost-btn" onClick={() => toggleSavedProduct(product.id)}>{savedProductIds.includes(product.id) ? "보관해제" : "보관함"}</button>
                         </div>
                       </article>
@@ -3780,6 +3895,76 @@ export default function App() {
                   </div>
                 </div>
               </>
+            ) : null}
+
+            {shoppingTab === "상품" ? (
+              <div className="stack-gap compact-scroll-list">
+                {productDetail ? (
+                  <>
+                    <div className="legacy-grid two-col compact-grid">
+                      <div className="legacy-box">
+                        <h3>{productDetail.product.name}</h3>
+                        <p><strong>성인용품</strong> · {productDetail.product.category}</p>
+                        <p>{productDetail.product.description || "상품 설명 준비중"}</p>
+                        <p>판매가: <strong>₩{Number(productDetail.product.price || 0).toLocaleString()}</strong></p>
+                        <p>재고: {Number(productDetail.product.stock_qty || 0)}개</p>
+                        <div className="profile-form-grid">
+                          <label><span>생년월일</span><input type="date" value={adultBirthdate} onChange={(e) => setAdultBirthdate(e.target.value)} /></label>
+                          <label><span>접근 상태</span><input readOnly value={adultGateStatus?.allowed_to_shop ? "쇼핑 가능" : adultGateStatus?.member_status || "미확인"} /></label>
+                        </div>
+                        <div className="product-card-actions">
+                          <button type="button" onClick={() => addToCart(productDetail.product.id)}>장바구니 담기</button>
+                          <button type="button" className="ghost-btn" onClick={verifyAdultSelf}>성인인증 진행</button>
+                        </div>
+                      </div>
+                      <div className="legacy-box">
+                        <h3>결제 테스트 버튼 UI</h3>
+                        <p>장바구니 → 주문 생성 → Verotel 이동 → 완료 확인 흐름을 그대로 점검합니다.</p>
+                        <div className="product-card-actions">
+                          <button type="button" onClick={createOrderForSelectedProduct}>주문 생성</button>
+                          <button type="button" className="ghost-btn" onClick={() => launchVerotelCheckout()}>Verotel 결제 테스트</button>
+                          <button type="button" className="ghost-btn" onClick={() => setShoppingTab("주문")}>주문 탭 열기</button>
+                        </div>
+                        <p className="muted-mini">미성년자는 쇼핑과 결제가 차단됩니다. PASS 실연동 전에는 자체 성인 확인으로 QA 가능합니다.</p>
+                      </div>
+                    </div>
+                    <div className="legacy-grid two-col compact-grid">
+                      <div className="legacy-box compact">
+                        <h3>사이트 상태 준비</h3>
+                        <div className="consent-record-list">
+                          <div className="simple-list-row"><b>상품 표시</b><span>{productDetail.site_ready?.adult_only_label || "성인용품"} 명시</span></div>
+                          <div className="simple-list-row"><b>가격 표시</b><span>{productDetail.site_ready?.price_visible ? "표시 중" : "미표시"}</span></div>
+                          <div className="simple-list-row"><b>결제 버튼</b><span>{productDetail.site_ready?.purchase_button_visible ? "노출 중" : "미노출"}</span></div>
+                          <div className="simple-list-row"><b>불법 상품 차단</b><span>{productDetail.site_ready?.illegal_goods_blocked ? "차단 정책 적용" : "점검 필요"}</span></div>
+                          <div className="simple-list-row"><b>환불정책</b><span>최소 {productDetail.site_ready?.minimum_refund_window_days || 7}일</span></div>
+                        </div>
+                      </div>
+                      <div className="legacy-box compact">
+                        <h3>고객센터 정보</h3>
+                        <div className="consent-record-list">
+                          <div className="simple-list-row"><b>판매자</b><span>{productDetail.seller_contact?.name || "-"}</span></div>
+                          <div className="simple-list-row"><b>CS 연락처</b><span>{productDetail.seller_contact?.cs_contact || "-"}</span></div>
+                          <div className="simple-list-row multi-line"><div><b>반품 주소</b><span>{productDetail.seller_contact?.return_address || "-"}</span></div></div>
+                          <div className="simple-list-row"><b>이메일</b><span>{productDetail.seller_contact?.support_email || "-"}</span></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="legacy-box compact">
+                      <h3>필수 정책 문서</h3>
+                      <div className="notification-policy-links">
+                        <a className="ghost-link-btn" href={`${getApiBase()}/legal/terms-of-service`} target="_blank" rel="noreferrer">이용약관</a>
+                        <a className="ghost-link-btn" href={`${getApiBase()}/legal/privacy-policy`} target="_blank" rel="noreferrer">개인정보 처리방침</a>
+                        <a className="ghost-link-btn" href={`${getApiBase()}/legal/refund-policy`} target="_blank" rel="noreferrer">환불정책</a>
+                        <a className="ghost-link-btn" href={`${getApiBase()}/legal/age-verification-policy`} target="_blank" rel="noreferrer">성인 인증 정책</a>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="legacy-box compact">
+                    <p>상품 목록에서 상세보기를 누르면 상품 상세, 결제 테스트, 정책 링크, 고객센터 정보를 확인할 수 있습니다.</p>
+                  </div>
+                )}
+              </div>
             ) : null}
 
             {shoppingTab === "주문" ? (
@@ -3797,6 +3982,7 @@ export default function App() {
                   </div>
                   <div className="product-card-actions">
                     <button type="button" onClick={confirmSelectedOrder}>선택 주문 결제승인</button>
+                    <button type="button" className="ghost-btn" onClick={() => launchVerotelCheckout()}>Verotel 결제창 열기</button>
                     <button type="button" className="ghost-btn" onClick={() => cancelSelectedOrder(false)}>선택 주문 전체취소</button>
                     <button type="button" className="ghost-btn" onClick={() => cancelSelectedOrder(true)}>선택 주문 부분취소</button>
                     <button type="button" className="ghost-btn" onClick={() => refundSelectedOrder(false)}>선택 주문 전체환불</button>

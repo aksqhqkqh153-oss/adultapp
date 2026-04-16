@@ -54,6 +54,15 @@ class Settings(BaseSettings):
     pg_webhook_path: str = "/api/payments/webhooks/pg"
     pg_refund_webhook_path: str = "/api/payments/webhooks/refund"
     pg_settlement_basis_note: str = "초기에는 관리자 승인형 판매자/상품 공개 구조로 운영하며, 관리자 직접판매와 사업자 판매물품 중개를 병행"
+    verotel_enabled: bool = True
+    verotel_shop_id: str = "change-me-verotel-shop-id"
+    verotel_signature_key: str = "change-me-verotel-signature-key"
+    verotel_api_mode: str = "test"
+    verotel_startorder_url: str = "https://secure.verotel.com/startorder"
+    verotel_success_path: str = "/shop/checkout/success"
+    verotel_back_path: str = "/shop/checkout/back"
+    verotel_postback_path: str = "/api/payments/webhooks/verotel"
+    verotel_allowed_currencies: str = "EUR,USD"
 
 
     adult_verification_provider: str = "portone_pass"
