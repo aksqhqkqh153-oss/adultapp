@@ -3920,22 +3920,21 @@ export default function App() {
       <div className="auth-standalone-shell">
         {authGatePopupOpen ? (
           <div className="modal-backdrop">
-            <div className="modal-card adult-auth-modal">
-              <div className="modal-header-row">
+            <div className="modal-card adult-auth-modal adult-auth-modal--login-gate">
+              <div className="modal-header-row adult-auth-modal__header">
+                <button type="button" className="ghost-btn adult-auth-modal__close" onClick={() => setAuthGatePopupOpen(false)}>[닫기]</button>
                 <strong>로그인 필요</strong>
-                <button className="ghost-btn" onClick={() => setAuthGatePopupOpen(false)}>닫기</button>
+                <span className="adult-auth-modal__spacer" aria-hidden="true" />
               </div>
-              <div className="stack-gap">
-                <div className="legacy-box compact">
-                  <p>본 서비스는 성인 인증 완료 회원만 이용할 수 있습니다.</p>
-                  <p>만 19세 미만 청소년은 회원가입 및 로그인이 제한됩니다.</p>
-                  <p>회원가입 또는 로그인 진행 시 본인확인이 필요할 수 있습니다.</p>
-                  <p>본인확인 및 연령 확인 결과에 따라 서비스 접속이 제한될 수 있습니다.</p>
-                </div>
-                <div className="copy-action-row">
-                  <button type="button" onClick={() => setAuthGatePopupOpen(false)}>확인</button>
-                  <button type="button" className="ghost-btn" onClick={() => { setAuthGatePopupOpen(false); setSignupStep("consent"); setAuthStandaloneScreen("signup"); }}>회원가입</button>
-                </div>
+              <div className="legacy-box compact adult-auth-modal__body">
+                <p>본 서비스는 성인 인증 완료 회원만<br />이용할 수 있습니다.</p>
+                <p>만 19세 미만 청소년은<br />회원가입 및 로그인이 제한됩니다.</p>
+                <p>회원가입 또는 로그인 진행 시<br />본인확인이 필요할 수 있습니다.</p>
+                <p>본인확인 및 연령 확인 결과에 따라<br />서비스 접속이 제한될 수 있습니다.</p>
+              </div>
+              <div className="copy-action-row adult-auth-modal__actions">
+                <button type="button" onClick={() => setAuthGatePopupOpen(false)}>확인</button>
+                <button type="button" className="ghost-btn" onClick={() => { setAuthGatePopupOpen(false); setSignupStep("consent"); setAuthStandaloneScreen("signup"); }}>회원가입</button>
               </div>
             </div>
           </div>

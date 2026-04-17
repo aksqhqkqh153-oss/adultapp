@@ -4291,3 +4291,38 @@ pre,
     font-size: 12px;
   }
 }
+
+
+.adult-auth-modal--login-gate {
+  width: min(92vw, 440px);
+  gap: 12px;
+}
+.adult-auth-modal__header {
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+}
+.adult-auth-modal__close {
+  min-width: auto;
+  padding: 0;
+  justify-self: start;
+}
+.adult-auth-modal__spacer {
+  width: 44px;
+  display: block;
+}
+.adult-auth-modal__body {
+  display: grid;
+  gap: 2px;
+}
+.adult-auth-modal__body p {
+  margin: 0;
+  line-height: 1.6;
+}
+.adult-auth-modal__actions {
+  justify-content: space-between;
+  flex-wrap: nowrap;
+}
+.adult-auth-modal__actions > button {
+  min-width: 120px;
+  flex: 0 0 auto;
+}
