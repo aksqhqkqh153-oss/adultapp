@@ -3927,9 +3927,10 @@ export default function App() {
               </div>
               <div className="stack-gap">
                 <div className="legacy-box compact">
-                  <p>로그인 후 이용할 수 있습니다.</p>
-                  <p>청소년은 회원가입 및 로그인할 수 없습니다.</p>
-                  <p>본인확인 결과에 따라 서비스 접속이 제한될 수 있습니다.</p>
+                  <p>본 서비스는 성인 인증 완료 회원만 이용할 수 있습니다.</p>
+                  <p>만 19세 미만 청소년은 회원가입 및 로그인이 제한됩니다.</p>
+                  <p>회원가입 또는 로그인 진행 시 본인확인이 필요할 수 있습니다.</p>
+                  <p>본인확인 및 연령 확인 결과에 따라 서비스 접속이 제한될 수 있습니다.</p>
                 </div>
                 <div className="copy-action-row">
                   <button type="button" onClick={() => setAuthGatePopupOpen(false)}>확인</button>
