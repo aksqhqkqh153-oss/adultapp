@@ -1,0 +1,11 @@
+[BUILD CHECK]
+project: adultapp
+frontend build: success
+output css: frontend/dist/assets/index-CfTobmcK.css
+output js: frontend/dist/assets/index-DK3OhgHS.js
+backend compileall: success
+notes:
+- signup consent 3-step flow added
+- optional consent does not block signup
+- random chat requires gender/age/region profile completion
+- backend consent storage model/schema draft added

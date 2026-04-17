@@ -1,0 +1,6 @@
+[BUILD CHECK]
+- backend: python -m compileall backend/app -> OK
+- backend: app import and route scan -> OK (/api/admin/chat-random/db-manage found)
+- frontend: npm run build -> OK
+- frontend dist assets rebuilt -> OK
+- update scope: random chat sanction policy + admin mode settings/db manage view

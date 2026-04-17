@@ -1,0 +1,6 @@
+BUILD CHECK
+- frontend npm run build: OK
+- dist/assets/index-BGER-LTm.css generated
+- dist/assets/index-B3Q2_xHY.js generated
+- contextual search overlay: added
+- html inspector fixed-position modal and persistent ON: added

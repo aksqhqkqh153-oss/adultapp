@@ -1,0 +1,14 @@
+[adultapp build check]
+- date: 2026-04-10
+- scope: random chat retention policy update + admin mode HTML inspector tab
+- frontend install: success
+- frontend build: success
+- build output: frontend/dist
+- vite asset js: dist/assets/index-BL2OHS9-.js
+- vite asset css: dist/assets/index-7Nb7V2oZ.css
+- notes:
+  1) 관리자모드 > HTML요소 탭 추가
+  2) Ctrl + 클릭 HTML inspector 추가 (localStorage 기반)
+  3) 최근 종료 목록 7일 보관 표시 기준 반영
+  4) 최근 종료 목록 재입장 불가 문구 반영
+  5) 감사로그 3년 보관 문구 반영

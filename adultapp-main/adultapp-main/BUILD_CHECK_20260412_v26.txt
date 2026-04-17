@@ -1,0 +1,29 @@
+BUILD CHECK v26 - 2026-04-12
+
+[backend]
+- python -m compileall backend/app : PASS
+- app import/openapi route presence smoke check : PASS
+- checked routes:
+  - /api/chat/random/rules
+  - /api/chat/random/tickets
+  - /api/reports
+  - /api/upload
+  - /api/products/{product_id}/delete
+
+[frontend]
+- npm install : PASS
+- npm run build : PASS
+- dist output updated : PASS
+  - dist/index.html
+  - dist/assets/index-En6u2q8J.js
+  - dist/assets/index-BYBZPUsc.css
+
+[policy/rbac updates]
+- random chat entry gate added: identity/adult/profile/member status
+- random chat policy summary expanded: allowed/prohibited/controls
+- random chat lifecycle admin logs added: queue/match/cancel/report/end
+- frontend copy adjusted toward anonymous info-exchange only
+
+[notes]
+- production launch still requires real operator/legal/PortOne/PG values
+- npm audit reports 2 moderate vulnerabilities; build is not blocked

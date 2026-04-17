@@ -1,0 +1,12 @@
+[adultapp build check]
+Date: 2026-04-11
+Status: PASS
+Command: npm --prefix frontend run build
+Output:
+- dist/index.html
+- dist/assets/index-WpubJAe2.css
+- dist/assets/index-DiXa9XZr.js
+Notes:
+- topbar title moved to the immediate left of the search button
+- overlay title now reflects 검색 / 설정
+- html inspector enabled state persists across screen changes via localStorage

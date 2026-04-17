@@ -1,0 +1,6 @@
+[build check]
+frontend npm install: success
+frontend npm run build: success
+backend /api/health: 200 ok
+backend /api/chat/random/rules: 200 ok
+policy baseline check: region_unit=시, distance_score_mode=band_bonus, delete_display_mode=masked_deleted_label_admin_archive

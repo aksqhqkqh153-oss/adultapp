@@ -1,0 +1,4 @@
+backend deploy fix candidate
+- normalize postgres url and connect timeout
+- disable heavy startup db init/seed by default
+- add manual init script backend/scripts/init_runtime_db.py

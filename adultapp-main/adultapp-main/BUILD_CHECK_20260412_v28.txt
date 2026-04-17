@@ -1,0 +1,4 @@
+[adultapp build check v28]
+- frontend: npm run build -> PASS
+- backend: python -m compileall app -> PASS
+- update scope: feed sponsored slot mock UI, premium member shipping policy UI, seller B2B report tools UI/API, safe community activation ideas docs/API

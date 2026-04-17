@@ -1,0 +1,7 @@
+[build-check]
+project=adultapp
+frontend_build=npm run build
+result=success
+vite_output=dist/assets/index-CjaNczzq.js
+vite_css=dist/assets/index-C_mFbmKR.css
+date=2026-04-11

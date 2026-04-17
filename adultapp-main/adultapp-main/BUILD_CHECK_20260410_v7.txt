@@ -1,0 +1,11 @@
+[adultapp build check v7]
+- frontend: npm install 완료
+- frontend: npm run build 완료
+- output: frontend/dist 생성 확인
+- random chat ui update:
+  - gender filter: 무관/남/여/기타
+  - age filter: 20~99 dual range
+  - distance filter: 0~600 dual range when 거리기반
+  - random match success creates 1:1 room and opens room view
+  - random tab top categories: 시작 / 목록
+  - room list shows remaining minutes

@@ -1,0 +1,6 @@
+[build check]
+- backend: python -m compileall backend/app OK
+- backend import smoke: from app.main import app OK
+- frontend: npm run build OK
+- dist asset: assets/index-DbSQRsjw.js
+- dist css: assets/index-BYBZPUsc.css
