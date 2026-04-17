@@ -429,43 +429,6 @@ class OrderItem(SQLModel, table=True):
     refund_status: Optional[str] = None
 
 
-
-
-class VerotelPaymentSession(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    order_no: str = Field(index=True, unique=True)
-    order_id: Optional[int] = Field(default=None, index=True)
-    member_id: int = Field(index=True)
-    provider: str = Field(default="verotel", index=True)
-    status: str = Field(default="prepared", index=True)
-    currency: str = Field(default="EUR")
-    amount_minor: int = Field(default=0)
-    description: str = Field(default="")
-    reference_id: str = Field(index=True, unique=True)
-    verotel_sale_id: Optional[str] = Field(default=None, index=True)
-    success_url: Optional[str] = None
-    back_url: Optional[str] = None
-    postback_url: Optional[str] = None
-    signature: Optional[str] = None
-    request_payload_json: Optional[str] = None
-    callback_payload_json: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
-
-
-class AdultAccessAudit(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    user_id: Optional[int] = Field(default=None, index=True)
-    check_type: str = Field(default="adult_gate", index=True)
-    provider: str = Field(default="self_cert")
-    outcome: str = Field(default="pending", index=True)
-    birthdate: Optional[str] = None
-    is_adult_claimed: bool = Field(default=False)
-    fail_reason: Optional[str] = None
-    tx_id: Optional[str] = Field(default=None, index=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-
-
 class RefundCase(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     order_id: int = Field(index=True)

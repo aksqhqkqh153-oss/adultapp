@@ -1,4 +1,4 @@
-import { CSSProperties, UIEvent, useEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { clearTokens, ensureAuthSession, getApiBase, getJson, getRefreshToken, hasAuthToken, postJson, setAuthToken, setRefreshToken } from "./lib/api";
 
 type FeedItem = {
@@ -11,12 +11,7 @@ type FeedItem = {
   likes: number;
   comments: number;
   accent: string;
-  views?: number;
-  postedAt?: string;
-  videoUrl?: string;
 };
-
-type ShortOption = "공유" | "보관함저장" | "관심없음" | "채널 추천 안함" | "신고";
 
 type StoryItem = {
   id: number;
@@ -46,9 +41,6 @@ type ProductCard = {
   subtitle: string;
   price: string;
   badge: string;
-  reviewCount?: number;
-  stock_qty?: number;
-  thumbnailUrl?: string | null;
 };
 
 type CommunityPost = {
@@ -264,7 +256,6 @@ type AuthSummary = {
 };
 
 type AuthStandaloneScreen = "login" | "signup";
-type CheckoutStage = "cart" | "order_form" | "payment_request" | "payment_complete" | "order_confirm";
 
 type AuthMeResponse = AuthSummary & {
   id?: number;
@@ -280,53 +271,9 @@ type ApiProduct = {
   name: string;
   description?: string;
   price: number;
-  shipping_fee?: number;
   status?: string;
   sku_code?: string;
   stock_qty?: number;
-  thumbnail_url?: string | null;
-  review_count?: number;
-};
-
-type ProductDetailResponse = {
-  product: ApiProduct;
-  media?: Array<{ id?: number; file_url?: string; media_type?: string; sort_order?: number }>;
-  policy?: Record<string, unknown>;
-  site_ready?: {
-    adult_only_label?: string;
-    illegal_goods_blocked?: boolean;
-    price_visible?: boolean;
-    purchase_button_visible?: boolean;
-    customer_center_visible?: boolean;
-    minimum_refund_window_days?: number;
-  };
-  seller_contact?: {
-    name?: string;
-    business_name?: string;
-    business_registration_no?: string;
-    business_address?: string;
-    cs_contact?: string;
-    return_address?: string;
-    support_email?: string;
-  };
-};
-
-type AdultGateStatusResponse = {
-  adult_verified?: boolean;
-  identity_verified?: boolean;
-  member_status?: string;
-  allowed_to_shop?: boolean;
-  latest_audit?: { provider?: string | null; outcome?: string | null; fail_reason?: string | null; created_at?: string | null };
-  policy?: { adult_only_label?: string; minor_access_blocked?: boolean; verification_methods?: string[] };
-};
-
-type VerotelStartResponse = {
-  ok?: boolean;
-  provider?: string;
-  order_no?: string;
-  action_url?: string;
-  method?: string;
-  form_fields?: Record<string, string | number>;
 };
 
 type ApiOrder = {
@@ -462,8 +409,8 @@ type AdminDbManage = {
 
 const mobileTabs = ["홈", "쇼핑", "소통", "채팅", "프로필"] as const;
 const legacyMenu = ["운영현황", "주문관리", "보안", "앱심사", "포럼 분리 정책", "배포가이드"] as const;
-const homeTabs = ["피드", "쇼츠", "보관함"] as const;
-const shoppingTabs = ["홈", "목록", "상품", "주문", "바구니", "사업자인증", "상품등록"] as const;
+const homeTabs = ["피드", "상품", "보관함"] as const;
+const shoppingTabs = ["목록", "주문", "바구니", "사업자인증", "상품등록"] as const;
 const communityTabs = ["커뮤", "포럼", "후기", "이벤트"] as const;
 const chatTabs = ["채팅", "질문"] as const;
 const chatTabLabels: Record<ChatTab, string> = { "채팅": "채팅", "질문": "질문" };
@@ -484,8 +431,8 @@ const profileRegionOptions = ["", "서울", "경기", "인천", "강원", "충�
 const interestCategoryOptions = ["뷰티", "케어", "건강", "커뮤니티", "브랜드", "이벤트"] as const;
 
 const defaultHeaderFavorites: HeaderFavoriteMap = {
-  "홈": ["피드", "쇼츠", "보관함"],
-  "쇼핑": ["홈", "주문", "바구니"],
+  "홈": ["피드", "상품", "보관함"],
+  "쇼핑": ["목록", "주문", "바구니", "사업자인증", "상품등록"],
   "소통": ["커뮤", "포럼", "후기"],
   "채팅": ["채팅", "질문"],
   "프로필": ["내정보"],
@@ -593,279 +540,20 @@ function BellIcon() {
   );
 }
 
-function CartIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M3.5 5h2.4l1.45 8.12a1.8 1.8 0 0 0 1.77 1.48h7.78a1.8 1.8 0 0 0 1.75-1.39l1.36-5.81H7.12" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"/>
-      <circle cx="10.2" cy="18.2" r="1.35" fill="currentColor"/>
-      <circle cx="17.2" cy="18.2" r="1.35" fill="currentColor"/>
-    </svg>
-  );
-}
-
-function HomeIcon({ filled = false }: { filled?: boolean }) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M4.5 11.2 12 4.8l7.5 6.4V19a1.5 1.5 0 0 1-1.5 1.5h-3.2v-5.6h-5.6v5.6H6A1.5 1.5 0 0 1 4.5 19v-7.8Z" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function ShoppingBagIcon({ filled = false }: { filled?: boolean }) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M6.2 8.2h11.6l-.9 10.2a1.7 1.7 0 0 1-1.7 1.5H8.8a1.7 1.7 0 0 1-1.7-1.5L6.2 8.2Z" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-      <path d="M9 9V7.8a3 3 0 0 1 6 0V9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function CommunityIcon({ filled = false }: { filled?: boolean }) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M4.5 6.8A2.3 2.3 0 0 1 6.8 4.5h10.4a2.3 2.3 0 0 1 2.3 2.3v6.8a2.3 2.3 0 0 1-2.3 2.3h-5.1l-4.6 3.2v-3.2H6.8a2.3 2.3 0 0 1-2.3-2.3V6.8Z" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function ChatIcon({ filled = false }: { filled?: boolean }) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M5 7.2A2.2 2.2 0 0 1 7.2 5h9.6A2.2 2.2 0 0 1 19 7.2v5.6A2.2 2.2 0 0 1 16.8 15H11l-4 3v-3H7.2A2.2 2.2 0 0 1 5 12.8V7.2Z" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-      <path d="M8.2 9.8h7.6M8.2 12.2h4.8" fill="none" stroke={filled ? "#000" : "currentColor"} strokeWidth="1.4" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function ProfileIcon({ filled = false }: { filled?: boolean }) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <circle cx="12" cy="8.2" r="3.3" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" />
-      <path d="M5.2 19.3a6.8 6.8 0 0 1 13.6 0" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function BookmarkIcon({ filled = false }: { filled?: boolean }) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M7 4.8h10a1 1 0 0 1 1 1V20l-6-3.6L6 20V5.8a1 1 0 0 1 1-1Z" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function BackArrowIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M15.5 5 8.5 12l7 7" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function MoreDotsIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <circle cx="6" cy="12" r="1.8" fill="currentColor" />
-      <circle cx="12" cy="12" r="1.8" fill="currentColor" />
-      <circle cx="18" cy="12" r="1.8" fill="currentColor" />
-    </svg>
-  );
-}
-
-function ThumbUpIcon({ filled = false }: { filled?: boolean }) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path
-        d="M10 10V5.8c0-1.05.83-1.8 1.55-2.52.65-.64 1.27-1.26 1.45-2.22.06-.34.52-.42.72-.13.84 1.21 1.28 2.76 1.28 4.73V10h4.1c1.04 0 1.84.93 1.68 1.95l-1.23 7.9A2 2 0 0 1 17.58 21H9.7A1.7 1.7 0 0 1 8 19.3V10h2Z"
-        fill={filled ? "currentColor" : "none"}
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-      <path d="M4 10h4v11H5.2A1.2 1.2 0 0 1 4 19.8V10Z" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function ThumbDownIcon({ filled = false }: { filled?: boolean }) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <g transform="translate(24 24) rotate(180)">
-        <path
-          d="M10 10V5.8c0-1.05.83-1.8 1.55-2.52.65-.64 1.27-1.26 1.45-2.22.06-.34.52-.42.72-.13.84 1.21 1.28 2.76 1.28 4.73V10h4.1c1.04 0 1.84.93 1.68 1.95l-1.23 7.9A2 2 0 0 1 17.58 21H9.7A1.7 1.7 0 0 1 8 19.3V10h2Z"
-          fill={filled ? "currentColor" : "none"}
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinejoin="round"
-        />
-        <path d="M4 10h4v11H5.2A1.2 1.2 0 0 1 4 19.8V10Z" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-      </g>
-    </svg>
-  );
-}
-
-function CommentBubbleIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M6 6.5h12A2.5 2.5 0 0 1 20.5 9v6A2.5 2.5 0 0 1 18 17.5H11l-4.5 3v-3H6A2.5 2.5 0 0 1 3.5 15V9A2.5 2.5 0 0 1 6 6.5Z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function ShareArrowIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M13 5.5 20 12l-7 6.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M19.5 12H10a5.5 5.5 0 0 0-5.5 5.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function HeartIcon({ filled = false }: { filled?: boolean }) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M12 20.2 5.7 13.9a4.6 4.6 0 0 1 6.5-6.5L12 8l-.2-.2a4.6 4.6 0 1 1 6.5 6.5L12 20.2Z" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function QuestionMarkIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M9.3 9.3a2.7 2.7 0 1 1 4.6 1.9c-.85.82-1.9 1.48-1.9 3.1" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="12" cy="17.8" r="1.1" fill="currentColor" />
-    </svg>
-  );
-}
-
-const feedSeed: FeedItem[] = [
-  { id: 1, type: "video", category: "브랜드", title: "입문 가이드", caption: "입문용 제품을 안전하게 고르는 기준을 10초 요약 쇼츠로 정리했습니다.", author: "adult official", likes: 428, comments: 31, accent: "sunrise", views: 3200, postedAt: "방금", videoUrl: "/generated/shorts/short_1.mp4" },
-  { id: 2, type: "video", category: "추천", title: "오늘의 인기 케어 키트", caption: "관리 루틴과 함께 보기 좋은 인기 케어 키트를 짧게 소개합니다.", author: "seller studio", likes: 391, comments: 28, accent: "violet", views: 2890, postedAt: "3분 전", videoUrl: "/generated/shorts/short_2.mp4" },
-  { id: 3, type: "video", category: "보관팁", title: "위생 보관 3단계", caption: "보관 파우치, 세정, 건조 순서를 한 화면으로 확인할 수 있습니다.", author: "care lab", likes: 512, comments: 44, accent: "teal", views: 4100, postedAt: "8분 전", videoUrl: "/generated/shorts/short_3.mp4" },
-  { id: 4, type: "video", category: "리뷰", title: "초보자 추천 구성", caption: "리뷰가 많은 스타터 구성과 선택 포인트를 빠르게 보여줍니다.", author: "review crew", likes: 366, comments: 19, accent: "rose", views: 2510, postedAt: "15분 전", videoUrl: "/generated/shorts/short_4.mp4" },
-  { id: 5, type: "video", category: "실사용", title: "조용한 사용감 비교", caption: "저소음 위주로 비교한 추천 라인업을 짧게 살펴봅니다.", author: "seller studio", likes: 448, comments: 36, accent: "sunrise", views: 3670, postedAt: "22분 전", videoUrl: "/generated/shorts/short_5.mp4" },
-  { id: 6, type: "video", category: "이벤트", title: "이번 주 할인 픽", caption: "행사 중인 제품과 리뷰 수가 높은 상품을 함께 보여줍니다.", author: "event pick", likes: 299, comments: 17, accent: "violet", views: 2190, postedAt: "35분 전", videoUrl: "/generated/shorts/short_6.mp4" },
-  { id: 7, type: "video", category: "신상품", title: "신상품 언박싱 컷", caption: "이번 주 새로 올라온 상품의 포장과 구성만 간단히 확인합니다.", author: "adult official", likes: 537, comments: 48, accent: "teal", views: 4620, postedAt: "48분 전", videoUrl: "/generated/shorts/short_7.mp4" },
-  { id: 8, type: "video", category: "브랜드", title: "브랜드 큐레이션", caption: "브랜드별 무드와 포지션을 10초 요약으로 보여주는 소개 영상입니다.", author: "brand note", likes: 324, comments: 20, accent: "rose", views: 2430, postedAt: "1시간 전", videoUrl: "/generated/shorts/short_8.mp4" },
-  { id: 9, type: "video", category: "추천", title: "리뷰 순위 TOP 제품", caption: "리뷰 수와 재구매율 기준으로 정리한 오늘의 추천 제품입니다.", author: "review crew", likes: 605, comments: 52, accent: "sunrise", views: 5080, postedAt: "2시간 전", videoUrl: "/generated/shorts/short_9.mp4" },
-  { id: 10, type: "video", category: "보관팁", title: "세정 루틴 한 컷", caption: "세정 제품과 보관 방법을 아주 짧은 루틴으로 보여줍니다.", author: "care lab", likes: 417, comments: 29, accent: "violet", views: 3010, postedAt: "오늘", videoUrl: "/generated/shorts/short_10.mp4" },
-  { id: 11, type: "image", category: "브랜드", title: "무광 블랙 패키지 모음", caption: "패키지 디자인과 무드 중심으로 큐레이션한 브랜드 피드입니다.", author: "adult official", likes: 182, comments: 11, accent: "teal", views: 1280, postedAt: "방금" },
-  { id: 12, type: "image", category: "리뷰", title: "리뷰 많은 입문 제품", caption: "초보자 선호도가 높은 제품을 후기 중심으로 정리했습니다.", author: "review crew", likes: 173, comments: 13, accent: "rose", views: 1190, postedAt: "11분 전" },
-  { id: 13, type: "image", category: "추천", title: "오늘의 추천 딜도", caption: "형태, 재질, 보관 편의성을 함께 본 추천 카드입니다.", author: "seller studio", likes: 214, comments: 16, accent: "sunrise", views: 1490, postedAt: "18분 전" },
-  { id: 14, type: "image", category: "추천", title: "오늘의 추천 바이브", caption: "입문자용 저소음 바이브레이터 추천 모음입니다.", author: "seller studio", likes: 228, comments: 15, accent: "violet", views: 1560, postedAt: "24분 전" },
-  { id: 15, type: "image", category: "실사용", title: "사용감 비교 메모", caption: "실사용 후기를 짧게 정리해 제품 선택 시간을 줄여줍니다.", author: "review crew", likes: 201, comments: 14, accent: "teal", views: 1455, postedAt: "29분 전" },
-  { id: 16, type: "image", category: "보관팁", title: "보관 파우치 추천", caption: "위생적인 보관을 위한 파우치와 실링 키트를 정리했습니다.", author: "care lab", likes: 194, comments: 9, accent: "rose", views: 1332, postedAt: "38분 전" },
-  { id: 17, type: "image", category: "브랜드", title: "국내 브랜드 집중 소개", caption: "국내 브랜드별 대표 라인업을 한 장으로 묶은 카드입니다.", author: "brand note", likes: 166, comments: 8, accent: "sunrise", views: 1201, postedAt: "43분 전" },
-  { id: 18, type: "image", category: "보관팁", title: "테스트 피드 카드 01", caption: "테스트용 피드 데이터 1번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "care lab", likes: 204, comments: 14, accent: "teal", views: 1830, postedAt: "1시간 전" },
-  { id: 19, type: "image", category: "실사용", title: "테스트 피드 카드 02", caption: "테스트용 피드 데이터 2번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "adult official", likes: 207, comments: 15, accent: "rose", views: 1865, postedAt: "2시간 전" },
-  { id: 20, type: "image", category: "추천", title: "테스트 피드 카드 03", caption: "테스트용 피드 데이터 3번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "seller studio", likes: 210, comments: 16, accent: "sunrise", views: 1900, postedAt: "3시간 전" },
-  { id: 21, type: "image", category: "리뷰", title: "테스트 피드 카드 04", caption: "테스트용 피드 데이터 4번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "review crew", likes: 213, comments: 17, accent: "violet", views: 1935, postedAt: "4시간 전" },
-  { id: 22, type: "image", category: "브랜드", title: "테스트 피드 카드 05", caption: "테스트용 피드 데이터 5번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "brand note", likes: 216, comments: 18, accent: "teal", views: 1970, postedAt: "5시간 전" },
-  { id: 23, type: "image", category: "보관팁", title: "테스트 피드 카드 06", caption: "테스트용 피드 데이터 6번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "care lab", likes: 219, comments: 19, accent: "rose", views: 2005, postedAt: "6시간 전" },
-  { id: 24, type: "image", category: "실사용", title: "테스트 피드 카드 07", caption: "테스트용 피드 데이터 7번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "adult official", likes: 222, comments: 8, accent: "sunrise", views: 2040, postedAt: "7시간 전" },
-  { id: 25, type: "image", category: "추천", title: "테스트 피드 카드 08", caption: "테스트용 피드 데이터 8번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "seller studio", likes: 225, comments: 9, accent: "violet", views: 2075, postedAt: "8시간 전" },
-  { id: 26, type: "image", category: "리뷰", title: "테스트 피드 카드 09", caption: "테스트용 피드 데이터 9번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "review crew", likes: 228, comments: 10, accent: "teal", views: 2110, postedAt: "9시간 전" },
-  { id: 27, type: "image", category: "브랜드", title: "테스트 피드 카드 10", caption: "테스트용 피드 데이터 10번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "brand note", likes: 231, comments: 11, accent: "rose", views: 2145, postedAt: "10시간 전" },
-  { id: 28, type: "image", category: "보관팁", title: "테스트 피드 카드 11", caption: "테스트용 피드 데이터 11번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "care lab", likes: 234, comments: 12, accent: "sunrise", views: 2180, postedAt: "11시간 전" },
-  { id: 29, type: "image", category: "실사용", title: "테스트 피드 카드 12", caption: "테스트용 피드 데이터 12번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "adult official", likes: 237, comments: 13, accent: "violet", views: 2215, postedAt: "12시간 전" },
-  { id: 30, type: "image", category: "추천", title: "테스트 피드 카드 13", caption: "테스트용 피드 데이터 13번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "seller studio", likes: 240, comments: 14, accent: "teal", views: 2250, postedAt: "13시간 전" },
-  { id: 31, type: "image", category: "리뷰", title: "테스트 피드 카드 14", caption: "테스트용 피드 데이터 14번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "review crew", likes: 243, comments: 15, accent: "rose", views: 2285, postedAt: "14시간 전" },
-  { id: 32, type: "image", category: "브랜드", title: "테스트 피드 카드 15", caption: "테스트용 피드 데이터 15번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "brand note", likes: 246, comments: 16, accent: "sunrise", views: 2320, postedAt: "15시간 전" },
-  { id: 33, type: "image", category: "보관팁", title: "테스트 피드 카드 16", caption: "테스트용 피드 데이터 16번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "care lab", likes: 249, comments: 17, accent: "violet", views: 2355, postedAt: "16시간 전" },
-  { id: 34, type: "image", category: "실사용", title: "테스트 피드 카드 17", caption: "테스트용 피드 데이터 17번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "adult official", likes: 252, comments: 18, accent: "teal", views: 2390, postedAt: "17시간 전" },
-  { id: 35, type: "image", category: "추천", title: "테스트 피드 카드 18", caption: "테스트용 피드 데이터 18번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "seller studio", likes: 255, comments: 19, accent: "rose", views: 2425, postedAt: "18시간 전" },
-  { id: 36, type: "image", category: "리뷰", title: "테스트 피드 카드 19", caption: "테스트용 피드 데이터 19번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "review crew", likes: 258, comments: 8, accent: "sunrise", views: 2460, postedAt: "19시간 전" },
-  { id: 37, type: "image", category: "브랜드", title: "테스트 피드 카드 20", caption: "테스트용 피드 데이터 20번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "brand note", likes: 261, comments: 9, accent: "violet", views: 2495, postedAt: "20시간 전" },
-  { id: 18, type: "image", category: "브랜드", title: "수입 브랜드 집중 소개", caption: "수입 브랜드 중 반응이 좋은 제품군만 골라 정리했습니다.", author: "brand note", likes: 159, comments: 7, accent: "violet", views: 1172, postedAt: "52분 전" },
-  { id: 19, type: "image", category: "이벤트", title: "이번 주 기획전 소식", caption: "행사 중인 인기 카테고리와 재고 상태를 한눈에 보여줍니다.", author: "event pick", likes: 247, comments: 18, accent: "teal", views: 1880, postedAt: "1시간 전" },
-  { id: 20, type: "image", category: "신상품", title: "신상품 등록 미리보기", caption: "막 등록된 상품 중 반응이 빠른 제품만 먼저 보여줍니다.", author: "seller studio", likes: 177, comments: 9, accent: "rose", views: 1307, postedAt: "1시간 전" },
-  { id: 21, type: "image", category: "실사용", title: "리얼 사용 후기 모음", caption: "자극 강도, 소음, 보관성 중심으로 모은 후기 카드입니다.", author: "review crew", likes: 221, comments: 21, accent: "sunrise", views: 1615, postedAt: "2시간 전" },
-  { id: 22, type: "image", category: "리뷰", title: "리뷰 100+ 추천 제품", caption: "리뷰가 누적된 제품만 별도 묶음으로 보여줍니다.", author: "review crew", likes: 239, comments: 17, accent: "violet", views: 1702, postedAt: "2시간 전" },
-  { id: 23, type: "image", category: "추천", title: "본디지 테이프 큐레이션", caption: "안전하게 시작하기 좋은 본디지 테이프 위주로 정리했습니다.", author: "seller studio", likes: 187, comments: 12, accent: "teal", views: 1424, postedAt: "3시간 전" },
-  { id: 24, type: "image", category: "추천", title: "패들 & 케인 추천", caption: "입문형 패들과 케인을 비교해 보여주는 추천 카드입니다.", author: "seller studio", likes: 175, comments: 10, accent: "rose", views: 1362, postedAt: "3시간 전" },
-  { id: 25, type: "image", category: "보관팁", title: "세정제 고르는 기준", caption: "자극도와 성분 기준으로 세정제를 고르는 방법입니다.", author: "care lab", likes: 164, comments: 8, accent: "sunrise", views: 1234, postedAt: "오늘" },
-  { id: 26, type: "image", category: "보관팁", title: "보관함 정리 루틴", caption: "사용 후 말림, 보관 순서를 카드형으로 정리했습니다.", author: "care lab", likes: 154, comments: 7, accent: "violet", views: 1150, postedAt: "오늘" },
-  { id: 27, type: "image", category: "브랜드", title: "프리미엄 라인 픽", caption: "고급형 라인에서 반응이 좋은 제품만 선별했습니다.", author: "adult official", likes: 208, comments: 11, accent: "teal", views: 1538, postedAt: "어제" },
-  { id: 28, type: "image", category: "추천", title: "러브젤 인기 순위", caption: "후기와 재구매 데이터를 기준으로 러브젤을 정리했습니다.", author: "seller studio", likes: 191, comments: 13, accent: "rose", views: 1468, postedAt: "어제" },
-  { id: 29, type: "image", category: "신상품", title: "이번 주 신규 입점", caption: "이번 주 입점한 셀러와 신규 상품 정보를 모았습니다.", author: "event pick", likes: 169, comments: 9, accent: "sunrise", views: 1260, postedAt: "어제" },
-  { id: 30, type: "image", category: "리뷰", title: "입문자 만족도 상위", caption: "입문자 평점이 높은 구성만 묶은 리뷰 카드입니다.", author: "review crew", likes: 236, comments: 14, accent: "violet", views: 1741, postedAt: "어제" },
-];
-
-
-function parseRelativeMinutes(postedAt?: string) {
-  if (!postedAt) return 240;
-  if (postedAt === "방금") return 1;
-  if (postedAt === "오늘") return 180;
-  if (postedAt === "어제") return 1440;
-  const minuteMatch = postedAt.match(/(\d+)분 전/);
-  if (minuteMatch) return Number(minuteMatch[1]);
-  const hourMatch = postedAt.match(/(\d+)시간 전/);
-  if (hourMatch) return Number(hourMatch[1]) * 60;
-  return 240;
-}
-
-function extractInterestTokens(source: string) {
-  return source
-    .toLowerCase()
-    .split(/[^a-z0-9가-힣]+/)
-    .map((token) => token.trim())
-    .filter((token) => token.length >= 2);
-}
-
-function buildKeywordSignalMap({
-  shopKeywordSignals,
-  shortsKeywordSignals,
-  globalKeyword,
-  followingUserIds,
-  savedFeedIds,
-  feedItems,
-  forumUsers,
-}: {
-  shopKeywordSignals: Record<string, number>;
-  shortsKeywordSignals: Record<string, number>;
-  globalKeyword: string;
-  followingUserIds: number[];
-  savedFeedIds: number[];
-  feedItems: FeedItem[];
-  forumUsers: ForumStarterUser[];
-}) {
-  const signalMap = new Map<string, number>();
-  Object.entries(shopKeywordSignals).forEach(([token, score]) => signalMap.set(token.toLowerCase(), (signalMap.get(token.toLowerCase()) ?? 0) + score * 1.4));
-  Object.entries(shortsKeywordSignals).forEach(([token, score]) => signalMap.set(token.toLowerCase(), (signalMap.get(token.toLowerCase()) ?? 0) + score * 1.8));
-  extractInterestTokens(globalKeyword).forEach((token) => signalMap.set(token, (signalMap.get(token) ?? 0) + 4));
-
-  const followedTopicKeywords = followingUserIds
-    .map((id) => forumUsers.find((user) => user.id === id))
-    .filter((user): user is ForumStarterUser => Boolean(user))
-    .flatMap((user) => extractInterestTokens(`${user.name} ${user.topic} ${user.role}`));
-  followedTopicKeywords.forEach((token) => signalMap.set(token, (signalMap.get(token) ?? 0) + 2.5));
-
-  const savedKeywords = feedItems
-    .filter((item) => savedFeedIds.includes(item.id))
-    .flatMap((item) => extractInterestTokens(`${item.title} ${item.caption} ${item.category} ${item.author}`));
-  savedKeywords.forEach((token) => signalMap.set(token, (signalMap.get(token) ?? 0) + 3.5));
-  return signalMap;
-}
-
-function getTopMatchedKeywords(item: FeedItem, signalMap: Map<string, number>) {
-  const content = `${item.title} ${item.caption} ${item.category} ${item.author}`.toLowerCase();
-  const directMatches = Array.from(signalMap.entries())
-    .filter(([token]) => content.includes(token))
-    .sort((a, b) => b[1] - a[1])
-    .map(([token]) => token);
-  const fallback = [item.category, ...extractInterestTokens(item.title), ...extractInterestTokens(item.caption)]
-    .map((token) => token.toLowerCase())
-    .filter((token, index, array) => token && array.indexOf(token) === index);
-  return Array.from(new Set([...directMatches, ...fallback])).slice(0, 2);
-}
-
-function deterministicHash(value: string) {
-  let hash = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash * 31 + value.charCodeAt(index)) % 1000003;
-  }
-  return hash;
-}
+const feedSeed: FeedItem[] = Array.from({ length: 18 }, (_, idx) => ({
+  id: idx + 1,
+  type: idx % 3 === 0 ? "video" : "image",
+  category: idx % 2 === 0 ? "브랜드 피드" : idx % 3 === 0 ? "숏클립" : "안전 가이드",
+  title: `추천 피드 ${idx + 1}`,
+  caption:
+    idx % 3 === 0
+      ? "세로형 짧은 영상으로 위생·보관·브랜드 스토리를 확인하는 홈 피드 예시입니다."
+      : "사진 카드와 짧은 설명을 묶어 홈에서 빠르게 탐색하도록 구성한 예시입니다.",
+  author: idx % 2 === 0 ? "adult official" : "seller studio",
+  likes: 160 + idx * 7,
+  comments: 12 + (idx % 9),
+  accent: ["sunrise", "violet", "teal", "rose"][idx % 4],
+}));
 
 const storySeed: StoryItem[] = [
   { id: 1, name: "adult official", role: "브랜드 스토리", accent: "sunrise" },
@@ -891,18 +579,19 @@ const storyPreviewText: Record<string, string> = {
   "event pick": "진행 중인 이벤트와 공지를 바로 확인해보세요.",
 };
 
-const shopCategories: ShopCategory[] = [];
+const shopCategories: ShopCategory[] = [
+  { group: "입문/기본", icon: "◎", items: [{ name: "입문 액세서리", count: 18 }, { name: "위생·보관", count: 24 }, { name: "케어/세정", count: 14 }] },
+  { group: "브랜드관", icon: "◇", items: [{ name: "국내 브랜드", count: 12 }, { name: "수입 브랜드", count: 21 }, { name: "안전 기획전", count: 9 }] },
+  { group: "판매자센터", icon: "▣", items: [{ name: "신규 등록 상품", count: 8 }, { name: "승인 대기", count: 5 }, { name: "재고/상태", count: 11 }] },
+];
 
 const productsSeed: ProductCard[] = [
-  { id: 1, category: "딜도", name: "슬림 입문 딜도", subtitle: "초보자용 실리콘 라인", price: "₩18,000", badge: "인기", reviewCount: 184, thumbnailUrl: "/generated/shop/dildo.png" },
-  { id: 2, category: "바이브레이터", name: "저소음 바이브레이터", subtitle: "데일리 사용감 중심", price: "₩29,000", badge: "베스트", reviewCount: 266, thumbnailUrl: "/generated/shop/vibe.png" },
-  { id: 3, category: "본디지 테이프", name: "본디지 테이프 스타터", subtitle: "입문형 패키지", price: "₩14,900", badge: "추천", reviewCount: 113, thumbnailUrl: "/generated/shop/bondage_tape.png" },
-  { id: 4, category: "패들", name: "소프트 패들", subtitle: "초보자 선호 라인", price: "₩24,500", badge: "리뷰다수", reviewCount: 98, thumbnailUrl: "/generated/shop/paddle.png" },
-  { id: 5, category: "케인", name: "플렉시블 케인", subtitle: "가벼운 탄성 타입", price: "₩32,000", badge: "신규", reviewCount: 76, thumbnailUrl: "/generated/shop/cane.png" },
-  { id: 6, category: "러브젤", name: "워터 베이스 러브젤", subtitle: "저자극 케어 라인", price: "₩12,900", badge: "재구매", reviewCount: 241, thumbnailUrl: "/generated/shop/lubricant.png" },
-  { id: 7, category: "플러그", name: "실리콘 플러그", subtitle: "보관이 쉬운 구조", price: "₩21,000", badge: "입문", reviewCount: 134, thumbnailUrl: "/generated/shop/plug.png" },
-  { id: 8, category: "마사지기", name: "프리미엄 마사지기", subtitle: "조용한 모터 라인", price: "₩39,000", badge: "프리미엄", reviewCount: 157, thumbnailUrl: "/generated/shop/massager.png" },
-  { id: 9, category: "케어 키트", name: "세정·보관 케어 키트", subtitle: "위생 루틴 번들", price: "₩17,500", badge: "안전", reviewCount: 203, thumbnailUrl: "/generated/shop/carekit.png" },
+  { id: 1, category: "위생·보관", name: "뉴트럴 케어 파우치", subtitle: "익명 포장/보관 가이드 포함", price: "₩18,000", badge: "안전노출" },
+  { id: 2, category: "입문 액세서리", name: "스타터 바디 케어 세트", subtitle: "입문자용 설명 카드 제공", price: "₩29,000", badge: "베스트" },
+  { id: 3, category: "브랜드관", name: "브랜드관 샘플 패키지", subtitle: "카드/계좌 이체 허용 SKU", price: "₩43,000", badge: "PG 친화" },
+  { id: 4, category: "기획전", name: "정기 재구매 추천 팩", subtitle: "재구매/장바구니 연동 예시", price: "₩36,500", badge: "추천" },
+  { id: 5, category: "위생·보관", name: "실링 보관 키트", subtitle: "보관/관리 콘텐츠 연결", price: "₩12,900", badge: "신규" },
+  { id: 6, category: "입문 액세서리", name: "안전 가이드 번들", subtitle: "콘텐츠+상품 동시 노출 예시", price: "₩24,000", badge: "콘텐츠 연동" },
 ];
 
 const sponsoredFeedProducts = [
@@ -1206,27 +895,23 @@ function DualRangeSlider({ min, max, valueMin, valueMax, step = 1, leftLabel, ri
   );
 }
 
-function FeedPoster({ item, onAsk, saved, onToggleSave, keywordTags = [], onOpenAuthorProfile }: { item: FeedItem; onAsk: (item: FeedItem) => void; saved: boolean; onToggleSave: (feedId: number) => void; keywordTags?: string[]; onOpenAuthorProfile: (author: string) => void }) {
+function FeedPoster({ item, onAsk, saved, onToggleSave }: { item: FeedItem; onAsk: (item: FeedItem) => void; saved: boolean; onToggleSave: (feedId: number) => void }) {
   return (
     <article className={`feed-card history-feed-card ${item.accent}`}>
       <div className="history-feed-head">
         <div className="history-feed-profile">
           <div className="story-mini-avatar">{item.author.slice(0, 1).toUpperCase()}</div>
           <div>
-            <button type="button" className="feed-author-link" onClick={() => onOpenAuthorProfile(item.author)}>{item.author}</button>
-            <p>방금 업데이트</p>
+            <strong>{item.author}</strong>
+            <p>{item.category} · 방금 업데이트</p>
           </div>
         </div>
-        <button type="button" className="feed-question-btn" onClick={() => onAsk(item)} aria-label="질문"><QuestionMarkIcon /></button>
+        <button type="button" className="feed-question-btn" onClick={() => onAsk(item)}>질문</button>
       </div>
       <div className="feed-media">
-        {keywordTags.length ? (
-          <div className="content-keyword-stack content-keyword-stack--feed">
-            {keywordTags.slice(0, 2).map((keyword) => (
-              <span key={`${item.id}-${keyword}`} className="content-keyword-pill">#{keyword}</span>
-            ))}
-          </div>
-        ) : null}
+        <div className="feed-badge">{item.type === "video" ? "VIDEO" : "PHOTO"}</div>
+        <div className="feed-category">{item.category}</div>
+        <div className="feed-visual-copy">{item.title}</div>
       </div>
       <div className="feed-copy">
         <div>
@@ -1234,15 +919,16 @@ function FeedPoster({ item, onAsk, saved, onToggleSave, keywordTags = [], onOpen
           <p>{item.caption}</p>
         </div>
         <div className="feed-meta">
+          <span>@{item.author}</span>
           <span>좋아요 {item.likes}</span>
           <span>댓글 {item.comments}</span>
         </div>
       </div>
-      <div className="history-feed-footer history-feed-footer-icons">
-        <button type="button" aria-label="좋아요"><HeartIcon /></button>
-        <button type="button" aria-label="댓글"><CommentBubbleIcon /></button>
-        <button type="button" aria-label="질문하기" onClick={() => onAsk(item)}><QuestionMarkIcon /></button>
-        <button type="button" className="ghost-btn" aria-label="보관함" onClick={() => onToggleSave(item.id)}><BookmarkIcon filled={saved} /></button>
+      <div className="history-feed-footer">
+        <button type="button">좋아요</button>
+        <button type="button">댓글</button>
+        <button type="button" onClick={() => onAsk(item)}>질문하기</button>
+        <button type="button" className="ghost-btn" onClick={() => onToggleSave(item.id)}>{saved ? "보관해제" : "보관함"}</button>
       </div>
     </article>
   );
@@ -1284,218 +970,6 @@ function StoryStrip({ onOpenStory }: { onOpenStory: (story: StoryItem) => void }
         ))}
       </div>
     </section>
-  );
-}
-
-function ShortsListCard({ item, onOpenMore, onOpenViewer }: { item: FeedItem; onOpenMore: (item: FeedItem) => void; onOpenViewer: (item: FeedItem) => void }) {
-  return (
-    <article className="shorts-list-card" onClick={() => onOpenViewer(item)}>
-      <button type="button" className={`shorts-video-stage ${item.accent}`} onClick={() => onOpenViewer(item)}>
-        <div className="shorts-video-poster-tag">대표 썸네일 · 10초 · 저용량</div>
-        <div className="shorts-video-center">쇼츠 포스터</div>
-      </button>
-      <div className="shorts-list-copy shorts-list-copy-detailed">
-        <div className="shorts-detail-identity-row">
-          <span className="shorts-profile-avatar" aria-hidden="true">{item.author.slice(0, 1).toUpperCase()}</span>
-          <div className="shorts-detail-copy-block">
-            <div className="shorts-detail-title-bar">
-              <strong>{item.title}</strong>
-              <button
-                type="button"
-                className="shorts-more-btn shorts-more-icon-btn"
-                aria-label={`${item.title} 더보기`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onOpenMore(item);
-                }}
-              >
-                <MoreDotsIcon />
-              </button>
-            </div>
-            <span className="shorts-inline-meta">{item.author} · 조회수 {(item.views ?? 0).toLocaleString()}회 · {item.postedAt ?? "방금"} · 추천수 {item.likes.toLocaleString()}</span>
-          </div>
-        </div>
-      </div>
-    </article>
-  );
-}
-
-function ShortsViewer({
-  items,
-  initialIndex,
-  onClose,
-  onOpenMore,
-  getKeywordTags,
-}: {
-  items: FeedItem[];
-  initialIndex: number;
-  onClose: () => void;
-  onOpenMore: (item: FeedItem) => void;
-  getKeywordTags: (item: FeedItem) => string[];
-}) {
-  const [activeIndex, setActiveIndex] = useState(initialIndex);
-  const [pausedMap, setPausedMap] = useState<Record<number, boolean>>(() => ({ [items[initialIndex]?.id ?? 0]: false }));
-  const [likedIds, setLikedIds] = useState<number[]>([]);
-  const [dislikedIds, setDislikedIds] = useState<number[]>([]);
-  const [subscribedIds, setSubscribedIds] = useState<number[]>([]);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchText, setSearchText] = useState("");
-  const [descriptionItem, setDescriptionItem] = useState<FeedItem | null>(null);
-  const [overlayVisible, setOverlayVisible] = useState(true);
-  const [commentOpenItemId, setCommentOpenItemId] = useState<number | null>(null);
-  const [commentDraft, setCommentDraft] = useState("");
-  const [commentMap, setCommentMap] = useState<Record<number, string[]>>(() => Object.fromEntries(items.map((item) => [item.id, [`${item.author} 취향 태그 잘 맞아요.`, `${item.title} 관련 추천이 괜찮네요.`]])));
-  const hideTimerRef = useRef<number | null>(null);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const target = scrollRef.current?.querySelector<HTMLElement>(`[data-short-index="${initialIndex}"]`);
-    target?.scrollIntoView({ block: "start" });
-  }, [initialIndex]);
-
-  const activeItem = items[activeIndex] ?? items[0];
-  const isPaused = !!pausedMap[activeItem?.id ?? 0];
-
-  const restartOverlayTimer = () => {
-    setOverlayVisible(true);
-    if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
-    hideTimerRef.current = window.setTimeout(() => setOverlayVisible(false), 5000);
-  };
-
-  useEffect(() => {
-    restartOverlayTimer();
-    return () => {
-      if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
-    };
-  }, [activeIndex]);
-
-  const togglePause = (itemId: number) => {
-    restartOverlayTimer();
-    setPausedMap((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
-  };
-
-  const handleViewerScroll = (event: UIEvent<HTMLDivElement>) => {
-    restartOverlayTimer();
-    const container = event.currentTarget;
-    const nextIndex = Math.round(container.scrollTop / Math.max(container.clientHeight, 1));
-    if (nextIndex !== activeIndex && items[nextIndex]) {
-      setActiveIndex(nextIndex);
-    }
-  };
-
-  const toggleReaction = (kind: "like" | "dislike", itemId: number) => {
-    restartOverlayTimer();
-    if (kind === "like") {
-      setLikedIds((prev) => prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]);
-      setDislikedIds((prev) => prev.filter((id) => id !== itemId));
-      return;
-    }
-    setDislikedIds((prev) => prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]);
-    setLikedIds((prev) => prev.filter((id) => id !== itemId));
-  };
-
-  const toggleSubscribe = (itemId: number) => {
-    restartOverlayTimer();
-    setSubscribedIds((prev) => prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]);
-  };
-
-  return (
-    <div className="shorts-viewer-overlay">
-      <div className={`shorts-viewer-topbar${overlayVisible ? " visible" : ""}`}>
-        <div className="shorts-viewer-topbar-left">
-          <button type="button" className="shorts-icon-btn shorts-back-btn" onClick={onClose} aria-label="뒤로가기"><BackArrowIcon /></button>
-          <div className="content-keyword-stack content-keyword-stack--viewer">
-            {getKeywordTags(activeItem).slice(0, 2).map((keyword) => (
-              <span key={`viewer-${activeItem?.id ?? 0}-${keyword}`} className="content-keyword-pill">#{keyword}</span>
-            ))}
-          </div>
-        </div>
-        <div className="shorts-viewer-topbar-actions">
-          <button type="button" className="shorts-icon-btn" onClick={() => setSearchOpen((prev) => !prev)} aria-label="쇼츠 검색"><SearchIcon /></button>
-          <button type="button" className="shorts-icon-btn" onClick={() => onOpenMore(activeItem)} aria-label="쇼츠 더보기"><MoreDotsIcon /></button>
-        </div>
-      </div>
-
-      {searchOpen && overlayVisible ? (
-        <div className="shorts-viewer-searchbar">
-          <input value={searchText} onChange={(event) => setSearchText(event.target.value)} placeholder="쇼츠 검색" />
-        </div>
-      ) : null}
-
-      <div className="shorts-viewer-scroll" ref={scrollRef} onScroll={handleViewerScroll}>
-        {items.map((item, idx) => {
-          const paused = !!pausedMap[item.id];
-          const liked = likedIds.includes(item.id);
-          const disliked = dislikedIds.includes(item.id);
-          const subscribed = subscribedIds.includes(item.id);
-          return (
-            <section key={`viewer-${item.id}`} className={`shorts-viewer-page ${item.accent}${commentOpenItemId === item.id ? " comments-open" : ""}`} data-short-index={idx}>
-              <button type="button" className="shorts-viewer-video" onClick={() => togglePause(item.id)} aria-label={paused ? "영상 재생" : "영상 정지"}>
-                <div className="shorts-viewer-video-fill">
-                  {item.videoUrl ? (
-                    <video
-                      key={item.videoUrl}
-                      className="shorts-viewer-video-asset"
-                      src={item.videoUrl}
-                      autoPlay={!paused}
-                      muted
-                      loop
-                      playsInline
-                    />
-                  ) : null}
-                  <div className="shorts-viewer-video-poster">10초 · 저용량 데모 클립</div>
-                </div>
-              </button>
-
-              <div className={`shorts-viewer-side-actions${overlayVisible ? " visible" : ""}`}>
-                <button type="button" className={`shorts-viewer-action-btn${liked ? " active" : ""}`} onClick={() => toggleReaction("like", item.id)}><span><ThumbUpIcon filled={liked} /></span><b>{item.likes.toLocaleString()}</b></button>
-                <button type="button" className={`shorts-viewer-action-btn${disliked ? " active" : ""}`} onClick={() => toggleReaction("dislike", item.id)}><span><ThumbDownIcon filled={disliked} /></span><b>{Math.max(12, Math.round(item.likes / 11)).toLocaleString()}</b></button>
-                <button type="button" className={`shorts-viewer-action-btn${commentOpenItemId === item.id ? " active" : ""}`} onClick={() => { restartOverlayTimer(); setCommentOpenItemId(commentOpenItemId === item.id ? null : item.id); }}><span><CommentBubbleIcon /></span><b>{(commentMap[item.id] ?? []).length.toLocaleString()}</b></button>
-                <button type="button" className="shorts-viewer-action-btn"><span><ShareArrowIcon /></span><b>공유</b></button>
-              </div>
-
-              <div className={`shorts-viewer-bottom${overlayVisible ? " visible" : ""}`}>
-                <div className="shorts-viewer-author-row">
-                  <span className="shorts-profile-avatar shorts-profile-avatar-small" aria-hidden="true">{item.author.slice(0, 1).toUpperCase()}</span>
-                  <button type="button" className="shorts-viewer-author-link" onClick={restartOverlayTimer}>{item.author}</button>
-                  <button type="button" className={`shorts-subscribe-btn${subscribed ? " subscribed" : ""}`} onClick={() => toggleSubscribe(item.id)}>{subscribed ? "구독 중" : "구독"}</button>
-                </div>
-                <button type="button" className="shorts-viewer-full-title" onClick={restartOverlayTimer}>풀영상 {item.title}</button>
-                <button type="button" className="shorts-viewer-description" onClick={() => { restartOverlayTimer(); setDescriptionItem(item); }}>{item.caption}</button>
-              </div>
-              {commentOpenItemId === item.id ? (
-                <div className="shorts-comments-sheet">
-                  <div className="shorts-comments-list">
-                    {(commentMap[item.id] ?? []).map((comment, commentIndex) => (
-                      <div key={`${item.id}-comment-${commentIndex}`} className="shorts-comment-row"><b>user{commentIndex + 1}</b><span>{comment}</span></div>
-                    ))}
-                  </div>
-                  <div className="shorts-comment-input-row">
-                    <input value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} placeholder="댓글을 입력하세요" />
-                    <button type="button" onClick={() => {
-                      if (!commentDraft.trim()) return;
-                      setCommentMap((prev) => ({ ...prev, [item.id]: [...(prev[item.id] ?? []), commentDraft.trim()] }));
-                      setCommentDraft("");
-                    }}>입력</button>
-                  </div>
-                </div>
-              ) : null}
-            </section>
-          );
-        })}
-      </div>
-
-      {descriptionItem ? (
-        <div className="shorts-description-sheet-backdrop" onClick={() => setDescriptionItem(null)}>
-          <div className="shorts-description-sheet" onClick={(event) => event.stopPropagation()}>
-            <div className="shorts-sheet-handle" />
-            <strong>{descriptionItem.title}</strong>
-            <p>{descriptionItem.caption}</p>
-            <button type="button" className="ghost-btn" onClick={() => setDescriptionItem(null)}>닫기</button>
-          </div>
-        </div>
-      ) : null}
-    </div>
   );
 }
 
@@ -1986,7 +1460,7 @@ export default function App() {
   const [globalKeyword, setGlobalKeyword] = useState("");
   const [searchFilter, setSearchFilter] = useState("전체");
   const [homeTab, setHomeTab] = useState<HomeTab>("피드");
-  const [shoppingTab, setShoppingTab] = useState<ShoppingTab>("홈");
+  const [shoppingTab, setShoppingTab] = useState<ShoppingTab>("목록");
   const [communityTab, setCommunityTab] = useState<CommunityTab>("커뮤");
   const [chatTab, setChatTab] = useState<ChatTab>("채팅");
   const [chatCategory, setChatCategory] = useState<ChatCategory>("전체");
@@ -1994,22 +1468,6 @@ export default function App() {
   const [settingsCategory, setSettingsCategory] = useState<SettingsCategory>("일반");
   const [adminModeTab, setAdminModeTab] = useState<AdminModeTab>("DB관리");
   const [selectedShopCategory, setSelectedShopCategory] = useState("전체");
-  const [shopKeywordSignals, setShopKeywordSignals] = useState<Record<string, number>>(() => {
-    if (typeof window === "undefined") return {};
-    try {
-      return JSON.parse(window.localStorage.getItem("adultapp_shop_keyword_signals") ?? "{}");
-    } catch {
-      return {};
-    }
-  });
-  const [shortsKeywordSignals, setShortsKeywordSignals] = useState<Record<string, number>>(() => {
-    if (typeof window === "undefined") return {};
-    try {
-      return JSON.parse(window.localStorage.getItem("adultapp_shorts_keyword_signals") ?? "{}");
-    } catch {
-      return {};
-    }
-  });
   const [selectedCommunityCategory, setSelectedCommunityCategory] = useState<string>("전체");
   const [communityPrimaryFilter, setCommunityPrimaryFilter] = useState<string>("전체");
   const [communitySecondaryFilter, setCommunitySecondaryFilter] = useState<string>("전체");
@@ -2031,11 +1489,6 @@ export default function App() {
   const [randomMatchNote, setRandomMatchNote] = useState("앱 공개영역에서는 직접 매칭을 제공하지 않습니다. 민감한 정보교류는 성인인증·승인제 제한 웹 포럼으로만 분리합니다.");
   const randomRoomLifetimeMinutes = 20;
   const [shopKeyword, setShopKeyword] = useState("");
-  const [shopHomeBannerIndex, setShopHomeBannerIndex] = useState(0);
-  const [shopHomeBannerDragOffset, setShopHomeBannerDragOffset] = useState(0);
-  const shopHomeBannerPointerStartXRef = useRef<number | null>(null);
-  const shopHomeBannerPointerActiveRef = useRef(false);
-  const [shopHomeVisibleCount, setShopHomeVisibleCount] = useState(9);
   const [communityKeyword, setCommunityKeyword] = useState("");
   const [projectStatus, setProjectStatus] = useState<ProjectStatus | null>(null);
   const [deployGuide, setDeployGuide] = useState<DeployGuide | null>(null);
@@ -2043,10 +1496,6 @@ export default function App() {
   const [businessInfo, setBusinessInfo] = useState<BusinessInfoResponse | null>(null);
   const [releaseReadiness, setReleaseReadiness] = useState<ReleaseReadinessResponse | null>(null);
   const [paymentProviderStatus, setPaymentProviderStatus] = useState<PaymentProviderStatusResponse | null>(null);
-  const [productDetail, setProductDetail] = useState<ProductDetailResponse | null>(null);
-  const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
-  const [adultGateStatus, setAdultGateStatus] = useState<AdultGateStatusResponse | null>(null);
-  const [adultBirthdate, setAdultBirthdate] = useState("1990-01-01");
   const [minorPurgePreview, setMinorPurgePreview] = useState<MinorPurgePreview | null>(null);
   const [uiCategoryGroups, setUiCategoryGroups] = useState<Array<{ group: string; items: string[] }>>([]);
   const [skuPolicy, setSkuPolicy] = useState<SkuPolicyResponse | null>(null);
@@ -2064,6 +1513,7 @@ export default function App() {
     return (window.localStorage.getItem("adultapp_demo_role") ?? "GUEST").toUpperCase();
   });
   const [selectedAskProfile, setSelectedAskProfile] = useState<AskProfile | null>(null);
+  const [selectedStory, setSelectedStory] = useState<StoryItem | null>(null);
   const [demoLoginProvider, setDemoLoginProvider] = useState<DemoLoginProvider>(() => {
     if (typeof window === "undefined") return "카카오";
     return (window.localStorage.getItem("adultapp_demo_login_provider") as DemoLoginProvider | null) ?? "카카오";
@@ -2092,7 +1542,6 @@ export default function App() {
   const [adultPromptOpen, setAdultPromptOpen] = useState(false);
   const [signupStep, setSignupStep] = useState<SignupStep>("consent");
   const [signupLegalOpen, setSignupLegalOpen] = useState<string | null>(null);
-  const [signupConsentModal, setSignupConsentModal] = useState<keyof SignupConsentState | null>(null);
   const [identityMethod, setIdentityMethod] = useState<"PASS" | "휴대폰" | "미완료">(() => {
     if (typeof window === "undefined") return "미완료";
     return (window.localStorage.getItem("adultapp_identity_method") as "PASS" | "휴대폰" | "미완료" | null) ?? "미완료";
@@ -2167,14 +1616,8 @@ export default function App() {
     try { return JSON.parse(window.localStorage.getItem("adultapp_saved_product_ids") ?? "[]"); } catch { return []; }
   });
   const [savedTab, setSavedTab] = useState<"피드" | "상품">("피드");
-  const [shortsVisibleCount, setShortsVisibleCount] = useState(10);
-  const [shortsMoreItem, setShortsMoreItem] = useState<FeedItem | null>(null);
-  const [shortsViewerItemId, setShortsViewerItemId] = useState<number | null>(null);
-  const [shortsHeaderHidden, setShortsHeaderHidden] = useState(false);
-  const [shortsCategoryVisible, setShortsCategoryVisible] = useState(true);
-  const [selectedShortsCategory, setSelectedShortsCategory] = useState("전체");
-  const [lastShortsScrollTop, setLastShortsScrollTop] = useState(0);
   const [authStandaloneScreen, setAuthStandaloneScreen] = useState<AuthStandaloneScreen | null>(null);
+  const [loginNoticeOpen, setLoginNoticeOpen] = useState(true);
   const [homeShopConsentGuideSeen, setHomeShopConsentGuideSeen] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem("adultapp_home_shop_consent_guide_seen") === "1";
@@ -2182,7 +1625,6 @@ export default function App() {
   const [authEmail, setAuthEmail] = useState("customer@example.com");
   const [authPassword, setAuthPassword] = useState("customer1234");
   const [authMessage, setAuthMessage] = useState("");
-  const [authGatePopupOpen, setAuthGatePopupOpen] = useState(false);
   const [apiProducts, setApiProducts] = useState<ApiProduct[]>([]);
   const [cartItems, setCartItems] = useState<Array<{ productId: number; qty: number }>>([]);
   const [orders, setOrders] = useState<ApiOrder[]>([]);
@@ -2190,14 +1632,6 @@ export default function App() {
   const [orderDetail, setOrderDetail] = useState<ApiOrderDetail | null>(null);
   const [orderMessage, setOrderMessage] = useState("");
   const [orderActionAmount, setOrderActionAmount] = useState("5500");
-  const [checkoutStage, setCheckoutStage] = useState<CheckoutStage>("cart");
-  const [checkoutDraft, setCheckoutDraft] = useState({
-    recipientName: "성인회원",
-    phone: "010-0000-0000",
-    email: "aksqhqkqh153@gmail.com",
-    address: "배송지 입력 필요",
-    requestNote: "익명 포장 요청",
-  });
 
   const isAdmin = ["ADMIN", "1", "GRADE_1"].includes(currentUserRole);
   const productCategoryOptions = useMemo(() => {
@@ -2211,23 +1645,6 @@ export default function App() {
   const toggleFollowUser = (userId: number) => {
     setFollowingUserIds((prev) => prev.includes(userId) ? prev.filter((item) => item !== userId) : [...prev, userId]);
   };
-  const boostShortsSignalsFromText = (source: string, weight = 1) => {
-    const tokens = extractInterestTokens(source);
-    if (!tokens.length) return;
-    setShortsKeywordSignals((prev) => {
-      const next = { ...prev };
-      tokens.forEach((token) => {
-        next[token] = (next[token] ?? 0) + weight;
-      });
-      return next;
-    });
-  };
-
-  const openShortsViewer = (item: FeedItem) => {
-    boostShortsSignalsFromText(`${item.title} ${item.caption} ${item.category} ${item.author}`, 2);
-    setShortsViewerItemId(item.id);
-  };
-
 
   const openDmRequest = (user: ForumStarterUser) => {
     if (!adultVerified) {
@@ -2273,7 +1690,6 @@ export default function App() {
     getJson<ProjectStatus>("/project-status").then(setProjectStatus).catch(() => null);
     getJson<DeployGuide>("/deploy/cloudflare-pages-manual").then(setDeployGuide).catch(() => null);
     getJson<LegalDocumentsResponse>("/legal/documents").then(setLegalDocuments).catch(() => null);
-    getJson<BusinessInfoResponse>("/legal/business-info").then(setBusinessInfo).catch(() => null);
     getJson<PaymentProviderStatusResponse>("/payments/provider-status").then(setPaymentProviderStatus).catch(() => null);
     getJson<UiCategoryGroupResponse>("/ui/category-groups").then((res) => setUiCategoryGroups(res.items ?? [])).catch(() => null);
     getJson<SkuPolicyResponse>("/sku-policy").then(setSkuPolicy).catch(() => null);
@@ -2306,6 +1722,7 @@ export default function App() {
           getJson<{ items: ProductApprovalItem[] }>("/admin/product-approvals").then((res) => setProductApprovalQueue(res.items ?? [])).catch(() => null);
           getJson<SettlementPreviewResponse>("/settlements/preview").then(setSettlementPreview).catch(() => null);
         } else {
+          setBusinessInfo(null);
           setReleaseReadiness(null);
         }
       } catch {
@@ -2403,73 +1820,6 @@ export default function App() {
     if (typeof window === "undefined") return;
     window.localStorage.setItem("adultapp_home_shop_consent_guide_seen", homeShopConsentGuideSeen ? "1" : "0");
   }, [homeShopConsentGuideSeen]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem("adultapp_shop_keyword_signals", JSON.stringify(shopKeywordSignals));
-  }, [shopKeywordSignals]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem("adultapp_shorts_keyword_signals", JSON.stringify(shortsKeywordSignals));
-  }, [shortsKeywordSignals]);
-
-  const lastTrackedShopSearchRef = useRef("");
-  useEffect(() => {
-    if (activeTab !== "쇼핑") return;
-    const raw = `${shopKeyword} ${globalKeyword}`.trim();
-    if (!raw) return;
-    const normalized = raw
-      .split(/[,#\s/]+/)
-      .map((token) => token.trim())
-      .filter((token) => token.length >= 2)
-      .join("|")
-      .toLowerCase();
-    if (!normalized || lastTrackedShopSearchRef.current === normalized) return;
-    lastTrackedShopSearchRef.current = normalized;
-    setShopKeywordSignals((prev) => {
-      const next = { ...prev };
-      normalized.split("|").forEach((token) => {
-        next[token] = (next[token] ?? 0) + 1;
-      });
-      return next;
-    });
-  }, [activeTab, shopKeyword, globalKeyword]);
-
-  const lastTrackedShortsSearchRef = useRef("");
-  useEffect(() => {
-    if (activeTab !== "홈" || homeTab !== "쇼츠") return;
-    const normalized = globalKeyword
-      .split(/[,#\s/]+/)
-      .map((token) => token.trim())
-      .filter((token) => token.length >= 2)
-      .join("|")
-      .toLowerCase();
-    if (!normalized || lastTrackedShortsSearchRef.current === normalized) return;
-    lastTrackedShortsSearchRef.current = normalized;
-    setShortsKeywordSignals((prev) => {
-      const next = { ...prev };
-      normalized.split("|").forEach((token) => {
-        next[token] = (next[token] ?? 0) + 3;
-      });
-      return next;
-    });
-  }, [activeTab, homeTab, globalKeyword]);
-
-  useEffect(() => {
-    if (!savedFeedIds.length) return;
-    const savedShorts = feedSeed.filter((item) => savedFeedIds.includes(item.id));
-    if (!savedShorts.length) return;
-    setShortsKeywordSignals((prev) => {
-      const next = { ...prev };
-      savedShorts.forEach((item) => {
-        extractInterestTokens(`${item.title} ${item.caption} ${item.category} ${item.author}`).forEach((token) => {
-          next[token] = Math.max(next[token] ?? 0, 2);
-        });
-      });
-      return next;
-    });
-  }, [savedFeedIds]);
   useEffect(() => {
     if (!selectedOrderNo) return;
     getJson<ApiOrderDetail>(`/orders/${selectedOrderNo}`).then(setOrderDetail).catch(() => setOrderDetail(null));
@@ -2608,31 +1958,9 @@ export default function App() {
 
   };
 
-  const handleShortsScroll = (event: UIEvent<HTMLDivElement>) => {
-    const target = event.currentTarget;
-    const currentTop = target.scrollTop;
-    const remain = target.scrollHeight - currentTop - target.clientHeight;
-    if (remain < 240) {
-      setShortsVisibleCount((prev) => Math.min(prev + 10, shortsFeedItems.length));
-    }
-    const scrollingDown = currentTop > lastShortsScrollTop + 6;
-    const scrollingUp = currentTop < lastShortsScrollTop - 6;
-    if (scrollingDown && currentTop > 24) {
-      setShortsHeaderHidden(true);
-      setShortsCategoryVisible(false);
-    } else if (scrollingUp) {
-      setShortsHeaderHidden(false);
-      setShortsCategoryVisible(true);
-    } else if (currentTop <= 8) {
-      setShortsHeaderHidden(false);
-      setShortsCategoryVisible(true);
-    }
-    setLastShortsScrollTop(currentTop);
-  };
-
   const homeMenuItems = [
     { label: "피드", onClick: () => { setHomeTab("피드"); setOverlayMode(null); } },
-    { label: "쇼츠", onClick: () => { setHomeTab("쇼츠"); setOverlayMode(null); setShortsHeaderHidden(false); setShortsCategoryVisible(true); setSelectedShortsCategory("전체"); } },
+    { label: "상품", onClick: () => { setHomeTab("상품"); setOverlayMode(null); } },
     { label: "보관함", onClick: goToSavedBox },
   ];
 
@@ -2642,82 +1970,12 @@ export default function App() {
     return !keyword ? feedSeed : feedSeed.filter((item) => `${item.title} ${item.caption} ${item.category} ${item.author}`.toLowerCase().includes(keyword));
   }, [globalKeyword]);
 
-  const shortsCategories = useMemo(() => {
-    const dynamic = Array.from(new Set(feedSeed.filter((item) => item.type === "video").map((item) => item.category)));
-    return ["전체", ...dynamic];
-  }, []);
-
-  const keywordSignalMap = useMemo(() => buildKeywordSignalMap({
-    shopKeywordSignals,
-    shortsKeywordSignals,
-    globalKeyword,
-    followingUserIds,
-    savedFeedIds,
-    feedItems: feedSeed,
-    forumUsers: forumStarterUsers,
-  }), [shopKeywordSignals, shortsKeywordSignals, globalKeyword, followingUserIds, savedFeedIds]);
-
-  const followedTopicKeywords = useMemo(() => followingUserIds
-    .map((id) => forumStarterUsers.find((user) => user.id === id))
-    .filter((user): user is ForumStarterUser => Boolean(user))
-    .flatMap((user) => extractInterestTokens(`${user.name} ${user.topic} ${user.role}`)), [followingUserIds]);
-
-  const getContentKeywordTags = (item: FeedItem) => getTopMatchedKeywords(item, keywordSignalMap);
-
-  const recommendedShorts = useMemo(() => {
-    const base = feedSeed.filter((item) => item.type === "video" || item.category.includes("숏"));
-    const ranked = base.map((item, idx) => {
-      const content = `${item.title} ${item.caption} ${item.category} ${item.author}`.toLowerCase();
-      const matchedSignalScore = Array.from(keywordSignalMap.entries()).reduce((sum, [token, score]) => sum + (content.includes(token) ? score : 0), 0);
-      const freshnessMinutes = parseRelativeMinutes(item.postedAt);
-      const freshnessScore = Math.max(0, 36 - Math.min(freshnessMinutes / 12, 36));
-      const followScore = followedTopicKeywords.some((token) => content.includes(token)) ? 18 : 0;
-      const savedScore = savedFeedIds.includes(item.id) ? 28 : 0;
-      const popularityScore = Math.min(22, (item.likes / 40) + (item.comments / 12) + ((item.views ?? 0) / 600));
-      const nicheBoost = /딜도|바이브|본디지|패들|케인|젤|세정|보관|입문|리뷰/.test(content) ? 6 : 0;
-      const explorationScore = deterministicHash(`${item.id}-${item.title}`) % 100 < 2 ? 12 : 0;
-      const vintagePopularBoost = freshnessMinutes >= 120 && popularityScore >= 16 && matchedSignalScore > 0 ? 10 : 0;
-      const recencyPenalty = freshnessMinutes >= 1440 ? 6 : 0;
-      const totalScore = matchedSignalScore + freshnessScore + followScore + savedScore + popularityScore + nicheBoost + explorationScore + vintagePopularBoost - recencyPenalty;
-      return {
-        ...item,
-        id: 1000 + idx,
-        views: (item.views ?? 1000) + idx * 91,
-        postedAt: item.postedAt ?? ["방금", "9분 전", "26분 전", "1시간 전", "3시간 전", "어제"][idx % 6],
-        sortScore: totalScore,
-      };
-    });
-
-    ranked.sort((a, b) => (b.sortScore ?? 0) - (a.sortScore ?? 0) || (b.likes - a.likes));
-    return ranked;
-  }, [keywordSignalMap, followedTopicKeywords, savedFeedIds]);
-
-  const visibleShorts = useMemo(() => {
-    const source = recommendedShorts;
-    const keyword = globalKeyword.trim().toLowerCase();
-    return source.filter((item) => {
-      const categoryMatch = selectedShortsCategory === "전체" || item.category === selectedShortsCategory;
-      const keywordMatch = !keyword || `${item.title} ${item.caption} ${item.category} ${item.author}`.toLowerCase().includes(keyword);
-      return categoryMatch && keywordMatch;
-    });
-  }, [recommendedShorts, selectedShortsCategory, globalKeyword]);
-
-  const shortsFeedItems = useMemo(() => visibleShorts.length ? visibleShorts : recommendedShorts, [visibleShorts, recommendedShorts]);
-
-  const pagedShorts = useMemo(() => shortsFeedItems.slice(0, shortsVisibleCount), [shortsFeedItems, shortsVisibleCount]);
-  const shortsViewerInitialIndex = useMemo(() => shortsViewerItemId === null ? 0 : Math.max(0, shortsFeedItems.findIndex((item) => item.id === shortsViewerItemId)), [shortsFeedItems, shortsViewerItemId]);
-
-  useEffect(() => {
-    setShortsVisibleCount(10);
-  }, [globalKeyword, selectedShortsCategory]);
-
-
-  const allShopItems = useMemo<ProductCard[]>(() => {
+  const allShopItems = useMemo(() => {
     const keyword = `${shopKeyword} ${globalKeyword}`.trim().toLowerCase();
     const source = apiProducts.length
       ? apiProducts.filter((item) => (item.status ?? "published") === "published").map((item) => ({
           id: item.id,
-          category: item.category ?? "기타",
+          category: item.category,
           name: item.name,
           subtitle: item.description ?? "",
           price: `₩${Number(item.price || 0).toLocaleString()}`,
@@ -2730,113 +1988,6 @@ export default function App() {
       return matchCategory && matchKeyword;
     });
   }, [selectedShopCategory, shopKeyword, globalKeyword, apiProducts]);
-
-  const shoppingHomeKeywords = useMemo(() => {
-    const roleSeedMap: Record<string, string[]> = {
-      ADMIN: ["판매자", "신상품", "베스트", "위생", "보관", "케어", "세정", "입문", "브랜드", "기획전"],
-      SELLER: ["신상품", "입문", "브랜드", "베스트", "위생", "보관", "케어", "세정", "기획전", "인기"],
-      GUEST: ["입문", "위생", "보관", "케어", "세정", "베스트", "브랜드", "기획전", "추천", "인기"],
-      MEMBER: ["입문", "위생", "보관", "케어", "세정", "베스트", "브랜드", "기획전", "추천", "인기"],
-    };
-    const roleSeeds = roleSeedMap[currentUserRole] ?? roleSeedMap.MEMBER;
-    const pool = [
-      ...Object.entries(shopKeywordSignals)
-        .sort((a, b) => b[1] - a[1])
-        .map(([token]) => token),
-      ...roleSeeds,
-      ...allShopItems.flatMap((item) => [item.category, item.name]),
-      ...productsSeed.flatMap((item) => [item.category, item.name]),
-    ];
-
-    const normalized = pool
-      .flatMap((entry) => String(entry).split(/[·,/]/))
-      .map((entry) => entry.trim())
-      .filter((entry) => entry.length >= 2)
-      .filter((entry) => !/^(전체|상품|판매중|재고확인)$/.test(entry));
-
-    const unique: string[] = [];
-    for (const item of normalized) {
-      if (!unique.includes(item)) unique.push(item);
-      if (unique.length >= 32) break;
-    }
-    while (unique.length < 32) {
-      unique.push(`추천 ${unique.length + 1}`);
-    }
-    return unique.slice(0, 32);
-  }, [shopKeywordSignals, currentUserRole, allShopItems]);
-
-  const shopHomeHeroSlides = useMemo(() => {
-    const source = allShopItems.length ? allShopItems : productsSeed;
-    const base = source.slice(0, 3);
-    return base.length ? base : productsSeed.slice(0, 3);
-  }, [allShopItems]);
-
-  const shopHomeFeedItems = useMemo(() => {
-    const source = allShopItems.length ? allShopItems : productsSeed;
-    const safeSource = source.length ? source : productsSeed;
-    return Array.from({ length: shopHomeVisibleCount }, (_, index) => ({
-      ...safeSource[index % safeSource.length],
-      feedIndex: index,
-    }));
-  }, [allShopItems, shopHomeVisibleCount]);
-
-  useEffect(() => {
-    if (activeTab !== "쇼핑" || shoppingTab !== "홈") return;
-    setShopHomeVisibleCount(9);
-    setShopHomeBannerIndex(0);
-    setShopHomeBannerDragOffset(0);
-  }, [activeTab, shoppingTab, shopKeyword, globalKeyword, selectedShopCategory]);
-
-  useEffect(() => {
-    if (activeTab !== "쇼핑" || shoppingTab !== "홈" || shopHomeHeroSlides.length <= 1 || shopHomeBannerPointerActiveRef.current) return;
-    const timer = window.setInterval(() => {
-      setShopHomeBannerIndex((prev) => (prev + 1) % shopHomeHeroSlides.length);
-    }, 3000);
-    return () => window.clearInterval(timer);
-  }, [activeTab, shoppingTab, shopHomeHeroSlides.length, shopHomeBannerIndex]);
-
-  const goPrevShopHomeBanner = () => {
-    setShopHomeBannerIndex((prev) => (prev - 1 + shopHomeHeroSlides.length) % shopHomeHeroSlides.length);
-  };
-
-  const goNextShopHomeBanner = () => {
-    setShopHomeBannerIndex((prev) => (prev + 1) % shopHomeHeroSlides.length);
-  };
-
-  const handleShopHomeBannerPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (shopHomeHeroSlides.length <= 1) return;
-    shopHomeBannerPointerActiveRef.current = true;
-    shopHomeBannerPointerStartXRef.current = event.clientX;
-    setShopHomeBannerDragOffset(0);
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-
-  const handleShopHomeBannerPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!shopHomeBannerPointerActiveRef.current || shopHomeBannerPointerStartXRef.current === null) return;
-    setShopHomeBannerDragOffset(event.clientX - shopHomeBannerPointerStartXRef.current);
-  };
-
-  const finishShopHomeBannerDrag = (event?: React.PointerEvent<HTMLDivElement>) => {
-    if (event && event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-    if (!shopHomeBannerPointerActiveRef.current) return;
-    const dragThreshold = 42;
-    if (shopHomeBannerDragOffset <= -dragThreshold) {
-      goNextShopHomeBanner();
-    } else if (shopHomeBannerDragOffset >= dragThreshold) {
-      goPrevShopHomeBanner();
-    }
-    shopHomeBannerPointerActiveRef.current = false;
-    shopHomeBannerPointerStartXRef.current = null;
-    setShopHomeBannerDragOffset(0);
-  };
-
-  const handleShopHomeScroll = (event: UIEvent<HTMLDivElement>) => {
-    const node = event.currentTarget;
-    if (node.scrollTop + node.clientHeight < node.scrollHeight - 120) return;
-    setShopHomeVisibleCount((prev) => prev + 9);
-  };
 
   const filteredCommunity = useMemo(() => {
     const keyword = `${communityKeyword} ${globalKeyword}`.trim().toLowerCase();
@@ -2938,139 +2089,11 @@ export default function App() {
     });
   }, [globalKeyword, searchFilter]);
 
-  const openProfileFromAuthor = (author: string) => {
-    setActiveTab("프로필");
-    setProfileTab("내정보");
-    setOverlayMode(null);
-  };
-
-  const bottomNavIconMap = {
-    홈: <HomeIcon filled={overlayMode === null && activeTab === "홈"} />,
-    쇼핑: <ShoppingBagIcon filled={overlayMode === null && activeTab === "쇼핑"} />,
-    소통: <CommunityIcon filled={overlayMode === null && activeTab === "소통"} />,
-    채팅: <ChatIcon filled={overlayMode === null && activeTab === "채팅"} />,
-    프로필: <ProfileIcon filled={overlayMode === null && activeTab === "프로필"} />,
-  } satisfies Record<typeof mobileTabs[number], JSX.Element>;
-
-  const legalQuickLinks = [
-    { key: "terms_of_service", label: "이용약관", href: `${getApiBase()}/legal/terms-of-service` },
-    { key: "privacy_policy", label: "개인정보 처리방침", href: `${getApiBase()}/legal/privacy-policy` },
-    { key: "refund_policy", label: "환불정책", href: `${getApiBase()}/legal/refund-policy` },
-    { key: "age_verification_policy", label: "연령 정책", href: `${getApiBase()}/legal/age-verification-policy` },
-  ] as const;
-
-  const disclosedBusinessInfo = useMemo(() => ({
-    operatorName: String(businessInfo?.business_info?.operator_legal_name || businessInfo?.business_info?.operator_brand_name || "사업자 정보 등록 필요"),
-    representative: String(businessInfo?.business_info?.representative_name || "대표자 정보 등록 필요"),
-    registrationNo: String(businessInfo?.business_info?.business_registration_no || "사업자번호 등록 필요"),
-    phone: String(businessInfo?.business_info?.support_phone || "연락처 등록 필요"),
-    address: String(businessInfo?.business_info?.business_address || "주소 등록 필요"),
-    email: "aksqhqkqh153@gmail.com",
-    privacyEmail: String(businessInfo?.business_info?.privacy_contact_email || "aksqhqkqh153@gmail.com"),
-  }), [businessInfo]);
-
-  const checkoutStepMeta: Array<{ key: CheckoutStage; label: string }> = [
-    { key: "cart", label: "장바구니" },
-    { key: "order_form", label: "주문서 작성" },
-    { key: "payment_request", label: "결제 요청" },
-    { key: "payment_complete", label: "결제 완료" },
-    { key: "order_confirm", label: "주문 확인" },
-  ];
-
-  const checkoutStageIndex = checkoutStepMeta.findIndex((item) => item.key === checkoutStage);
-  const checkoutSelectedOrder = useMemo(() => {
-    if (!orders.length) return null;
-    return (selectedOrderNo ? orders.find((item) => item.order_no === selectedOrderNo) : null) ?? [...orders].reverse()[0] ?? null;
-  }, [orders, selectedOrderNo]);
-
   const showBaseTabContent = overlayMode === null;
   const blockedByIdentity = !isAdmin && !identityVerified;
   const requiresAdultGate = !isAdmin && !adultVerified && ["홈", "쇼핑"].includes(activeTab);
   const showAppTabContent = showBaseTabContent && !blockedByIdentity && !requiresAdultGate;
-  const shouldForceAuthStandalone = authBootstrapDone && blockedByIdentity;
-
-  useEffect(() => {
-    if (!shouldForceAuthStandalone) return;
-    setAuthStandaloneScreen("login");
-    setAuthGatePopupOpen(true);
-    setAuthMessage("로그인이 필요합니다. 청소년은 이용할 수 없습니다.");
-  }, [shouldForceAuthStandalone]);
   const adultCooldownRemainMinutes = adultCooldownUntil > Date.now() ? Math.ceil((adultCooldownUntil - Date.now()) / 60000) : 0;
-  const signupConsentMeta: Record<keyof SignupConsentState, {
-    title: string;
-    summary: string;
-    body: string[];
-    href?: string;
-  }> = {
-    terms: {
-      title: "[필수] 이용약관 확인",
-      summary: "서비스 이용 조건, 회원 의무, 금지 행위, 게시물 운영원칙, 주문/환불 기본 정책을 확인합니다.",
-      body: [
-        "회원은 성인 전용 서비스 정책과 커뮤니티 운영 원칙을 준수해야 합니다.",
-        "불법 행위, 타인 권리 침해, 청소년 관련 위반, 결제 악용, 운영 방해 행위는 제한 대상입니다.",
-        "주문·환불·제재·계정 제한과 관련된 기본 기준은 이용약관 및 운영정책에 따릅니다.",
-      ],
-      href: `${getApiBase()}/legal/terms-of-service`,
-    },
-    privacy: {
-      title: "[필수] 개인정보 처리방침 확인",
-      summary: "수집 항목, 이용 목적, 보관 기간, 제3자 제공 및 처리위탁 기준을 확인합니다.",
-      body: [
-        "회원 식별, 로그인 유지, 본인확인, 성인인증, 고객지원 및 법령상 의무 이행을 위해 필요한 정보를 처리합니다.",
-        "법령상 보존이 필요한 정보는 해당 기간 동안 안전하게 보관될 수 있습니다.",
-        "처리방침은 변경 시 공지되며, 필수 항목 변경 시 재동의가 요구될 수 있습니다.",
-      ],
-      href: `${getApiBase()}/legal/privacy-policy`,
-    },
-    adultNotice: {
-      title: "[필수] 만 19세 이상 및 성인 서비스 이용 고지 확인",
-      summary: "본 서비스는 만 19세 이상 성인만 이용할 수 있으며, 청소년은 이용할 수 없습니다.",
-      body: [
-        "회원가입 및 로그인은 만 19세 이상 본인확인 가능자만 진행할 수 있습니다.",
-        "청소년 또는 비정상 인증으로 확인되는 경우 서비스 접근이 제한되거나 계정이 차단될 수 있습니다.",
-        "성인 전용 영역은 별도 인증 절차 후에만 접근할 수 있습니다.",
-      ],
-    },
-    identityNotice: {
-      title: "[필수] 본인확인/성인인증 결과 처리 안내 확인",
-      summary: "본인확인 및 성인인증 결과는 계정 생성, 접근 권한 판단, 법적 의무 이행을 위해 처리됩니다.",
-      body: [
-        "인증 결과값은 회원 상태 판정, 청소년 차단, 성인 영역 접근 제어, 부정 이용 방지에 사용됩니다.",
-        "인증 실패, 미완료, 불일치 상태에서는 회원가입 또는 일부 기능 이용이 제한될 수 있습니다.",
-        "관련 법령과 내부 보안 기준에 따라 필요한 범위 내에서만 저장·처리됩니다.",
-      ],
-    },
-    marketing: {
-      title: "[선택] 마케팅 정보 수신 동의",
-      summary: "이벤트, 혜택, 프로모션, 신규 기능 안내를 수신할지 선택합니다.",
-      body: [
-        "선택 동의이며, 동의하지 않아도 기본 서비스 이용에는 영향이 없습니다.",
-        "수신 채널과 항목은 운영정책에 따라 조정될 수 있습니다.",
-        "언제든지 설정에서 수신 동의를 변경할 수 있습니다.",
-      ],
-    },
-    profileOptional: {
-      title: "[선택] 맞춤 추천을 위한 프로필 정보 수집 동의",
-      summary: "성별, 연령대, 지역, 관심 카테고리 등 선택 입력 정보를 추천 품질 향상에 활용할 수 있습니다.",
-      body: [
-        "선택 동의이며, 동의하지 않아도 기본 서비스 이용에는 영향이 없습니다.",
-        "입력한 선택 정보는 맞춤 추천, 제한 영역 심사 참고, 운영 안전성 보조 정보로 사용될 수 있습니다.",
-        "언제든지 프로필 또는 설정에서 변경할 수 있습니다.",
-      ],
-    },
-  };
-
-  const openSignupConsentModal = (key: keyof SignupConsentState) => {
-    setSignupConsentModal(key);
-  };
-
-  const toggleSignupConsent = (key: keyof SignupConsentState, checked: boolean) => {
-    setSignupConsents((prev) => ({ ...prev, [key]: checked }));
-    if (checked) {
-      openSignupConsentModal(key);
-    }
-  };
-
   const requiredConsentAccepted = requiredConsentKeys.every((key) => signupConsents[key]);
   const reconsentRequired = Boolean(authSummary?.reconsent_required || authSummary?.consent_status?.reconsent_required);
   const reconsentMode = (authSummary?.reconsent_enforcement_mode as string | undefined) ?? "limited_access";
@@ -3131,10 +2154,7 @@ export default function App() {
 
   const advanceSignupStep = () => {
     if (signupStep === "consent") {
-      if (!requiredConsentAccepted) {
-        window.alert("필수 체크 항목을 체크 후 다음을 눌러주세요");
-        return;
-      }
+      if (!requiredConsentAccepted) return;
       setSignupStep("account");
       return;
     }
@@ -3353,66 +2373,12 @@ export default function App() {
     }
   };
 
-  const openProductDetail = async (productId: number) => {
-    setSelectedProductId(productId);
-    setShoppingTab("상품");
-    try {
-      const detail = await getJson<ProductDetailResponse>(`/products/${productId}`);
-      setProductDetail(detail);
-      setOrderMessage("");
-    } catch (error) {
-      setProductDetail(null);
-      setOrderMessage(error instanceof Error ? error.message : "상품 상세 조회 실패");
-    }
-  };
-
-  const verifyAdultSelf = async () => {
-    try {
-      const result = await postJson<{ adult_verified?: boolean }>("/auth/adult/self-check", { birthdate: adultBirthdate, provider: "self_cert" });
-      setAdultVerified(Boolean(result.adult_verified));
-      const next = await getJson<AdultGateStatusResponse>("/auth/adult/gate-status");
-      setAdultGateStatus(next);
-      setOrderMessage("성인 인증이 완료되었습니다. 쇼핑과 결제를 진행할 수 있습니다.");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "성인 인증 실패";
-      setOrderMessage(message);
-      getJson<AdultGateStatusResponse>("/auth/adult/gate-status").then(setAdultGateStatus).catch(() => null);
-    }
-  };
-
-  const launchVerotelCheckout = async (orderNo?: string) => {
-    const targetOrderNo = orderNo || selectedOrderNo || orderDetail?.order?.order_no;
-    if (!targetOrderNo) {
-      setOrderMessage("먼저 주문을 생성하세요.");
-      return;
-    }
-    try {
-      const response = await postJson<VerotelStartResponse>("/payments/verotel/start", { order_no: targetOrderNo, currency: "EUR" });
-      const form = document.createElement("form");
-      form.method = response.method || "POST";
-      form.action = response.action_url || "";
-      Object.entries(response.form_fields || {}).forEach(([key, value]) => {
-        const input = document.createElement("input");
-        input.type = "hidden";
-        input.name = key;
-        input.value = String(value);
-        form.appendChild(input);
-      });
-      document.body.appendChild(form);
-      setOrderMessage(`Verotel 결제 페이지로 이동 준비 완료: ${targetOrderNo}`);
-      form.submit();
-    } catch (error) {
-      setOrderMessage(error instanceof Error ? error.message : "Verotel 결제 시작 실패");
-    }
-  };
-
   const addToCart = (productId: number) => {
     setCartItems((prev) => {
       const found = prev.find((item) => item.productId === productId);
       if (found) return prev.map((item) => item.productId === productId ? { ...item, qty: item.qty + 1 } : item);
       return [...prev, { productId, qty: 1 }];
     });
-    setCheckoutStage("cart");
     setShoppingTab("바구니");
   };
 
@@ -3450,34 +2416,10 @@ export default function App() {
     try {
       const detail = await getJson<ApiOrderDetail>(`/orders/${orderNo}`);
       setOrderDetail(detail);
-      setCheckoutStage("order_confirm");
       setOrderMessage(`테스트 대상 주문 선택: ${orderNo}`);
     } catch (error) {
       setOrderDetail(null);
       setOrderMessage(error instanceof Error ? error.message : "주문 상세 조회 실패");
-    }
-  };
-
-  const createOrderForSelectedProduct = async () => {
-    const target = productDetail?.product;
-    if (!target) {
-      setOrderMessage("선택된 상품이 없습니다.");
-      return;
-    }
-    try {
-      const created = await postJson<{ order_no: string; total_amount: number; payment_init: { mode?: string; webhook_path?: string } }>("/orders", {
-        product_id: target.id,
-        qty: 1,
-        payment_method: "card",
-        payment_pg: "verotel",
-      });
-      setSelectedOrderNo(created.order_no);
-      setCheckoutStage("payment_request");
-      setOrderMessage(`상품 주문 생성 완료: ${created.order_no} · ${created.total_amount.toLocaleString()}원`);
-      await refreshOrders(created.order_no);
-      setShoppingTab("주문");
-    } catch (error) {
-      setOrderMessage(error instanceof Error ? error.message : "상품 주문 생성 실패");
     }
   };
 
@@ -3494,7 +2436,6 @@ export default function App() {
         payment_method: "card",
         payment_pg: "demo-pg",
       });
-      setCheckoutStage("payment_request");
       setOrderMessage(`주문 생성 완료: ${created.order_no} · ${created.total_amount.toLocaleString()}원 · mode ${created.payment_init?.mode ?? "-"}`);
       await refreshOrders(created.order_no);
       setShoppingTab("주문");
@@ -3518,7 +2459,6 @@ export default function App() {
         provider: "tosspayments",
         method: "card",
       });
-      setCheckoutStage("payment_complete");
       setOrderMessage(`결제 승인 완료: ${target.order_no} → ${result.status}`);
       await refreshOrders(target.order_no);
     } catch (error) {
@@ -3648,10 +2588,10 @@ export default function App() {
 
   const currentScreenTitle = overlayMode === "search"
     ? `${activeTab}검색`
-    : overlayMode === "settings"
-      ? `${activeTab}설정`
+     : overlayMode === "settings"
+      ? "설정"
       : overlayMode === "notifications"
-        ? `${activeTab}알림`
+        ? "알림"
         : activeTab;
 
   const openOverlay = (mode: Exclude<OverlayMode, null>) => {
@@ -3809,11 +2749,21 @@ export default function App() {
       return homeTabs.map((tab) => ({ label: tab, active: homeTab === tab, onClick: () => setHomeTab(tab) }));
     }
     if (activeTab === "쇼핑") {
-      return [{
-        label: "홈",
-        active: shoppingTab === "홈",
-        onClick: () => setShoppingTab("홈"),
-      }];
+      return shoppingTabs.map((tab) => ({
+        label: tab,
+        active: shoppingTab === tab,
+        onClick: () => {
+          if (tab === "상품등록") {
+            openProductRegistrationTab();
+            return;
+          }
+          if (tab === "사업자인증") {
+            openBusinessVerificationTab();
+            return;
+          }
+          setShoppingTab(tab);
+        },
+      }));
     }
     if (activeTab === "소통") {
       return communityTabs.map((tab) => ({ label: tab, active: communityTab === tab, onClick: () => setCommunityTab(tab) }));
@@ -3865,17 +2815,22 @@ export default function App() {
   const unreadNotificationCount = useMemo(() => notificationSeed.filter((item) => item.unread).length, []);
 
   const selectBottomTab = (tab: MobileTab) => {
-    if (tab === activeTab && overlayMode === null && !roomModalOpen) return;
     setActiveTab(tab);
-    if (overlayMode !== null) setOverlayMode(null);
-    if (roomModalOpen) setRoomModalOpen(false);
-    if (activeTab === "채팅" && tab !== "채팅") {
+    setOverlayMode(null);
+    setRoomModalOpen(false);
+    if (tab !== "홈") setHomeTab("피드");
+    if (tab !== "쇼핑") setShoppingTab("목록");
+    if (tab !== "소통") setCommunityTab("커뮤");
+    if (tab !== "채팅") {
+      setChatTab("채팅");
+      setChatCategory("전체");
       setRandomSettingsOpen(false);
       setMatchingRandom(false);
       setMatchedRandomUser(null);
       setRandomMatchPhase("idle");
       setRandomMatchNote("카테고리를 고른 뒤 익명 정보교류용 텍스트 채팅을 시작할 수 있습니다. 외부연락, 사람 찾기, 만남유도, 사진/영상 교환은 금지됩니다.");
     }
+    if (tab !== "프로필") setProfileTab("내정보");
   };
 
   const searchFilterOptions = activeTab === "홈"
@@ -3915,54 +2870,49 @@ export default function App() {
     );
   }
 
+  useEffect(() => {
+    if (authStandaloneScreen === "login") {
+      setLoginNoticeOpen(true);
+    }
+  }, [authStandaloneScreen]);
+
   if (authStandaloneScreen) {
     return (
       <div className="auth-standalone-shell">
-        {authGatePopupOpen ? (
-          <div className="modal-backdrop">
-            <div className="modal-card adult-auth-modal adult-auth-modal--login-gate">
-              <div className="modal-header-row adult-auth-modal__header">
-                <button type="button" className="ghost-btn adult-auth-modal__close" onClick={() => setAuthGatePopupOpen(false)}>[닫기]</button>
-                <strong>로그인 필요</strong>
-                <span className="adult-auth-modal__spacer" aria-hidden="true" />
-              </div>
-              <div className="legacy-box compact adult-auth-modal__body">
-                <p>본 서비스는 성인 인증 완료 회원만<br />이용할 수 있습니다.</p>
-                <p>만 19세 미만 청소년은<br />회원가입 및 로그인이 제한됩니다.</p>
-                <p>회원가입 또는 로그인 진행 시<br />본인확인이 필요할 수 있습니다.</p>
-                <p>본인확인 및 연령 확인 결과에 따라<br />서비스 접속이 제한될 수 있습니다.</p>
-              </div>
-              <div className="copy-action-row adult-auth-modal__actions">
-                <button type="button" onClick={() => setAuthGatePopupOpen(false)}>확인</button>
-                <button type="button" className="ghost-btn" onClick={() => { setAuthGatePopupOpen(false); setSignupStep("consent"); setAuthStandaloneScreen("signup"); }}>회원가입</button>
-              </div>
-            </div>
-          </div>
-        ) : null}
         <main className="auth-standalone-main">
           <section className="auth-standalone-card">
-            <div className={`auth-standalone-head ${authStandaloneScreen === "signup" ? "auth-standalone-head--signup" : ""}`}>
-              {authStandaloneScreen === "signup" ? (
-                <div className="auth-standalone-headbar">
-                  <button
-                    type="button"
-                    className="header-inline-btn header-icon-btn auth-back-icon-btn"
-                    onClick={() => setAuthStandaloneScreen("login")}
-                    aria-label="뒤로가기"
-                  >
-                    <BackArrowIcon />
-                  </button>
-                  <h1>회원가입</h1>
-                  <span className="auth-standalone-headbar-spacer" aria-hidden="true" />
-                </div>
-              ) : (
-                <div>
-                  <h1>로그인</h1>
-                </div>
-              )}
+            <div className="auth-standalone-head">
+              <div>
+                <h1>{authStandaloneScreen === "login" ? "로그인" : "회원가입"}</h1>
+              </div>
             </div>
             {authStandaloneScreen === "login" ? (
               <div className="auth-standalone-body stack-gap">
+                {loginNoticeOpen ? (
+                  <div className="modal-backdrop auth-login-notice-backdrop">
+                    <div className="modal-card adult-auth-modal auth-login-notice-modal">
+                      <div className="modal-header-row auth-login-notice-header">
+                        <button type="button" className="ghost-btn" onClick={() => setLoginNoticeOpen(false)}>닫기</button>
+                        <strong>로그인 필요</strong>
+                        <span className="modal-spacer" aria-hidden="true" />
+                      </div>
+                      <div className="auth-login-notice-copy">
+                        <p>본 서비스는 성인 인증 완료 회원만
+이용할 수 있습니다.</p>
+                        <p>만 19세 미만 청소년은
+회원가입 및 로그인이 제한됩니다.</p>
+                        <p>회원가입 또는 로그인 진행 시
+본인확인이 필요할 수 있습니다.</p>
+                        <p>본인확인 및 연령 확인 결과에 따라
+서비스 접속이 제한될 수 있습니다.</p>
+                      </div>
+                      <div className="copy-action-row auth-login-notice-actions">
+                        <button type="button" onClick={() => setLoginNoticeOpen(false)}>확인</button>
+                        <button type="button" className="ghost-btn" onClick={() => { setLoginNoticeOpen(false); setSignupStep("consent"); setAuthStandaloneScreen("signup"); }}>회원가입</button>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
                 <div className="signup-form-grid auth-login-grid">
                   <label><span>이메일</span><input value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} placeholder="customer@example.com" /></label>
                   <label><span>비밀번호</span><input type="password" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} placeholder="비밀번호 입력" /></label>
@@ -3983,8 +2933,8 @@ export default function App() {
                 </div>
               </div>
             ) : (
-              <div className="auth-standalone-body stack-gap signup-screen-body">
-                <div className="signup-step-strip signup-step-strip-mobile">
+              <div className="auth-standalone-body stack-gap">
+                <div className="signup-step-strip">
                   {[
                     ["consent", "1단계 법정 문서 확인"],
                     ["account", "2단계 가입 입력"],
@@ -3998,86 +2948,45 @@ export default function App() {
                   ))}
                 </div>
                 {signupStep === "consent" ? (
-                  <div className="stack-gap signup-step-panel signup-step-panel-consent">
-                    {signupConsentModal ? (
-                      <div className="modal-backdrop">
-                        <div className="modal-card signup-consent-modal">
-                          <div className="modal-header-row">
-                            <strong>{signupConsentMeta[signupConsentModal].title}</strong>
-                            <button type="button" className="ghost-btn" onClick={() => setSignupConsentModal(null)}>닫기</button>
-                          </div>
-                          <div className="stack-gap">
-                            <div className="legacy-box compact signup-consent-modal-copy">
-                              <p>{signupConsentMeta[signupConsentModal].summary}</p>
-                              {signupConsentMeta[signupConsentModal].body.map((item) => (
-                                <p key={item}>{item}</p>
-                              ))}
-                            </div>
-                            {signupConsentMeta[signupConsentModal].href ? (
-                              <div className="legacy-box compact signup-consent-modal-frame">
-                                <iframe
-                                  title={signupConsentMeta[signupConsentModal].title}
-                                  src={signupConsentMeta[signupConsentModal].href}
-                                  className="signup-consent-iframe"
-                                />
-                              </div>
-                            ) : null}
-                            <div className="copy-action-row signup-consent-modal-actions">
-                              <button type="button" onClick={() => setSignupConsentModal(null)}>확인</button>
-                            </div>
-                          </div>
-                        </div>
+                  <div className="stack-gap">
+                    <div className="legacy-box compact signup-legal-copy">
+                      <h3>약관 및 필수 안내</h3>
+                      <p>회원가입 전에 필수 문서 제목만 확인하고 체크할 수 있도록 정리했습니다. 자세한 내용은 아래 문서를 눌러 펼쳐서 읽을 수 있습니다.</p>
+                      <div className="consent-record-list">
+                        <details className="legacy-box compact" open={signupLegalOpen === "terms"} onToggle={(e) => setSignupLegalOpen((e.currentTarget as HTMLDetailsElement).open ? "terms" : signupLegalOpen === "terms" ? null : signupLegalOpen)}>
+                          <summary><strong>이용약관 자세히 보기</strong></summary>
+                          <p>서비스 이용 조건, 회원 의무, 금지 행위, 게시물 운영원칙, 주문/환불 기본 정책을 안내합니다.</p>
+                          <a className="ghost-link-btn" href={`${getApiBase()}/legal/terms-of-service`} target="_blank" rel="noreferrer">전체 약관 문서 열기</a>
+                        </details>
+                        <details className="legacy-box compact" open={signupLegalOpen === "privacy"} onToggle={(e) => setSignupLegalOpen((e.currentTarget as HTMLDetailsElement).open ? "privacy" : signupLegalOpen === "privacy" ? null : signupLegalOpen)}>
+                          <summary><strong>개인정보 처리방침 자세히 보기</strong></summary>
+                          <p>수집 항목은 이메일, 비밀번호, 이름, 본인확인 결과값이며 회원 식별, 로그인, 고객지원, 성인인증 처리에 사용됩니다. 법령상 보존기간 동안 보관할 수 있습니다.</p>
+                          <a className="ghost-link-btn" href={`${getApiBase()}/legal/privacy-policy`} target="_blank" rel="noreferrer">전체 처리방침 문서 열기</a>
+                        </details>
+                        <details className="legacy-box compact" open={signupLegalOpen === "youth"} onToggle={(e) => setSignupLegalOpen((e.currentTarget as HTMLDetailsElement).open ? "youth" : signupLegalOpen === "youth" ? null : signupLegalOpen)}>
+                          <summary><strong>청소년 보호정책 자세히 보기</strong></summary>
+                          <p>만 19세 미만은 이용이 제한되며, 성인 서비스 접근 전 본인확인과 성인인증이 필요합니다. 정책 위반 시 서비스 제한이 적용될 수 있습니다.</p>
+                          <a className="ghost-link-btn" href={`${getApiBase()}/legal/youth-policy`} target="_blank" rel="noreferrer">전체 청소년 보호정책 문서 열기</a>
+                        </details>
                       </div>
-                    ) : null}
-                    <div className="legacy-box compact signup-legal-copy signup-panel">
-                      <h3>약관 안내</h3>
                     </div>
-                    <div className="consent-checklist signup-consent-checklist">
-                      <label className={`consent-row ${signupConsents.terms ? "checked" : ""}`}>
-                        <input type="checkbox" checked={signupConsents.terms} onChange={(e) => toggleSignupConsent("terms", e.target.checked)} />
-                        <span role="button" tabIndex={0} onClick={() => openSignupConsentModal("terms")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSignupConsentModal("terms"); } }}>[필수] 이용약관 확인</span>
-                      </label>
-                      <label className={`consent-row ${signupConsents.privacy ? "checked" : ""}`}>
-                        <input type="checkbox" checked={signupConsents.privacy} onChange={(e) => toggleSignupConsent("privacy", e.target.checked)} />
-                        <span role="button" tabIndex={0} onClick={() => openSignupConsentModal("privacy")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSignupConsentModal("privacy"); } }}>[필수] 개인정보 처리방침 확인</span>
-                      </label>
-                      <label className={`consent-row ${signupConsents.adultNotice ? "checked" : ""}`}>
-                        <input type="checkbox" checked={signupConsents.adultNotice} onChange={(e) => toggleSignupConsent("adultNotice", e.target.checked)} />
-                        <span role="button" tabIndex={0} onClick={() => openSignupConsentModal("adultNotice")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSignupConsentModal("adultNotice"); } }}>[필수] 만 19세 이상 및 성인 서비스 이용 고지 확인</span>
-                      </label>
-                      <label className={`consent-row ${signupConsents.identityNotice ? "checked" : ""}`}>
-                        <input type="checkbox" checked={signupConsents.identityNotice} onChange={(e) => toggleSignupConsent("identityNotice", e.target.checked)} />
-                        <span role="button" tabIndex={0} onClick={() => openSignupConsentModal("identityNotice")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSignupConsentModal("identityNotice"); } }}>[필수] 본인확인/성인인증 결과 처리 안내 확인</span>
-                      </label>
-                      <label className={`consent-row ${signupConsents.marketing ? "checked" : ""}`}>
-                        <input type="checkbox" checked={signupConsents.marketing} onChange={(e) => toggleSignupConsent("marketing", e.target.checked)} />
-                        <span role="button" tabIndex={0} onClick={() => openSignupConsentModal("marketing")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSignupConsentModal("marketing"); } }}>[선택] 마케팅 정보 수신 동의</span>
-                      </label>
-                      <label className={`consent-row ${signupConsents.profileOptional ? "checked" : ""}`}>
-                        <input type="checkbox" checked={signupConsents.profileOptional} onChange={(e) => toggleSignupConsent("profileOptional", e.target.checked)} />
-                        <span role="button" tabIndex={0} onClick={() => openSignupConsentModal("profileOptional")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSignupConsentModal("profileOptional"); } }}>[선택] 맞춤 추천을 위한 프로필 정보 수집 동의</span>
-                      </label>
+                    <div className="consent-checklist">
+                      <label className={`consent-row ${signupConsents.terms ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.terms} onChange={(e) => setSignupConsents((prev) => ({ ...prev, terms: e.target.checked }))} /><span>[필수] 이용약관 확인</span></label>
+                      <label className={`consent-row ${signupConsents.privacy ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.privacy} onChange={(e) => setSignupConsents((prev) => ({ ...prev, privacy: e.target.checked }))} /><span>[필수] 개인정보 처리방침 확인</span></label>
+                      <label className={`consent-row ${signupConsents.adultNotice ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.adultNotice} onChange={(e) => setSignupConsents((prev) => ({ ...prev, adultNotice: e.target.checked }))} /><span>[필수] 만 19세 이상 및 성인 서비스 이용 고지 확인</span></label>
+                      <label className={`consent-row ${signupConsents.identityNotice ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.identityNotice} onChange={(e) => setSignupConsents((prev) => ({ ...prev, identityNotice: e.target.checked }))} /><span>[필수] 본인확인/성인인증 결과 처리 안내 확인</span></label>
+                      <label className={`consent-row ${signupConsents.marketing ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.marketing} onChange={(e) => setSignupConsents((prev) => ({ ...prev, marketing: e.target.checked }))} /><span>[선택] 마케팅 정보 수신 동의</span></label>
+                      <label className={`consent-row ${signupConsents.profileOptional ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.profileOptional} onChange={(e) => setSignupConsents((prev) => ({ ...prev, profileOptional: e.target.checked }))} /><span>[선택] 맞춤 추천을 위한 프로필 정보 수집 동의</span></label>
                     </div>
-                    <div className="copy-action-row signup-action-row signup-action-row--single">
-                      <button type="button" onClick={advanceSignupStep}>다음</button>
-                    </div>
-                    <div className="legal-disclosure-card compact">
-                      <strong>사업자 정보 및 고객센터</strong>
-                      <span>문의 이메일: {disclosedBusinessInfo.email}</span>
-                      <span>상호명: {disclosedBusinessInfo.operatorName}</span>
-                      <span>대표자: {disclosedBusinessInfo.representative}</span>
-                      <span>사업자번호: {disclosedBusinessInfo.registrationNo}</span>
-                      <span>연락처: {disclosedBusinessInfo.phone}</span>
-                      <span>주소: {disclosedBusinessInfo.address}</span>
-                      <div className="notification-policy-links legal-link-row">
-                        {legalQuickLinks.map((item) => <a key={item.key} className="ghost-link-btn" href={item.href} target="_blank" rel="noreferrer">{item.label}</a>)}
-                      </div>
+                    <div className="copy-action-row">
+                      <button type="button" onClick={advanceSignupStep} disabled={!requiredConsentAccepted}>다음</button>
+                      <button type="button" className="ghost-btn" onClick={() => setAuthStandaloneScreen("login")}>로그인 화면으로</button>
                     </div>
                   </div>
                 ) : null}
-{signupStep === "account" ? (
-                  <div className="stack-gap signup-step-panel signup-step-panel-account">
-                    <div className="signup-form-grid signup-form-grid--account">
+                {signupStep === "account" ? (
+                  <div className="stack-gap">
+                    <div className="signup-form-grid">
                       <label><span>로그인 수단</span><select value={signupForm.loginMethod} onChange={(e) => setSignupForm((prev) => ({ ...prev, loginMethod: e.target.value as LoginMethod }))}><option value="이메일">이메일</option><option value="카카오">카카오</option></select></label>
                       <label><span>이메일</span><input value={signupForm.email} onChange={(e) => setSignupForm((prev) => ({ ...prev, email: e.target.value }))} placeholder="you@example.com" /></label>
                       <label><span>비밀번호</span><input type="password" value={signupForm.password} onChange={(e) => setSignupForm((prev) => ({ ...prev, password: e.target.value }))} placeholder="비밀번호 입력" /></label>
@@ -4085,26 +2994,26 @@ export default function App() {
                       <label className="wide"><span>휴대폰 본인확인 결과 토큰</span><input value={identityVerificationToken} readOnly placeholder="PASS/휴대폰 본인확인 완료 시 서버 토큰이 자동 입력됩니다" /></label>
                       <label><span>성인인증 상태</span><input value={adultVerified ? "완료" : "가입 후 홈/쇼핑 진입 시 1회 추가 인증"} readOnly /></label>
                     </div>
-                    <div className="legacy-grid three auth-option-grid signup-auth-option-grid">
+                    <div className="legacy-grid three auth-option-grid">
                       <div className="legacy-box compact"><h3>PASS 인증</h3><p>PASS 기반 본인확인 흐름을 테스트합니다.</p><button type="button" onClick={() => startIdentitySignup("PASS")}>PASS 인증 완료 처리</button></div>
                       <div className="legacy-box compact"><h3>휴대폰 인증</h3><p>휴대폰 인증 흐름을 테스트합니다.</p><button type="button" onClick={() => startIdentitySignup("휴대폰")}>휴대폰 인증 완료 처리</button></div>
                       <div className="legacy-box compact"><h3>카카오 로그인</h3><p>카카오는 로그인 편의 수단으로만 사용합니다.</p><button type="button" className="ghost-btn" onClick={() => setDemoLoginProvider("카카오")}>카카오 로그인 방식 선택</button></div>
                     </div>
-                    <div className="copy-action-row signup-action-row">
+                    <div className="copy-action-row">
                       <button type="button" className="ghost-btn" onClick={() => setSignupStep("consent")}>이전</button>
                       <button type="button" onClick={advanceSignupStep} disabled={!signupAccountValid}>다음</button>
                     </div>
                   </div>
                 ) : null}
                 {signupStep === "profile" ? (
-                  <div className="stack-gap signup-step-panel signup-step-panel-profile">
-                    <div className="signup-form-grid profile-edit-grid signup-form-grid--profile">
+                  <div className="stack-gap">
+                    <div className="signup-form-grid profile-edit-grid">
                       <label><span>성별</span><select value={demoProfile.gender} onChange={(e) => setDemoProfile((prev) => ({ ...prev, gender: e.target.value }))}>{profileGenderOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
                       <label><span>연령대</span><select value={demoProfile.ageBand} onChange={(e) => setDemoProfile((prev) => ({ ...prev, ageBand: e.target.value }))}>{profileAgeBandOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
                       <label><span>지역</span><select value={demoProfile.regionCode} onChange={(e) => setDemoProfile((prev) => ({ ...prev, regionCode: e.target.value }))}>{profileRegionOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
                       <label className="wide"><span>관심 카테고리</span><div className="chip-checklist">{interestCategoryOptions.map((item) => <button key={item} type="button" className={`chip-check ${demoProfile.interests.includes(item) ? "active" : ""}`} onClick={() => toggleInterestCategory(item)}>{item}</button>)}</div></label>
                     </div>
-                    <div className="copy-action-row signup-action-row signup-action-row--triple">
+                    <div className="copy-action-row">
                       <button type="button" className="ghost-btn" onClick={() => setSignupStep("account")}>이전</button>
                       <button type="button" className="ghost-btn" onClick={() => completeSignupFlow(true)}>선택 정보 없이 가입 완료</button>
                       <button type="button" onClick={() => completeSignupFlow(false)}>회원가입 완료</button>
@@ -4121,7 +3030,7 @@ export default function App() {
 
   return (
     <div className="mobile-app-shell">
-      <header className={`top-header${activeTab === "홈" && homeTab === "쇼츠" && shortsHeaderHidden ? " shorts-top-header-hidden" : ""}`}>
+      <header className="top-header">
         <div className="topbar-row">
           <div className="topbar-side topbar-left">
             <div className="topbar-inline-actions topbar-inline-actions-left">
@@ -4129,8 +3038,8 @@ export default function App() {
                 <MenuIcon />
               </button>
               {visibleHeaderNavItems.map((item) => (
-                <button key={item.label} type="button" className={`header-inline-btn ${item.active ? "active" : ""} ${item.label === "바구니" ? "header-inline-btn-icon-label" : ""}`} onClick={item.onClick} disabled={!item.onClick} aria-label={item.label}>
-                  {item.label === "바구니" ? <CartIcon /> : item.label}
+                <button key={item.label} type="button" className={`header-inline-btn ${item.active ? "active" : ""}`} onClick={item.onClick} disabled={!item.onClick}>
+                  {item.label}
                 </button>
               ))}
             </div>
@@ -4138,20 +3047,20 @@ export default function App() {
           <div className="topbar-side topbar-right">
             <div className="topbar-inline-actions topbar-inline-actions-right">
               <div className="topbar-title-inline" aria-live="polite">{currentScreenTitle}</div>
-              <button className={`header-inline-btn header-icon-btn header-toolbar-btn ${overlayMode === "search" ? "active" : ""}`} onClick={() => openOverlay("search")} aria-label={`${activeTab}검색`} title={`${activeTab}검색`}><SearchIcon /></button>
-              <button className={`header-inline-btn header-icon-btn header-notification-btn header-toolbar-btn ${overlayMode === "notifications" ? "active" : ""}`} onClick={() => openOverlay("notifications")} aria-label={`${activeTab}알림`} title={`${activeTab}알림`}><BellIcon />{unreadNotificationCount > 0 ? <span className="header-badge">{unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}</span> : null}</button>
-              <button className={`header-inline-btn header-icon-btn header-toolbar-btn ${overlayMode === "settings" ? "active" : ""}`} onClick={() => openOverlay("settings")} aria-label={`${activeTab}설정`} title={`${activeTab}설정`}><SettingsIcon /></button>
+              <button className={`header-inline-btn header-icon-btn ${overlayMode === "search" ? "active" : ""}`} onClick={() => openOverlay("search")} aria-label="검색">
+                <SearchIcon />
+              </button>
+              <button className={`header-inline-btn header-icon-btn header-notification-btn ${overlayMode === "notifications" ? "active" : ""}`} onClick={() => openOverlay("notifications")} aria-label="알림">
+                <BellIcon />
+                {unreadNotificationCount > 0 ? <span className="header-badge">{unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}</span> : null}
+              </button>
+              <button className={`header-inline-btn header-icon-btn ${overlayMode === "settings" ? "active" : ""}`} onClick={() => openOverlay("settings")} aria-label="설정">
+                <SettingsIcon />
+              </button>
             </div>
           </div>
         </div>
       </header>
-      {showBaseTabContent && activeTab === "홈" && homeTab === "쇼츠" ? (
-        <div className={`shorts-category-strip${shortsCategoryVisible ? " visible" : ""}`}>
-          {shortsCategories.map((category) => (
-            <button key={category} type="button" className={`shorts-category-chip${selectedShortsCategory === category ? " active" : ""}`} onClick={() => { setSelectedShortsCategory(category); setShortsHeaderHidden(false); setShortsCategoryVisible(true); }}>{category}</button>
-          ))}
-        </div>
-      ) : null}
 
       <main className="mobile-main">
         {showBaseTabContent && reconsentRequired ? (
@@ -4440,13 +3349,47 @@ export default function App() {
           </section>
         ) : null}
 
+        {showBaseTabContent && blockedByIdentity ? (
+          <section className="tab-pane fill-pane auth-gate-pane">
+            <div className="auth-gate-card stack-gap compact-scroll-list auth-entry-pane">
+              <div className="section-head compact-head">
+                <div><h2>로그인 / 회원가입</h2><p>로그인과 회원가입은 상단바·하단바가 없는 별도 화면으로 분리했습니다. 아래 버튼으로 독립 화면으로 이동해 진행할 수 있습니다.</p></div>
+              </div>
+              <div className="legacy-grid two auth-entry-grid">
+                <div className="legacy-box compact auth-entry-card">
+                  <h3>로그인 화면</h3>
+                  <p>테스트 계정 입력, 일반 로그인, 관리자 로그인 확인을 독립 화면에서 진행합니다.</p>
+                  <div className="copy-action-row">
+                    <button type="button" onClick={() => setAuthStandaloneScreen("login")}>로그인 화면 열기</button>
+                  </div>
+                </div>
+                <div className="legacy-box compact auth-entry-card">
+                  <h3>회원가입 화면</h3>
+                  <p>필수 동의 → 가입정보 입력 → 선택 프로필 입력 순서의 별도 회원가입 화면으로 이동합니다.</p>
+                  <div className="copy-action-row">
+                    <button type="button" className="ghost-btn" onClick={() => { setSignupStep("consent"); setAuthStandaloneScreen("signup"); }}>회원가입 화면 열기</button>
+                  </div>
+                </div>
+              </div>
+              <div className="legacy-box compact auth-summary-box">
+                <h3>테스트 계정 바로 입력</h3>
+                <div className="chip-checklist auth-account-chiplist">
+                  <button type="button" className="chip-check" onClick={() => { fillTestAccount("customer@example.com", "customer1234"); setAuthStandaloneScreen("login"); }}>회원 계정</button>
+                  <button type="button" className="chip-check" onClick={() => { fillTestAccount("admin@example.com", "admin1234"); setAuthStandaloneScreen("login"); }}>관리자 계정</button>
+                  <button type="button" className="chip-check" onClick={() => { fillTestAccount("seller@example.com", "seller1234"); setAuthStandaloneScreen("login"); }}>판매자 계정</button>
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : null}
+
         {showBaseTabContent && !blockedByIdentity && requiresAdultGate ? (
           <section className="tab-pane fill-pane adult-gate-pane">
             <div className="adult-gate-card stack-gap compact-scroll-list">
               <div className="section-head compact-head">
                 <div><h2>성인 인증 필요</h2><p>{activeTab} 화면은 최초 1회 성인 인증 완료 후 지속 이용 가능하도록 설계했습니다. 홈 또는 쇼핑 중 하나에서 인증이 완료되면 두 화면 모두 접근 가능합니다.</p></div>
               </div>
-              <div className="legacy-grid three auth-option-grid signup-auth-option-grid">
+              <div className="legacy-grid three auth-option-grid">
                 <div className="legacy-box compact"><h3>성인 인증 안내</h3><p>회원가입 시 PASS/휴대폰 본인확인 완료 후 계정을 생성하고, 성인 회원은 홈 또는 쇼핑 최초 접근 시 1회 추가 성인인증을 진행합니다. 카카오는 로그인 편의 수단으로만 사용합니다.</p><button type="button" className="ghost-btn" onClick={() => setAdultPromptOpen(true)}>성인인증 필요 모달 보기</button></div>
                 <div className="legacy-box compact"><h3>PASS/휴대폰 본인확인 시작</h3><p>실서비스에서는 외부 본인인증 SDK를 호출하고, 현재 데모에서는 흐름만 검증합니다.</p><div className="copy-action-row"><button type="button" onClick={() => attemptAdultVerification("success")}>PASS/휴대폰 인증 성공</button><button type="button" className="ghost-btn" onClick={() => attemptAdultVerification("fail")}>인증 실패</button></div></div>
                 <div className="legacy-box compact"><h3>차단 / 재시도 상태</h3><p>실패 {adultFailCount}회 · {adultCooldownRemainMinutes > 0 ? `${adultCooldownRemainMinutes}분 후 재시도 가능` : "현재 재시도 가능"}</p><button type="button" className="ghost-btn" onClick={() => attemptAdultVerification("minor")}>미성년 차단 화면 확인</button></div>
@@ -4463,33 +3406,35 @@ export default function App() {
         ) : null}
 
         {showAppTabContent && activeTab === "홈" ? (
-          <section className={`tab-pane fill-pane home-feed-pane${homeTab === "쇼츠" ? " home-feed-pane-shorts" : ""}`}>
+          <section className="tab-pane fill-pane home-feed-pane">
             {homeTab === "피드" ? (
               <>
-                <div className="feed-post-list compact-scroll-list">{visibleFeed.map((item, idx) => (<><FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} saved={savedFeedIds.includes(item.id)} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} />{(idx + 1) % 4 === 0 ? <SponsoredFeedProductCard key={`sponsored-${item.id}`} item={sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length]} saved={savedProductIds.includes(sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length].id)} onToggleSave={toggleSavedProduct} /> : null}</>))}</div>
-              </>
-            ) : homeTab === "쇼츠" ? (
-              <>
-                <div className="shorts-list-wrap compact-scroll-list" onScroll={handleShortsScroll}>
-                  {pagedShorts.length ? pagedShorts.map((item) => (
-                    <ShortsListCard
-                      key={`short-${item.id}`}
-                      item={item}
-                      onOpenMore={setShortsMoreItem}
-                      onOpenViewer={openShortsViewer}
-                    />
-                  )) : <div className="legacy-box compact"><p>표시할 쇼츠가 없습니다.</p></div>}
-                  {pagedShorts.length < shortsFeedItems.length ? <div className="shorts-loading-row">쇼츠 10개 단위로 추가 로딩 중</div> : null}
-                </div>
-                {shortsViewerItemId !== null ? (
-                  <ShortsViewer
-                    items={shortsFeedItems}
-                    initialIndex={shortsViewerInitialIndex}
-                    onClose={() => setShortsViewerItemId(null)}
-                    onOpenMore={setShortsMoreItem}
-                    getKeywordTags={getContentKeywordTags}
-                  />
+                <StoryStrip onOpenStory={setSelectedStory} />
+                {selectedStory ? (
+                  <section className="legacy-box story-preview-card">
+                    <div className="split-row"><strong>{selectedStory.name}</strong><button type="button" className="ghost-btn" onClick={() => setSelectedStory(null)}>닫기</button></div>
+                    <p>{storyPreviewText[selectedStory.name] ?? "선택한 스토리의 요약입니다."}</p>
+                  </section>
                 ) : null}
+                <div className="feed-post-list compact-scroll-list">{visibleFeed.map((item, idx) => (<><FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} saved={savedFeedIds.includes(item.id)} onToggleSave={toggleSavedFeed} />{(idx + 1) % 4 === 0 ? <SponsoredFeedProductCard key={`sponsored-${item.id}`} item={sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length]} saved={savedProductIds.includes(sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length].id)} onToggleSave={toggleSavedProduct} /> : null}</>))}</div>
+              </>
+            ) : homeTab === "상품" ? (
+              <>
+                <div className="section-head compact-head"><div><h2>추천 상품</h2><p>홈에서 바로 진입하는 추천 상품 카드 모음입니다.</p></div></div>
+                <div className="content-grid product-grid compact-scroll-list">
+                  {homeProducts.map((product) => (
+                    <article key={product.id} className="product-card">
+                      <div className="product-thumb" />
+                      <span className="product-badge">{product.badge}</span>
+                      <strong>{product.name}</strong>
+                      <p>{product.subtitle}</p>
+                      <div className="product-meta"><span>{product.category}</span><b>{product.price}</b></div>
+                      <div className="product-card-actions">
+                        <button type="button" className="ghost-btn" onClick={() => toggleSavedProduct(product.id)}>{savedProductIds.includes(product.id) ? "보관해제" : "보관함"}</button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
               </>
             ) : (
               <div className="stack-gap compact-scroll-list">
@@ -4501,7 +3446,7 @@ export default function App() {
                 </div>
                 {savedTab === "피드" ? (
                   <div className="feed-post-list compact-scroll-list">
-                    {savedFeedItems.length ? savedFeedItems.map((item) => <FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} saved={true} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} />) : <div className="legacy-box compact"><p>보관한 피드가 없습니다.</p></div>}
+                    {savedFeedItems.length ? savedFeedItems.map((item) => <FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} saved={true} onToggleSave={toggleSavedFeed} />) : <div className="legacy-box compact"><p>보관한 피드가 없습니다.</p></div>}
                   </div>
                 ) : (
                   <div className="content-grid product-grid compact-scroll-list">
@@ -4512,7 +3457,6 @@ export default function App() {
                         <strong>{product.name}</strong>
                         <p>{product.subtitle}</p>
                         <div className="product-meta"><span>{product.category}</span><b>{product.price}</b></div>
-                      <div className="product-submeta"><span>배송비 ₩3,000</span><span>재고 {product.stock_qty ?? 12}개</span></div>
                         <div className="product-card-actions">
                           <button type="button" className="ghost-btn" onClick={() => toggleSavedProduct(product.id)}>보관해제</button>
                         </div>
@@ -4527,185 +3471,60 @@ export default function App() {
 
         {showAppTabContent && activeTab === "쇼핑" ? (
           <section className="tab-pane fill-pane">
-            {shoppingTab === "홈" ? (
-              <div className="compact-scroll-list shop-home-feed-pane" onScroll={handleShopHomeScroll}>
-                <div
-                  className="shop-home-hero-carousel"
-                  aria-label="쇼핑 홈 배너"
-                  onPointerDown={handleShopHomeBannerPointerDown}
-                  onPointerMove={handleShopHomeBannerPointerMove}
-                  onPointerUp={finishShopHomeBannerDrag}
-                  onPointerCancel={finishShopHomeBannerDrag}
-                  onPointerLeave={finishShopHomeBannerDrag}
-                >
-                  <div className="shop-home-hero-track" style={{ transform: `translateX(calc(-${shopHomeBannerIndex * 100}% + ${shopHomeBannerDragOffset}px))`, transition: shopHomeBannerPointerActiveRef.current ? "none" : undefined }}>
-                    {shopHomeHeroSlides.map((item, index) => (
-                      <button
-                        key={`hero-${item.id}-${index}`}
-                        type="button"
-                        className="shop-home-hero-slide"
-                        onClick={() => {
-                          setShopKeyword(item.name);
-                          setSelectedShopCategory("전체");
-                          setShoppingTab("목록");
-                        }}
-                      >
-                        {item.thumbnailUrl ? <img src={item.thumbnailUrl} alt={item.name} className="shop-home-hero-image" /> : null}
-                        <div className={`shop-home-hero-placeholder hero-tone-${(index % 3) + 1}`} />
-                        <div className="shop-home-hero-copy">
-                          <span>{item.category}</span>
-                          <strong>{item.name}</strong>
-                          <p>{item.subtitle || item.badge}</p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                  <div className="shop-home-hero-dots">
-                    {shopHomeHeroSlides.map((item, index) => (
-                      <button
-                        key={`dot-${item.id}-${index}`}
-                        type="button"
-                        className={`shop-home-hero-dot ${index === shopHomeBannerIndex ? "active" : ""}`}
-                        onClick={() => setShopHomeBannerIndex(index)}
-                        aria-label={`${index + 1}번 배너 보기`}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                <div className="shop-home-product-grid">
-                  {shopHomeFeedItems.map((product) => (
-                    <button
-                      key={`shop-feed-${product.id}-${product.feedIndex}`}
-                      type="button"
-                      className="shop-home-product-card"
-                      onClick={() => {
-                        setShopKeyword(product.name);
-                        setSelectedShopCategory("전체");
-                        setShoppingTab("목록");
-                      }}
-                    >
-                      <div className="shop-home-product-thumb">
-                        {product.thumbnailUrl ? <img src={product.thumbnailUrl} alt={product.name} className="shop-home-product-thumb-image" /> : null}
-                        <div className={`shop-home-product-thumb-placeholder hero-tone-${(product.feedIndex % 3) + 1}`} />
-                        <span className="shop-home-product-badge">{product.badge}</span>
-                      </div>
-                      <div className="shop-home-product-meta">
-                        <strong>{product.name}</strong>
-                        <span>리뷰 {product.reviewCount ?? 0}</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
             {shoppingTab === "목록" ? (
               <>
-                <div className="section-head compact-head shop-list-head">
+                <div className="section-head compact-head">
+                  <div><h2>상품 목록</h2><p>카테고리와 검색을 조합해 한 화면 안에서 탐색합니다.</p></div>
                   <div className="section-tools slim-tools">
-                    <input value={shopKeyword} onChange={(e) => setShopKeyword(e.target.value)} placeholder="검색" />
+                    <input value={shopKeyword} onChange={(e) => setShopKeyword(e.target.value)} placeholder="상품명/설명 검색" />
+                    <button type="button" className="ghost-btn" onClick={openProductRegistrationTab}>상품등록</button>
+                    <button type="button" className="ghost-btn" onClick={openBusinessVerificationTab}>사업자인증</button>
                   </div>
                 </div>
                 {reconsentWriteRestricted ? <div className="legacy-box compact"><p>유예기간 없이 최신 필수 문서 재동의가 필요합니다. 먼저 필수 문서 안내 화면에서 재동의 정보를 확인한 뒤 주문·문의·상품등록 같은 쓰기 기능을 진행하세요.</p><div className="copy-action-row"><button type="button" className="ghost-btn" onClick={() => { setHomeShopConsentGuideSeen(true); setOverlayMode("reconsent_info"); }}>필수 문서 안내 열기</button></div></div> : null}
-                <div className="content-grid product-grid compact-scroll-list shop-list-grid-only">
-                  {allShopItems.map((product) => (
-                    <article key={product.id} className="product-card">
-                      <div className="product-thumb" />
-                      <span className="product-badge">{product.badge}</span>
-                      <strong>{product.name}</strong>
-                      <p>{product.subtitle}</p>
-                      <div className="product-meta"><span>{product.category}</span><b>{product.price}</b></div>
-                      <div className="product-submeta"><span>배송비 ₩3,000</span><span>재고 {product.stock_qty ?? 12}개</span></div>
-                      <div className="product-card-actions">
-                        <button type="button" onClick={() => addToCart(product.id)}>장바구니 담기</button>
-                        <button type="button" className="ghost-btn" onClick={() => openProductDetail(product.id)}>상세보기</button>
-                        <button type="button" className="ghost-btn" onClick={() => toggleSavedProduct(product.id)}>{savedProductIds.includes(product.id) ? "보관해제" : "보관함"}</button>
+                <div className="legacy-grid three">
+                  <div className="legacy-box compact"><h3>추천노출 수익화</h3><p>브랜드관/기획전 대신 홈 피드와 질문 피드 사이에 자연스럽게 제품이 노출되는 추천 슬롯만 운영합니다.</p><p>운영 검수 후 문구·이미지·노출 위치를 통제하는 방식으로 설계합니다.</p></div>
+                  <div className="legacy-box compact"><h3>프리미엄 배송 멤버십</h3><p>구매자 회원제 기준으로 익명포장, 빠른 출고, 보호포장, 프리미엄 CS를 묶어 제공합니다.</p><ul className="compact-bullet-list">{premiumMemberBenefits.map((item) => <li key={item}>{item}</li>)}</ul></div>
+                  <div className="legacy-box compact"><h3>앱 내 안전 소통 구조</h3><p>사람을 직접 찾게 하기보다 정보교류와 질문 흐름을 강화해 구매자 유입을 만듭니다.</p><ul className="compact-bullet-list">{safeCommunityIdeas.slice(0, 4).map((item) => <li key={item}>{item}</li>)}</ul></div>
+                </div>
+                <div className="split-layout mobile-split">
+                  <aside className="left-menu always-open">
+                    <button className={`left-link ${selectedShopCategory === "전체" ? "active" : ""}`} onClick={() => setSelectedShopCategory("전체")}>전체 보기</button>
+                    {shopCategories.map((group) => (
+                      <div key={group.group} className="menu-group">
+                        <div className="menu-group-title">{group.icon} {group.group}</div>
+                        {group.items.map((item) => (
+                          <button key={item.name} className={`left-link ${selectedShopCategory === item.name ? "active" : ""}`} onClick={() => setSelectedShopCategory(item.name)}>
+                            <span>{item.name}</span>
+                            <b>{item.count}</b>
+                          </button>
+                        ))}
                       </div>
-                    </article>
-                  ))}
+                    ))}
+                  </aside>
+                  <div className="content-grid product-grid compact-scroll-list">
+                    {allShopItems.map((product) => (
+                      <article key={product.id} className="product-card">
+                        <div className="product-thumb" />
+                        <span className="product-badge">{product.badge}</span>
+                        <strong>{product.name}</strong>
+                        <p>{product.subtitle}</p>
+                        <div className="product-meta"><span>{product.category}</span><b>{product.price}</b></div>
+                        <div className="product-card-actions">
+                          <button type="button" onClick={() => addToCart(product.id)}>장바구니 담기</button>
+                          <button type="button" className="ghost-btn" onClick={() => toggleSavedProduct(product.id)}>{savedProductIds.includes(product.id) ? "보관해제" : "보관함"}</button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
                 </div>
               </>
-            ) : null}
-
-            {shoppingTab === "상품" ? (
-              <div className="stack-gap compact-scroll-list">
-                {productDetail ? (
-                  <>
-                    <div className="legacy-grid two-col compact-grid">
-                      <div className="legacy-box">
-                        <h3>{productDetail.product.name}</h3>
-                        <p><strong>성인용품</strong> · {productDetail.product.category}</p>
-                        <p>{productDetail.product.description || "상품 설명 준비중"}</p>
-                        <p>판매가: <strong>{`₩${Number(productDetail.product.price || 0).toLocaleString()}`}</strong></p>
-                        <p>배송비: <strong>{`₩${Number(productDetail.product.shipping_fee || 3000).toLocaleString()}`}</strong></p>
-                        <p>재고 상태: {Number(productDetail.product.stock_qty || 0) > 0 ? `${Number(productDetail.product.stock_qty || 0)}개 보유` : '품절'}</p>
-                        <p>판매자 정보: {productDetail.seller_contact?.business_name || productDetail.seller_contact?.name || disclosedBusinessInfo.operatorName}</p>
-                        <div className="profile-form-grid">
-                          <label><span>생년월일</span><input type="date" value={adultBirthdate} onChange={(e) => setAdultBirthdate(e.target.value)} /></label>
-                          <label><span>접근 상태</span><input readOnly value={adultGateStatus?.allowed_to_shop ? "쇼핑 가능" : adultGateStatus?.member_status || "미확인"} /></label>
-                        </div>
-                        <div className="product-card-actions">
-                          <button type="button" onClick={() => addToCart(productDetail.product.id)}>장바구니 담기</button>
-                          <button type="button" className="ghost-btn" onClick={verifyAdultSelf}>성인인증 진행</button>
-                        </div>
-                      </div>
-                      <div className="legacy-box">
-                        <h3>결제 테스트 버튼 UI</h3>
-                        <p>장바구니 → 주문 생성 → Verotel 이동 → 완료 확인 흐름을 그대로 점검합니다.</p>
-                        <div className="product-card-actions">
-                          <button type="button" onClick={createOrderForSelectedProduct}>주문 생성</button>
-                          <button type="button" className="ghost-btn" onClick={() => launchVerotelCheckout()}>Verotel 결제 테스트</button>
-                          <button type="button" className="ghost-btn" onClick={() => setShoppingTab("주문")}>주문 탭 열기</button>
-                        </div>
-                        <p className="muted-mini">미성년자는 쇼핑과 결제가 차단됩니다. PASS 실연동 전에는 자체 성인 확인으로 QA 가능합니다.</p>
-                      </div>
-                    </div>
-                    <div className="legacy-grid two-col compact-grid">
-                      <div className="legacy-box compact">
-                        <h3>사이트 상태 준비</h3>
-                        <div className="consent-record-list">
-                          <div className="simple-list-row"><b>상품 표시</b><span>{productDetail.site_ready?.adult_only_label || "성인용품"} 명시</span></div>
-                          <div className="simple-list-row"><b>가격 표시</b><span>{productDetail.site_ready?.price_visible ? "표시 중" : "미표시"}</span></div>
-                          <div className="simple-list-row"><b>결제 버튼</b><span>{productDetail.site_ready?.purchase_button_visible ? "노출 중" : "미노출"}</span></div>
-                          <div className="simple-list-row"><b>불법 상품 차단</b><span>{productDetail.site_ready?.illegal_goods_blocked ? "차단 정책 적용" : "점검 필요"}</span></div>
-                          <div className="simple-list-row"><b>환불정책</b><span>최소 {productDetail.site_ready?.minimum_refund_window_days || 7}일</span></div>
-                        </div>
-                      </div>
-                      <div className="legacy-box compact">
-                        <h3>고객센터 정보</h3>
-                        <div className="consent-record-list">
-                          <div className="simple-list-row"><b>상호명</b><span>{productDetail.seller_contact?.business_name || productDetail.seller_contact?.name || disclosedBusinessInfo.operatorName}</span></div>
-                          <div className="simple-list-row"><b>사업자번호</b><span>{productDetail.seller_contact?.business_registration_no || disclosedBusinessInfo.registrationNo}</span></div>
-                          <div className="simple-list-row"><b>CS 연락처</b><span>{productDetail.seller_contact?.cs_contact || disclosedBusinessInfo.phone}</span></div>
-                          <div className="simple-list-row multi-line"><div><b>주소</b><span>{productDetail.seller_contact?.business_address || disclosedBusinessInfo.address}</span></div></div>
-                          <div className="simple-list-row multi-line"><div><b>반품 주소</b><span>{productDetail.seller_contact?.return_address || disclosedBusinessInfo.address}</span></div></div>
-                          <div className="simple-list-row"><b>문의 이메일</b><span>{productDetail.seller_contact?.support_email || disclosedBusinessInfo.email}</span></div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="legacy-box compact">
-                      <h3>필수 정책 문서</h3>
-                      <div className="notification-policy-links">
-                        <a className="ghost-link-btn" href={`${getApiBase()}/legal/terms-of-service`} target="_blank" rel="noreferrer">이용약관</a>
-                        <a className="ghost-link-btn" href={`${getApiBase()}/legal/privacy-policy`} target="_blank" rel="noreferrer">개인정보 처리방침</a>
-                        <a className="ghost-link-btn" href={`${getApiBase()}/legal/refund-policy`} target="_blank" rel="noreferrer">환불정책</a>
-                        <a className="ghost-link-btn" href={`${getApiBase()}/legal/age-verification-policy`} target="_blank" rel="noreferrer">성인 인증 정책</a>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="legacy-box compact">
-                    <p>상품 목록에서 상세보기를 누르면 상품 상세, 결제 테스트, 정책 링크, 고객센터 정보를 확인할 수 있습니다.</p>
-                  </div>
-                )}
-              </div>
             ) : null}
 
             {shoppingTab === "주문" ? (
               <div className="stack-gap compact-scroll-list">
                 <div className="legacy-grid three">
-                  <div className="legacy-box"><h3>주문 진행</h3><p>주문 {orders.length}건 · 결제대기 {orders.filter((item) => item.status === "payment_pending").length}건 · 결제완료 {orders.filter((item) => item.status === "paid").length}건</p><p>흐름: 장바구니 → 주문서 작성 → 결제 요청 → 결제 완료 → 주문 확인</p></div>
+                  <div className="legacy-box"><h3>주문 진행</h3><p>주문 {orders.length}건 · 결제대기 {orders.filter((item) => item.status === "payment_pending").length}건 · 결제완료 {orders.filter((item) => item.status === "paid").length}건</p></div>
                   <div className="legacy-box"><h3>취소/환불 검증</h3><p>부분 처리 금액 입력값: ₩{Number(orderActionAmount || "0").toLocaleString()}</p></div>
                   <div className="legacy-box"><h3>webhook 점검</h3><p>서명 점검 API와 주문 상태머신을 한 화면에서 검증합니다.</p></div>
                 </div>
@@ -4717,7 +3536,6 @@ export default function App() {
                   </div>
                   <div className="product-card-actions">
                     <button type="button" onClick={confirmSelectedOrder}>선택 주문 결제승인</button>
-                    <button type="button" className="ghost-btn" onClick={() => launchVerotelCheckout()}>Verotel 결제창 열기</button>
                     <button type="button" className="ghost-btn" onClick={() => cancelSelectedOrder(false)}>선택 주문 전체취소</button>
                     <button type="button" className="ghost-btn" onClick={() => cancelSelectedOrder(true)}>선택 주문 부분취소</button>
                     <button type="button" className="ghost-btn" onClick={() => refundSelectedOrder(false)}>선택 주문 전체환불</button>
@@ -4739,20 +3557,6 @@ export default function App() {
                     </div>
                   ) : <p>선택한 주문의 상세 정보가 여기에 표시됩니다.</p>}
                 </div>
-                {checkoutSelectedOrder ? (
-                  <div className="legacy-box compact legal-disclosure-card">
-                    <h3>5. 주문 확인</h3>
-                    <span>주문번호: {checkoutSelectedOrder.order_no}</span>
-                    <span>결제금액: ₩{Number(checkoutSelectedOrder.total_amount || 0).toLocaleString()}</span>
-                    <span>상품 목록: {orderDetail?.items?.length ? orderDetail.items.map((item) => `${item.sku_code || item.product_id} x${item.qty}`).join(' · ') : `${checkoutSelectedOrder.item_count}건`}</span>
-                    <span>결제상태: {checkoutSelectedOrder.status}</span>
-                    <div className="product-card-actions">
-                      <button type="button" onClick={() => setCheckoutStage('order_confirm')}>주문 확인 보기</button>
-                      <button type="button" className="ghost-btn" onClick={() => setShoppingTab('바구니')}>장바구니로</button>
-                    </div>
-                  </div>
-                ) : null}
-
                 <div className="legacy-box">
                   <h3>최근 주문</h3>
                   <div className="chat-list">
@@ -4763,41 +3567,16 @@ export default function App() {
             ) : null}
 
             {shoppingTab === "바구니" ? (
-              <div className="cart-box compact-scroll-list stack-gap">
-                <div className="checkout-stepper">
-                  {checkoutStepMeta.map((item, index) => <div key={item.key} className={`checkout-step-chip ${index <= checkoutStageIndex ? 'active' : ''}`}>{index + 1}. {item.label}</div>)}
-                </div>
-                <div className="legacy-box compact legal-disclosure-card">
-                  <strong>성인 전용 접근 안내</strong>
-                  <span>본 서비스는 만 19세 이상만 이용 가능합니다.</span>
-                  <span>인증 방식: PASS / NICE / Danal 등 본인확인 결과 연동 예정</span>
-                  <span>인증 미완료 시 상품/결제/채팅/커뮤니티 접근이 차단됩니다.</span>
-                </div>
-                <div className="legacy-box compact">
-                  <h3>1. 장바구니</h3>
-                  {cartDetailedItems.length ? cartDetailedItems.map((item) => (
-                    <div key={item.productId} className="cart-row"><div><strong>{item.product.name}</strong><span>{item.product.category} · 수량 {item.qty}</span></div><b>₩{(Number(item.product.price || 0) * item.qty).toLocaleString()}</b></div>
-                  )) : cartSeed.map((item) => (
-                    <div key={item.id} className="cart-row"><div><strong>{item.name}</strong><span>{item.option} · 수량 {item.qty}</span></div><b>{item.price}</b></div>
-                  ))}
-                  <div className="cart-summary"><span>총 결제 예정</span><strong>{cartDetailedItems.length ? `₩${cartTotalAmount.toLocaleString()}` : '₩112,500'}</strong></div>
-                  <div className="product-card-actions">
-                    <button type="button" onClick={() => setCheckoutStage('order_form')}>주문서 작성</button>
-                    <button type="button" className="ghost-btn" onClick={() => { setCheckoutStage('payment_request'); createOrderFromCart(); }}>주문하기</button>
-                  </div>
-                </div>
-                <div className="legacy-box compact">
-                  <h3>2. 주문서 작성</h3>
-                  <div className="profile-form-grid">
-                    <label><span>수령인</span><input value={checkoutDraft.recipientName} onChange={(e) => setCheckoutDraft((prev) => ({ ...prev, recipientName: e.target.value }))} /></label>
-                    <label><span>연락처</span><input value={checkoutDraft.phone} onChange={(e) => setCheckoutDraft((prev) => ({ ...prev, phone: e.target.value }))} /></label>
-                    <label className="wide"><span>이메일</span><input value={checkoutDraft.email} onChange={(e) => setCheckoutDraft((prev) => ({ ...prev, email: e.target.value }))} /></label>
-                    <label className="wide"><span>주소</span><input value={checkoutDraft.address} onChange={(e) => setCheckoutDraft((prev) => ({ ...prev, address: e.target.value }))} /></label>
-                    <label className="wide"><span>배송 요청사항</span><input value={checkoutDraft.requestNote} onChange={(e) => setCheckoutDraft((prev) => ({ ...prev, requestNote: e.target.value }))} /></label>
-                  </div>
-                  <div className="notification-policy-links legal-link-row">
-                    {legalQuickLinks.map((item) => <a key={item.key} className="ghost-link-btn" href={item.href} target="_blank" rel="noreferrer">{item.label}</a>)}
-                  </div>
+              <div className="cart-box compact-scroll-list">
+                {cartDetailedItems.length ? cartDetailedItems.map((item) => (
+                  <div key={item.productId} className="cart-row"><div><strong>{item.product.name}</strong><span>{item.product.category} · 수량 {item.qty}</span></div><b>₩{(Number(item.product.price || 0) * item.qty).toLocaleString()}</b></div>
+                )) : cartSeed.map((item) => (
+                  <div key={item.id} className="cart-row"><div><strong>{item.name}</strong><span>{item.option} · 수량 {item.qty}</span></div><b>{item.price}</b></div>
+                ))}
+                <div className="cart-summary"><span>총 결제 예정</span><strong>{cartDetailedItems.length ? `₩${cartTotalAmount.toLocaleString()}` : '₩112,500'}</strong></div>
+                <div className="product-card-actions">
+                  <button type="button" onClick={createOrderFromCart}>주문 생성</button>
+                  <button type="button" className="ghost-btn" onClick={() => setShoppingTab('주문')}>주문 탭 보기</button>
                 </div>
                 {orderMessage ? <p className="muted-mini">{orderMessage}</p> : null}
               </div>
@@ -5149,87 +3928,54 @@ export default function App() {
         ) : null}
 
                 {showAppTabContent && activeTab === "프로필" ? (
-          <section className="tab-pane fill-pane profile-pane-instagram">
-            <div className="profile-ig-shell compact-scroll-list">
-              <div className="profile-ig-header">
-                <div className="profile-ig-avatar-wrap">
-                  <div className="profile-ig-avatar">A</div>
-                </div>
-                <div className="profile-ig-main">
-                  <div className="profile-ig-topline">
-                    <strong className="profile-ig-username">adult official</strong>
-                    <button type="button" className="ghost-btn profile-ig-mini-btn" onClick={() => setAuthStandaloneScreen("login")}>프로필 편집</button>
-                  </div>
-                  <div className="profile-ig-stats">
-                    <div><b>94</b><span>게시물</span></div>
-                    <div><b>2,184</b><span>팔로워</span></div>
-                    <div><b>318</b><span>팔로잉</span></div>
-                  </div>
-                  <div className="profile-ig-bio">
-                    <strong>adult official</strong>
-                    <p>운영 · 브랜드 · 셀러 큐레이션을 한 곳에서 정리하는 공식 계정입니다.</p>
-                    <span>#브랜드 #추천 #리뷰 #쇼핑</span>
-                  </div>
+          <section className="tab-pane fill-pane">
+            <div className="profile-shell compact-scroll-list profile-shell-single">
+              <div className="profile-card">
+                <div className="profile-avatar">A</div>
+                <strong>adult official</strong>
+                <span>운영/브랜드/판매자 통합 프로필 예시</span>
+                <div className="profile-stats">
+                  {profileStats.map((stat) => (
+                    <div key={stat.label}><b>{stat.value}</b><span>{stat.label}</span></div>
+                  ))}
                 </div>
               </div>
-
-              <div className="profile-ig-actions">
-                <button type="button">공유하기</button>
-                <button type="button" className="ghost-btn" onClick={() => setActiveTab("쇼핑")}>상품 보기</button>
-                <button type="button" className="ghost-btn" onClick={() => setActiveTab("채팅")}>문의하기</button>
-              </div>
-
-              <div className="profile-ig-highlights">
-                {[
-                  { label: "추천", sub: "오늘의 픽" },
-                  { label: "리뷰", sub: "후기 모음" },
-                  { label: "브랜드", sub: "공식관" },
-                  { label: "케어", sub: "관리 팁" },
-                ].map((item) => (
-                  <button type="button" key={item.label} className="profile-ig-highlight">
-                    <span>{item.label.slice(0, 1)}</span>
-                    <b>{item.label}</b>
-                    <small>{item.sub}</small>
-                  </button>
-                ))}
-              </div>
-
-              <div className="profile-support-card">
-                <div className="profile-support-card__head">
-                  <strong>고객센터 · 사업자 정보</strong>
-                  <span>{disclosedBusinessInfo.email}</span>
+              <div className="profile-card auth-status-card">
+                <strong>회원가입 / 인증 상태</strong>
+                <span>로그인 수단: {demoLoginProvider} · 가입 전 본인확인: {identityVerified ? `${identityMethod} 완료` : "미완료"} · 성인인증: {adultVerified ? "완료" : "미완료"}</span>
+                <div className="profile-stats">
+                  <div><b>{adultFailCount}</b><span>실패횟수</span></div>
+                  <div><b>{adultCooldownRemainMinutes > 0 ? `${adultCooldownRemainMinutes}분` : "없음"}</b><span>쿨타임</span></div>
+                  <div><b>{randomProfileReady ? "완료" : "보완필요"}</b><span>포럼 심사 참고값</span></div>
                 </div>
-                <div className="profile-support-card__grid">
-                  <span><b>상호명</b>{disclosedBusinessInfo.operatorName}</span>
-                  <span><b>대표자</b>{disclosedBusinessInfo.representative}</span>
-                  <span><b>사업자번호</b>{disclosedBusinessInfo.registrationNo}</span>
-                  <span><b>연락처</b>{disclosedBusinessInfo.phone}</span>
-                  <span className="wide"><b>주소</b>{disclosedBusinessInfo.address}</span>
-                </div>
-                <div className="profile-support-card__links">
-                  <a className="ghost-link-btn" href={`mailto:${disclosedBusinessInfo.email}`}>문의 이메일</a>
-                  {legalQuickLinks.map((item) => <a key={item.key} className="ghost-link-btn" href={item.href} target="_blank" rel="noreferrer">{item.label}</a>)}
+                <div className="copy-action-row">
+                  <button type="button" onClick={() => setAuthStandaloneScreen("login")}>로그인 화면</button>
+                  <button type="button" className="ghost-btn" onClick={() => { setSignupStep("consent"); setAuthStandaloneScreen("signup"); }}>회원가입 화면</button>
+                  <button type="button" className="ghost-btn" onClick={() => startIdentitySignup("PASS")}>PASS 인증</button>
+                  <button type="button" className="ghost-btn" onClick={() => setDemoLoginProvider("카카오")}>카카오 로그인</button>
+                  <button type="button" onClick={() => attemptAdultVerification("success")}>성인인증 성공</button>
+                  <button type="button" className="ghost-btn" onClick={resetAdultFlow}>상태 초기화</button>
                 </div>
               </div>
-
-              <div className="profile-ig-tabbar" aria-label="프로필 탭">
-                <button type="button" className="active">게시물</button>
-                <button type="button">릴스</button>
-                <button type="button">태그됨</button>
+              <div className="profile-card auth-status-card">
+                <strong>선택 프로필 / 제한 포럼 심사용 참고값</strong>
+                <span>성별, 연령대, 지역은 일반 가입 단계에서는 선택 입력이며, 제한 웹 포럼 운영 시에는 내부 심사/안전 운영 참고 정보로만 사용합니다.</span>
+                <div className="signup-form-grid profile-edit-grid">
+                  <label><span>성별</span><select value={demoProfile.gender} onChange={(e) => setDemoProfile((prev) => ({ ...prev, gender: e.target.value }))}>{profileGenderOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
+                  <label><span>연령대</span><select value={demoProfile.ageBand} onChange={(e) => setDemoProfile((prev) => ({ ...prev, ageBand: e.target.value }))}>{profileAgeBandOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
+                  <label><span>지역</span><select value={demoProfile.regionCode} onChange={(e) => setDemoProfile((prev) => ({ ...prev, regionCode: e.target.value }))}>{profileRegionOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
+                  <label className="wide"><span>관심 카테고리</span><div className="chip-checklist">{interestCategoryOptions.map((item) => <button key={item} type="button" className={`chip-check ${demoProfile.interests.includes(item) ? "active" : ""}`} onClick={() => toggleInterestCategory(item)}>{item}</button>)}</div></label>
+                </div>
+                {!randomProfileReady ? <p>미입력 항목: {randomProfileMissing.join(", ")} · 미입력 시에도 앱 공개영역 이용은 가능하지만, 제한 웹 포럼 승인 심사 시 보완 요청이 발생할 수 있습니다.</p> : <p>제한 웹 포럼 심사용 선택 프로필 입력이 완료되었습니다.</p>}
               </div>
-
-              <div className="profile-ig-grid">
-                {feedSeed.filter((item) => item.type === "image").slice(0, 12).map((item) => (
-                  <article key={item.id} className={`profile-ig-tile ${item.accent}`}>
-                    <div className="profile-ig-tile-media">
-                      <span>{item.category}</span>
-                    </div>
-                    <div className="profile-ig-tile-meta">
-                      <strong>{item.title}</strong>
-                      <span>♥ {item.likes} · 💬 {item.comments}</span>
-                    </div>
-                  </article>
-                ))}
+              <div className="profile-card auth-status-card">
+                <strong>동의 이력 저장 예시</strong>
+                <span>필수·선택 동의를 분리 저장하고, 약관/처리방침 버전을 함께 기록하는 구조를 권장합니다.</span>
+                <div className="consent-record-list">
+                  {consentRecordsPreview.map((item) => (
+                    <div key={item.consent_type} className="simple-list-row"><b>{item.consent_type}</b><span>{item.agreed ? "동의" : "미동의"} · {item.required ? "필수" : "선택"} · {item.version}</span></div>
+                  ))}
+                </div>
               </div>
             </div>
           </section>
@@ -5268,34 +4014,7 @@ export default function App() {
         </section>
       ) : null}
 
-              {shortsMoreItem ? (
-          <div className="shorts-sheet-backdrop" onClick={() => setShortsMoreItem(null)}>
-            <div className="shorts-sheet" onClick={(event) => event.stopPropagation()}>
-              <div className="shorts-sheet-handle" />
-              <div className="shorts-sheet-header">
-                <strong>{shortsMoreItem.title}</strong>
-                <span>{shortsMoreItem.author}</span>
-              </div>
-              <div className="shorts-sheet-actions">
-                {(["공유", "보관함저장", "관심없음", "채널 추천 안함", "신고"] as ShortOption[]).map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    className="shorts-sheet-btn"
-                    onClick={() => {
-                      if (option === "보관함저장") toggleSavedFeed(shortsMoreItem.id);
-                      setShortsMoreItem(null);
-                    }}
-                  >
-                    {option}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-{adultPromptOpen ? (
+      {adultPromptOpen ? (
         <div className="modal-backdrop">
           <div className="modal-card adult-auth-modal">
             <div className="modal-header-row">
@@ -5317,31 +4036,12 @@ export default function App() {
         </div>
       ) : null}
 
-      {activeTab !== "홈" ? (
-      <footer className="business-info-footer app-global-footer">
-        <div className="business-footer-title-row">
-          <strong>사업자 정보 · 고객센터</strong>
-          <span>문의 이메일 {disclosedBusinessInfo.email}</span>
-        </div>
-        <div className="business-footer-grid">
-          <span>상호명 {disclosedBusinessInfo.operatorName}</span>
-          <span>대표자 {disclosedBusinessInfo.representative}</span>
-          <span>사업자번호 {disclosedBusinessInfo.registrationNo}</span>
-          <span>연락처 {disclosedBusinessInfo.phone}</span>
-          <span>주소 {disclosedBusinessInfo.address}</span>
-        </div>
-        <div className="legal-fixed-links app-legal-links">
-          {legalQuickLinks.map((item) => <a key={item.key} className="ghost-link-btn" href={item.href} target="_blank" rel="noreferrer">{item.label}</a>)}
-        </div>
-      </footer>
-      ) : null}
-
-      <nav className="bottom-nav">{mobileTabs.map((tab) => (
+      <nav className="bottom-nav">        {mobileTabs.map((tab) => (
           <button key={tab} className={`bottom-nav-btn ${overlayMode === null && activeTab === tab ? "active" : ""}`} onClick={() => selectBottomTab(tab)}>
-            <span className="bottom-nav-icon">{bottomNavIconMap[tab]}</span>
-            <span className="bottom-nav-label">{tab}</span>
+            <span>{tab}</span>
           </button>
-        ))}</nav>
+        ))}
+      </nav>
 
       {selectedAskProfile ? <AskProfileScreen profile={selectedAskProfile} onClose={() => setSelectedAskProfile(null)} /> : null}
 
@@ -5357,7 +4057,7 @@ export default function App() {
                 <p><b>{pendingDmUser.name}</b> 님에게 <b>{pendingDmUser.topic}</b> 주제로 1:1 대화를 요청합니다.</p>
                 <p>요청 전에 아래 대화 규칙 동의가 필요합니다.</p>
               </div>
-              <div className="consent-checklist signup-consent-checklist">
+              <div className="consent-checklist">
                 {dmRuleNoticeItems.map((item) => (
                   <label key={item} className="consent-row">
                     <input type="checkbox" checked={!!dmRuleChecks[item]} onChange={(e) => setDmRuleChecks((prev) => ({ ...prev, [item]: e.target.checked }))} />
