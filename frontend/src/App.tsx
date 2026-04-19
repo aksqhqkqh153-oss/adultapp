@@ -1884,11 +1884,6 @@ function AskProfileScreen({ profile, activeTab, onClose, onNavigate, renderBotto
             </div>
           ))}
         </section>
-
-        <section className="asked-question-highlight">
-          <strong>질문 화면 안내</strong>
-          <p>{profile.highlight}</p>
-        </section>
       </div>
       <nav className="bottom-nav question-overlay-bottom-nav">
         {mobileTabs.map((tab) => {
@@ -2711,6 +2706,10 @@ export default function App() {
   const [shoppingTab, setShoppingTab] = useState<ShoppingTab>("홈");
   const [communityTab, setCommunityTab] = useState<CommunityTab>("커뮤");
   const [chatTab, setChatTab] = useState<ChatTab>("채팅");
+  const [chatQuestionDraft, setChatQuestionDraft] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return window.localStorage.getItem("adultapp_chat_question_draft") ?? "";
+  });
   const [chatCategory, setChatCategory] = useState<ChatCategory>("전체");
   const [profileTab, setProfileTab] = useState<ProfileTab>("내정보");
   const [settingsCategory, setSettingsCategory] = useState<SettingsCategory>("일반");
@@ -3786,6 +3785,11 @@ export default function App() {
   }, [allShopItems, currentProfileAuthor]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_chat_question_draft", chatQuestionDraft);
+  }, [chatQuestionDraft]);
+
+  useEffect(() => {
     if (activeTab !== "쇼핑" || shoppingTab !== "홈") return;
     setShopHomeVisibleCount(30);
     setShopHomeBannerIndex(0);
@@ -3856,28 +3860,6 @@ export default function App() {
   const handleShopHomeGridPointerMove = (event: PointerEvent<HTMLDivElement>) => {
     if (!shopHomeGridDraggingRef.current || shopHomeGridDragStartYRef.current === null) return;
     const deltaY = event.clientY - shopHomeGridDragStartYRef.current;
-    if (Math.abs(deltaY) > 4) {
-      shopHomeGridHasDraggedRef.current = true;
-      shopHomeGridSuppressClickUntilRef.current = Date.now() + 260;
-    }
-    event.currentTarget.scrollTop = shopHomeGridDragStartScrollTopRef.current - deltaY;
-    event.preventDefault();
-  };
-
-  const handleShopHomeGridTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
-    const touch = event.touches[0];
-    if (!touch) return;
-    shopHomeGridHasDraggedRef.current = false;
-    shopHomeGridDraggingRef.current = true;
-    setShopHomeGridDragging(true);
-    shopHomeGridDragStartYRef.current = touch.clientY;
-    shopHomeGridDragStartScrollTopRef.current = event.currentTarget.scrollTop;
-  };
-
-  const handleShopHomeGridTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
-    const touch = event.touches[0];
-    if (!touch || !shopHomeGridDraggingRef.current || shopHomeGridDragStartYRef.current === null) return;
-    const deltaY = touch.clientY - shopHomeGridDragStartYRef.current;
     if (Math.abs(deltaY) > 4) {
       shopHomeGridHasDraggedRef.current = true;
       shopHomeGridSuppressClickUntilRef.current = Date.now() + 260;
@@ -4953,11 +4935,11 @@ export default function App() {
       return homeTabs.map((tab) => ({ label: tab, active: homeTab === tab, onClick: () => setHomeTab(tab) }));
     }
     if (activeTab === "쇼핑") {
-      return [{
-        label: "홈",
-        active: shoppingTab === "홈",
-        onClick: () => setShoppingTab("홈"),
-      }];
+      return [
+        { label: "홈", active: shoppingTab === "홈", onClick: () => setShoppingTab("홈") },
+        { label: "주문", active: shoppingTab === "주문", onClick: () => setShoppingTab("주문") },
+        { label: "바구니", active: shoppingTab === "바구니", onClick: () => setShoppingTab("바구니") },
+      ];
     }
     if (activeTab === "소통") {
       return communityTabs.map((tab) => ({ label: tab, active: communityTab === tab, onClick: () => setCommunityTab(tab) }));
@@ -5787,10 +5769,30 @@ export default function App() {
           <section className={`tab-pane fill-pane home-feed-pane${homeTab === "쇼츠" ? " home-feed-pane-shorts" : ""}`}>
             {homeTab === "피드" ? (
               <>
+                <div className="creator-launch-strip creator-launch-strip-feed">
+                  <div>
+                    <strong>피드 작성</strong>
+                    <span>새 피드 이미지/영상과 설명을 등록하는 업로드 시작 버튼입니다.</span>
+                  </div>
+                  <label className="creator-launch-btn">
+                    피드 작성
+                    <input type="file" accept="image/*,video/*" hidden onChange={(event) => { const fileName = event.target.files?.[0]?.name; if (fileName) window.alert(`피드 업로드 준비: ${fileName}`); event.currentTarget.value = ""; }} />
+                  </label>
+                </div>
                 <div className="feed-post-list compact-scroll-list" ref={homeFeedScrollRef}>{visibleFeed.map((item, idx) => (<div key={`feed-wrap-${item.id}`}><FeedPoster item={item} onAsk={openAskFromFeed} saved={savedFeedIds.includes(item.id)} liked={likedFeedIds.includes(item.id)} commentsOpen={openFeedCommentItem?.id === item.id} onOpenComments={openFeedComments} onToggleLike={toggleLikedFeed} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} following={followedFeedAuthors.includes(item.author)} onToggleFollow={toggleFollowedFeedAuthor} />{(idx + 1) % 4 === 0 ? <SponsoredFeedProductCard item={sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length]} saved={savedProductIds.includes(sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length].id)} onToggleSave={toggleSavedProduct} /> : null}</div>))}{hasMoreHomeFeed ? <div ref={homeFeedSentinelRef} className="feed-loading-row">추천 피드 불러오는 중</div> : <div className="feed-loading-row feed-loading-row-end">추천 피드를 모두 확인했습니다.</div>}</div>
               </>
             ) : homeTab === "쇼츠" ? (
               <>
+                <div className="creator-launch-strip creator-launch-strip-shorts">
+                  <div>
+                    <strong>쇼츠 업로드</strong>
+                    <span>즐겨찾기 영역 위에서 바로 쇼츠 영상을 선택할 수 있습니다.</span>
+                  </div>
+                  <label className="creator-launch-btn">
+                    쇼츠 올리기
+                    <input type="file" accept="video/*" hidden onChange={(event) => { const fileName = event.target.files?.[0]?.name; if (fileName) window.alert(`쇼츠 업로드 준비: ${fileName}`); event.currentTarget.value = ""; }} />
+                  </label>
+                </div>
                 <div className="shorts-list-wrap compact-scroll-list" onScroll={handleShortsScroll}>
                   {pagedShorts.length ? pagedShorts.map((item) => (
                     <ShortsListCard
@@ -5899,7 +5901,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <div ref={shopHomeGridScrollRef} className={`shop-home-product-grid-scroll compact-scroll-list ${shopHomeGridDragging ? "dragging" : ""}`} onScroll={handleShopHomeScroll} onPointerDown={handleShopHomeGridPointerDown} onPointerMove={handleShopHomeGridPointerMove} onPointerUp={finishShopHomeGridPointerDrag} onPointerCancel={finishShopHomeGridPointerDrag} onPointerLeave={finishShopHomeGridPointerDrag} onTouchStart={handleShopHomeGridTouchStart} onTouchMove={handleShopHomeGridTouchMove} onTouchEnd={finishShopHomeGridTouchDrag} onTouchCancel={finishShopHomeGridTouchDrag}>
+                <div ref={shopHomeGridScrollRef} className={`shop-home-product-grid-scroll compact-scroll-list ${shopHomeGridDragging ? "dragging" : ""}`} onScroll={handleShopHomeScroll} onPointerDown={handleShopHomeGridPointerDown} onPointerMove={handleShopHomeGridPointerMove} onPointerUp={finishShopHomeGridPointerDrag} onPointerCancel={finishShopHomeGridPointerDrag} onPointerLeave={finishShopHomeGridPointerDrag}>
                   <div className="shop-home-product-grid">
                     {shopHomeFeedItems.map((product) => (
                       <button
@@ -6405,46 +6407,60 @@ export default function App() {
           <section className="tab-pane fill-pane">
             {chatTab === "질문" ? (
               <div className="question-board compact-scroll-list">
-                <div className="section-head compact-head"><div><h2>질문</h2><p>historyprofile 질문 화면 흐름을 참고한 카드형 질문/답변 화면입니다.</p></div></div>
-                <div className="question-profile-hero">
-                  <div className="question-profile-copy">
-                    <strong>adult official · 질문 프로필</strong>
-                    <p>질문을 받고 답변을 공개 카드로 정리하는 화면 예시입니다.</p>
+                <section className="asked-question-profile-header">
+                  <div className="asked-question-profile-card asked-question-profile-card-inline">
+                    <div className="asked-question-avatar">{currentProfileMeta.name.slice(0, 1).toUpperCase()}</div>
+                    <div className="asked-question-copy">
+                      <div className="asked-question-copy-head">
+                        <div className="asked-question-copy-main">
+                          <button type="button" className="feed-author-link asked-profile-name-btn" onClick={() => openProfileFromAuthor(currentProfileMeta.name)}>{currentProfileMeta.name}</button>
+                          <span>{currentProfileMeta.headline}</span>
+                        </div>
+                        <div className="asked-question-toolbar asked-question-toolbar-inline">
+                          <button type="button" onClick={() => toggleFollowedFeedAuthor(currentProfileMeta.name)}>{followedFeedAuthors.includes(currentProfileMeta.name) ? "팔로잉" : "팔로우"}</button>
+                          <button type="button" className="ghost-btn">공유</button>
+                        </div>
+                      </div>
+                      <p>{currentProfileMeta.bio}</p>
+                    </div>
                   </div>
-                  <div className="question-profile-actions">
-                    <button>질문하기</button>
-                    <button className="ghost-btn">공유</button>
-                  </div>
-                </div>
-                <div className="question-list">
-                  {filteredQuestions.map((item, idx) => (
-                    <>
-                      <article key={item.id} className="question-feed-card">
-                        <div className="question-feed-top">
-                          <div>
-                            <div className="question-user-line">
-                              <span className="community-chip">질문</span>
-                              <strong>{item.author}</strong>
-                              <span className="community-meta">{item.meta}</span>
-                            </div>
-                            <div className="question-body">Q. {item.question}</div>
-                          </div>
-                        </div>
-                        <div className="question-answer-box">
-                          <span className="product-badge">답변</span>
-                          <div className="question-body">{item.answer}</div>
-                        </div>
-                        <div className="question-footer-actions">
-                          <button>좋아요 {item.likes}</button>
-                          <button>댓글 {item.comments}</button>
-                          <button>공유</button>
-                          <button>저장</button>
-                        </div>
-                      </article>
+                </section>
 
-                    </>
+                <section className="asked-question-form">
+                  <label>질문 내용</label>
+                  <textarea value={chatQuestionDraft} onChange={(e) => setChatQuestionDraft(e.target.value)} placeholder="상대에게 남길 질문을 입력하세요." />
+                  <div className="asked-question-draft-note">작성 중인 질문은 임시저장됩니다.</div>
+                  <div className="asked-question-form-actions">
+                    <button type="button">익명으로 질문</button>
+                    <button type="button" className="ghost-btn" onClick={() => { setChatQuestionDraft(""); if (typeof window !== "undefined") window.localStorage.removeItem("adultapp_chat_question_draft"); window.alert("질문이 등록되었습니다."); }}>질문 등록</button>
+                  </div>
+                </section>
+
+                <section className="question-list">
+                  {filteredQuestions.map((item) => (
+                    <article key={item.id} className="question-feed-card">
+                      <div className="question-feed-top">
+                        <div>
+                          <div className="question-user-line">
+                            <span className="community-chip">질문</span>
+                            <strong>{item.author}</strong>
+                            <span className="community-meta">{item.meta}</span>
+                          </div>
+                          <div className="question-body">Q. {item.question}</div>
+                        </div>
+                      </div>
+                      <div className="question-answer-box">
+                        <span className="product-badge">답변</span>
+                        <div className="question-body">{item.answer}</div>
+                      </div>
+                      <div className="question-footer-actions">
+                        <button>좋아요 {item.likes}</button>
+                        <button>댓글 {item.comments}</button>
+                        <button>공유</button>
+                      </div>
+                    </article>
                   ))}
-                </div>
+                </section>
               </div>
             ) : (
               <>
