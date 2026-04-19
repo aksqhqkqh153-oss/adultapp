@@ -4219,7 +4219,7 @@ pre,
 .shorts-viewer-action-btn.active svg { color:#fff !important; fill: currentColor; }
 #app-boot-splash { position:fixed; inset:0; background:#000; display:grid; place-items:center; z-index:9999; transition:opacity .25s ease, visibility .25s ease; }
 #app-boot-splash.is-hidden { opacity:0; visibility:hidden; pointer-events:none; }
-.app-boot-splash__logo { width:120px; height:120px; object-fit:cover; border-radius:28px; box-shadow:0 0 0 1px rgba(255,255,255,0.1); background:#111; }
+.app-boot-splash__logo { width:min(74vw,420px); height:auto; max-width:420px; max-height:82vh; object-fit:contain; border-radius:0; box-shadow:none; background:transparent; }
 .shop-home-hero-dots button { width:8px !important; height:8px !important; min-width:8px !important; min-height:8px !important; padding:0 !important; border-radius:999px; }
 
 
