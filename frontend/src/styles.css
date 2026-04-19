@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap");
+
 :root {
   font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: #f4f4f5;
@@ -4606,4 +4608,249 @@ pre,
 .shorts-category-chip {
   min-height: 32px;
   font-weight: 700;
+}
+
+
+/* 2026-04-19 premium pink header/nav + font + shop hero restore */
+:root {
+  --app-font-family: "Noto Sans KR", "Pretendard Variable", "Pretendard", "SUIT Variable", "SUIT", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --pink-1: #ffb6d4;
+  --pink-2: #ff86bb;
+  --pink-3: #ff5aa3;
+  --pink-4: #ff3d95;
+  --pink-glow: rgba(255, 122, 182, 0.34);
+  --pink-glow-strong: rgba(255, 122, 182, 0.52);
+}
+
+html,
+body,
+#root,
+button,
+input,
+select,
+textarea {
+  font-family: var(--app-font-family) !important;
+}
+
+body {
+  font-weight: 500;
+  letter-spacing: -0.018em;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.top-header .header-inline-btn:not(.header-icon-btn) {
+  font-weight: 500 !important;
+  color: rgba(255,255,255,0.88) !important;
+}
+
+.top-header .header-inline-btn.active:not(.header-icon-btn):not(.header-inline-btn-icon-label) {
+  color: transparent !important;
+  background-image: linear-gradient(135deg, var(--pink-1) 0%, var(--pink-2) 34%, var(--pink-3) 66%, var(--pink-4) 100%) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  font-weight: 800 !important;
+  text-shadow: 0 0 18px rgba(255, 122, 182, 0.18);
+}
+
+.top-header .header-inline-btn.active.header-inline-btn-icon-label {
+  background: linear-gradient(135deg, rgba(255, 182, 212, 0.16), rgba(255, 61, 149, 0.1)) !important;
+  border-color: rgba(255, 134, 187, 0.26) !important;
+  color: var(--pink-2) !important;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03), 0 6px 18px rgba(255, 90, 163, 0.12);
+}
+
+.top-header .header-inline-btn.active.header-inline-btn-icon-label svg,
+.top-header .header-toolbar-btn.active svg,
+.top-header .header-icon-btn.active svg {
+  color: var(--pink-2) !important;
+  filter: drop-shadow(0 0 8px rgba(255, 122, 182, 0.24));
+}
+
+.top-header .header-toolbar-btn.active,
+.top-header .header-icon-btn.active {
+  background: linear-gradient(135deg, rgba(255, 182, 212, 0.12), rgba(255, 61, 149, 0.08)) !important;
+  border-color: rgba(255, 134, 187, 0.24) !important;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03), 0 8px 18px rgba(255, 90, 163, 0.1);
+}
+
+.shorts-category-chip,
+.legacy-nav-btn,
+.chat-category-btn,
+.settings-category-btn,
+.toggle-pill,
+.feed-follow-btn,
+.feed-question-btn {
+  font-weight: 600;
+}
+
+.shorts-category-chip.active,
+.legacy-nav-btn.active,
+.chat-category-btn.active {
+  background: linear-gradient(135deg, rgba(255, 182, 212, 0.14), rgba(255, 61, 149, 0.1)) !important;
+  border-color: rgba(255, 134, 187, 0.28) !important;
+  color: var(--pink-2) !important;
+  box-shadow: 0 8px 20px rgba(255, 90, 163, 0.12);
+}
+
+.bottom-nav {
+  background: linear-gradient(180deg, rgba(14, 10, 14, 0.98) 0%, rgba(0, 0, 0, 0.985) 100%) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.07) !important;
+}
+
+.bottom-nav-btn {
+  position: relative;
+  overflow: hidden;
+  color: rgba(255,255,255,0.54) !important;
+  transition: color .2s ease, background .2s ease, transform .2s ease;
+}
+
+.bottom-nav-btn::before {
+  content: "";
+  position: absolute;
+  inset: 8px 10px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(255, 182, 212, 0), rgba(255, 61, 149, 0));
+  opacity: 0;
+  transition: opacity .22s ease, background .22s ease, box-shadow .22s ease;
+}
+
+.bottom-nav-btn > * {
+  position: relative;
+  z-index: 1;
+}
+
+.bottom-nav-btn.active {
+  color: var(--pink-2) !important;
+  background: transparent !important;
+}
+
+.bottom-nav-btn.active::before {
+  opacity: 1;
+  background: linear-gradient(180deg, rgba(255, 182, 212, 0.12) 0%, rgba(255, 61, 149, 0.08) 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 134, 187, 0.16), 0 10px 24px rgba(255, 90, 163, 0.08);
+}
+
+.bottom-nav-btn.active .bottom-nav-label {
+  color: transparent !important;
+  background-image: linear-gradient(135deg, var(--pink-1) 0%, var(--pink-2) 45%, var(--pink-4) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.bottom-nav-btn.active .bottom-nav-icon,
+.bottom-nav-btn.active .bottom-nav-icon svg,
+.bottom-nav-btn.active .bottom-nav-icon svg [stroke],
+.bottom-nav-btn.active .bottom-nav-icon svg [fill] {
+  color: var(--pink-2) !important;
+  stroke: currentColor !important;
+  fill: currentColor;
+  filter: drop-shadow(0 0 10px rgba(255, 122, 182, 0.18));
+}
+
+.topbar-title-inline,
+.section-head h2,
+.history-feed-profile strong,
+.product-card strong,
+.shop-home-product-meta strong,
+.shop-home-hero-copy strong {
+  letter-spacing: -0.03em;
+}
+
+.shop-home-feed-pane {
+  position: relative;
+}
+
+.shop-home-hero-carousel {
+  display: block !important;
+  position: sticky;
+  top: 8px;
+  min-height: min(420px, calc(100dvh - 220px));
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  visibility: visible !important;
+  opacity: 1 !important;
+  background:
+    radial-gradient(circle at top right, rgba(255, 122, 182, 0.22), transparent 34%),
+    linear-gradient(180deg, #120d12 0%, #050505 100%);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: 0 28px 56px rgba(0, 0, 0, 0.42);
+}
+
+.shop-home-hero-track {
+  height: 100%;
+}
+
+.shop-home-hero-slide {
+  display: block;
+  min-height: 100%;
+}
+
+.shop-home-hero-placeholder {
+  display: block;
+  opacity: 1;
+}
+
+.shop-home-hero-copy {
+  z-index: 3;
+  gap: 8px;
+  padding: 20px 20px 48px;
+}
+
+.shop-home-hero-copy span {
+  color: rgba(255,255,255,0.82);
+}
+
+.shop-home-hero-copy strong {
+  font-size: clamp(1.24rem, 5vw, 1.74rem);
+}
+
+.shop-home-hero-copy p {
+  max-width: 82%;
+  color: rgba(255,255,255,0.88);
+}
+
+.shop-home-hero-dots {
+  bottom: 14px;
+  gap: 7px;
+}
+
+.shop-home-hero-dot {
+  background: rgba(255,255,255,0.3);
+}
+
+.shop-home-hero-dot.active {
+  width: 24px;
+  background: linear-gradient(135deg, var(--pink-1) 0%, var(--pink-3) 100%);
+  box-shadow: 0 0 14px rgba(255, 122, 182, 0.24);
+}
+
+@media (max-width: 640px) {
+  .topbar-row {
+    min-height: 60px !important;
+    height: 60px !important;
+  }
+
+  .bottom-nav {
+    height: calc(60px + env(safe-area-inset-bottom, 0px)) !important;
+    min-height: calc(60px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .bottom-nav-btn {
+    height: 60px !important;
+    min-height: 60px !important;
+  }
+
+  .shop-home-hero-carousel {
+    top: 6px;
+    min-height: min(360px, calc(100dvh - 230px));
+    border-radius: 24px;
+  }
+
+  .shop-home-hero-copy {
+    padding: 18px 18px 44px;
+  }
 }
