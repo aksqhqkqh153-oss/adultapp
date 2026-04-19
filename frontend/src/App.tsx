@@ -21,6 +21,15 @@ type FeedCommentEntry = {
   author: string;
   text: string;
   meta: string;
+  imageUrl?: string;
+  imageName?: string;
+};
+
+type FeedCommentAttachment = {
+  name: string;
+  dataUrl: string;
+  size: number;
+  type: string;
 };
 
 type ShortOption = "공유" | "보관함저장" | "관심없음" | "채널 추천 안함" | "신고";
@@ -1910,15 +1919,16 @@ type FeedCommentScreenProps = {
   item: FeedItem;
   comments: FeedCommentEntry[];
   draft: string;
-  activeTab: MobileTab;
+  attachment: FeedCommentAttachment | null;
+  attachmentBusy: boolean;
   onChangeDraft: (value: string) => void;
+  onAttachImage: (file: File | null) => void;
+  onClearAttachment: () => void;
   onSubmit: () => void;
   onClose: () => void;
-  onNavigate: (tab: MobileTab) => void;
-  renderBottomTabIcon: (tab: MobileTab, filled: boolean) => JSX.Element;
 };
 
-function FeedCommentScreen({ item, comments, draft, activeTab, onChangeDraft, onSubmit, onClose, onNavigate, renderBottomTabIcon }: FeedCommentScreenProps) {
+function FeedCommentScreen({ item, comments, draft, attachment, attachmentBusy, onChangeDraft, onAttachImage, onClearAttachment, onSubmit, onClose }: FeedCommentScreenProps) {
   const postedLabel = formatFeedPostedAt(item.postedAt);
 
   return (
@@ -1968,6 +1978,11 @@ function FeedCommentScreen({ item, comments, draft, activeTab, onChangeDraft, on
                   <div className="feed-comment-copy">
                     <div className="feed-comment-meta"><strong>{comment.author}</strong><span>{comment.meta}</span></div>
                     <p>{comment.text}</p>
+                    {comment.imageUrl ? (
+                      <div className="feed-comment-image-wrap">
+                        <img src={comment.imageUrl} alt={comment.imageName ?? "첨부 이미지"} className="feed-comment-image" loading="lazy" />
+                      </div>
+                    ) : null}
                   </div>
                 </article>
               )) : <div className="legacy-box compact"><p>첫 댓글을 남겨보세요.</p></div>}
@@ -1976,31 +1991,40 @@ function FeedCommentScreen({ item, comments, draft, activeTab, onChangeDraft, on
         </article>
       </div>
       <div className="feed-comment-composer">
-        <div className="feed-comment-composer-avatar">나</div>
+        <div className="feed-comment-composer-side">
+          <div className="feed-comment-composer-avatar">나</div>
+          <label className={`feed-comment-attach-btn ${attachmentBusy ? "is-busy" : ""}`}>
+            사진
+            <input
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null;
+                onAttachImage(file);
+                event.currentTarget.value = "";
+              }}
+            />
+          </label>
+        </div>
         <div className="feed-comment-composer-box">
           <textarea value={draft} onChange={(event) => onChangeDraft(event.target.value)} placeholder="게시글에 댓글을 남겨보세요." />
+          {attachment ? (
+            <div className="feed-comment-attachment-preview">
+              <img src={attachment.dataUrl} alt={attachment.name} className="feed-comment-attachment-thumb" loading="lazy" />
+              <div className="feed-comment-attachment-copy">
+                <strong>{attachment.name}</strong>
+                <span>{Math.max(1, Math.round(attachment.size / 1024))}KB · 최대 1장</span>
+              </div>
+              <button type="button" className="ghost-btn" onClick={onClearAttachment}>삭제</button>
+            </div>
+          ) : null}
           <div className="feed-comment-composer-actions">
-            <span>{draft.trim().length}/300</span>
+            <span>{attachmentBusy ? "이미지 최적화 중" : `${draft.trim().length}/300`}</span>
             <button type="button" onClick={onSubmit}>댓글 달기</button>
           </div>
         </div>
       </div>
-      <nav className="bottom-nav question-overlay-bottom-nav feed-comment-bottom-nav">
-        {mobileTabs.map((tab) => {
-          const filled = activeTab === tab;
-          return (
-            <button
-              key={`comment-nav-${tab}`}
-              type="button"
-              className={`bottom-nav-btn ${filled ? "active" : ""}`}
-              onClick={() => onNavigate(tab)}
-            >
-              <span className="bottom-nav-icon">{renderBottomTabIcon(tab, filled)}</span>
-              <span className="bottom-nav-label">{tab}</span>
-            </button>
-          );
-        })}
-      </nav>
     </div>
   );
 }
@@ -2915,6 +2939,11 @@ export default function App() {
     if (typeof window === "undefined") return {};
     try { return JSON.parse(window.localStorage.getItem("adultapp_feed_comment_drafts") ?? "{}"); } catch { return {}; }
   });
+  const [feedCommentAttachments, setFeedCommentAttachments] = useState<Record<number, FeedCommentAttachment | null>>(() => {
+    if (typeof window === "undefined") return {};
+    try { return JSON.parse(window.localStorage.getItem("adultapp_feed_comment_attachments") ?? "{}"); } catch { return {}; }
+  });
+  const [feedCommentAttachmentBusyId, setFeedCommentAttachmentBusyId] = useState<number | null>(null);
   const [viewedProfileAuthor, setViewedProfileAuthor] = useState<string | null>(null);
   const [profileSection, setProfileSection] = useState<ProfileSection>("게시물");
   const [followedFeedAuthors, setFollowedFeedAuthors] = useState<string[]>(() => {
@@ -3285,6 +3314,11 @@ export default function App() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_feed_comment_attachments", JSON.stringify(feedCommentAttachments));
+  }, [feedCommentAttachments]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
     window.localStorage.setItem("adultapp_notification_items", JSON.stringify(notificationItems));
   }, [notificationItems]);
 
@@ -3359,21 +3393,85 @@ export default function App() {
     setOpenFeedCommentItem(null);
   };
 
+  const fileToDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("이미지 변환에 실패했습니다."));
+    reader.onerror = () => reject(reader.error ?? new Error("이미지 변환에 실패했습니다."));
+    reader.readAsDataURL(file);
+  });
+
+  const loadImageElement = (src: string) => new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("이미지를 불러오지 못했습니다."));
+    image.src = src;
+  });
+
+  const optimizeFeedCommentImage = async (file: File): Promise<FeedCommentAttachment> => {
+    const maxBytes = 10 * 1024 * 1024;
+    if (file.size <= maxBytes) {
+      return { name: file.name, dataUrl: await fileToDataUrl(file), size: file.size, type: file.type || "image/jpeg" };
+    }
+    const sourceUrl = await fileToDataUrl(file);
+    const image = await loadImageElement(sourceUrl);
+    const canvas = document.createElement("canvas");
+    canvas.width = image.naturalWidth || image.width;
+    canvas.height = image.naturalHeight || image.height;
+    const context = canvas.getContext("2d");
+    if (!context) return { name: file.name, dataUrl: sourceUrl, size: file.size, type: file.type || "image/jpeg" };
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const targetTypes = ["image/webp", "image/jpeg"];
+    for (const targetType of targetTypes) {
+      for (const quality of [0.96, 0.92, 0.88, 0.84, 0.8, 0.76, 0.72]) {
+        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, targetType, quality));
+        if (!blob) continue;
+        if (blob.size <= maxBytes) {
+          const optimizedFile = new File([blob], file.name.replace(/\.[^.]+$/, targetType === "image/webp" ? ".webp" : ".jpg"), { type: targetType });
+          return { name: optimizedFile.name, dataUrl: await fileToDataUrl(optimizedFile), size: blob.size, type: targetType };
+        }
+      }
+    }
+    return { name: file.name, dataUrl: sourceUrl, size: file.size, type: file.type || "image/jpeg" };
+  };
+
+  const attachFeedCommentImage = async (feedId: number, file: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      window.alert("이미지 파일만 첨부할 수 있습니다.");
+      return;
+    }
+    setFeedCommentAttachmentBusyId(feedId);
+    try {
+      const optimized = await optimizeFeedCommentImage(file);
+      setFeedCommentAttachments((prev) => ({ ...prev, [feedId]: optimized }));
+    } catch {
+      window.alert("이미지를 처리하지 못했습니다. 다시 시도해 주세요.");
+    } finally {
+      setFeedCommentAttachmentBusyId((current) => current === feedId ? null : current);
+    }
+  };
+
+  const clearFeedCommentAttachment = (feedId: number) => {
+    setFeedCommentAttachments((prev) => ({ ...prev, [feedId]: null }));
+  };
+
   const updateFeedCommentDraft = (feedId: number, value: string) => {
     setFeedCommentDrafts((prev) => ({ ...prev, [feedId]: value }));
   };
 
   const submitFeedComment = (feedId: number) => {
     const draft = (feedCommentDrafts[feedId] ?? "").trim();
-    if (!draft) return;
+    const attachment = feedCommentAttachments[feedId] ?? null;
+    if (!draft && !attachment) return;
     setFeedCommentMap((prev) => ({
       ...prev,
       [feedId]: [
         ...(prev[feedId] ?? []),
-        { id: Date.now(), author: "my_account", text: draft, meta: "방금" },
+        { id: Date.now(), author: "my_account", text: draft || "사진을 첨부했습니다.", meta: "방금", imageUrl: attachment?.dataUrl, imageName: attachment?.name },
       ],
     }));
     setFeedCommentDrafts((prev) => ({ ...prev, [feedId]: "" }));
+    setFeedCommentAttachments((prev) => ({ ...prev, [feedId]: null }));
   };
 
   const toggleFollowedFeedAuthor = (author: string) => {
@@ -6404,7 +6502,7 @@ export default function App() {
         ) : null}
 
         {showAppTabContent && activeTab === "채팅" ? (
-          <section className="tab-pane fill-pane">
+          <section className="tab-pane fill-pane chat-tab-pane">
             {chatTab === "질문" ? (
               <div className="question-board compact-scroll-list">
                 <section className="asked-question-profile-header">
@@ -6735,12 +6833,13 @@ export default function App() {
           item={openFeedCommentItem}
           comments={feedCommentMap[openFeedCommentItem.id] ?? []}
           draft={feedCommentDrafts[openFeedCommentItem.id] ?? ""}
-          activeTab={activeTab}
+          attachment={feedCommentAttachments[openFeedCommentItem.id] ?? null}
+          attachmentBusy={feedCommentAttachmentBusyId === openFeedCommentItem.id}
           onChangeDraft={(value) => updateFeedCommentDraft(openFeedCommentItem.id, value)}
+          onAttachImage={(file) => attachFeedCommentImage(openFeedCommentItem.id, file)}
+          onClearAttachment={() => clearFeedCommentAttachment(openFeedCommentItem.id)}
           onSubmit={() => submitFeedComment(openFeedCommentItem.id)}
           onClose={closeFeedComments}
-          onNavigate={selectBottomTab}
-          renderBottomTabIcon={renderBottomTabIcon}
         />
       ) : null}
 
