@@ -16,13 +16,6 @@ type FeedItem = {
   videoUrl?: string;
 };
 
-type FeedCommentEntry = {
-  id: number;
-  author: string;
-  text: string;
-  meta: string;
-};
-
 type ShortOption = "공유" | "보관함저장" | "관심없음" | "채널 추천 안함" | "신고";
 
 type StoryItem = {
@@ -763,14 +756,11 @@ function HeartIcon({ filled = false }: { filled?: boolean }) {
   );
 }
 
-function QuestionAnswerIcon() {
+function QuestionMarkIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M4.5 7.4A2.4 2.4 0 0 1 6.9 5h7.6A2.4 2.4 0 0 1 16.9 7.4v3.5a2.4 2.4 0 0 1-2.4 2.4H9.8L6.1 16v-2.7H6.9a2.4 2.4 0 0 1-2.4-2.4V7.4Z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-      <path d="M9 8.6a1.4 1.4 0 1 1 2.4 1c-.44.43-.98.77-.98 1.62" fill="none" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="10.4" cy="12.2" r=".8" fill="currentColor" />
-      <path d="M11.9 13.2h5.2l2.8 2v-2a2.2 2.2 0 0 0 2.1-2.2V9.4a2.2 2.2 0 0 0-2.2-2.2h-1.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-      <path d="M15 9.5h4M15 11.7h2.5" fill="none" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" />
+      <path d="M9.3 9.3a2.7 2.7 0 1 1 4.6 1.9c-.85.82-1.9 1.48-1.9 3.1" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="12" cy="17.8" r="1.1" fill="currentColor" />
     </svg>
   );
 }
@@ -1310,7 +1300,7 @@ function DualRangeSlider({ min, max, valueMin, valueMax, step = 1, leftLabel, ri
   );
 }
 
-const FeedPoster = memo(function FeedPoster({ item, onAsk, saved, liked, commentsOpen, onOpenComments, onToggleLike, onToggleSave, keywordTags = [], onOpenAuthorProfile, following, onToggleFollow }: { item: FeedItem; onAsk: (item: FeedItem) => void; saved: boolean; liked: boolean; commentsOpen: boolean; onOpenComments: (item: FeedItem) => void; onToggleLike: (feedId: number) => void; onToggleSave: (feedId: number) => void; keywordTags?: string[]; onOpenAuthorProfile: (author: string) => void; following: boolean; onToggleFollow: (author: string) => void }) {
+const FeedPoster = memo(function FeedPoster({ item, onAsk, saved, onToggleSave, keywordTags = [], onOpenAuthorProfile, following, onToggleFollow }: { item: FeedItem; onAsk: (item: FeedItem) => void; saved: boolean; onToggleSave: (feedId: number) => void; keywordTags?: string[]; onOpenAuthorProfile: (author: string) => void; following: boolean; onToggleFollow: (author: string) => void }) {
   return (
     <article className={`feed-card history-feed-card ${item.accent}`}>
       <div className="history-feed-head">
@@ -1323,6 +1313,7 @@ const FeedPoster = memo(function FeedPoster({ item, onAsk, saved, liked, comment
         </div>
         <div className="history-feed-head-actions">
           <button type="button" className={`feed-follow-btn ${following ? "active" : ""}`} onClick={() => onToggleFollow(item.author)}>{following ? "팔로잉" : "팔로우"}</button>
+          <button type="button" className="feed-question-btn" onClick={() => onAsk(item)} aria-label="질문">질문</button>
         </div>
       </div>
       <div className="feed-media">
@@ -1345,10 +1336,10 @@ const FeedPoster = memo(function FeedPoster({ item, onAsk, saved, liked, comment
         </div>
       </div>
       <div className="history-feed-footer history-feed-footer-icons">
-        <button type="button" className={liked ? "active" : ""} aria-label="좋아요" onClick={() => onToggleLike(item.id)}><HeartIcon filled={liked} /></button>
-        <button type="button" className={commentsOpen ? "active" : ""} aria-label="댓글" onClick={() => onOpenComments(item)}><CommentBubbleIcon /></button>
-        <button type="button" aria-label="질문하기" onClick={() => onAsk(item)}><QuestionAnswerIcon /></button>
-        <button type="button" className={`ghost-btn ${saved ? "active" : ""}`} aria-label="보관함" onClick={() => onToggleSave(item.id)}><BookmarkIcon filled={saved} /></button>
+        <button type="button" aria-label="좋아요"><HeartIcon /></button>
+        <button type="button" aria-label="댓글"><CommentBubbleIcon /></button>
+        <button type="button" aria-label="질문하기" onClick={() => onAsk(item)}><QuestionMarkIcon /></button>
+        <button type="button" className="ghost-btn" aria-label="보관함" onClick={() => onToggleSave(item.id)}><BookmarkIcon filled={saved} /></button>
       </div>
     </article>
   );
@@ -1605,18 +1596,8 @@ function ShortsViewer({
   );
 }
 
-function AskProfileScreen({ profile, activeTab, onClose, onSelectTab, renderBottomTabIcon }: { profile: AskProfile; activeTab: MobileTab; onClose: () => void; onSelectTab: (tab: MobileTab) => void; renderBottomTabIcon: (tab: MobileTab, filled: boolean) => JSX.Element }) {
-  const storageKey = `adultapp_ask_draft_${profile.id}`;
-  const [questionText, setQuestionText] = useState(() => {
-    if (typeof window === "undefined") return "";
-    return window.localStorage.getItem(storageKey) ?? "";
-  });
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(storageKey, questionText);
-  }, [questionText, storageKey]);
-
+function AskProfileScreen({ profile, onClose }: { profile: AskProfile; onClose: () => void }) {
+  const [questionText, setQuestionText] = useState("");
   return (
     <div className="question-overlay">
       <section className="asked-page-head">
@@ -1626,43 +1607,32 @@ function AskProfileScreen({ profile, activeTab, onClose, onSelectTab, renderBott
           <span className="modal-spacer" />
         </div>
       </section>
-      <div className="question-overlay-body question-overlay-body-with-nav">
+      <div className="question-overlay-body">
         <section className="asked-question-profile-header">
-          <div className="asked-question-profile-card asked-question-profile-card-inline">
+          <div className="asked-question-profile-card">
             <div className="asked-question-avatar">{profile.name.slice(0, 1).toUpperCase()}</div>
             <div className="asked-question-copy">
-              <div className="asked-question-copy-head">
-                <div className="asked-question-copy-main">
-                  <strong>{profile.name}</strong>
-                  <span>{profile.headline}</span>
-                </div>
-                <div className="asked-question-toolbar asked-question-toolbar-inline">
-                  <button type="button">팔로우</button>
-                  <button type="button" className="ghost-btn">공유</button>
-                </div>
-              </div>
+              <strong>{profile.name}</strong>
+              <span>{profile.headline}</span>
               <p>{profile.intro}</p>
             </div>
+          </div>
+          <div className="asked-question-toolbar">
+            <button type="button">팔로우</button>
+            <button type="button" className="ghost-btn">공유</button>
           </div>
         </section>
 
         <section className="asked-question-form">
+          <div className="question-profile-chip-row">
+            <span className="question-profile-chip">질문 허용</span>
+            <span className="question-profile-chip muted-chip">익명 가능</span>
+          </div>
           <label>질문 내용</label>
           <textarea value={questionText} onChange={(e) => setQuestionText(e.target.value)} placeholder="상대에게 남길 질문을 입력하세요." />
-          <div className="asked-question-draft-note">작성 중인 질문은 임시저장됩니다.</div>
           <div className="asked-question-form-actions">
             <button type="button">익명으로 질문</button>
-            <button
-              type="button"
-              className="ghost-btn"
-              onClick={() => {
-                if (typeof window !== "undefined") window.localStorage.removeItem(storageKey);
-                setQuestionText("");
-                window.alert("질문이 등록되었습니다.");
-              }}
-            >
-              질문 등록
-            </button>
+            <button type="button" className="ghost-btn">질문 등록</button>
           </div>
         </section>
 
@@ -1710,93 +1680,10 @@ function AskProfileScreen({ profile, activeTab, onClose, onSelectTab, renderBott
           <p>{profile.highlight}</p>
         </section>
       </div>
-      <nav className="bottom-nav question-overlay-bottom-nav">
-        {mobileTabs.map((tab) => {
-          const filled = activeTab === tab;
-          return (
-            <button
-              key={`ask-nav-${tab}`}
-              type="button"
-              className={`bottom-nav-btn ${filled ? "active" : ""}`}
-              onClick={() => {
-                onSelectTab(tab);
-                onClose();
-              }}
-            >
-              <span className="bottom-nav-icon">{renderBottomTabIcon(tab, filled)}</span>
-              <span className="bottom-nav-label">{tab}</span>
-            </button>
-          );
-        })}
-      </nav>
     </div>
   );
 }
 
-
-type FeedCommentScreenProps = {
-  item: FeedItem;
-  comments: FeedCommentEntry[];
-  draft: string;
-  onChangeDraft: (value: string) => void;
-  onSubmit: () => void;
-  onClose: () => void;
-};
-
-function FeedCommentScreen({ item, comments, draft, onChangeDraft, onSubmit, onClose }: FeedCommentScreenProps) {
-  return (
-    <div className="feed-comment-overlay">
-      <section className="asked-page-head feed-comment-head">
-        <div className="asked-nav-row">
-          <button type="button" className="header-inline-btn modal-back-btn" onClick={onClose}>←</button>
-          <div className="asked-page-title">댓글</div>
-          <button type="button" className="header-inline-btn feed-comment-submit-top" onClick={onSubmit}>등록</button>
-        </div>
-      </section>
-      <div className="feed-comment-overlay-body">
-        <article className={`feed-card history-feed-card feed-comment-focus-card ${item.accent}`}>
-          <div className="history-feed-head">
-            <div className="history-feed-profile">
-              <div className="story-mini-avatar">{item.author.slice(0, 1).toUpperCase()}</div>
-              <div className="history-feed-profile-copy">
-                <strong>{item.author}</strong>
-                <p>{item.postedAt ?? "방금"}</p>
-              </div>
-            </div>
-          </div>
-          <div className="feed-copy">
-            <div>
-              <strong>{item.title}</strong>
-              <p>{item.caption}</p>
-            </div>
-          </div>
-        </article>
-
-        <section className="feed-comment-thread">
-          {comments.length ? comments.map((comment) => (
-            <article key={comment.id} className="feed-comment-row">
-              <div className="feed-comment-avatar">{comment.author.slice(0, 1).toUpperCase()}</div>
-              <div className="feed-comment-copy">
-                <div className="feed-comment-meta"><strong>{comment.author}</strong><span>{comment.meta}</span></div>
-                <p>{comment.text}</p>
-              </div>
-            </article>
-          )) : <div className="legacy-box compact"><p>첫 댓글을 남겨보세요.</p></div>}
-        </section>
-      </div>
-      <div className="feed-comment-composer">
-        <div className="feed-comment-composer-avatar">나</div>
-        <div className="feed-comment-composer-box">
-          <textarea value={draft} onChange={(event) => onChangeDraft(event.target.value)} placeholder="게시글에 댓글을 남겨보세요." />
-          <div className="feed-comment-composer-actions">
-            <span>{draft.trim().length}/300</span>
-            <button type="button" onClick={onSubmit}>댓글 달기</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function LegacyPanel({ section, projectStatus, deployGuide }: { section: LegacyTab; projectStatus: ProjectStatus | null; deployGuide: DeployGuide | null }) {
   if (section === "운영현황") {
@@ -2375,29 +2262,6 @@ export default function App() {
     if (typeof window === "undefined") return [];
     try { return JSON.parse(window.localStorage.getItem("adultapp_saved_feed_ids") ?? "[]"); } catch { return []; }
   });
-  const [likedFeedIds, setLikedFeedIds] = useState<number[]>(() => {
-    if (typeof window === "undefined") return [];
-    try { return JSON.parse(window.localStorage.getItem("adultapp_liked_feed_ids") ?? "[]"); } catch { return []; }
-  });
-  const [feedCommentMap, setFeedCommentMap] = useState<Record<number, FeedCommentEntry[]>>(() => {
-    const fallback = Object.fromEntries(feedSeed.map((item) => [item.id, [
-      { id: item.id * 100 + 1, author: "trend_user", text: `${item.title} 분위기 괜찮네요.`, meta: "방금" },
-      { id: item.id * 100 + 2, author: "care_note", text: `${item.category} 기준으로 더 보고 싶어요.`, meta: "3분 전" },
-    ]]));
-    if (typeof window === "undefined") return fallback;
-    try {
-      const stored = window.localStorage.getItem("adultapp_feed_comment_map");
-      return stored ? JSON.parse(stored) : fallback;
-    } catch {
-      return fallback;
-    }
-  });
-  const [openFeedCommentItem, setOpenFeedCommentItem] = useState<FeedItem | null>(null);
-  const [feedCommentDrafts, setFeedCommentDrafts] = useState<Record<number, string>>(() => {
-    if (typeof window === "undefined") return {};
-    try { return JSON.parse(window.localStorage.getItem("adultapp_feed_comment_drafts") ?? "{}"); } catch { return {}; }
-  });
-  const [profileSection, setProfileSection] = useState<"게시물" | "질문" | "릴스" | "태그됨">("게시물");
   const [followedFeedAuthors, setFollowedFeedAuthors] = useState<string[]>(() => {
     if (typeof window === "undefined") return ["adult official", "seller studio"];
     try { return JSON.parse(window.localStorage.getItem("adultapp_followed_feed_authors") ?? '["adult official","seller studio"]'); } catch { return ["adult official", "seller studio"]; }
@@ -2741,21 +2605,6 @@ export default function App() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem("adultapp_liked_feed_ids", JSON.stringify(likedFeedIds));
-  }, [likedFeedIds]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem("adultapp_feed_comment_map", JSON.stringify(feedCommentMap));
-  }, [feedCommentMap]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem("adultapp_feed_comment_drafts", JSON.stringify(feedCommentDrafts));
-  }, [feedCommentDrafts]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
     window.localStorage.setItem("adultapp_saved_product_ids", JSON.stringify(savedProductIds));
   }, [savedProductIds]);
 
@@ -2800,35 +2649,6 @@ export default function App() {
 
   const toggleSavedFeed = (feedId: number) => {
     setSavedFeedIds((prev) => prev.includes(feedId) ? prev.filter((item) => item !== feedId) : [feedId, ...prev]);
-  };
-
-  const toggleLikedFeed = (feedId: number) => {
-    setLikedFeedIds((prev) => prev.includes(feedId) ? prev.filter((item) => item !== feedId) : [feedId, ...prev]);
-  };
-
-  const openFeedComments = (item: FeedItem) => {
-    setOpenFeedCommentItem(item);
-  };
-
-  const closeFeedComments = () => {
-    setOpenFeedCommentItem(null);
-  };
-
-  const updateFeedCommentDraft = (feedId: number, value: string) => {
-    setFeedCommentDrafts((prev) => ({ ...prev, [feedId]: value }));
-  };
-
-  const submitFeedComment = (feedId: number) => {
-    const draft = (feedCommentDrafts[feedId] ?? "").trim();
-    if (!draft) return;
-    setFeedCommentMap((prev) => ({
-      ...prev,
-      [feedId]: [
-        ...(prev[feedId] ?? []),
-        { id: Date.now(), author: "my_account", text: draft, meta: "방금" },
-      ],
-    }));
-    setFeedCommentDrafts((prev) => ({ ...prev, [feedId]: "" }));
   };
 
   const toggleFollowedFeedAuthor = (author: string) => {
@@ -3358,24 +3178,15 @@ export default function App() {
   const openProfileFromAuthor = (author: string) => {
     setActiveTab("프로필");
     setProfileTab("내정보");
-    setProfileSection("게시물");
     setOverlayMode(null);
   };
 
-  const renderBottomTabIcon = (tab: MobileTab, filled: boolean) => ({
-    홈: <HomeIcon filled={filled} />,
-    쇼핑: <ShoppingBagIcon filled={filled} />,
-    소통: <CommunityIcon filled={filled} />,
-    채팅: <ChatIcon filled={filled} />,
-    프로필: <ProfileIcon filled={filled} />,
-  }[tab]);
-
   const bottomNavIconMap = {
-    홈: renderBottomTabIcon("홈", overlayMode === null && activeTab === "홈"),
-    쇼핑: renderBottomTabIcon("쇼핑", overlayMode === null && activeTab === "쇼핑"),
-    소통: renderBottomTabIcon("소통", overlayMode === null && activeTab === "소통"),
-    채팅: renderBottomTabIcon("채팅", overlayMode === null && activeTab === "채팅"),
-    프로필: renderBottomTabIcon("프로필", overlayMode === null && activeTab === "프로필"),
+    홈: <HomeIcon filled={overlayMode === null && activeTab === "홈"} />,
+    쇼핑: <ShoppingBagIcon filled={overlayMode === null && activeTab === "쇼핑"} />,
+    소통: <CommunityIcon filled={overlayMode === null && activeTab === "소통"} />,
+    채팅: <ChatIcon filled={overlayMode === null && activeTab === "채팅"} />,
+    프로필: <ProfileIcon filled={overlayMode === null && activeTab === "프로필"} />,
   } satisfies Record<typeof mobileTabs[number], JSX.Element>;
 
   const legalQuickLinks = [
@@ -4893,7 +4704,7 @@ export default function App() {
           <section className={`tab-pane fill-pane home-feed-pane${homeTab === "쇼츠" ? " home-feed-pane-shorts" : ""}`}>
             {homeTab === "피드" ? (
               <>
-                <div className="feed-post-list compact-scroll-list" ref={homeFeedScrollRef}>{visibleFeed.map((item, idx) => (<div key={`feed-wrap-${item.id}`}><FeedPoster item={item} onAsk={openAskFromFeed} saved={savedFeedIds.includes(item.id)} liked={likedFeedIds.includes(item.id)} commentsOpen={openFeedCommentItem?.id === item.id} onOpenComments={openFeedComments} onToggleLike={toggleLikedFeed} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} following={followedFeedAuthors.includes(item.author)} onToggleFollow={toggleFollowedFeedAuthor} />{(idx + 1) % 4 === 0 ? <SponsoredFeedProductCard item={sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length]} saved={savedProductIds.includes(sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length].id)} onToggleSave={toggleSavedProduct} /> : null}</div>))}{hasMoreHomeFeed ? <div ref={homeFeedSentinelRef} className="feed-loading-row">추천 피드 불러오는 중</div> : <div className="feed-loading-row feed-loading-row-end">추천 피드를 모두 확인했습니다.</div>}</div>
+                <div className="feed-post-list compact-scroll-list" ref={homeFeedScrollRef}>{visibleFeed.map((item, idx) => (<div key={`feed-wrap-${item.id}`}><FeedPoster item={item} onAsk={openAskFromFeed} saved={savedFeedIds.includes(item.id)} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} following={followedFeedAuthors.includes(item.author)} onToggleFollow={toggleFollowedFeedAuthor} />{(idx + 1) % 4 === 0 ? <SponsoredFeedProductCard item={sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length]} saved={savedProductIds.includes(sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length].id)} onToggleSave={toggleSavedProduct} /> : null}</div>))}{hasMoreHomeFeed ? <div ref={homeFeedSentinelRef} className="feed-loading-row">추천 피드 불러오는 중</div> : <div className="feed-loading-row feed-loading-row-end">추천 피드를 모두 확인했습니다.</div>}</div>
               </>
             ) : homeTab === "쇼츠" ? (
               <>
@@ -4928,7 +4739,7 @@ export default function App() {
                 </div>
                 {savedTab === "피드" ? (
                   <div className="feed-post-list compact-scroll-list">
-                    {savedFeedItems.length ? savedFeedItems.map((item) => <FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} saved={true} liked={likedFeedIds.includes(item.id)} commentsOpen={openFeedCommentItem?.id === item.id} onOpenComments={openFeedComments} onToggleLike={toggleLikedFeed} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} following={followedFeedAuthors.includes(item.author)} onToggleFollow={toggleFollowedFeedAuthor} />) : <div className="legacy-box compact"><p>보관한 피드가 없습니다.</p></div>}
+                    {savedFeedItems.length ? savedFeedItems.map((item) => <FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} saved={true} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} following={followedFeedAuthors.includes(item.author)} onToggleFollow={toggleFollowedFeedAuthor} />) : <div className="legacy-box compact"><p>보관한 피드가 없습니다.</p></div>}
                   </div>
                 ) : (
                   <div className="content-grid product-grid compact-scroll-list">
@@ -5629,6 +5440,12 @@ export default function App() {
                 </div>
               </div>
 
+              <div className="profile-ig-actions">
+                <button type="button">공유하기</button>
+                <button type="button" className="ghost-btn" onClick={() => setActiveTab("쇼핑")}>상품 보기</button>
+                <button type="button" className="ghost-btn" onClick={() => setActiveTab("채팅")}>문의하기</button>
+              </div>
+
               <div className="profile-ig-highlights">
                 {[
                   { label: "추천", sub: "오늘의 픽" },
@@ -5644,85 +5461,25 @@ export default function App() {
                 ))}
               </div>
 
-              <div className="profile-ig-tabbar profile-ig-action-grid" aria-label="프로필 바로가기">
-                <button type="button" className={profileSection === "게시물" ? "active" : ""} onClick={() => setProfileSection("게시물")}>게시물</button>
-                <button type="button" className={profileSection === "질문" ? "active" : ""} onClick={() => setProfileSection("질문")}>질문</button>
-                <button type="button" className={profileSection === "릴스" ? "active" : ""} onClick={() => setProfileSection("릴스")}>릴스</button>
-                <button type="button" className={profileSection === "태그됨" ? "active" : ""} onClick={() => setProfileSection("태그됨")}>태그됨</button>
-                <button type="button" onClick={() => setActiveTab("쇼핑")}>상품 보기</button>
-                <button type="button" onClick={() => setActiveTab("채팅")}>문의하기</button>
+              <div className="profile-ig-tabbar" aria-label="프로필 탭">
+                <button type="button" className="active">게시물</button>
+                <button type="button">릴스</button>
+                <button type="button">태그됨</button>
               </div>
 
-              {profileSection === "게시물" ? (
-                <div className="profile-ig-grid">
-                  {feedSeed.filter((item) => item.type === "image").slice(0, 12).map((item) => (
-                    <article key={item.id} className={`profile-ig-tile ${item.accent}`}>
-                      <div className="profile-ig-tile-media">
-                        <span>{item.category}</span>
-                      </div>
-                      <div className="profile-ig-tile-meta">
-                        <strong>{item.title}</strong>
-                        <span>♥ {item.likes} · 💬 {item.comments}</span>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              ) : null}
-
-              {profileSection === "질문" ? (
-                <div className="question-list profile-question-list">
-                  {questionSeed.map((item) => (
-                    <article key={`profile-question-${item.id}`} className="question-feed-card">
-                      <div className="question-feed-top">
-                        <div>
-                          <div className="question-user-line">
-                            <span className="community-chip">질문</span>
-                            <strong>{item.author}</strong>
-                            <span className="community-meta">{item.meta}</span>
-                          </div>
-                          <div className="question-body">Q. {item.question}</div>
-                        </div>
-                      </div>
-                      <div className="question-answer-box">
-                        <span className="product-badge">답변</span>
-                        <div className="question-body">{item.answer}</div>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              ) : null}
-
-              {profileSection === "릴스" ? (
-                <div className="profile-ig-grid">
-                  {feedSeed.filter((item) => item.type === "video").slice(0, 9).map((item) => (
-                    <article key={`reel-${item.id}`} className={`profile-ig-tile ${item.accent}`}>
-                      <div className="profile-ig-tile-media profile-ig-tile-media-reel">
-                        <span>릴스</span>
-                      </div>
-                      <div className="profile-ig-tile-meta">
-                        <strong>{item.title}</strong>
-                        <span>▶ {(item.views ?? 0).toLocaleString()} · ♥ {item.likes}</span>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              ) : null}
-
-              {profileSection === "태그됨" ? (
-                <div className="profile-ig-grid">
-                  {feedSeed.filter((item) => item.type === "image").slice(12, 21).map((item) => (
-                    <article key={`tagged-${item.id}`} className={`profile-ig-tile ${item.accent}`}>
-                      <div className="profile-ig-tile-media">
-                        <span>태그됨</span>
-                      </div>
-                      <div className="profile-ig-tile-meta">
-                        <strong>{item.title}</strong>
-                        <span>@adult official · {item.postedAt ?? "오늘"}</span>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              ) : null}
+              <div className="profile-ig-grid">
+                {feedSeed.filter((item) => item.type === "image").slice(0, 12).map((item) => (
+                  <article key={item.id} className={`profile-ig-tile ${item.accent}`}>
+                    <div className="profile-ig-tile-media">
+                      <span>{item.category}</span>
+                    </div>
+                    <div className="profile-ig-tile-meta">
+                      <strong>{item.title}</strong>
+                      <span>♥ {item.likes} · 💬 {item.comments}</span>
+                    </div>
+                  </article>
+                ))}
+              </div>
             </div>
           </section>
         ) : null}
@@ -5817,18 +5574,7 @@ export default function App() {
           </button>
         ))}</nav>
 
-      {selectedAskProfile ? <AskProfileScreen profile={selectedAskProfile} activeTab={activeTab} onClose={() => setSelectedAskProfile(null)} onSelectTab={selectBottomTab} renderBottomTabIcon={renderBottomTabIcon} /> : null}
-
-      {openFeedCommentItem ? (
-        <FeedCommentScreen
-          item={openFeedCommentItem}
-          comments={feedCommentMap[openFeedCommentItem.id] ?? []}
-          draft={feedCommentDrafts[openFeedCommentItem.id] ?? ""}
-          onChangeDraft={(value) => updateFeedCommentDraft(openFeedCommentItem.id, value)}
-          onSubmit={() => submitFeedComment(openFeedCommentItem.id)}
-          onClose={closeFeedComments}
-        />
-      ) : null}
+      {selectedAskProfile ? <AskProfileScreen profile={selectedAskProfile} onClose={() => setSelectedAskProfile(null)} /> : null}
 
       {pendingDmUser ? (
         <div className="modal-backdrop">

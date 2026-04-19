@@ -4854,3 +4854,187 @@ body {
     padding: 18px 18px 44px;
   }
 }
+
+/* 2026-04-19 feed actions + ask/profile/comment overlays */
+.question-overlay {
+  grid-template-rows: auto 1fr auto;
+}
+.question-overlay-body-with-nav {
+  min-height: 0;
+}
+.question-overlay-bottom-nav {
+  position: relative;
+  z-index: 2;
+}
+.asked-question-profile-card-inline {
+  align-items: flex-start;
+}
+.asked-question-copy {
+  width: 100%;
+}
+.asked-question-copy-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.asked-question-copy-main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.asked-question-toolbar-inline {
+  margin-top: 0;
+  flex-shrink: 0;
+}
+.asked-question-draft-note {
+  color: #aab8c2;
+  font-size: 12px;
+}
+.history-feed-footer-icons button.active {
+  color: var(--pink-2) !important;
+}
+.history-feed-footer-icons button.active svg,
+.history-feed-footer-icons button.active svg [stroke],
+.history-feed-footer-icons button.active svg [fill] {
+  color: var(--pink-2) !important;
+  stroke: currentColor !important;
+  fill: currentColor;
+  filter: drop-shadow(0 0 8px rgba(255, 122, 182, 0.2));
+}
+.feed-comment-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 34;
+  background: #020202;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+}
+.feed-comment-head {
+  z-index: 2;
+}
+.feed-comment-submit-top {
+  min-width: 42px;
+  justify-self: end;
+  text-align: right;
+  border: 0;
+  background: transparent;
+  color: var(--pink-2) !important;
+}
+.feed-comment-overlay-body {
+  overflow-y: auto;
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+}
+.feed-comment-focus-card {
+  margin: 0;
+}
+.feed-comment-thread {
+  display: grid;
+  gap: 12px;
+}
+.feed-comment-row {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  gap: 10px;
+  align-items: flex-start;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.feed-comment-avatar,
+.feed-comment-composer-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, rgba(255, 182, 212, 0.22), rgba(255, 61, 149, 0.14));
+  border: 1px solid rgba(255,255,255,0.08);
+  color: #fff;
+  font-weight: 800;
+}
+.feed-comment-copy {
+  display: grid;
+  gap: 6px;
+}
+.feed-comment-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.feed-comment-meta span,
+.feed-comment-copy p {
+  margin: 0;
+  color: #c6d0dc;
+  line-height: 1.5;
+}
+.feed-comment-meta span {
+  font-size: 12px;
+  color: #8fa1b3;
+}
+.feed-comment-composer {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  gap: 10px;
+  padding: 12px 12px calc(env(safe-area-inset-bottom) + 12px);
+  border-top: 1px solid rgba(255,255,255,0.08);
+  background: rgba(0,0,0,0.98);
+}
+.feed-comment-composer-box {
+  display: grid;
+  gap: 8px;
+}
+.feed-comment-composer-box textarea {
+  min-height: 92px;
+  resize: none;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: #0b0d11;
+  color: #fff;
+  padding: 12px 14px;
+}
+.feed-comment-composer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.feed-comment-composer-actions span {
+  font-size: 12px;
+  color: #8fa1b3;
+}
+.feed-comment-composer-actions button {
+  min-height: 36px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border-color: rgba(255, 134, 187, 0.24);
+  background: linear-gradient(135deg, rgba(255, 182, 212, 0.16), rgba(255, 61, 149, 0.12));
+  color: var(--pink-2);
+}
+.profile-ig-action-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.profile-ig-action-grid button {
+  min-height: 46px;
+}
+.profile-question-list {
+  display: grid;
+  gap: 12px;
+}
+.profile-ig-tile-media-reel {
+  background: linear-gradient(180deg, rgba(255, 122, 182, 0.22), rgba(9, 12, 18, 0.92));
+}
+@media (max-width: 640px) {
+  .asked-question-copy-head {
+    flex-direction: column;
+  }
+  .asked-question-toolbar-inline {
+    width: 100%;
+  }
+  .asked-question-toolbar-inline button {
+    flex: 1 1 0;
+  }
+}
