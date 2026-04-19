@@ -6661,3 +6661,116 @@ body {
   opacity: 1 !important;
   visibility: visible !important;
 }
+
+
+/* ===== 2026-04-20 request: community board / comment home / shopping detail / search sizing ===== */
+.community-simple-board.compact-scroll-list {
+  display: grid !important;
+  grid-template-rows: 50px minmax(0, 1fr) 36px !important;
+  gap: 6px !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  overflow: hidden !important;
+}
+.community-simple-category-row {
+  min-height: 50px !important;
+  max-height: 50px !important;
+  height: 50px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  align-items: center !important;
+}
+.community-simple-list {
+  min-height: 0 !important;
+  height: 100% !important;
+  overflow-y: auto !important;
+}
+.community-simple-pagination {
+  width: fit-content;
+  min-width: 0;
+  margin: 0 auto !important;
+  padding: 0 4px !important;
+  min-height: 36px !important;
+  gap: 8px !important;
+}
+.community-simple-pagination .ghost-btn {
+  min-height: 30px !important;
+  padding: 0 10px !important;
+  font-size: 12px !important;
+}
+.community-simple-pagination span {
+  font-size: 11px !important;
+}
+.feed-comment-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.feed-comment-home-btn {
+  min-height: 34px !important;
+  padding: 0 12px !important;
+  border-radius: 999px !important;
+}
+.shop-home-product-thumb {
+  position: relative;
+}
+.shop-home-product-heart {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 5, 5, 0.56);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.8);
+  backdrop-filter: blur(8px);
+  z-index: 4;
+}
+.shop-home-product-heart.active {
+  color: var(--pink-2);
+  background: rgba(255, 122, 182, 0.14);
+  border-color: rgba(255, 122, 182, 0.3);
+  box-shadow: 0 0 14px rgba(255, 122, 182, 0.18);
+}
+.shop-home-product-heart svg {
+  width: 18px;
+  height: 18px;
+}
+.shop-product-detail-topbar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0 6px;
+}
+.shop-product-detail-topbar-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: #fff;
+}
+.topbar-search-input {
+  min-height: 34px !important;
+  padding: 7px 12px !important;
+  font-size: 12px !important;
+}
+.topbar-search-input::placeholder {
+  font-size: 12px !important;
+}
+.shop-home-hero-carousel {
+  border-width: 0 !important;
+}
+@media (max-width: 640px) {
+  .topbar-search-row {
+    min-height: 50px !important;
+    padding: 6px 10px !important;
+  }
+  .topbar-search-back {
+    width: 34px !important;
+    min-width: 34px !important;
+    height: 34px !important;
+  }
+}

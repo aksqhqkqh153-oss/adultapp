@@ -1926,9 +1926,10 @@ type FeedCommentScreenProps = {
   onClearAttachment: () => void;
   onSubmit: () => void;
   onClose: () => void;
+  onGoHome: () => void;
 };
 
-function FeedCommentScreen({ item, comments, draft, attachment, attachmentBusy, onChangeDraft, onAttachImage, onClearAttachment, onSubmit, onClose }: FeedCommentScreenProps) {
+function FeedCommentScreen({ item, comments, draft, attachment, attachmentBusy, onChangeDraft, onAttachImage, onClearAttachment, onSubmit, onClose, onGoHome }: FeedCommentScreenProps) {
   const postedLabel = formatFeedPostedAt(item.postedAt);
 
   return (
@@ -1937,7 +1938,10 @@ function FeedCommentScreen({ item, comments, draft, attachment, attachmentBusy, 
         <div className="asked-nav-row">
           <button type="button" className="header-inline-btn header-icon-btn topbar-search-back" onClick={onClose} aria-label="뒤로가기"><BackArrowIcon /></button>
           <div className="asked-page-title">댓글</div>
-          <button type="button" className="header-inline-btn feed-comment-submit-top" onClick={onSubmit}>등록</button>
+          <div className="feed-comment-head-actions">
+            <button type="button" className="header-inline-btn ghost-btn feed-comment-home-btn" onClick={onGoHome}>홈</button>
+            <button type="button" className="header-inline-btn feed-comment-submit-top" onClick={onSubmit}>등록</button>
+          </div>
         </div>
       </section>
       <div className="feed-comment-overlay-body">
@@ -3983,11 +3987,9 @@ export default function App() {
     shopHomeGridDragStartYRef.current = null;
   };
 
-  const handleShopHomeProductCardClick = (productName: string) => {
+  const handleShopHomeProductCardClick = (productId: number) => {
     if (Date.now() < shopHomeGridSuppressClickUntilRef.current) return;
-    setShopKeyword(productName);
-    setSelectedShopCategory("전체");
-    setShoppingTab("목록");
+    openProductDetail(productId);
   };
 
   const filteredCommunity = useMemo(() => {
@@ -4627,6 +4629,15 @@ export default function App() {
     setShoppingTab("바구니");
   };
 
+  const toggleProductCartFavorite = (productId: number) => {
+    setCartItems((prev) => {
+      const exists = prev.some((item) => item.productId === productId);
+      if (exists) return prev.filter((item) => item.productId !== productId);
+      return [...prev, { productId, qty: 1 }];
+    });
+    setCheckoutStage("cart");
+  };
+
   const cartDetailedItems = useMemo(() => cartItems.map((item) => {
     const product = apiProducts.find((row) => row.id === item.productId);
     return product ? { ...item, product } : null;
@@ -5163,7 +5174,14 @@ export default function App() {
   }, [globalKeyword]);
 
   const selectBottomTab = (tab: MobileTab) => {
-    if (tab === activeTab && overlayMode === null && !roomModalOpen && !selectedAskProfile && !openFeedCommentItem) return;
+    if (tab === activeTab && overlayMode === null && !roomModalOpen && !selectedAskProfile && !openFeedCommentItem) {
+      if (tab === "쇼핑" && shoppingTab !== "홈") {
+        setProductDetail(null);
+        setSelectedProductId(null);
+        setShoppingTab("홈");
+      }
+      return;
+    }
     setSelectedAskProfile(null);
     setOpenFeedCommentItem(null);
     setActiveTab(tab);
@@ -6006,12 +6024,24 @@ export default function App() {
                         key={`shop-feed-${product.id}-${product.feedIndex}`}
                         type="button"
                         className="shop-home-product-card"
-                        onClick={() => handleShopHomeProductCardClick(product.name)}
+                        onClick={() => handleShopHomeProductCardClick(product.id)}
                       >
                         <div className="shop-home-product-thumb">
                           {product.thumbnailUrl ? <img src={product.thumbnailUrl} alt={product.name} className="shop-home-product-thumb-image" /> : null}
                           <div className={`shop-home-product-thumb-placeholder hero-tone-${(product.feedIndex % 3) + 1}`} />
                           <span className="shop-home-product-badge">{product.badge}</span>
+                          <button
+                            type="button"
+                            className={`shop-home-product-heart ${cartItems.some((item) => item.productId === product.id) ? "active" : ""}`}
+                            aria-label="장바구니 담기"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              toggleProductCartFavorite(product.id);
+                            }}
+                          >
+                            <HeartIcon filled={cartItems.some((item) => item.productId === product.id)} />
+                          </button>
                         </div>
                         <div className="shop-home-product-meta">
                           <strong>{product.name}</strong>
@@ -6057,6 +6087,10 @@ export default function App() {
               <div className="stack-gap compact-scroll-list">
                 {productDetail ? (
                   <>
+                    <div className="shop-product-detail-topbar">
+                      <button type="button" className="header-inline-btn header-icon-btn topbar-search-back" onClick={() => { setProductDetail(null); setSelectedProductId(null); setShoppingTab("홈"); }} aria-label="뒤로가기"><BackArrowIcon /></button>
+                      <div className="shop-product-detail-topbar-title">상품 상세</div>
+                    </div>
                     <div className="legacy-grid two-col compact-grid">
                       <div className="legacy-box">
                         <h3>{productDetail.product.name}</h3>
@@ -6840,6 +6874,7 @@ export default function App() {
           onClearAttachment={() => clearFeedCommentAttachment(openFeedCommentItem.id)}
           onSubmit={() => submitFeedComment(openFeedCommentItem.id)}
           onClose={closeFeedComments}
+          onGoHome={() => { closeFeedComments(); setActiveTab("홈"); setHomeTab("피드"); }}
         />
       ) : null}
 
