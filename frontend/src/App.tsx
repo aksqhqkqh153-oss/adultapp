@@ -40,6 +40,8 @@ type AskProfile = {
   highlight: string;
 };
 
+type ProfileSection = "게시물" | "질문" | "릴스" | "태그됨" | "상품보기";
+
 type ShopCategory = {
   group: string;
   icon: string;
@@ -1794,7 +1796,7 @@ function ShortsViewer({
   );
 }
 
-function AskProfileScreen({ profile, activeTab, onClose, onSelectTab, renderBottomTabIcon }: { profile: AskProfile; activeTab: MobileTab; onClose: () => void; onSelectTab: (tab: MobileTab) => void; renderBottomTabIcon: (tab: MobileTab, filled: boolean) => JSX.Element }) {
+function AskProfileScreen({ profile, activeTab, onClose, onSelectTab, renderBottomTabIcon, onOpenProfile }: { profile: AskProfile; activeTab: MobileTab; onClose: () => void; onSelectTab: (tab: MobileTab) => void; renderBottomTabIcon: (tab: MobileTab, filled: boolean) => JSX.Element; onOpenProfile: (author: string) => void }) {
   const storageKey = `adultapp_ask_draft_${profile.id}`;
   const [questionText, setQuestionText] = useState(() => {
     if (typeof window === "undefined") return "";
@@ -1822,7 +1824,7 @@ function AskProfileScreen({ profile, activeTab, onClose, onSelectTab, renderBott
             <div className="asked-question-copy">
               <div className="asked-question-copy-head">
                 <div className="asked-question-copy-main">
-                  <strong>{profile.name}</strong>
+                  <button type="button" className="feed-author-link asked-profile-name-btn" onClick={() => onOpenProfile(profile.name)}>{profile.name}</button>
                   <span>{profile.headline}</span>
                 </div>
                 <div className="asked-question-toolbar asked-question-toolbar-inline">
@@ -2612,7 +2614,8 @@ export default function App() {
     if (typeof window === "undefined") return {};
     try { return JSON.parse(window.localStorage.getItem("adultapp_feed_comment_drafts") ?? "{}"); } catch { return {}; }
   });
-  const [profileSection, setProfileSection] = useState<"게시물" | "질문" | "릴스" | "태그됨">("게시물");
+  const [viewedProfileAuthor, setViewedProfileAuthor] = useState<string | null>(null);
+  const [profileSection, setProfileSection] = useState<ProfileSection>("게시물");
   const [followedFeedAuthors, setFollowedFeedAuthors] = useState<string[]>(() => {
     if (typeof window === "undefined") return ["adult official", "seller studio"];
     try { return JSON.parse(window.localStorage.getItem("adultapp_followed_feed_authors") ?? '["adult official","seller studio"]'); } catch { return ["adult official", "seller studio"]; }
@@ -3441,6 +3444,36 @@ export default function App() {
     return buildShopHomeRecommendationFeed({ items: productsSeed, keywordSignals: shopKeywordSignals, visibleCount: shopHomeVisibleCount });
   }, [shopHomeRecommendedItems, shopKeywordSignals, shopHomeVisibleCount]);
 
+  const currentProfileAuthor = viewedProfileAuthor ?? "adult official";
+  const currentProfileMeta = useMemo(() => {
+    const askProfile = askProfiles.find((item) => item.name === currentProfileAuthor);
+    const authorFeeds = feedSeed.filter((item) => item.author === currentProfileAuthor);
+    const firstFeed = authorFeeds[0];
+    const hash = deterministicHash(currentProfileAuthor);
+    const followerCount = 1200 + (hash % 4200);
+    const followingCount = 120 + (hash % 430);
+    const postCount = Math.max(9, authorFeeds.length * 4 || 12);
+    return {
+      name: currentProfileAuthor,
+      avatar: currentProfileAuthor.slice(0, 1).toUpperCase(),
+      headline: askProfile?.headline ?? firstFeed?.category ?? "프로필",
+      bio: askProfile?.intro ?? firstFeed?.caption ?? "피드와 질문, 쇼핑 정보를 함께 운영하는 계정입니다.",
+      hashtags: getContentKeywordTags(firstFeed ?? feedSeed[0]),
+      postCount,
+      followerCount,
+      followingCount,
+      isOwner: viewedProfileAuthor === null,
+    };
+  }, [currentProfileAuthor, viewedProfileAuthor]);
+
+  const currentProfileProducts = useMemo(() => {
+    const pool = (allShopItems.length ? allShopItems : productsSeed.map((item, index) => withProductMetrics(item, index))).map((item, index) => withProductMetrics(item, index));
+    const ownerIndex = Math.abs(deterministicHash(currentProfileAuthor)) % 5;
+    const picked = pool.filter((item) => Math.abs(deterministicHash(`${currentProfileAuthor}-${item.id}-${item.name}`)) % 5 === ownerIndex);
+    const source = picked.length >= 6 ? picked : pool.slice(ownerIndex * 6, ownerIndex * 6 + 9);
+    return [...source].sort((a, b) => ((b.orderCount ?? 0) - (a.orderCount ?? 0)) || ((b.reviewCount ?? 0) - (a.reviewCount ?? 0)) || a.name.localeCompare(b.name));
+  }, [allShopItems, currentProfileAuthor]);
+
   useEffect(() => {
     if (activeTab !== "쇼핑" || shoppingTab !== "홈") return;
     setShopHomeVisibleCount(30);
@@ -3650,10 +3683,12 @@ export default function App() {
   }, [globalKeyword, searchFilter]);
 
   const openProfileFromAuthor = (author: string) => {
+    setViewedProfileAuthor(author);
     setActiveTab("프로필");
     setProfileTab("내정보");
     setProfileSection("게시물");
     setOverlayMode(null);
+    setSelectedAskProfile(null);
   };
 
   const renderBottomTabIcon = (tab: MobileTab, filled: boolean) => ({
@@ -4675,6 +4710,10 @@ export default function App() {
     if (tab === activeTab && overlayMode === null && !roomModalOpen) return;
     setActiveTab(tab);
     if (tab === "홈") setHomeTab((prev) => prev || "피드");
+    if (tab === "프로필") {
+      setViewedProfileAuthor(null);
+      setProfileSection("게시물");
+    }
     if (overlayMode !== null) setOverlayMode(null);
     if (roomModalOpen) setRoomModalOpen(false);
     if (activeTab === "채팅" && tab !== "채팅") {
@@ -5962,18 +6001,13 @@ export default function App() {
                 <div className="section-head compact-head"><div><h2>질문</h2><p>historyprofile 질문 화면 흐름을 참고한 카드형 질문/답변 화면입니다.</p></div></div>
                 <div className="question-profile-hero">
                   <div className="question-profile-copy">
-                    <span className="question-profile-chip">질문 허용</span>
                     <strong>adult official · 질문 프로필</strong>
-                    <p>질문을 받고 답변을 공개 카드로 정리하는 화면 예시입니다. 상단/중간 광고 영역도 함께 배치했습니다.</p>
+                    <p>질문을 받고 답변을 공개 카드로 정리하는 화면 예시입니다.</p>
                   </div>
                   <div className="question-profile-actions">
                     <button>질문하기</button>
                     <button className="ghost-btn">공유</button>
                   </div>
-                </div>
-                <div className="ad-banner ad-banner-top">
-                  <span>Google AdSense 영역</span>
-                  <strong>질문 화면 상단 광고</strong>
                 </div>
                 <div className="question-list">
                   {filteredQuestions.map((item, idx) => (
@@ -6000,12 +6034,7 @@ export default function App() {
                           <button>저장</button>
                         </div>
                       </article>
-                      {idx === 0 ? (
-                        <div className="ad-banner ad-banner-inline" key={`ad-${item.id}`}>
-                          <span>Google AdSense 영역</span>
-                          <strong>질문 피드 중간 광고</strong>
-                        </div>
-                      ) : null}
+
                     </>
                   ))}
                 </div>
@@ -6060,22 +6089,29 @@ export default function App() {
             <div className="profile-ig-shell compact-scroll-list">
               <div className="profile-ig-header">
                 <div className="profile-ig-avatar-wrap">
-                  <div className="profile-ig-avatar">A</div>
+                  <div className="profile-ig-avatar">{currentProfileMeta.avatar}</div>
                 </div>
                 <div className="profile-ig-main">
                   <div className="profile-ig-topline">
-                    <strong className="profile-ig-username">adult official</strong>
-                    <button type="button" className="ghost-btn profile-ig-mini-btn" onClick={() => setAuthStandaloneScreen("login")}>프로필 편집</button>
+                    <strong className="profile-ig-username">{currentProfileMeta.name}</strong>
+                    {currentProfileMeta.isOwner ? (
+                      <button type="button" className="ghost-btn profile-ig-mini-btn" onClick={() => setAuthStandaloneScreen("login")}>프로필 편집</button>
+                    ) : (
+                      <div className="asked-question-toolbar asked-question-toolbar-inline profile-inline-actions">
+                        <button type="button" onClick={() => toggleFollowedFeedAuthor(currentProfileMeta.name)}>{followedFeedAuthors.includes(currentProfileMeta.name) ? "팔로잉" : "팔로우"}</button>
+                        <button type="button" className="ghost-btn">공유</button>
+                      </div>
+                    )}
                   </div>
                   <div className="profile-ig-stats">
-                    <div><b>94</b><span>게시물</span></div>
-                    <div><b>2,184</b><span>팔로워</span></div>
-                    <div><b>318</b><span>팔로잉</span></div>
+                    <div><b>{currentProfileMeta.postCount}</b><span>게시물</span></div>
+                    <div><b>{currentProfileMeta.followerCount.toLocaleString()}</b><span>팔로워</span></div>
+                    <div><b>{currentProfileMeta.followingCount.toLocaleString()}</b><span>팔로잉</span></div>
                   </div>
                   <div className="profile-ig-bio">
-                    <strong>adult official</strong>
-                    <p>운영 · 브랜드 · 셀러 큐레이션을 한 곳에서 정리하는 공식 계정입니다.</p>
-                    <span>#브랜드 #추천 #리뷰 #쇼핑</span>
+                    <strong>{currentProfileMeta.name}</strong>
+                    <p>{currentProfileMeta.bio}</p>
+                    <span>{currentProfileMeta.hashtags.map((tag) => `#${tag}`).join(" ")}</span>
                   </div>
                 </div>
               </div>
@@ -6100,13 +6136,13 @@ export default function App() {
                 <button type="button" className={profileSection === "질문" ? "active" : ""} onClick={() => setProfileSection("질문")}>질문</button>
                 <button type="button" className={profileSection === "릴스" ? "active" : ""} onClick={() => setProfileSection("릴스")}>릴스</button>
                 <button type="button" className={profileSection === "태그됨" ? "active" : ""} onClick={() => setProfileSection("태그됨")}>태그됨</button>
-                <button type="button" onClick={() => setActiveTab("쇼핑")}>상품 보기</button>
+                <button type="button" className={profileSection === "상품보기" ? "active" : ""} onClick={() => setProfileSection("상품보기")}>상품 보기</button>
                 <button type="button" onClick={() => setActiveTab("채팅")}>문의하기</button>
               </div>
 
               {profileSection === "게시물" ? (
                 <div className="profile-ig-grid">
-                  {feedSeed.filter((item) => item.type === "image").slice(0, 12).map((item) => (
+                  {feedSeed.filter((item) => item.type === "image" && item.author === currentProfileMeta.name).slice(0, 12).map((item) => (
                     <article key={item.id} className={`profile-ig-tile ${item.accent}`}>
                       <div className="profile-ig-tile-media">
                         <span>{item.category}</span>
@@ -6128,7 +6164,7 @@ export default function App() {
                         <div>
                           <div className="question-user-line">
                             <span className="community-chip">질문</span>
-                            <strong>{item.author}</strong>
+                            <button type="button" className="feed-author-link" onClick={() => openProfileFromAuthor(currentProfileMeta.name)}>{currentProfileMeta.name}</button>
                             <span className="community-meta">{item.meta}</span>
                           </div>
                           <div className="question-body">Q. {item.question}</div>
@@ -6145,7 +6181,7 @@ export default function App() {
 
               {profileSection === "릴스" ? (
                 <div className="profile-ig-grid">
-                  {feedSeed.filter((item) => item.type === "video").slice(0, 9).map((item) => (
+                  {feedSeed.filter((item) => item.type === "video" && item.author === currentProfileMeta.name).slice(0, 9).map((item) => (
                     <article key={`reel-${item.id}`} className={`profile-ig-tile ${item.accent}`}>
                       <div className="profile-ig-tile-media profile-ig-tile-media-reel">
                         <span>릴스</span>
@@ -6168,7 +6204,23 @@ export default function App() {
                       </div>
                       <div className="profile-ig-tile-meta">
                         <strong>{item.title}</strong>
-                        <span>@adult official · {item.postedAt ?? "오늘"}</span>
+                        <span>@{currentProfileMeta.name} · {item.postedAt ?? "오늘"}</span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : null}
+
+              {profileSection === "상품보기" ? (
+                <div className="profile-ig-grid">
+                  {currentProfileProducts.map((product, index) => (
+                    <article key={`profile-product-${product.id}-${index}`} className={`profile-ig-tile profile-product-tile ${(index % 4 === 0) ? "sunrise" : (index % 4 === 1) ? "violet" : (index % 4 === 2) ? "teal" : "rose"}`}>
+                      <div className="profile-ig-tile-media profile-product-tile-media">
+                        <span>{product.badge}</span>
+                      </div>
+                      <div className="profile-ig-tile-meta">
+                        <strong>{product.name}</strong>
+                        <span>판매 {(product.orderCount ?? 0).toLocaleString()} · 리뷰 {(product.reviewCount ?? 0).toLocaleString()}</span>
                       </div>
                     </article>
                   ))}
@@ -6268,7 +6320,7 @@ export default function App() {
           </button>
         ))}</nav>
 
-      {selectedAskProfile ? <AskProfileScreen profile={selectedAskProfile} activeTab={activeTab} onClose={() => setSelectedAskProfile(null)} onSelectTab={selectBottomTab} renderBottomTabIcon={renderBottomTabIcon} /> : null}
+      {selectedAskProfile ? <AskProfileScreen profile={selectedAskProfile} activeTab={activeTab} onClose={() => setSelectedAskProfile(null)} onSelectTab={selectBottomTab} renderBottomTabIcon={renderBottomTabIcon} onOpenProfile={openProfileFromAuthor} /> : null}
 
       {openFeedCommentItem ? (
         <FeedCommentScreen
