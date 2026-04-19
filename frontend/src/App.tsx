@@ -5209,8 +5209,7 @@ export default function App() {
               </div>
             ) : (
               <>
-                <div className="section-head compact-head"><div><h2>채팅</h2></div></div>
-                <div className="chat-toolbar kakao-toolbar">
+                <div className="chat-toolbar kakao-toolbar compact-only-toolbar">
                   <div className="chat-category-scroll">
                     {chatCategories.map((category) => (
                       <button
