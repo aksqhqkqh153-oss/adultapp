@@ -76,7 +76,7 @@ type CommunityPost = {
 
 type NotificationItem = {
   id: number;
-  section: "공지" | "주문" | "소통";
+  section: "공지" | "이벤트" | "주문" | "소통";
   category: string;
   title: string;
   body: string;
@@ -570,7 +570,7 @@ type RandomRegionOption = (typeof randomRegionOptions)[number];
 type RandomEntryTab = (typeof randomEntryTabs)[number];
 type AdminModeTab = (typeof adminModeTabs)[number];
 type OverlayMode = "search" | "settings" | "notifications" | "menu" | "reconsent_info" | null;
-type NotificationSectionKey = "notices" | "orders" | "community";
+type NotificationSectionKey = "notices" | "events" | "orders" | "community";
 type DemoLoginProvider = "PASS" | "휴대폰" | "카카오";
 type AdultGateView = "intro" | "success" | "failed" | "minor";
 type SignupStep = "consent" | "account" | "profile";
@@ -853,6 +853,42 @@ function parseRelativeMinutes(postedAt?: string) {
   return 240;
 }
 
+const FEED_ALGO_FALLBACK_KEYWORDS = ["추천", "인기", "리뷰", "케어"] as const;
+
+function formatShortDateLabel(value?: string) {
+  if (!value) return "26.4.18";
+  if (/^\d{2}\.\d{1,2}\.\d{1,2}$/.test(value)) return value;
+  if (/^\d{4}-\d{2}-\d{2}/.test(value)) {
+    const [year, month, day] = value.split("T")[0].split("-");
+    return `${year.slice(2)}.${Number(month)}.${Number(day)}`;
+  }
+  if (value === "어제") return "26.4.18";
+  return value;
+}
+
+function formatFeedPostedAt(postedAt?: string) {
+  const minutes = parseRelativeMinutes(postedAt);
+  if (minutes <= 2) return "방금 업데이트";
+  if (minutes < 60) return `${minutes}분 전`;
+  if (minutes < 1440) return `${Math.floor(minutes / 60)}시간 전`;
+  return formatShortDateLabel(postedAt);
+}
+
+function formatCommunityPostedAt(postedAt?: string) {
+  const minutes = parseRelativeMinutes(postedAt);
+  if (minutes < 60) return "1시간 전";
+  if (minutes < 1440) return `${Math.max(1, Math.floor(minutes / 60))}시간 전`;
+  return formatShortDateLabel(postedAt);
+}
+
+function parseCommunityMeta(meta: string) {
+  const [authorRaw, postedAtRaw] = meta.split("·").map((item) => item.trim());
+  return {
+    author: authorRaw || "운영팀",
+    postedAt: formatCommunityPostedAt(postedAtRaw || "26.4.18"),
+  };
+}
+
 function extractInterestTokens(source: string) {
   return source
     .toLowerCase()
@@ -898,14 +934,13 @@ function buildKeywordSignalMap({
 
 function getTopMatchedKeywords(item: FeedItem, signalMap: Map<string, number>) {
   const content = `${item.title} ${item.caption} ${item.category} ${item.author}`.toLowerCase();
-  const directMatches = Array.from(signalMap.entries())
-    .filter(([token]) => content.includes(token))
+  const rankedSignals = Array.from(signalMap.entries())
     .sort((a, b) => b[1] - a[1])
-    .map(([token]) => token);
-  const fallback = [item.category, ...extractInterestTokens(item.title), ...extractInterestTokens(item.caption)]
-    .map((token) => token.toLowerCase())
+    .map(([token]) => token.toLowerCase())
     .filter((token, index, array) => token && array.indexOf(token) === index);
-  return Array.from(new Set([...directMatches, ...fallback])).slice(0, 2);
+  const directMatches = rankedSignals.filter((token) => content.includes(token));
+  const fallback = rankedSignals.length ? rankedSignals : [...FEED_ALGO_FALLBACK_KEYWORDS];
+  return Array.from(new Set([...(directMatches.length ? directMatches : fallback)])).slice(0, 2);
 }
 
 function deterministicHash(value: string) {
@@ -1350,20 +1385,23 @@ const communityPrimaryFilters = ["전체", "공식", "회원", "운영"] as cons
 const communitySecondaryFilters = ["전체", "최신순", "공지우선", "인기순"] as const;
 
 const communitySeed: CommunityPost[] = [
-  { id: 1, board: "커뮤", category: "공지", title: "안전모드 기준 및 커뮤니티 운영 원칙", summary: "앱 공개영역에서 허용되는 표현과 금지되는 표현을 한 번에 정리합니다.", meta: "관리자 · 오늘", audience: "공식", sortScore: 100 },
+  { id: 1, board: "커뮤", category: "공지", title: "안전모드 기준 및 커뮤니티 운영 원칙", summary: "앱 공개영역에서 허용되는 표현과 금지되는 표현을 한 번에 정리합니다.", meta: "관리자 · 1시간 전", audience: "공식", sortScore: 100 },
   { id: 2, board: "커뮤", category: "정보", title: "익명포장 SOP와 반품 회수 체크포인트", summary: "판매자/고객 모두 확인할 수 있는 실무형 요약 카드입니다.", meta: "운영팀 · 2시간 전", audience: "운영", sortScore: 92 },
   { id: 3, board: "후기", category: "후기", title: "사진 피드형 상품 리뷰 구성 예시", summary: "사진·짧은 영상·요약문이 결합된 소통 공간 예시입니다.", meta: "brand_note · 4시간 전", audience: "회원", sortScore: 88 },
-  { id: 4, board: "포럼", category: "토론", title: "신규 카테고리 승인 대기 상품 현황", summary: "판매자센터에서 확인 중인 상품들을 카테고리별로 묶어서 보여줍니다.", meta: "seller_studio · 어제", audience: "회원", sortScore: 81 },
-  { id: 5, board: "포럼", category: "이벤트", title: "앱 심사 safe UI 점검 이벤트", summary: "모바일 노출 점검과 신고 흐름 확인용 공지입니다.", meta: "프로덕트팀 · 어제", audience: "공식", sortScore: 90 },
-  { id: 6, board: "커뮤", category: "공지", title: "이용약관 및 개인정보 처리방침 안내", summary: "앱 내 약관, 개인정보 처리방침, 청소년 보호정책, 환불정책은 알림 > 공지사항과 커뮤니티 공지 카테고리에서 확인할 수 있습니다.", meta: "운영공지 · 오늘", audience: "공식", sortScore: 99 },
-  { id: 7, board: "포럼", category: "공지", title: "청소년 보호정책 및 제한 웹 포럼 운영 기준", summary: "앱 공개영역에서는 랜덤채팅을 열지 않고, 제한 웹 영역에서만 안전·동의·세척/보관 정보 포럼을 승인제로 운영합니다.", meta: "안전운영팀 · 오늘", audience: "공식", sortScore: 97 },
-  { id: 8, board: "커뮤", category: "정보", title: "구매자 활성화를 위한 앱 내 소통 기능 10선", summary: "안전수칙 토론, 초보 Q&A, 익명 고민상담, 주간 토크방처럼 법적 리스크가 낮은 소통 구조를 정리했습니다.", meta: "기획팀 · 오늘", audience: "운영", sortScore: 84 },
+  { id: 4, board: "포럼", category: "토론", title: "신규 카테고리 승인 대기 상품 현황", summary: "판매자센터에서 확인 중인 상품들을 카테고리별로 묶어서 보여줍니다.", meta: "seller_studio · 26.4.18", audience: "회원", sortScore: 81 },
+  { id: 5, board: "포럼", category: "이벤트", title: "앱 심사 safe UI 점검 이벤트", summary: "모바일 노출 점검과 신고 흐름 확인용 공지입니다.", meta: "프로덕트팀 · 26.4.18", audience: "공식", sortScore: 90 },
+  { id: 6, board: "커뮤", category: "공지", title: "이용약관 및 개인정보 처리방침 안내", summary: "앱 내 약관, 개인정보 처리방침, 청소년 보호정책, 환불정책은 알림 > 공지사항과 커뮤니티 공지 카테고리에서 확인할 수 있습니다.", meta: "운영공지 · 3시간 전", audience: "공식", sortScore: 99 },
+  { id: 7, board: "포럼", category: "공지", title: "청소년 보호정책 및 제한 웹 포럼 운영 기준", summary: "앱 공개영역에서는 랜덤채팅을 열지 않고, 제한 웹 영역에서만 안전·동의·세척/보관 정보 포럼을 승인제로 운영합니다.", meta: "안전운영팀 · 26.4.18", audience: "공식", sortScore: 97 },
+  { id: 8, board: "커뮤", category: "정보", title: "구매자 활성화를 위한 앱 내 소통 기능 10선", summary: "안전수칙 토론, 초보 Q&A, 익명 고민상담, 주간 토크방처럼 법적 리스크가 낮은 소통 구조를 정리했습니다.", meta: "기획팀 · 14시간 전", audience: "운영", sortScore: 84 },
 ];
 
 const notificationSeed: NotificationItem[] = [
   { id: 1, section: "공지", category: "정책", title: "앱 공지사항", body: "앱 정책, 필수 문서, 서비스 업데이트 공지를 알림 목록에서 빠르게 확인할 수 있도록 정리했습니다.", meta: "정책 공지", postedAt: "2026-04-19", unread: true, ctaLabel: "상세 보기" },
   { id: 2, section: "공지", category: "업데이트", title: "채팅 운영기준 업데이트", body: "성향/관심사 그룹대화는 허용하되, 1:1 대화는 상호 수락 이후에만 열리도록 기준을 정리했습니다.", meta: "앱 업데이트", postedAt: "2026-04-19", unread: true, ctaLabel: "상세 보기" },
   { id: 7, section: "공지", category: "운영", title: "홈 검색 구조 개편 안내", body: "상단 검색 버튼을 누르면 탭별 결과 화면으로 바로 전환되는 구조로 개편되었습니다.", meta: "운영 공지", postedAt: "2026-04-18", ctaLabel: "상세 보기" },
+  { id: 10, section: "이벤트", category: "이벤트", title: "이번 주 기획전 오픈", body: "홈과 쇼핑 화면에서 이번 주 기획전 상품과 할인 정보를 바로 확인할 수 있습니다.", meta: "이벤트 소식", postedAt: "2026-04-19", unread: true, ctaLabel: "상세 보기" },
+  { id: 11, section: "이벤트", category: "쿠폰", title: "앱 전용 쿠폰 지급", body: "앱 전용 할인 쿠폰이 발급되었습니다. 사용 가능 상품은 쇼핑 홈 추천 영역에서 우선 노출됩니다.", meta: "혜택 안내", postedAt: "2026-04-18", ctaLabel: "상세 보기" },
+  { id: 12, section: "이벤트", category: "기획전", title: "브랜드 기획전 종료 임박", body: "관심 키워드와 맞는 브랜드 기획전이 곧 종료됩니다. 마감 전에 상세를 확인하세요.", meta: "기획전 안내", postedAt: "2026-04-17", ctaLabel: "상세 보기" },
   { id: 3, section: "주문", category: "주문", title: "주문한 제품 발송 준비중", body: "주문번호 A-240412-001 상품이 발송 준비 단계로 변경되었습니다.", meta: "쇼핑 주문", postedAt: "2026-04-19", unread: true, ctaLabel: "상세 보기" },
   { id: 4, section: "주문", category: "배송", title: "배송 상태 변경", body: "익명포장 배송 건이 택배사에 인계되었습니다. 상세 추적은 주문 목록에서 확인하세요.", meta: "배송 알림", postedAt: "2026-04-18", ctaLabel: "상세 보기" },
   { id: 8, section: "주문", category: "교환/환불", title: "환불 요청 접수", body: "환불 요청이 정상 접수되었으며 판매자 검수 후 처리 상태가 갱신됩니다.", meta: "주문 처리", postedAt: "2026-04-17", ctaLabel: "상세 보기" },
@@ -1456,6 +1494,7 @@ function DualRangeSlider({ min, max, valueMin, valueMax, step = 1, leftLabel, ri
 }
 
 const FeedPoster = memo(function FeedPoster({ item, onAsk, saved, liked, commentsOpen, onOpenComments, onToggleLike, onToggleSave, keywordTags = [], onOpenAuthorProfile, following, onToggleFollow }: { item: FeedItem; onAsk: (item: FeedItem) => void; saved: boolean; liked: boolean; commentsOpen: boolean; onOpenComments: (item: FeedItem) => void; onToggleLike: (feedId: number) => void; onToggleSave: (feedId: number) => void; keywordTags?: string[]; onOpenAuthorProfile: (author: string) => void; following: boolean; onToggleFollow: (author: string) => void }) {
+  const postedLabel = formatFeedPostedAt(item.postedAt);
   return (
     <article className={`feed-card history-feed-card ${item.accent}`}>
       <div className="history-feed-head">
@@ -1463,7 +1502,11 @@ const FeedPoster = memo(function FeedPoster({ item, onAsk, saved, liked, comment
           <div className="story-mini-avatar">{item.author.slice(0, 1).toUpperCase()}</div>
           <div className="history-feed-profile-copy">
             <button type="button" className="feed-author-link" onClick={() => onOpenAuthorProfile(item.author)}>{item.author}</button>
-            <p>방금 업데이트</p>
+            <div className="feed-author-meta-row">
+              <span className="feed-posted-at">{postedLabel}</span>
+              <span>팔로워 2,184</span>
+              <span>팔로잉 318</span>
+            </div>
           </div>
         </div>
         <div className="history-feed-head-actions">
@@ -1493,7 +1536,7 @@ const FeedPoster = memo(function FeedPoster({ item, onAsk, saved, liked, comment
         <button type="button" className={liked ? "active" : ""} aria-label="좋아요" onClick={() => onToggleLike(item.id)}><HeartIcon filled={liked} /></button>
         <button type="button" className={commentsOpen ? "active" : ""} aria-label="댓글" onClick={() => onOpenComments(item)}><CommentBubbleIcon /></button>
         <button type="button" aria-label="질문하기" onClick={() => onAsk(item)}><QuestionAnswerIcon /></button>
-        <button type="button" className={`ghost-btn ${saved ? "active" : ""}`} aria-label="보관함" onClick={() => onToggleSave(item.id)}><BookmarkIcon filled={saved} /></button>
+        <button type="button" className={saved ? "active" : ""} aria-label="보관함" onClick={() => onToggleSave(item.id)}><BookmarkIcon filled={saved} /></button>
       </div>
     </article>
   );
@@ -2395,6 +2438,7 @@ export default function App() {
   const shopHomeBannerPointerActiveRef = useRef(false);
   const [shopHomeVisibleCount, setShopHomeVisibleCount] = useState(9);
   const [communityKeyword, setCommunityKeyword] = useState("");
+  const [communityPage, setCommunityPage] = useState(1);
   const [projectStatus, setProjectStatus] = useState<ProjectStatus | null>(null);
   const [deployGuide, setDeployGuide] = useState<DeployGuide | null>(null);
   const [legalDocuments, setLegalDocuments] = useState<LegalDocumentsResponse | null>(null);
@@ -3435,6 +3479,16 @@ export default function App() {
     return visiblePosts;
   }, [communityTab, selectedCommunityCategory, communityKeyword, globalKeyword, communityPrimaryFilter, communitySecondaryFilter]);
 
+  useEffect(() => {
+    setCommunityPage(1);
+  }, [communityTab, selectedCommunityCategory, communityPrimaryFilter, communitySecondaryFilter, communityKeyword, globalKeyword]);
+
+  const communityPageCount = Math.max(1, Math.ceil(filteredCommunity.length / 6));
+  const pagedCommunity = useMemo(() => {
+    const start = (communityPage - 1) * 6;
+    return filteredCommunity.slice(start, start + 6);
+  }, [filteredCommunity, communityPage]);
+
   const filteredThreads = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
     return threadItems.filter((thread) => {
@@ -4453,11 +4507,13 @@ export default function App() {
 
   const notificationSections = useMemo(() => ({
     notices: notificationSeed.filter((item) => item.section === "공지"),
+    events: notificationSeed.filter((item) => item.section === "이벤트"),
     orders: notificationSeed.filter((item) => item.section === "주문"),
     community: notificationSeed.filter((item) => item.section === "소통"),
   }), []);
   const notificationSectionMeta: Record<NotificationSectionKey, { title: string; shortTitle: string }> = {
     notices: { title: "앱 공지사항", shortTitle: "공지" },
+    events: { title: "이벤트", shortTitle: "이벤트" },
     orders: { title: "쇼핑주문·배송 알림", shortTitle: "쇼핑" },
     community: { title: "소통·채팅·질문·기타 알림", shortTitle: "기타" },
   };
@@ -4470,6 +4526,7 @@ export default function App() {
     프로필: ["내정보"],
   };
   const currentSearchSections = searchSectionsByTab[activeTab];
+  const getNotificationChipTone = (sectionKey: NotificationSectionKey | null) => (sectionKey === "orders" ? "order" : sectionKey === "community" ? "community" : sectionKey === "events" ? "event" : "");
   const homeShortSearchResults = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
     if (!keyword) return [];
@@ -4858,16 +4915,6 @@ export default function App() {
                     </button>
                   ))}
                 </div>
-                {activeTab === "소통" ? (
-                  <div className="search-filter-inline-row">
-                    <select value={communityPrimaryFilter} onChange={(e) => setCommunityPrimaryFilter(e.target.value)}>
-                      {communityPrimaryFilters.map((filter) => <option key={filter} value={filter}>{filter === "전체" ? "전체 공개범위" : filter}</option>)}
-                    </select>
-                    <select value={communitySecondaryFilter} onChange={(e) => setCommunitySecondaryFilter(e.target.value)}>
-                      {communitySecondaryFilters.map((filter) => <option key={filter} value={filter}>{filter === "전체" ? "정렬" : filter}</option>)}
-                    </select>
-                  </div>
-                ) : null}
                 <div className="search-toolbar-actions">
                   <button className="ghost-btn" onClick={() => setGlobalKeyword("")}>검색어 초기화</button>
                 </div>
@@ -4954,7 +5001,7 @@ export default function App() {
                         <div className="notification-summary-list">
                           {items.slice(0, 3).map((item) => (
                             <button key={item.id} type="button" className={`notification-summary-row ${item.unread ? "unread" : ""}`} onClick={() => setNotificationView({ view: "detail", section: sectionKey, item })}>
-                              <span className={`notification-chip ${sectionKey === "orders" ? "order" : sectionKey === "community" ? "community" : ""}`}>{item.category}</span>
+                              <span className={`notification-chip ${getNotificationChipTone(sectionKey)}`}>{item.category}</span>
                               <strong>{item.title}</strong>
                               <span>{item.postedAt}</span>
                             </button>
@@ -4974,7 +5021,7 @@ export default function App() {
                     <div className="notification-summary-list notification-summary-list-all">
                       {notificationSections[notificationView.section].map((item) => (
                         <button key={item.id} type="button" className={`notification-summary-row ${item.unread ? "unread" : ""}`} onClick={() => setNotificationView({ view: "detail", section: notificationView.section, item })}>
-                          <span className={`notification-chip ${notificationView.section === "orders" ? "order" : notificationView.section === "community" ? "community" : ""}`}>{item.category}</span>
+                          <span className={`notification-chip ${getNotificationChipTone(notificationView.section)}`}>{item.category}</span>
                           <strong>{item.title}</strong>
                           <span>{item.postedAt}</span>
                         </button>
@@ -4990,7 +5037,7 @@ export default function App() {
                       <strong>{notificationView.item.title}</strong>
                     </div>
                     <div className="legacy-box compact notification-detail-card">
-                      <div className="notification-item-topline"><span className={`notification-chip ${notificationView.section === "orders" ? "order" : notificationView.section === "community" ? "community" : ""}`}>{notificationView.item.category}</span><span>{notificationView.item.postedAt}</span></div>
+                      <div className="notification-item-topline"><span className={`notification-chip ${getNotificationChipTone(notificationView.section)}`}>{notificationView.item.category}</span><span>{notificationView.item.postedAt}</span></div>
                       <p>{notificationView.item.body}</p>
                       <span className="community-meta">{notificationView.item.meta}</span>
                     </div>
@@ -5740,28 +5787,40 @@ export default function App() {
               </div>
             ) : (
               <>
-                <div className="split-layout mobile-split community-board-layout">
-                  <aside className="left-menu always-open slim-left-menu community-category-panel">
-                    <button className={`left-link ${selectedCommunityCategory === "전체" ? "active" : ""}`} onClick={() => setSelectedCommunityCategory("전체")}>전체</button>
+                <div className="community-simple-board compact-scroll-list">
+                  <div className="community-simple-category-row">
+                    <button className={`community-simple-chip ${selectedCommunityCategory === "전체" ? "active" : ""}`} onClick={() => setSelectedCommunityCategory("전체")}>전체</button>
                     {communityCategories.map((category) => (
-                      <button key={category} className={`left-link ${selectedCommunityCategory === category ? "active" : ""}`} onClick={() => setSelectedCommunityCategory(category)}>{category}</button>
+                      <button key={category} className={`community-simple-chip ${selectedCommunityCategory === category ? "active" : ""}`} onClick={() => setSelectedCommunityCategory(category)}>{category}</button>
                     ))}
-                  </aside>
-                  <div className="community-list compact-scroll-list community-post-panel">
-                    {filteredCommunity.map((post) => (
-                      <article key={post.id} className="community-card">
-                        <div className="community-card-topline">
-                          <span className="community-chip">{post.category}</span>
-                          <span className="community-chip muted-chip">{post.audience ?? "전체"}</span>
-                        </div>
-                        <strong>{post.title}</strong>
-                        <p>{post.summary}</p>
-                        <div className="community-meta">{post.meta}</div>
-                      </article>
-                    ))}
+                  </div>
+                  <div className="community-simple-list">
+                    {pagedCommunity.map((post) => {
+                      const parsedMeta = parseCommunityMeta(post.meta);
+                      return (
+                        <article key={post.id} className="community-simple-item">
+                          <div className="community-simple-head-row">
+                            <div className="community-simple-title-wrap">
+                              <span className="community-chip">{post.category}</span>
+                              <strong title={post.title}>{post.title}</strong>
+                            </div>
+                            <div className="community-simple-meta-row">
+                              <span>{parsedMeta.author}</span>
+                              <span>{parsedMeta.postedAt}</span>
+                            </div>
+                          </div>
+                          <p>{post.summary}</p>
+                        </article>
+                      );
+                    })}
                     {filteredCommunity.length === 0 ? (
                       <div className="legacy-box compact"><p>조건에 맞는 게시글이 없습니다.</p></div>
                     ) : null}
+                  </div>
+                  <div className="community-simple-pagination">
+                    <button type="button" className="ghost-btn" onClick={() => setCommunityPage((prev) => Math.max(1, prev - 1))} disabled={communityPage <= 1}>이전</button>
+                    <span>{communityPage} / {communityPageCount}</span>
+                    <button type="button" className="ghost-btn" onClick={() => setCommunityPage((prev) => Math.min(communityPageCount, prev + 1))} disabled={communityPage >= communityPageCount}>다음</button>
                   </div>
                 </div>
               </>
