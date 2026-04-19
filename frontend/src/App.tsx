@@ -1,4 +1,4 @@
-import { CSSProperties, UIEvent, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, PointerEvent, UIEvent, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { clearTokens, ensureAuthSession, getApiBase, getJson, getRefreshToken, hasAuthToken, postJson, setAuthToken, setRefreshToken } from "./lib/api";
 
 type FeedItem = {
@@ -1809,7 +1809,7 @@ function AskProfileScreen({ profile, activeTab, onClose, onSelectTab, renderBott
     <div className="question-overlay">
       <section className="asked-page-head">
         <div className="asked-nav-row">
-          <button type="button" className="header-inline-btn modal-back-btn" onClick={onClose}>←</button>
+          <button type="button" className="header-inline-btn header-icon-btn topbar-search-back" onClick={onClose} aria-label="뒤로가기"><BackArrowIcon /></button>
           <div className="asked-page-title">질문</div>
           <span className="modal-spacer" />
         </div>
@@ -1936,7 +1936,7 @@ function FeedCommentScreen({ item, comments, draft, onChangeDraft, onSubmit, onC
     <div className="feed-comment-overlay">
       <section className="asked-page-head feed-comment-head">
         <div className="asked-nav-row">
-          <button type="button" className="header-inline-btn modal-back-btn" onClick={onClose}>←</button>
+          <button type="button" className="header-inline-btn header-icon-btn topbar-search-back" onClick={onClose} aria-label="뒤로가기"><BackArrowIcon /></button>
           <div className="asked-page-title">댓글</div>
           <button type="button" className="header-inline-btn feed-comment-submit-top" onClick={onSubmit}>등록</button>
         </div>
@@ -2386,6 +2386,15 @@ export default function App() {
   const [searchFilter, setSearchFilter] = useState("전체");
   const [searchSection, setSearchSection] = useState("피드결과");
   const [notificationView, setNotificationView] = useState<{ view: "list" | "section" | "detail"; section: NotificationSectionKey | null; item: NotificationItem | null }>({ view: "list", section: null, item: null });
+  const [notificationItems, setNotificationItems] = useState<NotificationItem[]>(() => {
+    if (typeof window === "undefined") return notificationSeed;
+    try {
+      const stored = JSON.parse(window.localStorage.getItem("adultapp_notification_items") ?? "null");
+      return Array.isArray(stored) && stored.length ? stored : notificationSeed;
+    } catch {
+      return notificationSeed;
+    }
+  });
   const [homeTab, setHomeTab] = useState<HomeTab>("피드");
   const [shoppingTab, setShoppingTab] = useState<ShoppingTab>("홈");
   const [communityTab, setCommunityTab] = useState<CommunityTab>("커뮤");
@@ -2436,6 +2445,9 @@ export default function App() {
   const [shopHomeBannerDragOffset, setShopHomeBannerDragOffset] = useState(0);
   const shopHomeBannerPointerStartXRef = useRef<number | null>(null);
   const shopHomeBannerPointerActiveRef = useRef(false);
+  const shopHomeGridDragStartYRef = useRef<number | null>(null);
+  const shopHomeGridDragStartScrollTopRef = useRef(0);
+  const shopHomeGridDraggingRef = useRef(false);
   const [shopHomeVisibleCount, setShopHomeVisibleCount] = useState(9);
   const [communityKeyword, setCommunityKeyword] = useState("");
   const [communityPage, setCommunityPage] = useState(1);
@@ -2948,6 +2960,11 @@ export default function App() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_notification_items", JSON.stringify(notificationItems));
+  }, [notificationItems]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
     window.localStorage.setItem("adultapp_saved_product_ids", JSON.stringify(savedProductIds));
   }, [savedProductIds]);
 
@@ -3457,6 +3474,30 @@ export default function App() {
     const node = event.currentTarget;
     if (node.scrollTop + node.clientHeight < node.scrollHeight - 120) return;
     setShopHomeVisibleCount((prev) => prev + 9);
+  };
+
+  const handleShopHomeGridPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    shopHomeGridDraggingRef.current = true;
+    shopHomeGridDragStartYRef.current = event.clientY;
+    shopHomeGridDragStartScrollTopRef.current = event.currentTarget.scrollTop;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
+  const handleShopHomeGridPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    if (!shopHomeGridDraggingRef.current || shopHomeGridDragStartYRef.current === null) return;
+    const deltaY = event.clientY - shopHomeGridDragStartYRef.current;
+    event.currentTarget.scrollTop = shopHomeGridDragStartScrollTopRef.current - deltaY;
+  };
+
+  const finishShopHomeGridPointerDrag = (event?: PointerEvent<HTMLDivElement>) => {
+    if (event) {
+      try {
+        event.currentTarget.releasePointerCapture?.(event.pointerId);
+      } catch {}
+    }
+    shopHomeGridDraggingRef.current = false;
+    shopHomeGridDragStartYRef.current = null;
   };
 
   const filteredCommunity = useMemo(() => {
@@ -4507,16 +4548,21 @@ export default function App() {
     setHeaderFavorites((prev) => ({ ...prev, [activeTab]: defaultHeaderFavorites[activeTab] }));
   };
 
+  const openNotificationDetail = useCallback((sectionKey: NotificationSectionKey, item: NotificationItem) => {
+    setNotificationItems((prev) => prev.map((entry) => entry.id === item.id ? { ...entry, unread: false } : entry));
+    setNotificationView({ view: "detail", section: sectionKey, item: { ...item, unread: false } });
+  }, []);
+
   const settingsNavItems = useMemo<SettingsCategory[]>(() => settingsCategories.filter((item) => (["운영", "관리자모드", "DB관리", "신고", "채팅", "기타"].includes(item) ? isAdmin : true)), [isAdmin]);
   const visibleHeaderNavItems = overlayMode === null ? headerNavItems : [];
   const currentMenuItems = (activeTab === "홈" ? homeMenuItems : currentTabMenuItems.map((item) => ({ label: item.label, onClick: item.onClick }))).map((item) => ({ label: item.label, onClick: () => { item.onClick?.(); setOverlayMode(null); } }));
 
   const notificationSections = useMemo(() => ({
-    notices: notificationSeed.filter((item) => item.section === "공지"),
-    orders: notificationSeed.filter((item) => item.section === "주문"),
-    community: notificationSeed.filter((item) => item.section === "소통"),
-    events: notificationSeed.filter((item) => item.section === "이벤트"),
-  }), []);
+    notices: notificationItems.filter((item) => item.section === "공지"),
+    orders: notificationItems.filter((item) => item.section === "주문"),
+    community: notificationItems.filter((item) => item.section === "소통"),
+    events: notificationItems.filter((item) => item.section === "이벤트"),
+  }), [notificationItems]);
   const notificationSectionMeta: Record<NotificationSectionKey, { title: string; shortTitle: string }> = {
     notices: { title: "앱 공지사항", shortTitle: "공지" },
     events: { title: "이벤트", shortTitle: "이벤트" },
@@ -4524,7 +4570,7 @@ export default function App() {
     community: { title: "소통·채팅·질문·기타 알림", shortTitle: "기타" },
   };
   const notificationSectionOrder: NotificationSectionKey[] = ["notices", "orders", "community", "events"];
-  const unreadNotificationCount = useMemo(() => notificationSeed.filter((item) => item.unread).length, []);
+  const unreadNotificationCount = useMemo(() => notificationItems.filter((item) => item.unread).length, [notificationItems]);
   const searchSectionsByTab: Record<MobileTab, string[]> = {
     홈: ["피드결과", "쇼츠결과", "보관함결과"],
     쇼핑: ["홈"],
@@ -5007,7 +5053,7 @@ export default function App() {
                         </div>
                         <div className="notification-summary-list">
                           {items.slice(0, 3).map((item) => (
-                            <button key={item.id} type="button" className={`notification-summary-row ${item.unread ? "unread" : ""}`} onClick={() => setNotificationView({ view: "detail", section: sectionKey, item })}>
+                            <button key={item.id} type="button" className={`notification-summary-row ${item.unread ? "unread" : ""}`} onClick={() => openNotificationDetail(sectionKey, item)}>
                               <span className={`notification-chip ${getNotificationChipTone(sectionKey)}`}>{item.category}</span>
                               <strong>{item.title}</strong>
                               <span>{item.postedAt}</span>
@@ -5027,7 +5073,7 @@ export default function App() {
                     </div>
                     <div className="notification-summary-list notification-summary-list-all">
                       {notificationSections[notificationView.section].map((item) => (
-                        <button key={item.id} type="button" className={`notification-summary-row ${item.unread ? "unread" : ""}`} onClick={() => setNotificationView({ view: "detail", section: notificationView.section, item })}>
+                        <button key={item.id} type="button" className={`notification-summary-row ${item.unread ? "unread" : ""}`} onClick={() => openNotificationDetail(notificationView.section!, item)}>
                           <span className={`notification-chip ${getNotificationChipTone(notificationView.section)}`}>{item.category}</span>
                           <strong>{item.title}</strong>
                           <span>{item.postedAt}</span>
@@ -5336,7 +5382,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="shop-home-product-grid-scroll compact-scroll-list" onScroll={handleShopHomeScroll}>
+                <div className="shop-home-product-grid-scroll compact-scroll-list" onScroll={handleShopHomeScroll} onPointerDown={handleShopHomeGridPointerDown} onPointerMove={handleShopHomeGridPointerMove} onPointerUp={finishShopHomeGridPointerDrag} onPointerCancel={finishShopHomeGridPointerDrag} onPointerLeave={finishShopHomeGridPointerDrag}>
                   <div className="shop-home-product-grid">
                     {shopHomeFeedItems.map((product) => (
                       <button
