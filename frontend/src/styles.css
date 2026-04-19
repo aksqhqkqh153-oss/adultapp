@@ -6774,3 +6774,33 @@ body {
     height: 34px !important;
   }
 }
+
+/* === 2026-04-20 request: chat/community top category text-only style === */
+.chat-category-scroll .category-chip,
+.community-simple-chip {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  color: #8b98a5 !important;
+}
+.chat-category-scroll .category-chip:hover,
+.community-simple-chip:hover {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  color: #cbd5e1 !important;
+}
+.chat-category-scroll .category-chip.active,
+.community-simple-chip.active {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  color: #f472b6 !important;
+  font-weight: 700 !important;
+}
+.chat-category-scroll .category-chip:focus-visible,
+.community-simple-chip:focus-visible {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
