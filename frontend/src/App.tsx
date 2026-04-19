@@ -614,13 +614,75 @@ type HtmlInspectorInfo = {
   modalStyle?: CSSProperties;
 };
 
+type AppNavigationSnapshot = {
+  activeTab: MobileTab;
+  homeTab: HomeTab;
+  shoppingTab: ShoppingTab;
+  communityTab: CommunityTab;
+  chatTab: ChatTab;
+  profileTab: ProfileTab;
+  settingsCategory: SettingsCategory;
+  overlayMode: OverlayMode;
+  notificationView: { view: "list" | "section" | "detail"; section: NotificationSectionKey | null; item: NotificationItem | null };
+  activeRandomRoomId: number | null;
+  randomEntryTab: RandomEntryTab;
+  roomModalOpen: boolean;
+  selectedAskProfile: AskProfile | null;
+  productDetail: ProductDetailResponse | null;
+  selectedProductId: number | null;
+  openFeedCommentItem: FeedItem | null;
+  feedComposeOpen: boolean;
+  viewedProfileAuthor: string | null;
+  profileSection: ProfileSection;
+  authStandaloneScreen: AuthStandaloneScreen | null;
+  adultPromptOpen: boolean;
+  checkoutStage: CheckoutStage;
+  companyMailPreviewOpen: boolean;
+  randomSettingsOpen: boolean;
+  shortsMoreItem: FeedItem | null;
+  shortsViewerItemId: number | null;
+  savedShortsViewerItemId: number | null;
+  savedTab: "피드" | "쇼츠";
+};
+
+type NativeAppListenerHandle = {
+  remove?: () => void | Promise<void>;
+};
+
+type NativeAppPlugin = {
+  addListener?: (eventName: "backButton", listener: () => void) => NativeAppListenerHandle | Promise<NativeAppListenerHandle>;
+  minimizeApp?: () => void | Promise<void>;
+};
+
+declare global {
+  interface Window {
+    Capacitor?: {
+      isNativePlatform?: () => boolean;
+      Plugins?: {
+        App?: NativeAppPlugin;
+      };
+    };
+  }
+}
+
 type HeaderNavItem = {
   label: string;
   active?: boolean;
   onClick?: () => void;
 };
 
+const APP_BACK_MINIMIZE_WINDOW_MS = 1800;
+const APP_NAVIGATION_HISTORY_LIMIT = 120;
+
+const cloneNavigationSnapshot = (snapshot: AppNavigationSnapshot): AppNavigationSnapshot => JSON.parse(JSON.stringify(snapshot)) as AppNavigationSnapshot;
+
+const getNativeAppPlugin = (): NativeAppPlugin | null => {
+  if (typeof window === "undefined") return null;
+  return window.Capacitor?.Plugins?.App ?? null;
+};
+
 function SearchIcon() {
+
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" strokeWidth="1.9" />
@@ -3132,6 +3194,206 @@ export default function App() {
     const path = window.location.pathname;
     return `${host}${path === "/" ? "" : path}`;
   }, [companyMailMode]);
+  const navigationHistoryRef = useRef<AppNavigationSnapshot[]>([]);
+  const navigationSnapshotRef = useRef<AppNavigationSnapshot | null>(null);
+  const navigationRestoreRef = useRef(false);
+  const backMinimizeTimerRef = useRef<number | null>(null);
+  const lastBackPressAtRef = useRef(0);
+  const [backMinimizeHintVisible, setBackMinimizeHintVisible] = useState(false);
+  const effectiveProductDetail = productDetail ?? null;
+  const effectiveSelectedProductId = effectiveProductDetail ? selectedProductId : null;
+  const currentNavigationSnapshot = useMemo<AppNavigationSnapshot>(() => ({
+    activeTab,
+    homeTab,
+    shoppingTab,
+    communityTab,
+    chatTab,
+    profileTab,
+    settingsCategory,
+    overlayMode,
+    notificationView,
+    activeRandomRoomId,
+    randomEntryTab,
+    roomModalOpen,
+    selectedAskProfile,
+    productDetail: effectiveProductDetail,
+    selectedProductId: effectiveSelectedProductId,
+    openFeedCommentItem,
+    feedComposeOpen,
+    viewedProfileAuthor,
+    profileSection,
+    authStandaloneScreen,
+    adultPromptOpen,
+    checkoutStage,
+    companyMailPreviewOpen,
+    randomSettingsOpen,
+    shortsMoreItem,
+    shortsViewerItemId,
+    savedShortsViewerItemId,
+    savedTab,
+  }), [
+    activeTab,
+    homeTab,
+    shoppingTab,
+    communityTab,
+    chatTab,
+    profileTab,
+    settingsCategory,
+    overlayMode,
+    notificationView,
+    activeRandomRoomId,
+    randomEntryTab,
+    roomModalOpen,
+    selectedAskProfile,
+    effectiveProductDetail,
+    effectiveSelectedProductId,
+    openFeedCommentItem,
+    feedComposeOpen,
+    viewedProfileAuthor,
+    profileSection,
+    authStandaloneScreen,
+    adultPromptOpen,
+    checkoutStage,
+    companyMailPreviewOpen,
+    randomSettingsOpen,
+    shortsMoreItem,
+    shortsViewerItemId,
+    savedShortsViewerItemId,
+    savedTab,
+  ]);
+  const hideBackMinimizeHint = useCallback(() => {
+    if (typeof window !== "undefined" && backMinimizeTimerRef.current !== null) {
+      window.clearTimeout(backMinimizeTimerRef.current);
+      backMinimizeTimerRef.current = null;
+    }
+    setBackMinimizeHintVisible(false);
+  }, []);
+  const isHomeNavigationSnapshot = useCallback((snapshot: AppNavigationSnapshot) => (
+    snapshot.activeTab === "홈"
+    && snapshot.homeTab === "피드"
+    && snapshot.overlayMode === null
+    && snapshot.notificationView.view === "list"
+    && snapshot.notificationView.section === null
+    && snapshot.notificationView.item === null
+    && !snapshot.roomModalOpen
+    && !snapshot.selectedAskProfile
+    && !snapshot.productDetail
+    && snapshot.selectedProductId === null
+    && !snapshot.openFeedCommentItem
+    && !snapshot.feedComposeOpen
+    && snapshot.authStandaloneScreen === null
+    && !snapshot.adultPromptOpen
+    && snapshot.checkoutStage === "cart"
+    && !snapshot.companyMailPreviewOpen
+    && !snapshot.randomSettingsOpen
+    && !snapshot.shortsMoreItem
+    && snapshot.shortsViewerItemId === null
+    && snapshot.savedShortsViewerItemId === null
+  ), []);
+  const homeNavigationSnapshot = useMemo<AppNavigationSnapshot>(() => ({
+    activeTab: "홈",
+    homeTab: "피드",
+    shoppingTab: "홈",
+    communityTab: "커뮤",
+    chatTab: "채팅",
+    profileTab: "내정보",
+    settingsCategory: "일반",
+    overlayMode: null,
+    notificationView: { view: "list", section: null, item: null },
+    activeRandomRoomId: null,
+    randomEntryTab: "시작",
+    roomModalOpen: false,
+    selectedAskProfile: null,
+    productDetail: null,
+    selectedProductId: null,
+    openFeedCommentItem: null,
+    feedComposeOpen: false,
+    viewedProfileAuthor: null,
+    profileSection: "게시물",
+    authStandaloneScreen: null,
+    adultPromptOpen: false,
+    checkoutStage: "cart",
+    companyMailPreviewOpen: false,
+    randomSettingsOpen: false,
+    shortsMoreItem: null,
+    shortsViewerItemId: null,
+    savedShortsViewerItemId: null,
+    savedTab: "피드",
+  }), []);
+  const isAtHomeScreen = useMemo(() => isHomeNavigationSnapshot(currentNavigationSnapshot), [currentNavigationSnapshot, isHomeNavigationSnapshot]);
+  const restoreNavigationSnapshot = useCallback((snapshot: AppNavigationSnapshot) => {
+    navigationRestoreRef.current = true;
+    hideBackMinimizeHint();
+    lastBackPressAtRef.current = 0;
+    setActiveTab(snapshot.activeTab);
+    setHomeTab(snapshot.homeTab);
+    setShoppingTab(snapshot.shoppingTab);
+    setCommunityTab(snapshot.communityTab);
+    setChatTab(snapshot.chatTab);
+    setProfileTab(snapshot.profileTab);
+    setSettingsCategory(snapshot.settingsCategory);
+    setOverlayMode(snapshot.overlayMode);
+    setNotificationView(JSON.parse(JSON.stringify(snapshot.notificationView)) as AppNavigationSnapshot["notificationView"]);
+    setActiveRandomRoomId(snapshot.activeRandomRoomId);
+    setRandomEntryTab(snapshot.randomEntryTab);
+    setRoomModalOpen(snapshot.roomModalOpen);
+    setSelectedAskProfile(snapshot.selectedAskProfile);
+    setProductDetail(snapshot.productDetail);
+    setSelectedProductId(snapshot.selectedProductId);
+    setOpenFeedCommentItem(snapshot.openFeedCommentItem);
+    setFeedComposeOpen(snapshot.feedComposeOpen);
+    setViewedProfileAuthor(snapshot.viewedProfileAuthor);
+    setProfileSection(snapshot.profileSection);
+    setAuthStandaloneScreen(snapshot.authStandaloneScreen);
+    setAdultPromptOpen(snapshot.adultPromptOpen);
+    setCheckoutStage(snapshot.checkoutStage);
+    setCompanyMailPreviewOpen(snapshot.companyMailPreviewOpen);
+    setRandomSettingsOpen(snapshot.randomSettingsOpen);
+    setShortsMoreItem(snapshot.shortsMoreItem);
+    setShortsViewerItemId(snapshot.shortsViewerItemId);
+    setSavedShortsViewerItemId(snapshot.savedShortsViewerItemId);
+    setSavedTab(snapshot.savedTab);
+    if (typeof window !== "undefined") {
+      if (snapshot.companyMailPreviewOpen && window.location.hash.toLowerCase() !== "#corp-mail-admin") {
+        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#corp-mail-admin`);
+      }
+      if (!snapshot.companyMailPreviewOpen && window.location.hash.toLowerCase() === "#corp-mail-admin") {
+        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+      }
+    }
+  }, [hideBackMinimizeHint]);
+  const handleAppBackNavigation = useCallback(async () => {
+    if (!authBootstrapDone) return;
+    const previousSnapshot = navigationHistoryRef.current.pop();
+    if (previousSnapshot) {
+      restoreNavigationSnapshot(previousSnapshot);
+      return;
+    }
+    if (!isAtHomeScreen) {
+      restoreNavigationSnapshot(homeNavigationSnapshot);
+      return;
+    }
+    const now = Date.now();
+    if (now - lastBackPressAtRef.current <= APP_BACK_MINIMIZE_WINDOW_MS) {
+      hideBackMinimizeHint();
+      lastBackPressAtRef.current = 0;
+      try {
+        await getNativeAppPlugin()?.minimizeApp?.();
+      } catch {}
+      return;
+    }
+    lastBackPressAtRef.current = now;
+    setBackMinimizeHintVisible(true);
+    if (typeof window !== "undefined") {
+      if (backMinimizeTimerRef.current !== null) {
+        window.clearTimeout(backMinimizeTimerRef.current);
+      }
+      backMinimizeTimerRef.current = window.setTimeout(() => {
+        setBackMinimizeHintVisible(false);
+        backMinimizeTimerRef.current = null;
+      }, APP_BACK_MINIMIZE_WINDOW_MS);
+    }
+  }, [authBootstrapDone, hideBackMinimizeHint, homeNavigationSnapshot, isAtHomeScreen, restoreNavigationSnapshot]);
   const canToggleAccountMode = !isAdmin && currentUserRole !== "GUEST";
   const isBusinessAccountMode = currentUserRole === "SELLER";
   const accountModeToggleLabel = isBusinessAccountMode ? "일반회원 계정전환" : "사업자 계정전환";
@@ -4529,6 +4791,64 @@ export default function App() {
       window.removeEventListener("hashchange", syncCompanyMailRoute);
       window.removeEventListener("popstate", syncCompanyMailRoute);
     };
+  }, []);
+
+  useEffect(() => {
+    if (!authBootstrapDone) return;
+    if (navigationRestoreRef.current) {
+      navigationSnapshotRef.current = cloneNavigationSnapshot(currentNavigationSnapshot);
+      navigationRestoreRef.current = false;
+      return;
+    }
+    const previousSnapshot = navigationSnapshotRef.current;
+    if (!previousSnapshot) {
+      navigationSnapshotRef.current = cloneNavigationSnapshot(currentNavigationSnapshot);
+      return;
+    }
+    const previousSnapshotKey = JSON.stringify(previousSnapshot);
+    const currentSnapshotKey = JSON.stringify(currentNavigationSnapshot);
+    if (previousSnapshotKey === currentSnapshotKey) return;
+    navigationHistoryRef.current.push(cloneNavigationSnapshot(previousSnapshot));
+    if (navigationHistoryRef.current.length > APP_NAVIGATION_HISTORY_LIMIT) {
+      navigationHistoryRef.current = navigationHistoryRef.current.slice(-APP_NAVIGATION_HISTORY_LIMIT);
+    }
+    navigationSnapshotRef.current = cloneNavigationSnapshot(currentNavigationSnapshot);
+    if (!isHomeNavigationSnapshot(currentNavigationSnapshot)) {
+      hideBackMinimizeHint();
+      lastBackPressAtRef.current = 0;
+    }
+  }, [authBootstrapDone, currentNavigationSnapshot, hideBackMinimizeHint, isHomeNavigationSnapshot]);
+
+  useEffect(() => {
+    if (!authBootstrapDone) return;
+    if (typeof window === "undefined" || !window.Capacitor?.isNativePlatform?.()) return;
+    const appPlugin = getNativeAppPlugin();
+    if (!appPlugin?.addListener) return;
+    let cancelled = false;
+    let listenerHandle: NativeAppListenerHandle | null = null;
+    void Promise.resolve(appPlugin.addListener("backButton", () => {
+      void handleAppBackNavigation();
+    })).then((handle) => {
+      if (cancelled) {
+        try {
+          void handle?.remove?.();
+        } catch {}
+        return;
+      }
+      listenerHandle = handle ?? null;
+    }).catch(() => {});
+    return () => {
+      cancelled = true;
+      try {
+        void listenerHandle?.remove?.();
+      } catch {}
+    };
+  }, [authBootstrapDone, handleAppBackNavigation]);
+
+  useEffect(() => () => {
+    if (typeof window !== "undefined" && backMinimizeTimerRef.current !== null) {
+      window.clearTimeout(backMinimizeTimerRef.current);
+    }
   }, []);
 
   const openCompanyMailPreview = useCallback(() => {
@@ -7261,6 +7581,10 @@ export default function App() {
         </div>
       ) : null}
 
+
+      {backMinimizeHintVisible ? (
+        <div className="app-back-hint-toast" role="status" aria-live="polite">뒤로가기 버튼을 한 번 더 누르면 앱이 최소화됩니다.</div>
+      ) : null}
 
       <nav className="bottom-nav">{mobileTabs.map((tab) => (
           <button key={tab} className={`bottom-nav-btn ${overlayMode === null && activeTab === tab ? "active" : ""}`} onClick={() => selectBottomTab(tab)}>
