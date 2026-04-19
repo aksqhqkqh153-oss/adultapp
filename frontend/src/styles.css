@@ -6765,8 +6765,8 @@ body {
 }
 @media (max-width: 640px) {
   .topbar-search-row {
-    min-height: 50px !important;
-    padding: 6px 10px !important;
+    min-height: 60px !important;
+    padding: 10px 12px !important;
   }
   .topbar-search-back {
     width: 34px !important;
@@ -6887,6 +6887,11 @@ body {
 .feed-compose-attach-row > span {
   color: #a1a1aa;
   font-size: 11px;
+}
+
+.feed-compose-attach-btn.is-busy {
+  opacity: 0.72;
+  pointer-events: none;
 }
 .feed-compose-preview-card {
   display: grid;

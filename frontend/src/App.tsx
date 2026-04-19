@@ -39,6 +39,8 @@ type FeedComposerAttachment = {
   previewUrl: string;
   size: number;
   type: string;
+  durationSec?: number;
+  optimized?: boolean;
 };
 
 type ShortOption = "공유" | "보관함저장" | "관심없음" | "채널 추천 안함" | "신고";
@@ -2052,6 +2054,8 @@ type FeedComposeScreenProps = {
   title: string;
   caption: string;
   attachment: FeedComposerAttachment | null;
+  busy: boolean;
+  helperText: string;
   onChangeTitle: (value: string) => void;
   onChangeCaption: (value: string) => void;
   onAttachFile: (file: File | null) => void;
@@ -2060,8 +2064,8 @@ type FeedComposeScreenProps = {
   onClose: () => void;
 };
 
-function FeedComposeScreen({ title, caption, attachment, onChangeTitle, onChangeCaption, onAttachFile, onClearAttachment, onSubmit, onClose }: FeedComposeScreenProps) {
-  const canSubmit = Boolean(caption.trim() && attachment);
+function FeedComposeScreen({ title, caption, attachment, busy, helperText, onChangeTitle, onChangeCaption, onAttachFile, onClearAttachment, onSubmit, onClose }: FeedComposeScreenProps) {
+  const canSubmit = Boolean(caption.trim() || attachment);
 
   return (
     <div className="feed-compose-overlay">
@@ -2103,19 +2107,20 @@ function FeedComposeScreen({ title, caption, attachment, onChangeTitle, onChange
           </div>
 
           <div className="feed-compose-attach-row">
-            <label className="creator-launch-btn feed-compose-attach-btn">
-              사진/영상 첨부
+            <label className={`creator-launch-btn feed-compose-attach-btn${busy ? " is-busy" : ""}`}>
+              {busy ? "첨부 최적화 중" : "사진/영상 첨부"}
               <input
                 type="file"
                 accept="image/*,video/*"
                 hidden
+                disabled={busy}
                 onChange={(event) => {
                   onAttachFile(event.target.files?.[0] ?? null);
                   event.currentTarget.value = "";
                 }}
               />
             </label>
-            <span>최대 1개 첨부</span>
+            <span>{helperText}</span>
           </div>
 
           {attachment ? (
@@ -2127,7 +2132,7 @@ function FeedComposeScreen({ title, caption, attachment, onChangeTitle, onChange
               )}
               <div className="feed-compose-preview-copy">
                 <strong>{attachment.name}</strong>
-                <span>{attachment.type.startsWith("video/") ? "영상 첨부" : "사진 첨부"} · {Math.max(1, Math.round(attachment.size / 1024))}KB</span>
+                <span>{attachment.type.startsWith("video/") ? `영상 첨부${attachment.optimized ? " · 최적화" : ""}${attachment.durationSec ? ` · ${attachment.durationSec.toFixed(1)}초` : ""}` : "사진 첨부"} · {Math.max(1, Math.round(attachment.size / 1024))}KB</span>
               </div>
               <button type="button" className="ghost-btn" onClick={onClearAttachment}>삭제</button>
             </div>
@@ -3050,6 +3055,8 @@ export default function App() {
   const [feedComposeTitle, setFeedComposeTitle] = useState("");
   const [feedComposeCaption, setFeedComposeCaption] = useState("");
   const [feedComposeAttachment, setFeedComposeAttachment] = useState<FeedComposerAttachment | null>(null);
+  const [feedComposeBusy, setFeedComposeBusy] = useState(false);
+  const [feedComposeHelperText, setFeedComposeHelperText] = useState("최대 1개 첨부 · 영상은 최대 20초 / 30MB · 권장 MP4(H.264) 또는 WEBM");
   const [feedCommentDrafts, setFeedCommentDrafts] = useState<Record<number, string>>(() => {
     if (typeof window === "undefined") return {};
     try { return JSON.parse(window.localStorage.getItem("adultapp_feed_comment_drafts") ?? "{}"); } catch { return {}; }
@@ -3567,21 +3574,221 @@ export default function App() {
     }
   };
 
-  const handleFeedComposeAttach = (file: File | null) => {
+  const getVideoMetadata = (file: File) => new Promise<{ durationSec: number; width: number; height: number }>((resolve, reject) => {
+    const video = document.createElement("video");
+    const objectUrl = URL.createObjectURL(file);
+    video.preload = "metadata";
+    video.playsInline = true;
+    video.muted = true;
+    video.onloadedmetadata = () => {
+      const durationSec = Number.isFinite(video.duration) ? video.duration : 0;
+      const width = video.videoWidth || 0;
+      const height = video.videoHeight || 0;
+      URL.revokeObjectURL(objectUrl);
+      resolve({ durationSec, width, height });
+    };
+    video.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("비디오 메타데이터를 불러오지 못했습니다."));
+    };
+    video.src = objectUrl;
+  });
+
+  const optimizeFeedComposeImage = async (file: File): Promise<FeedComposerAttachment> => {
+    const maxBytes = 10 * 1024 * 1024;
+    if (file.size <= maxBytes) {
+      return {
+        name: file.name,
+        previewUrl: URL.createObjectURL(file),
+        size: file.size,
+        type: file.type || "image/jpeg",
+        optimized: false,
+      };
+    }
+    const sourceUrl = await fileToDataUrl(file);
+    const image = await loadImageElement(sourceUrl);
+    const canvas = document.createElement("canvas");
+    canvas.width = image.naturalWidth || image.width;
+    canvas.height = image.naturalHeight || image.height;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      return { name: file.name, previewUrl: URL.createObjectURL(file), size: file.size, type: file.type || "image/jpeg", optimized: false };
+    }
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const targetTypes = ["image/webp", "image/jpeg"];
+    for (const targetType of targetTypes) {
+      for (const quality of [0.96, 0.92, 0.88, 0.84, 0.8, 0.76, 0.72]) {
+        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, targetType, quality));
+        if (!blob) continue;
+        if (blob.size <= maxBytes) {
+          const optimizedFile = new File([blob], file.name.replace(/\.[^.]+$/, targetType === "image/webp" ? ".webp" : ".jpg"), { type: targetType });
+          return {
+            name: optimizedFile.name,
+            previewUrl: URL.createObjectURL(optimizedFile),
+            size: optimizedFile.size,
+            type: optimizedFile.type,
+            optimized: true,
+          };
+        }
+      }
+    }
+    return { name: file.name, previewUrl: URL.createObjectURL(file), size: file.size, type: file.type || "image/jpeg", optimized: false };
+  };
+
+  const optimizeFeedComposeVideo = async (file: File): Promise<FeedComposerAttachment> => {
+    const maxBytes = 30 * 1024 * 1024;
+    const meta = await getVideoMetadata(file);
+    if (meta.durationSec > 20.05) {
+      throw new Error("영상은 최대 20초까지만 첨부할 수 있습니다.");
+    }
+    if (file.size <= maxBytes) {
+      return {
+        name: file.name,
+        previewUrl: URL.createObjectURL(file),
+        size: file.size,
+        type: file.type || "video/mp4",
+        durationSec: meta.durationSec,
+        optimized: false,
+      };
+    }
+
+    const RecorderCtor = typeof window !== "undefined" ? window.MediaRecorder : undefined;
+    if (!RecorderCtor) {
+      throw new Error("현재 브라우저는 영상 최적화를 지원하지 않습니다. 30MB 이하 MP4(H.264) 또는 WEBM 파일을 사용해 주세요.");
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    const video = document.createElement("video");
+    video.src = previewUrl;
+    video.crossOrigin = "anonymous";
+    video.playsInline = true;
+    video.muted = true;
+    video.preload = "auto";
+    await new Promise<void>((resolve, reject) => {
+      video.onloadedmetadata = () => resolve();
+      video.onerror = () => reject(new Error("영상을 열지 못했습니다."));
+    });
+
+    const captureTarget = video as HTMLVideoElement & { captureStream?: () => MediaStream; mozCaptureStream?: () => MediaStream };
+    const stream = captureTarget.captureStream?.() ?? captureTarget.mozCaptureStream?.();
+    if (!stream) {
+      URL.revokeObjectURL(previewUrl);
+      throw new Error("현재 브라우저는 영상 재인코딩을 지원하지 않습니다. 30MB 이하 MP4(H.264) 또는 WEBM 파일을 사용해 주세요.");
+    }
+
+    const mimeCandidates = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
+    const selectedMime = mimeCandidates.find((mime) => RecorderCtor.isTypeSupported?.(mime)) ?? "video/webm";
+    const maxEdge = 1280;
+    const bitrate = Math.min(2_800_000, Math.max(1_600_000, Math.round((maxBytes * 8) / Math.max(meta.durationSec, 1))));
+    const chunks: BlobPart[] = [];
+    const recorder = new RecorderCtor(stream, { mimeType: selectedMime, videoBitsPerSecond: bitrate });
+    recorder.ondataavailable = (event) => {
+      if (event.data && event.data.size > 0) chunks.push(event.data);
+    };
+    const stopPromise = new Promise<Blob>((resolve, reject) => {
+      recorder.onerror = () => reject(new Error("영상 최적화 중 오류가 발생했습니다."));
+      recorder.onstop = () => resolve(new Blob(chunks, { type: selectedMime.split(";")[0] }));
+    });
+
+    const needsResize = Math.max(meta.width, meta.height) > maxEdge;
+    if (needsResize) {
+      const canvas = document.createElement("canvas");
+      const scale = maxEdge / Math.max(meta.width, meta.height);
+      canvas.width = Math.round(meta.width * scale);
+      canvas.height = Math.round(meta.height * scale);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        URL.revokeObjectURL(previewUrl);
+        throw new Error("영상 최적화를 시작하지 못했습니다.");
+      }
+      const canvasStream = canvas.captureStream(30);
+      const canvasRecorder = new RecorderCtor(canvasStream, { mimeType: selectedMime, videoBitsPerSecond: bitrate });
+      const canvasChunks: BlobPart[] = [];
+      canvasRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) canvasChunks.push(event.data);
+      };
+      const canvasStopPromise = new Promise<Blob>((resolve, reject) => {
+        canvasRecorder.onerror = () => reject(new Error("영상 최적화 중 오류가 발생했습니다."));
+        canvasRecorder.onstop = () => resolve(new Blob(canvasChunks, { type: selectedMime.split(";")[0] }));
+      });
+      await video.play();
+      canvasRecorder.start(250);
+      const drawFrame = () => {
+        if (video.paused || video.ended) return;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        requestAnimationFrame(drawFrame);
+      };
+      requestAnimationFrame(drawFrame);
+      await new Promise<void>((resolve) => {
+        video.onended = () => resolve();
+      });
+      if (canvasRecorder.state !== "inactive") canvasRecorder.stop();
+      const optimizedBlob = await canvasStopPromise;
+      URL.revokeObjectURL(previewUrl);
+      if (optimizedBlob.size > maxBytes) {
+        throw new Error("영상 최적화 후에도 30MB를 초과합니다. 길이를 더 짧게 하거나 원본 해상도를 줄여 주세요.");
+      }
+      const optimizedFile = new File([optimizedBlob], file.name.replace(/\.[^.]+$/, ".webm"), { type: optimizedBlob.type || "video/webm" });
+      return {
+        name: optimizedFile.name,
+        previewUrl: URL.createObjectURL(optimizedFile),
+        size: optimizedFile.size,
+        type: optimizedFile.type,
+        durationSec: meta.durationSec,
+        optimized: true,
+      };
+    }
+
+    await video.play();
+    recorder.start(250);
+    await new Promise<void>((resolve) => {
+      video.onended = () => resolve();
+    });
+    if (recorder.state !== "inactive") recorder.stop();
+    const optimizedBlob = await stopPromise;
+    URL.revokeObjectURL(previewUrl);
+    if (optimizedBlob.size > maxBytes) {
+      throw new Error("영상 최적화 후에도 30MB를 초과합니다. 길이를 더 짧게 하거나 원본 해상도를 줄여 주세요.");
+    }
+    const optimizedFile = new File([optimizedBlob], file.name.replace(/\.[^.]+$/, ".webm"), { type: optimizedBlob.type || "video/webm" });
+    return {
+      name: optimizedFile.name,
+      previewUrl: URL.createObjectURL(optimizedFile),
+      size: optimizedFile.size,
+      type: optimizedFile.type,
+      durationSec: meta.durationSec,
+      optimized: true,
+    };
+  };
+
+  const handleFeedComposeAttach = async (file: File | null) => {
     if (!file) return;
     if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
       window.alert("사진 또는 영상 파일만 첨부할 수 있습니다.");
       return;
     }
-    if (feedComposeAttachment?.previewUrl?.startsWith("blob:")) {
-      URL.revokeObjectURL(feedComposeAttachment.previewUrl);
+    setFeedComposeBusy(true);
+    setFeedComposeHelperText(file.type.startsWith("video/") ? "영상 길이/용량을 확인하고 최적화 중입니다." : "이미지를 확인하고 최적화 중입니다.");
+    try {
+      const nextAttachment = file.type.startsWith("video/")
+        ? await optimizeFeedComposeVideo(file)
+        : await optimizeFeedComposeImage(file);
+      setFeedComposeAttachment((prev) => {
+        if (prev?.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(prev.previewUrl);
+        return nextAttachment;
+      });
+      setFeedComposeHelperText(
+        nextAttachment.type.startsWith("video/")
+          ? `최대 1개 첨부 · 영상 ${nextAttachment.durationSec ? nextAttachment.durationSec.toFixed(1) : "0.0"}초 · ${Math.max(1, Math.round(nextAttachment.size / 1024 / 1024))}MB · ${nextAttachment.optimized ? "WEBM 최적화" : "원본 유지"}`
+          : `최대 1개 첨부 · 이미지 ${Math.max(1, Math.round(nextAttachment.size / 1024))}KB${nextAttachment.optimized ? " · 최적화 완료" : ""}`
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "첨부 파일을 처리하지 못했습니다.";
+      window.alert(message);
+      setFeedComposeHelperText("최대 1개 첨부 · 영상은 최대 20초 / 30MB · 권장 MP4(H.264) 또는 WEBM");
+    } finally {
+      setFeedComposeBusy(false);
     }
-    setFeedComposeAttachment({
-      name: file.name,
-      previewUrl: URL.createObjectURL(file),
-      size: file.size,
-      type: file.type || (file.name.match(/\.mp4$/i) ? "video/mp4" : "image/jpeg"),
-    });
   };
 
   const clearFeedComposeAttachment = () => {
@@ -3589,19 +3796,21 @@ export default function App() {
       if (prev?.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(prev.previewUrl);
       return null;
     });
+    setFeedComposeHelperText("최대 1개 첨부 · 영상은 최대 20초 / 30MB · 권장 MP4(H.264) 또는 WEBM");
   };
 
   const closeFeedCompose = () => {
     setFeedComposeOpen(false);
+    setFeedComposeBusy(false);
   };
 
   const submitFeedCompose = () => {
-    if (!feedComposeCaption.trim() || !feedComposeAttachment) {
-      window.alert("피드 내용과 사진/영상을 함께 입력해 주세요.");
+    if (!feedComposeCaption.trim() && !feedComposeAttachment) {
+      window.alert("피드 내용 또는 사진/영상을 입력해 주세요.");
       return;
     }
     const nextId = Math.max(...allFeedItems.map((item) => item.id), 0) + 1;
-    const type = feedComposeAttachment.type.startsWith("video/") ? "video" : "image";
+    const type = feedComposeAttachment?.type.startsWith("video/") ? "video" : "image";
     const trimmedTitle = feedComposeTitle.trim();
     const caption = feedComposeCaption.trim();
     const nextItem: FeedItem = {
@@ -3616,15 +3825,17 @@ export default function App() {
       accent: "rose",
       views: type === "video" ? 0 : undefined,
       postedAt: "방금",
-      videoUrl: type === "video" ? feedComposeAttachment.previewUrl : undefined,
-      mediaUrl: type === "image" ? feedComposeAttachment.previewUrl : undefined,
-      mediaName: feedComposeAttachment.name,
+      videoUrl: type === "video" ? feedComposeAttachment?.previewUrl : undefined,
+      mediaUrl: type === "image" ? feedComposeAttachment?.previewUrl : undefined,
+      mediaName: feedComposeAttachment?.name,
     };
     setCustomFeedItems((prev) => [nextItem, ...prev]);
     setFeedCommentMap((prev) => ({ ...prev, [nextId]: [] }));
     setFeedComposeTitle("");
     setFeedComposeCaption("");
     setFeedComposeAttachment(null);
+    setFeedComposeBusy(false);
+    setFeedComposeHelperText("최대 1개 첨부 · 영상은 최대 20초 / 30MB · 권장 MP4(H.264) 또는 WEBM");
     setFeedComposeOpen(false);
     setActiveTab("홈");
     setHomeTab("피드");
@@ -7050,6 +7261,8 @@ export default function App() {
           title={feedComposeTitle}
           caption={feedComposeCaption}
           attachment={feedComposeAttachment}
+          busy={feedComposeBusy}
+          helperText={feedComposeHelperText}
           onChangeTitle={setFeedComposeTitle}
           onChangeCaption={setFeedComposeCaption}
           onAttachFile={handleFeedComposeAttach}
