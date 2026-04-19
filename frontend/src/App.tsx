@@ -84,6 +84,7 @@ type NotificationItem = {
   postedAt: string;
   unread?: boolean;
   ctaLabel?: string;
+  author?: string;
 };
 
 type ThreadItem = {
@@ -1396,18 +1397,18 @@ const communitySeed: CommunityPost[] = [
 ];
 
 const notificationSeed: NotificationItem[] = [
-  { id: 1, section: "공지", category: "정책", title: "앱 공지사항", body: "앱 정책, 필수 문서, 서비스 업데이트 공지를 알림 목록에서 빠르게 확인할 수 있도록 정리했습니다.", meta: "정책 공지", postedAt: "2026-04-19", unread: true, ctaLabel: "상세 보기" },
-  { id: 2, section: "공지", category: "업데이트", title: "채팅 운영기준 업데이트", body: "성향/관심사 그룹대화는 허용하되, 1:1 대화는 상호 수락 이후에만 열리도록 기준을 정리했습니다.", meta: "앱 업데이트", postedAt: "2026-04-19", unread: true, ctaLabel: "상세 보기" },
-  { id: 7, section: "공지", category: "운영", title: "홈 검색 구조 개편 안내", body: "상단 검색 버튼을 누르면 탭별 결과 화면으로 바로 전환되는 구조로 개편되었습니다.", meta: "운영 공지", postedAt: "2026-04-18", ctaLabel: "상세 보기" },
-  { id: 10, section: "이벤트", category: "이벤트", title: "이번 주 기획전 오픈", body: "홈과 쇼핑 화면에서 이번 주 기획전 상품과 할인 정보를 바로 확인할 수 있습니다.", meta: "이벤트 소식", postedAt: "2026-04-19", unread: true, ctaLabel: "상세 보기" },
-  { id: 11, section: "이벤트", category: "쿠폰", title: "앱 전용 쿠폰 지급", body: "앱 전용 할인 쿠폰이 발급되었습니다. 사용 가능 상품은 쇼핑 홈 추천 영역에서 우선 노출됩니다.", meta: "혜택 안내", postedAt: "2026-04-18", ctaLabel: "상세 보기" },
-  { id: 12, section: "이벤트", category: "기획전", title: "브랜드 기획전 종료 임박", body: "관심 키워드와 맞는 브랜드 기획전이 곧 종료됩니다. 마감 전에 상세를 확인하세요.", meta: "기획전 안내", postedAt: "2026-04-17", ctaLabel: "상세 보기" },
-  { id: 3, section: "주문", category: "주문", title: "주문한 제품 발송 준비중", body: "주문번호 A-240412-001 상품이 발송 준비 단계로 변경되었습니다.", meta: "쇼핑 주문", postedAt: "2026-04-19", unread: true, ctaLabel: "상세 보기" },
-  { id: 4, section: "주문", category: "배송", title: "배송 상태 변경", body: "익명포장 배송 건이 택배사에 인계되었습니다. 상세 추적은 주문 목록에서 확인하세요.", meta: "배송 알림", postedAt: "2026-04-18", ctaLabel: "상세 보기" },
-  { id: 8, section: "주문", category: "교환/환불", title: "환불 요청 접수", body: "환불 요청이 정상 접수되었으며 판매자 검수 후 처리 상태가 갱신됩니다.", meta: "주문 처리", postedAt: "2026-04-17", ctaLabel: "상세 보기" },
-  { id: 5, section: "소통", category: "댓글", title: "커뮤니티 댓글 알림", body: "공지 카테고리 게시글에 새 댓글이 등록되었습니다.", meta: "커뮤니티", postedAt: "2026-04-19", unread: true, ctaLabel: "상세 보기" },
-  { id: 6, section: "소통", category: "채팅", title: "그룹대화/1:1 운영 안내", body: "앱에서는 성향/관심사 기반 그룹대화를 허용하되, 외부 연락처 교환·오프라인 제안·사진/영상 전송은 금지하고 1:1은 상호 수락 후에만 허용합니다.", meta: "채팅 안내", postedAt: "2026-04-18", ctaLabel: "상세 보기" },
-  { id: 9, section: "소통", category: "질문", title: "질문 답변 등록 완료", body: "질문 카드에 새로운 답변이 등록되어 프로필 질문 탭에서 바로 확인할 수 있습니다.", meta: "질문 알림", postedAt: "2026-04-17", ctaLabel: "상세 보기" },
+  { id: 1, section: "공지", category: "정책", title: "앱 공지사항", body: "앱 정책, 필수 문서, 서비스 업데이트 공지를 알림 목록에서 빠르게 확인할 수 있도록 정리했습니다.", meta: "정책 공지", author: "운영팀", postedAt: "2026-04-19", unread: true, ctaLabel: "상세 보기" },
+  { id: 2, section: "공지", category: "업데이트", title: "채팅 운영기준 업데이트", body: "성향/관심사 그룹대화는 허용하되, 1:1 대화는 상호 수락 이후에만 열리도록 기준을 정리했습니다.", meta: "앱 업데이트", author: "프로덕트팀", postedAt: "2026-04-19", unread: true, ctaLabel: "상세 보기" },
+  { id: 7, section: "공지", category: "운영", title: "홈 검색 구조 개편 안내", body: "상단 검색 버튼을 누르면 탭별 결과 화면으로 바로 전환되는 구조로 개편되었습니다.", meta: "운영 공지", author: "서비스운영", postedAt: "2026-04-18", ctaLabel: "상세 보기" },
+  { id: 10, section: "이벤트", category: "이벤트", title: "이번 주 기획전 오픈", body: "홈과 쇼핑 화면에서 이번 주 기획전 상품과 할인 정보를 바로 확인할 수 있습니다.", meta: "이벤트 소식", author: "이벤트팀", postedAt: "2026-04-19", unread: true, ctaLabel: "상세 보기" },
+  { id: 11, section: "이벤트", category: "쿠폰", title: "앱 전용 쿠폰 지급", body: "앱 전용 할인 쿠폰이 발급되었습니다. 사용 가능 상품은 쇼핑 홈 추천 영역에서 우선 노출됩니다.", meta: "혜택 안내", author: "혜택운영", postedAt: "2026-04-18", ctaLabel: "상세 보기" },
+  { id: 12, section: "이벤트", category: "기획전", title: "브랜드 기획전 종료 임박", body: "관심 키워드와 맞는 브랜드 기획전이 곧 종료됩니다. 마감 전에 상세를 확인하세요.", meta: "기획전 안내", author: "브랜드기획", postedAt: "2026-04-17", ctaLabel: "상세 보기" },
+  { id: 3, section: "주문", category: "주문", title: "주문한 제품 발송 준비중", body: "주문번호 A-240412-001 상품이 발송 준비 단계로 변경되었습니다.", meta: "쇼핑 주문", author: "주문시스템", postedAt: "2026-04-19", unread: true, ctaLabel: "상세 보기" },
+  { id: 4, section: "주문", category: "배송", title: "배송 상태 변경", body: "익명포장 배송 건이 택배사에 인계되었습니다. 상세 추적은 주문 목록에서 확인하세요.", meta: "배송 알림", author: "배송센터", postedAt: "2026-04-18", ctaLabel: "상세 보기" },
+  { id: 8, section: "주문", category: "교환/환불", title: "환불 요청 접수", body: "환불 요청이 정상 접수되었으며 판매자 검수 후 처리 상태가 갱신됩니다.", meta: "주문 처리", author: "정산지원", postedAt: "2026-04-17", ctaLabel: "상세 보기" },
+  { id: 5, section: "소통", category: "댓글", title: "커뮤니티 댓글 알림", body: "공지 카테고리 게시글에 새 댓글이 등록되었습니다.", meta: "커뮤니티", author: "커뮤니티봇", postedAt: "2026-04-19", unread: true, ctaLabel: "상세 보기" },
+  { id: 6, section: "소통", category: "채팅", title: "그룹대화/1:1 운영 안내", body: "앱에서는 성향/관심사 기반 그룹대화를 허용하되, 외부 연락처 교환·오프라인 제안·사진/영상 전송은 금지하고 1:1은 상호 수락 후에만 허용합니다.", meta: "채팅 안내", author: "안전운영팀", postedAt: "2026-04-18", ctaLabel: "상세 보기" },
+  { id: 9, section: "소통", category: "질문", title: "질문 답변 등록 완료", body: "질문 카드에 새로운 답변이 등록되어 프로필 질문 탭에서 바로 확인할 수 있습니다.", meta: "질문 알림", author: "Q&A봇", postedAt: "2026-04-17", ctaLabel: "상세 보기" },
 ];
 
 const threadSeed: ThreadItem[] = [
@@ -2386,6 +2387,8 @@ export default function App() {
   const [searchFilter, setSearchFilter] = useState("전체");
   const [searchSection, setSearchSection] = useState("피드결과");
   const [notificationView, setNotificationView] = useState<{ view: "list" | "section" | "detail"; section: NotificationSectionKey | null; item: NotificationItem | null }>({ view: "list", section: null, item: null });
+  const [notificationSectionPage, setNotificationSectionPage] = useState(1);
+  const [notificationSectionPageSize, setNotificationSectionPageSize] = useState(8);
   const [notificationItems, setNotificationItems] = useState<NotificationItem[]>(() => {
     if (typeof window === "undefined") return notificationSeed;
     try {
@@ -2445,9 +2448,13 @@ export default function App() {
   const [shopHomeBannerDragOffset, setShopHomeBannerDragOffset] = useState(0);
   const shopHomeBannerPointerStartXRef = useRef<number | null>(null);
   const shopHomeBannerPointerActiveRef = useRef(false);
+  const shopHomeGridScrollRef = useRef<HTMLDivElement | null>(null);
   const shopHomeGridDragStartYRef = useRef<number | null>(null);
   const shopHomeGridDragStartScrollTopRef = useRef(0);
   const shopHomeGridDraggingRef = useRef(false);
+  const shopHomeGridHasDraggedRef = useRef(false);
+  const shopHomeGridSuppressClickUntilRef = useRef(0);
+  const [shopHomeGridDragging, setShopHomeGridDragging] = useState(false);
   const [shopHomeVisibleCount, setShopHomeVisibleCount] = useState(9);
   const [communityKeyword, setCommunityKeyword] = useState("");
   const [communityPage, setCommunityPage] = useState(1);
@@ -2965,6 +2972,17 @@ export default function App() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    const updateNotificationPageSize = () => {
+      const estimatedRows = Math.floor((window.innerHeight - 220) / 42);
+      setNotificationSectionPageSize(Math.max(6, Math.min(12, estimatedRows || 8)));
+    };
+    updateNotificationPageSize();
+    window.addEventListener("resize", updateNotificationPageSize);
+    return () => window.removeEventListener("resize", updateNotificationPageSize);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
     window.localStorage.setItem("adultapp_saved_product_ids", JSON.stringify(savedProductIds));
   }, [savedProductIds]);
 
@@ -3478,7 +3496,9 @@ export default function App() {
 
   const handleShopHomeGridPointerDown = (event: PointerEvent<HTMLDivElement>) => {
     if (event.pointerType === "mouse" && event.button !== 0) return;
+    shopHomeGridHasDraggedRef.current = false;
     shopHomeGridDraggingRef.current = true;
+    setShopHomeGridDragging(true);
     shopHomeGridDragStartYRef.current = event.clientY;
     shopHomeGridDragStartScrollTopRef.current = event.currentTarget.scrollTop;
     event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -3487,7 +3507,12 @@ export default function App() {
   const handleShopHomeGridPointerMove = (event: PointerEvent<HTMLDivElement>) => {
     if (!shopHomeGridDraggingRef.current || shopHomeGridDragStartYRef.current === null) return;
     const deltaY = event.clientY - shopHomeGridDragStartYRef.current;
+    if (Math.abs(deltaY) > 4) {
+      shopHomeGridHasDraggedRef.current = true;
+      shopHomeGridSuppressClickUntilRef.current = Date.now() + 260;
+    }
     event.currentTarget.scrollTop = shopHomeGridDragStartScrollTopRef.current - deltaY;
+    event.preventDefault();
   };
 
   const finishShopHomeGridPointerDrag = (event?: PointerEvent<HTMLDivElement>) => {
@@ -3497,7 +3522,15 @@ export default function App() {
       } catch {}
     }
     shopHomeGridDraggingRef.current = false;
+    setShopHomeGridDragging(false);
     shopHomeGridDragStartYRef.current = null;
+  };
+
+  const handleShopHomeProductCardClick = (productName: string) => {
+    if (Date.now() < shopHomeGridSuppressClickUntilRef.current) return;
+    setShopKeyword(productName);
+    setSelectedShopCategory("전체");
+    setShoppingTab("목록");
   };
 
   const filteredCommunity = useMemo(() => {
@@ -4552,6 +4585,10 @@ export default function App() {
     setNotificationItems((prev) => prev.map((entry) => entry.id === item.id ? { ...entry, unread: false } : entry));
     setNotificationView({ view: "detail", section: sectionKey, item: { ...item, unread: false } });
   }, []);
+  const openNotificationSection = useCallback((sectionKey: NotificationSectionKey) => {
+    setNotificationSectionPage(1);
+    setNotificationView({ view: "section", section: sectionKey, item: null });
+  }, []);
 
   const settingsNavItems = useMemo<SettingsCategory[]>(() => settingsCategories.filter((item) => (["운영", "관리자모드", "DB관리", "신고", "채팅", "기타"].includes(item) ? isAdmin : true)), [isAdmin]);
   const visibleHeaderNavItems = overlayMode === null ? headerNavItems : [];
@@ -4571,6 +4608,22 @@ export default function App() {
   };
   const notificationSectionOrder: NotificationSectionKey[] = ["notices", "orders", "community", "events"];
   const unreadNotificationCount = useMemo(() => notificationItems.filter((item) => item.unread).length, [notificationItems]);
+  const activeNotificationSectionItems = useMemo(() => {
+    if (!notificationView.section) return [] as NotificationItem[];
+    return notificationSections[notificationView.section];
+  }, [notificationSections, notificationView.section]);
+  const notificationSectionTotalPages = useMemo(() => {
+    if (!notificationView.section) return 1;
+    return Math.max(1, Math.ceil(activeNotificationSectionItems.length / notificationSectionPageSize));
+  }, [activeNotificationSectionItems.length, notificationSectionPageSize, notificationView.section]);
+  const visibleNotificationSectionItems = useMemo(() => {
+    if (!notificationView.section) return [] as NotificationItem[];
+    const start = (notificationSectionPage - 1) * notificationSectionPageSize;
+    return activeNotificationSectionItems.slice(start, start + notificationSectionPageSize);
+  }, [activeNotificationSectionItems, notificationSectionPage, notificationSectionPageSize, notificationView.section]);
+  useEffect(() => {
+    setNotificationSectionPage((prev) => Math.min(prev, notificationSectionTotalPages));
+  }, [notificationSectionTotalPages]);
   const searchSectionsByTab: Record<MobileTab, string[]> = {
     홈: ["피드결과", "쇼츠결과", "보관함결과"],
     쇼핑: ["홈"],
@@ -4580,6 +4633,7 @@ export default function App() {
   };
   const currentSearchSections = searchSectionsByTab[activeTab];
   const getNotificationChipTone = (sectionKey: NotificationSectionKey | null) => (sectionKey === "orders" ? "order" : sectionKey === "community" ? "community" : sectionKey === "events" ? "event" : "");
+  const notificationDetailAuthor = notificationView.item?.author || notificationView.item?.meta || "운영팀";
   const homeShortSearchResults = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
     if (!keyword) return [];
@@ -5049,7 +5103,7 @@ export default function App() {
                       <section key={sectionKey} className="notification-section-card notification-summary-card">
                         <div className="notification-section-head notification-summary-head">
                           <strong>{notificationSectionMeta[sectionKey].title}</strong>
-                          <button type="button" className="ghost-btn notification-more-btn" onClick={() => setNotificationView({ view: "section", section: sectionKey, item: null })}>더보기</button>
+                          <button type="button" className="ghost-btn notification-more-btn" onClick={() => openNotificationSection(sectionKey)}>더보기</button>
                         </div>
                         <div className="notification-summary-list">
                           {items.slice(0, 3).map((item) => (
@@ -5066,13 +5120,13 @@ export default function App() {
                 ) : null}
 
                 {overlayMode === "notifications" && notificationView.view === "section" && notificationView.section ? (
-                  <section className="notification-section-card notification-detail-shell">
+                  <section className="notification-section-card notification-detail-shell notification-section-shell">
                     <div className="notification-detail-head">
                       <button type="button" className="header-inline-btn header-icon-btn topbar-search-back" onClick={() => setNotificationView({ view: "list", section: null, item: null })} aria-label="뒤로가기"><BackArrowIcon /></button>
                       <strong>{notificationSectionMeta[notificationView.section].title}</strong>
                     </div>
-                    <div className="notification-summary-list notification-summary-list-all">
-                      {notificationSections[notificationView.section].map((item) => (
+                    <div className="notification-summary-list notification-summary-list-all notification-section-list-pane">
+                      {visibleNotificationSectionItems.map((item) => (
                         <button key={item.id} type="button" className={`notification-summary-row ${item.unread ? "unread" : ""}`} onClick={() => openNotificationDetail(notificationView.section!, item)}>
                           <span className={`notification-chip ${getNotificationChipTone(notificationView.section)}`}>{item.category}</span>
                           <strong>{item.title}</strong>
@@ -5080,19 +5134,31 @@ export default function App() {
                         </button>
                       ))}
                     </div>
+                    <div className="community-simple-pagination notification-section-pagination">
+                      <button type="button" className="ghost-btn" onClick={() => setNotificationSectionPage((prev) => Math.max(1, prev - 1))} disabled={notificationSectionPage <= 1}>이전</button>
+                      <span>{notificationSectionPage} / {notificationSectionTotalPages}</span>
+                      <button type="button" className="ghost-btn" onClick={() => setNotificationSectionPage((prev) => Math.min(notificationSectionTotalPages, prev + 1))} disabled={notificationSectionPage >= notificationSectionTotalPages}>다음</button>
+                    </div>
                   </section>
                 ) : null}
 
                 {overlayMode === "notifications" && notificationView.view === "detail" && notificationView.item ? (
-                  <section className="notification-section-card notification-detail-shell">
-                    <div className="notification-detail-head">
+                  <section className="notification-section-card notification-detail-shell notification-article-shell">
+                    <div className="notification-detail-head notification-detail-head-article">
                       <button type="button" className="header-inline-btn header-icon-btn topbar-search-back" onClick={() => setNotificationView({ view: notificationView.section ? "section" : "list", section: notificationView.section, item: null })} aria-label="뒤로가기"><BackArrowIcon /></button>
-                      <strong>{notificationView.item.title}</strong>
                     </div>
-                    <div className="legacy-box compact notification-detail-card">
-                      <div className="notification-item-topline"><span className={`notification-chip ${getNotificationChipTone(notificationView.section)}`}>{notificationView.item.category}</span><span>{notificationView.item.postedAt}</span></div>
+                    <div className="notification-article-meta-row">
+                      <div className="notification-article-title-wrap">
+                        <span className={`notification-chip ${getNotificationChipTone(notificationView.section)}`}>{notificationView.item.category}</span>
+                        <strong>{notificationView.item.title}</strong>
+                      </div>
+                      <div className="notification-article-side-meta">
+                        <span>{notificationDetailAuthor}</span>
+                        <span>{notificationView.item.postedAt}</span>
+                      </div>
+                    </div>
+                    <div className="legacy-box compact notification-detail-card notification-article-content">
                       <p>{notificationView.item.body}</p>
-                      <span className="community-meta">{notificationView.item.meta}</span>
                     </div>
                   </section>
                 ) : null}
@@ -5382,18 +5448,14 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="shop-home-product-grid-scroll compact-scroll-list" onScroll={handleShopHomeScroll} onPointerDown={handleShopHomeGridPointerDown} onPointerMove={handleShopHomeGridPointerMove} onPointerUp={finishShopHomeGridPointerDrag} onPointerCancel={finishShopHomeGridPointerDrag} onPointerLeave={finishShopHomeGridPointerDrag}>
+                <div ref={shopHomeGridScrollRef} className={`shop-home-product-grid-scroll compact-scroll-list ${shopHomeGridDragging ? "dragging" : ""}`} onScroll={handleShopHomeScroll} onPointerDown={handleShopHomeGridPointerDown} onPointerMove={handleShopHomeGridPointerMove} onPointerUp={finishShopHomeGridPointerDrag} onPointerCancel={finishShopHomeGridPointerDrag} onPointerLeave={finishShopHomeGridPointerDrag}>
                   <div className="shop-home-product-grid">
                     {shopHomeFeedItems.map((product) => (
                       <button
                         key={`shop-feed-${product.id}-${product.feedIndex}`}
                         type="button"
                         className="shop-home-product-card"
-                        onClick={() => {
-                          setShopKeyword(product.name);
-                          setSelectedShopCategory("전체");
-                          setShoppingTab("목록");
-                        }}
+                        onClick={() => handleShopHomeProductCardClick(product.name)}
                       >
                         <div className="shop-home-product-thumb">
                           {product.thumbnailUrl ? <img src={product.thumbnailUrl} alt={product.name} className="shop-home-product-thumb-image" /> : null}
