@@ -2598,7 +2598,7 @@ export default function App() {
     if (typeof window === "undefined") return [];
     try { return JSON.parse(window.localStorage.getItem("adultapp_saved_product_ids") ?? "[]"); } catch { return []; }
   });
-  const [savedTab, setSavedTab] = useState<"피드" | "상품">("피드");
+  const [savedTab, setSavedTab] = useState<"피드" | "쇼츠">("피드");
   const [shortsVisibleCount, setShortsVisibleCount] = useState(10);
   const [homeFeedVisibleCount, setHomeFeedVisibleCount] = useState<number>(() => Math.max(HOME_FEED_PAGE_SIZE, cachedHomeFeed?.visibleCount ?? HOME_FEED_PAGE_SIZE));
   const [homeFeedBootItems, setHomeFeedBootItems] = useState<RankedFeedItem[]>(() => cachedHomeFeed?.items ?? []);
@@ -2609,6 +2609,7 @@ export default function App() {
   const homeFeedLoadMoreTimerRef = useRef<number | null>(null);
   const [shortsMoreItem, setShortsMoreItem] = useState<FeedItem | null>(null);
   const [shortsViewerItemId, setShortsViewerItemId] = useState<number | null>(null);
+  const [savedShortsViewerItemId, setSavedShortsViewerItemId] = useState<number | null>(null);
   const [shortsHeaderHidden, setShortsHeaderHidden] = useState(false);
   const [shortsCategoryVisible, setShortsCategoryVisible] = useState(true);
   const [selectedShortsCategory, setSelectedShortsCategory] = useState("전체");
@@ -3030,7 +3031,7 @@ export default function App() {
     setSavedProductIds((prev) => prev.includes(productId) ? prev.filter((item) => item !== productId) : [productId, ...prev]);
   };
 
-  const savedFeedItems = useMemo(() => feedSeed.filter((item) => savedFeedIds.includes(item.id)), [savedFeedIds]);
+  const savedFeedItems = useMemo(() => feedSeed.filter((item) => item.type !== "video" && savedFeedIds.includes(item.id)), [savedFeedIds]);
 
   const openMenuOverlay = () => setOverlayMode("menu");
 
@@ -3290,6 +3291,10 @@ export default function App() {
     ranked.sort((a, b) => (b.sortScore ?? 0) - (a.sortScore ?? 0) || (b.likes - a.likes));
     return ranked;
   }, [keywordSignalMap, followedTopicKeywords, savedFeedIds]);
+  const savedShortItems = useMemo(() => {
+    const source = recommendedShorts.filter((item) => savedFeedIds.includes(item.id));
+    return source.sort((a, b) => savedFeedIds.indexOf(a.id) - savedFeedIds.indexOf(b.id));
+  }, [recommendedShorts, savedFeedIds]);
 
   const visibleShorts = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
@@ -3308,6 +3313,7 @@ export default function App() {
 
   const pagedShorts = useMemo(() => shortsFeedItems.slice(0, shortsVisibleCount), [shortsFeedItems, shortsVisibleCount]);
   const shortsViewerInitialIndex = useMemo(() => shortsViewerItemId === null ? 0 : Math.max(0, shortsFeedItems.findIndex((item) => item.id === shortsViewerItemId)), [shortsFeedItems, shortsViewerItemId]);
+  const savedShortsViewerInitialIndex = useMemo(() => savedShortsViewerItemId === null ? 0 : Math.max(0, savedShortItems.findIndex((item) => item.id === savedShortsViewerItemId)), [savedShortItems, savedShortsViewerItemId]);
 
   useEffect(() => {
     setShortsVisibleCount(10);
@@ -4507,9 +4513,9 @@ export default function App() {
 
   const notificationSections = useMemo(() => ({
     notices: notificationSeed.filter((item) => item.section === "공지"),
-    events: notificationSeed.filter((item) => item.section === "이벤트"),
     orders: notificationSeed.filter((item) => item.section === "주문"),
     community: notificationSeed.filter((item) => item.section === "소통"),
+    events: notificationSeed.filter((item) => item.section === "이벤트"),
   }), []);
   const notificationSectionMeta: Record<NotificationSectionKey, { title: string; shortTitle: string }> = {
     notices: { title: "앱 공지사항", shortTitle: "공지" },
@@ -4517,6 +4523,7 @@ export default function App() {
     orders: { title: "쇼핑주문·배송 알림", shortTitle: "쇼핑" },
     community: { title: "소통·채팅·질문·기타 알림", shortTitle: "기타" },
   };
+  const notificationSectionOrder: NotificationSectionKey[] = ["notices", "orders", "community", "events"];
   const unreadNotificationCount = useMemo(() => notificationSeed.filter((item) => item.unread).length, []);
   const searchSectionsByTab: Record<MobileTab, string[]> = {
     홈: ["피드결과", "쇼츠결과", "보관함결과"],
@@ -4538,11 +4545,11 @@ export default function App() {
     const savedFeed = savedFeedItems
       .filter((item) => `${item.title} ${item.caption} ${item.author} ${item.category}`.toLowerCase().includes(keyword))
       .map((item) => ({ id: `feed-${item.id}`, title: item.title, summary: item.caption, meta: `피드 · ${item.author}` }));
-    const savedProducts = savedProductItems
-      .filter((item) => `${item.name} ${item.subtitle} ${item.category}`.toLowerCase().includes(keyword))
-      .map((item) => ({ id: `product-${item.id}`, title: item.name, summary: item.subtitle, meta: `상품 · ${item.category}` }));
-    return [...savedFeed, ...savedProducts];
-  }, [globalKeyword, savedFeedItems, savedProductItems]);
+    const savedShorts = savedShortItems
+      .filter((item) => `${item.title} ${item.caption} ${item.author} ${item.category}`.toLowerCase().includes(keyword))
+      .map((item) => ({ id: `short-${item.id}`, title: item.title, summary: item.caption, meta: `쇼츠 · ${item.author}` }));
+    return [...savedFeed, ...savedShorts];
+  }, [globalKeyword, savedFeedItems, savedShortItems]);
   const communicationOverlayResults = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
     if (!keyword) return [] as CommunityPost[];
@@ -4894,9 +4901,9 @@ export default function App() {
         ) : null}
         {overlayMode ? (
           <section className={`overlay-card ${overlayMode === "search" ? "overlay-card-search" : ""}`}>
-            {overlayMode !== "search" ? (
+            {overlayMode !== "search" && overlayMode !== "notifications" ? (
               <div className="overlay-head">
-                <strong>{overlayMode === "notifications" ? "알림" : overlayMode === "menu" ? `${activeTab} 메뉴` : overlayMode === "reconsent_info" ? "필수 문서 재동의 안내" : "설정 카테고리"}</strong>
+                <strong>{overlayMode === "menu" ? `${activeTab} 메뉴` : overlayMode === "reconsent_info" ? "필수 문서 재동의 안내" : "설정 카테고리"}</strong>
                 <button className="ghost-btn" onClick={() => setOverlayMode(null)}>닫기</button>
               </div>
             ) : null}
@@ -4990,7 +4997,7 @@ export default function App() {
             {overlayMode === "notifications" ? (
               <div className="stack-gap notification-overlay-body compact-scroll-list">
                 {notificationView.view === "list" ? (
-                  (Object.keys(notificationSections) as NotificationSectionKey[]).map((sectionKey) => {
+                  notificationSectionOrder.map((sectionKey) => {
                     const items = notificationSections[sectionKey];
                     return (
                       <section key={sectionKey} className="notification-section-card notification-summary-card">
@@ -5243,11 +5250,10 @@ export default function App() {
                 ) : null}
               </>
             ) : (
-              <div className="stack-gap compact-scroll-list">
-                <div className="section-head compact-head"><div><h2>보관함</h2></div></div>
+              <div className="stack-gap compact-scroll-list saved-home-pane">
                 <div className="legacy-nav inline">
-                  {["피드", "상품"].map((tab) => (
-                    <button key={tab} type="button" className={`legacy-nav-btn ${savedTab === tab ? "active" : ""}`} onClick={() => setSavedTab(tab as "피드" | "상품")}>{tab}</button>
+                  {["피드", "쇼츠"].map((tab) => (
+                    <button key={tab} type="button" className={`legacy-nav-btn ${savedTab === tab ? "active" : ""}`} onClick={() => setSavedTab(tab as "피드" | "쇼츠")}>{tab}</button>
                   ))}
                 </div>
                 {savedTab === "피드" ? (
@@ -5255,21 +5261,27 @@ export default function App() {
                     {savedFeedItems.length ? savedFeedItems.map((item) => <FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} saved={true} liked={likedFeedIds.includes(item.id)} commentsOpen={openFeedCommentItem?.id === item.id} onOpenComments={openFeedComments} onToggleLike={toggleLikedFeed} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} following={followedFeedAuthors.includes(item.author)} onToggleFollow={toggleFollowedFeedAuthor} />) : <div className="legacy-box compact"><p>보관한 피드가 없습니다.</p></div>}
                   </div>
                 ) : (
-                  <div className="content-grid product-grid compact-scroll-list">
-                    {savedProductItems.length ? savedProductItems.map((product) => (
-                      <article key={product.id} className="product-card">
-                        <div className="product-thumb" />
-                        <span className="product-badge">{product.badge}</span>
-                        <strong>{product.name}</strong>
-                        <p>{product.subtitle}</p>
-                        <div className="product-meta"><span>{product.category}</span><b>{product.price}</b></div>
-                      <div className="product-submeta"><span>배송비 ₩3,000</span><span>재고 {product.stock_qty ?? 12}개</span></div>
-                        <div className="product-card-actions">
-                          <button type="button" className="ghost-btn" onClick={() => toggleSavedProduct(product.id)}>보관해제</button>
-                        </div>
-                      </article>
-                    )) : <div className="legacy-box compact"><p>보관한 상품이 없습니다.</p></div>}
-                  </div>
+                  <>
+                    <div className="shorts-list-wrap compact-scroll-list" onScroll={handleShortsScroll}>
+                      {savedShortItems.length ? savedShortItems.map((item) => (
+                        <ShortsListCard
+                          key={`saved-short-${item.id}`}
+                          item={item}
+                          onOpenMore={setShortsMoreItem}
+                          onOpenViewer={(target) => setSavedShortsViewerItemId(target.id)}
+                        />
+                      )) : <div className="legacy-box compact"><p>보관한 쇼츠가 없습니다.</p></div>}
+                    </div>
+                    {savedShortsViewerItemId !== null ? (
+                      <ShortsViewer
+                        items={savedShortItems}
+                        initialIndex={savedShortsViewerInitialIndex}
+                        onClose={() => setSavedShortsViewerItemId(null)}
+                        onOpenMore={setShortsMoreItem}
+                        getKeywordTags={getContentKeywordTags}
+                      />
+                    ) : null}
+                  </>
                 )}
               </div>
             )}
@@ -5279,7 +5291,7 @@ export default function App() {
         {showAppTabContent && activeTab === "쇼핑" ? (
           <section className="tab-pane fill-pane">
             {shoppingTab === "홈" ? (
-              <div className="compact-scroll-list shop-home-feed-pane" onScroll={handleShopHomeScroll}>
+              <div className="compact-scroll-list shop-home-feed-pane">
                 <div
                   className="shop-home-hero-carousel"
                   aria-label="쇼핑 홈 배너"
@@ -5324,31 +5336,33 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="shop-home-product-grid">
-                  {shopHomeFeedItems.map((product) => (
-                    <button
-                      key={`shop-feed-${product.id}-${product.feedIndex}`}
-                      type="button"
-                      className="shop-home-product-card"
-                      onClick={() => {
-                        setShopKeyword(product.name);
-                        setSelectedShopCategory("전체");
-                        setShoppingTab("목록");
-                      }}
-                    >
-                      <div className="shop-home-product-thumb">
-                        {product.thumbnailUrl ? <img src={product.thumbnailUrl} alt={product.name} className="shop-home-product-thumb-image" /> : null}
-                        <div className={`shop-home-product-thumb-placeholder hero-tone-${(product.feedIndex % 3) + 1}`} />
-                        <span className="shop-home-product-badge">{product.badge}</span>
-                      </div>
-                      <div className="shop-home-product-meta">
-                        <strong>{product.name}</strong>
-                        <span>리뷰 {product.reviewCount ?? 0}</span>
-                      </div>
-                    </button>
-                  ))}
+                <div className="shop-home-product-grid-scroll compact-scroll-list" onScroll={handleShopHomeScroll}>
+                  <div className="shop-home-product-grid">
+                    {shopHomeFeedItems.map((product) => (
+                      <button
+                        key={`shop-feed-${product.id}-${product.feedIndex}`}
+                        type="button"
+                        className="shop-home-product-card"
+                        onClick={() => {
+                          setShopKeyword(product.name);
+                          setSelectedShopCategory("전체");
+                          setShoppingTab("목록");
+                        }}
+                      >
+                        <div className="shop-home-product-thumb">
+                          {product.thumbnailUrl ? <img src={product.thumbnailUrl} alt={product.name} className="shop-home-product-thumb-image" /> : null}
+                          <div className={`shop-home-product-thumb-placeholder hero-tone-${(product.feedIndex % 3) + 1}`} />
+                          <span className="shop-home-product-badge">{product.badge}</span>
+                        </div>
+                        <div className="shop-home-product-meta">
+                          <strong>{product.name}</strong>
+                          <span>리뷰 {product.reviewCount ?? 0}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="feed-loading-row">상품을 계속 불러오는 중</div>
                 </div>
-                <div className="feed-loading-row">상품을 계속 불러오는 중</div>
               </div>
             ) : null}
 

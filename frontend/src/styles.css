@@ -2703,7 +2703,7 @@ pre {
   display: grid;
   grid-template-columns: 32px minmax(0, 1fr);
   gap: 10px;
-  align-items: start;
+  align-items: center;
 }
 .shorts-detail-copy-block {
   min-width: 0;
@@ -5187,7 +5187,7 @@ body {
 .shop-home-hero-slide,
 .shop-home-hero-placeholder,
 .shop-home-hero-image {
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 4 / 3;
 }
 .shop-home-hero-carousel {
   background: #000;
@@ -5328,6 +5328,102 @@ body {
   .community-simple-head-row {
     grid-template-columns: minmax(0, 1fr);
     align-items: start;
+  }
+  .community-simple-meta-row {
+    justify-content: flex-end;
+  }
+}
+
+
+/* ===== 2026-04-19 notification/saved/shorts/shop refinement ===== */
+.overlay-card:has(.notification-overlay-body) {
+  padding-top: 12px;
+}
+.notification-overlay-body {
+  gap: 8px;
+}
+.notification-summary-card {
+  padding: 10px 10px 8px;
+  gap: 8px;
+}
+.notification-summary-head strong {
+  font-size: 13px;
+}
+.notification-summary-row {
+  padding: 8px 8px;
+  gap: 8px;
+  min-height: 0;
+}
+.notification-summary-row strong {
+  font-size: 12px;
+}
+.notification-summary-row > span:last-child {
+  font-size: 10px;
+}
+.notification-chip {
+  min-height: 18px;
+  padding: 0 7px;
+  font-size: 10px;
+}
+.saved-home-pane {
+  padding-top: 4px;
+}
+.saved-home-pane .legacy-nav.inline {
+  margin-bottom: 2px;
+}
+.shorts-inline-meta {
+  font-size: 11px;
+}
+.shop-home-feed-pane {
+  overflow: hidden;
+  padding: 0 12px 16px;
+}
+.shop-home-hero-carousel {
+  flex-shrink: 0;
+  aspect-ratio: 4 / 3;
+}
+.shop-home-product-grid-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.shop-home-product-grid {
+  padding-bottom: 12px;
+}
+.community-simple-board {
+  gap: 10px;
+}
+.community-simple-item {
+  gap: 6px;
+  padding: 12px 2px;
+}
+.community-simple-head-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+.community-simple-title-wrap {
+  min-width: 0;
+  gap: 7px;
+}
+.community-simple-title-wrap strong {
+  font-size: 13px;
+}
+.community-simple-meta-row {
+  gap: 6px;
+  font-size: 10px;
+  padding-top: 2px;
+}
+.community-simple-item p {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.community-simple-pagination span {
+  font-size: 11px;
+}
+@media (max-width: 640px) {
+  .community-simple-head-row {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
   .community-simple-meta-row {
     justify-content: flex-end;
