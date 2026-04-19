@@ -1170,7 +1170,7 @@ function buildShopHomeRecommendationFeed({
   return finalItems;
 }
 
-const HOME_FEED_PAGE_SIZE = 8;
+const HOME_FEED_PAGE_SIZE = 20;
 const HOME_FEED_CACHE_KEY = "adultapp_home_feed_cache_v2";
 const HOME_FEED_CACHE_TTL_MS = 1000 * 60 * 10;
 
@@ -4690,11 +4690,16 @@ export default function App() {
     setCommunityPage(1);
   }, [communityTab, selectedCommunityCategory, communityPrimaryFilter, communitySecondaryFilter, communityKeyword, globalKeyword]);
 
-  const communityPageCount = Math.max(1, Math.ceil(filteredCommunity.length / 6));
+  const COMMUNITY_PAGE_SIZE = 8;
+  const communityPageCount = Math.max(1, Math.ceil(filteredCommunity.length / COMMUNITY_PAGE_SIZE));
   const pagedCommunity = useMemo(() => {
-    const start = (communityPage - 1) * 6;
-    return filteredCommunity.slice(start, start + 6);
+    const start = (communityPage - 1) * COMMUNITY_PAGE_SIZE;
+    return filteredCommunity.slice(start, start + COMMUNITY_PAGE_SIZE);
   }, [filteredCommunity, communityPage]);
+
+  const communityDisplayRows = useMemo(() => (
+    Array.from({ length: COMMUNITY_PAGE_SIZE }, (_, index) => pagedCommunity[index] ?? null)
+  ), [pagedCommunity]);
 
   const filteredThreads = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
@@ -7231,7 +7236,25 @@ export default function App() {
                     ))}
                   </div>
                   <div className="community-simple-list">
-                    {pagedCommunity.map((post) => {
+                    {communityDisplayRows.map((post, index) => {
+                      if (!post) {
+                        return (
+                          <article key={`community-empty-${communityPage}-${index}`} className="community-simple-item community-simple-item-empty" aria-hidden="true">
+                            <div className="community-simple-head-row">
+                              <div className="community-simple-title-wrap">
+                                <span className="community-chip community-chip-placeholder">빈 칸</span>
+                                <strong>&nbsp;</strong>
+                              </div>
+                              <div className="community-simple-meta-row">
+                                <span>&nbsp;</span>
+                                <span>&nbsp;</span>
+                              </div>
+                            </div>
+                            <p>&nbsp;</p>
+                          </article>
+                        );
+                      }
+
                       const parsedMeta = parseCommunityMeta(post.meta);
                       return (
                         <article key={post.id} className="community-simple-item">
@@ -7249,9 +7272,6 @@ export default function App() {
                         </article>
                       );
                     })}
-                    {filteredCommunity.length === 0 ? (
-                      <div className="legacy-box compact"><p>조건에 맞는 게시글이 없습니다.</p></div>
-                    ) : null}
                   </div>
                   <div className="community-simple-pagination">
                     <button type="button" className="ghost-btn" onClick={() => setCommunityPage((prev) => Math.max(1, prev - 1))} disabled={communityPage <= 1}>이전</button>

@@ -7062,3 +7062,45 @@ body {
   box-shadow: 0 14px 36px rgba(0,0,0,0.34);
   pointer-events: none;
 }
+
+
+/* === 2026-04-20 request: square mobile-main layout / community 8 slots === */
+.mobile-main,
+.mobile-main > .tab-pane,
+.mobile-main > .fill-pane,
+.mobile-main > .notification-overlay-root,
+.mobile-main > .tab-pane > .fill-pane,
+.mobile-main > .tab-pane > .legacy-box,
+.mobile-main > .tab-pane > .community-simple-board,
+.mobile-main > .tab-pane > .home-feed-pane,
+.mobile-main > .tab-pane > .shop-home-feed-pane,
+.mobile-main > .tab-pane > .profile-shell,
+.mobile-main > .tab-pane > .chat-layout,
+.mobile-main > .tab-pane > .settings-grid {
+  border-radius: 0 !important;
+}
+
+.community-simple-list {
+  grid-template-rows: repeat(8, minmax(76px, 1fr));
+}
+
+.community-simple-item {
+  min-height: 76px;
+}
+
+.community-simple-item-empty {
+  opacity: 1;
+}
+
+.community-simple-item-empty strong,
+.community-simple-item-empty p,
+.community-simple-item-empty .community-simple-meta-row span {
+  color: transparent !important;
+  user-select: none;
+}
+
+.community-chip-placeholder {
+  border-color: rgba(255,255,255,0.06) !important;
+  background: rgba(255,255,255,0.02) !important;
+  color: transparent !important;
+}
