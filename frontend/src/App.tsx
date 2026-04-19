@@ -3132,6 +3132,18 @@ export default function App() {
     const path = window.location.pathname;
     return `${host}${path === "/" ? "" : path}`;
   }, [companyMailMode]);
+  const canToggleAccountMode = !isAdmin && currentUserRole !== "GUEST";
+  const isBusinessAccountMode = currentUserRole === "SELLER";
+  const accountModeToggleLabel = isBusinessAccountMode ? "일반회원 계정전환" : "사업자 계정전환";
+  const handleAccountModeToggle = () => {
+    if (!canToggleAccountMode) return;
+    const nextRole = isBusinessAccountMode ? "MEMBER" : "SELLER";
+    setCurrentUserRole(nextRole);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("adultapp_demo_role", nextRole);
+    }
+  };
+
   const productCategoryOptions = useMemo(() => {
     const backendCategories = uiCategoryGroups.flatMap((group) => group.items).filter((item) => !["상품등록", "사진/영상 첨부", "SKU 관리", "재고/상태 변경"].includes(item));
     const fallbackCategories = shopCategories.flatMap((group) => group.items.map((item) => item.name));
@@ -5932,7 +5944,7 @@ export default function App() {
           </section>
         ) : null}
         {overlayMode ? (
-          <section className={`overlay-card ${overlayMode === "search" ? "overlay-card-search" : ""}`}>
+          <section className={overlayMode === "notifications" ? "stack-gap notification-overlay-body compact-scroll-list notification-overlay-root" : `overlay-card ${overlayMode === "search" ? "overlay-card-search" : ""}`}>
             {overlayMode !== "search" && overlayMode !== "notifications" ? (
               <div className="overlay-head">
                 <strong>{overlayMode === "menu" ? `${activeTab} 메뉴` : overlayMode === "reconsent_info" ? "필수 문서 재동의 안내" : "설정 카테고리"}</strong>
@@ -6027,7 +6039,7 @@ export default function App() {
             ) : null}
 
             {overlayMode === "notifications" ? (
-              <div className="stack-gap notification-overlay-body compact-scroll-list">
+              <>
                 {notificationView.view === "list" ? (
                   notificationSectionOrder.map((sectionKey) => {
                     const items = notificationSections[sectionKey];
@@ -6094,7 +6106,7 @@ export default function App() {
                     </div>
                   </section>
                 ) : null}
-              </div>
+              </>
             ) : null}
 
             {overlayMode === "menu" ? (
@@ -6190,6 +6202,11 @@ export default function App() {
             {overlayMode === "settings" ? (
               <div className="stack-gap">
                 <div className="settings-category-nav">
+                  {canToggleAccountMode ? (
+                    <button type="button" className="settings-category-btn settings-account-toggle-btn" onClick={handleAccountModeToggle}>
+                      <span>{accountModeToggleLabel}</span>
+                    </button>
+                  ) : null}
                   <button type="button" className="settings-category-btn settings-logout-btn" onClick={handleLogout}>
                     <span>로그아웃</span>
                   </button>
@@ -6362,9 +6379,9 @@ export default function App() {
         ) : null}
 
         {showAppTabContent && activeTab === "쇼핑" ? (
-          <section className="tab-pane fill-pane">
+          <section className={shoppingTab === "홈" ? "compact-scroll-list shop-home-feed-pane shop-home-pane-root" : "tab-pane fill-pane"}>
             {shoppingTab === "홈" ? (
-              <div className="compact-scroll-list shop-home-feed-pane">
+              <>
                 <div
                   className="shop-home-hero-carousel"
                   aria-label="쇼핑 홈 배너"
@@ -6444,7 +6461,7 @@ export default function App() {
                   </div>
                   <div className="feed-loading-row">상품을 계속 불러오는 중</div>
                 </div>
-              </div>
+              </>
             ) : null}
 
             {shoppingTab === "목록" ? (
