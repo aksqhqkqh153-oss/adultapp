@@ -6927,3 +6927,74 @@ body {
 .creator-launch-btn {
   appearance: none;
 }
+
+/* === 2026-04-20 request: feed compose launch row + compact chat list + splash logo === */
+.feed-compose-launch-toolbar {
+  min-height: 50px !important;
+  max-height: 50px !important;
+  height: 50px !important;
+  margin: 0 0 6px !important;
+  padding: 0 !important;
+}
+.feed-compose-launch-toolbar .chat-category-scroll {
+  height: 50px !important;
+  align-items: center !important;
+  padding: 0 10px !important;
+}
+.feed-compose-launch-chip {
+  min-height: 34px !important;
+  padding: 0 2px !important;
+  font-size: 13px !important;
+  line-height: 1 !important;
+}
+
+.kakao-chat-list {
+  gap: 0 !important;
+}
+.kakao-chat-row {
+  min-height: 68px !important;
+  padding: 9px 4px !important;
+  gap: 10px !important;
+}
+.kakao-avatar {
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 16px !important;
+  font-size: 16px !important;
+}
+.kakao-chat-head strong {
+  font-size: 13px !important;
+}
+.kakao-chat-badges {
+  font-size: 10px !important;
+}
+.kakao-chat-copy {
+  gap: 3px !important;
+}
+.kakao-chat-copy p {
+  font-size: 11px !important;
+  line-height: 1.32 !important;
+  min-height: calc(1.32em * 2) !important;
+  max-height: calc(1.32em * 2) !important;
+}
+.kakao-chat-meta {
+  min-width: 40px !important;
+  gap: 4px !important;
+}
+.kakao-chat-meta span,
+.kakao-chat-meta b {
+  font-size: 10px !important;
+}
+
+#app-boot-splash {
+  background: #000 !important;
+}
+.app-boot-splash__logo {
+  width: min(68vw, 260px) !important;
+  height: auto !important;
+  max-height: min(46vh, 420px) !important;
+  object-fit: contain !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}

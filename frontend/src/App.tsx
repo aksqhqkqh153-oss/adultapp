@@ -6280,14 +6280,12 @@ export default function App() {
           <section className={`tab-pane fill-pane home-feed-pane${homeTab === "쇼츠" ? " home-feed-pane-shorts" : ""}`}>
             {homeTab === "피드" ? (
               <>
-                <div className="creator-launch-strip creator-launch-strip-feed">
-                  <div>
-                    <strong>피드 작성</strong>
-                    <span>새 피드 이미지/영상과 설명을 등록하는 업로드 시작 버튼입니다.</span>
+                <div className="chat-toolbar kakao-toolbar compact-only-toolbar feed-compose-launch-toolbar">
+                  <div className="chat-category-scroll">
+                    <button type="button" className="category-chip active feed-compose-launch-chip" onClick={() => setFeedComposeOpen(true)}>
+                      피드 작성
+                    </button>
                   </div>
-                  <button type="button" className="creator-launch-btn" onClick={() => setFeedComposeOpen(true)}>
-                    피드 작성
-                  </button>
                 </div>
                 <div className="feed-post-list compact-scroll-list" ref={homeFeedScrollRef}>{visibleFeed.map((item, idx) => (<div key={`feed-wrap-${item.id}`}><FeedPoster item={item} onAsk={openAskFromFeed} saved={savedFeedIds.includes(item.id)} liked={likedFeedIds.includes(item.id)} commentsOpen={openFeedCommentItem?.id === item.id} onOpenComments={openFeedComments} onToggleLike={toggleLikedFeed} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} following={followedFeedAuthors.includes(item.author)} onToggleFollow={toggleFollowedFeedAuthor} />{(idx + 1) % 4 === 0 ? <SponsoredFeedProductCard item={sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length]} saved={savedProductIds.includes(sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length].id)} onToggleSave={toggleSavedProduct} /> : null}</div>))}{hasMoreHomeFeed ? <div ref={homeFeedSentinelRef} className="feed-loading-row">추천 피드 불러오는 중</div> : <div className="feed-loading-row feed-loading-row-end">추천 피드를 모두 확인했습니다.</div>}</div>
               </>
@@ -7008,7 +7006,7 @@ export default function App() {
                   <div className="legacy-box compact"><p>단체 톡방은 소통 {">"} 포럼으로 이동되었습니다. 상단 메뉴에서 포럼을 열어 주세요.</p></div>
                 ) : null}
                 <div className="chat-list compact-scroll-list kakao-chat-list">
-                  {filteredThreads.map((thread) => (
+                  {filteredThreads.slice(0, 8).map((thread) => (
                     <article key={thread.id} className="chat-row kakao-chat-row">
                       <div className="avatar-circle kakao-avatar">{thread.avatar}</div>
                       <div className="chat-copy kakao-chat-copy">
