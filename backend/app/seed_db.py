@@ -158,17 +158,11 @@ def seed_database(session: Session) -> None:
     session.add(SellerProfile(user_id=admin.id, business_number="999-99-99999", settlement_account_verified=True, return_address="서울시 관리자구 관리자로 1", cs_contact="02-111-1111", seller_contract_agreed=True))
     session.add(SellerProfile(user_id=seller_user.id, business_number="123-45-67890", settlement_account_verified=True, return_address="서울시 예시구 예시로 1", cs_contact="02-000-0000", seller_contract_agreed=True))
 
-    products = [
-        Product(seller_id=seller_user.id, name="프리미엄 실리콘 케어 파우치", sku_code="CARE-001", category="위생/보관", description="성인용품 전용 보관용 파우치와 세척 보조 구성을 포함한 기본 패키지", price=18900, stock_qty=24, risk_grade="A", display_scope="app_web", payment_scope="card_transfer", status="published", thumbnail_url="/media/20260411152622528140.png"),
-        Product(seller_id=seller_user.id, name="중립 포장 세척 스타터 키트", sku_code="CARE-002", category="세척/케어", description="중립 포장으로 출고되는 세척 전용 스타터 키트", price=24900, stock_qty=18, risk_grade="A", display_scope="app_web", payment_scope="card_transfer", status="published", thumbnail_url="/media/20260411152622528140.png"),
-        Product(seller_id=seller_user.id, name="보호 보관 하드 케이스", sku_code="CARE-003", category="위생/보관", description="성인용품 보관을 위한 잠금형 하드 케이스", price=32900, stock_qty=10, risk_grade="A", display_scope="app_web", payment_scope="card_transfer", status="published", thumbnail_url="/media/20260411152622528140.png"),
-    ]
-    for product in products:
-        session.add(product)
+    product = Product(seller_id=seller_user.id, name="안전 카테고리 샘플 상품", sku_code="SAFE-001", category="위생/보관", description="기본 판매자센터 샘플", price=11000, stock_qty=24, risk_grade="A", display_scope="app_web", payment_scope="card_transfer", status="published")
+    session.add(product)
     session.commit()
-    product = session.exec(select(Product).where(Product.sku_code == "CARE-001")).first()
-    if product:
-        session.add(ProductMedia(product_id=product.id, media_type="image", file_name="product-care-001.png", file_url="/media/20260411152622528140.png", sort_order=1))
+    session.refresh(product)
+    session.add(ProductMedia(product_id=product.id, media_type="image", file_name="sample-image.png", file_url="/media/sample-image.png", sort_order=1))
 
     content = ContentItem(author_id=admin.id, category="가이드", title="앱 심사 안전모드 운영 가이드", body="공개 홈/영상은 비노골적 정보성 콘텐츠만 노출합니다.", visibility="safe", status="published")
     session.add(content)
