@@ -4295,41 +4295,68 @@ pre,
 
 /* 2026-04-19 performance/nav/footer cleanup */
 :root {
-  --mobile-nav-height: 68px;
+  --mobile-nav-height: 60px;
 }
 .top-header {
-  min-height: calc(76px + env(safe-area-inset-top, 0px));
+  min-height: calc(60px + env(safe-area-inset-top, 0px));
   padding-top: env(safe-area-inset-top, 0px);
 }
 .topbar-row {
-  min-height: 76px !important;
-  padding: 10px 12px !important;
+  min-height: 60px !important;
+  padding: 6px 12px !important;
+}
+.topbar-inline-actions-right {
+  gap: 4px;
+}
+.header-toolbar-btn,
+.header-icon-btn {
+  width: 31px !important;
+  min-width: 31px !important;
+  height: 31px !important;
+  padding: 0 !important;
+}
+.topbar-title-inline {
+  max-width: 104px;
+  margin-right: 2px;
+  font-size: 13px;
+  font-weight: 800;
+}
+.top-header .header-toolbar-btn svg,
+.top-header .header-icon-btn svg {
+  width: 20px !important;
+  height: 20px !important;
+}
+.top-header .header-toolbar-btn svg [stroke],
+.top-header .header-icon-btn svg [stroke],
+.bottom-nav-icon svg [stroke] {
+  stroke-width: 2.15;
 }
 .bottom-nav {
-  height: calc(68px + env(safe-area-inset-bottom, 0px)) !important;
-  min-height: calc(68px + env(safe-area-inset-bottom, 0px)) !important;
+  height: calc(60px + env(safe-area-inset-bottom, 0px)) !important;
+  min-height: calc(60px + env(safe-area-inset-bottom, 0px)) !important;
   max-height: none !important;
   padding-bottom: env(safe-area-inset-bottom, 0px);
   border-top: 1px solid rgba(255,255,255,0.08) !important;
 }
 .bottom-nav-btn {
-  height: 68px !important;
-  min-height: 68px !important;
+  height: 60px !important;
+  min-height: 60px !important;
   max-height: none !important;
-  gap: 3px !important;
-  padding: 6px 0 5px !important;
+  gap: 2px !important;
+  padding: 5px 0 4px !important;
   font-size: 11px !important;
 }
 .bottom-nav-icon {
-  height: 20px;
+  height: 22px;
 }
 .bottom-nav-icon svg {
-  width: 18px !important;
-  height: 18px !important;
+  width: 21px !important;
+  height: 21px !important;
 }
 .bottom-nav-label {
-  font-size: 8px !important;
+  font-size: 9px !important;
   line-height: 1.1;
+  font-weight: 600;
 }
 .mobile-main {
   content-visibility: auto;
