@@ -2749,8 +2749,7 @@ export default function App() {
 
   useEffect(() => {
     const sentinel = homeFeedSentinelRef.current;
-    const root = homeFeedScrollRef.current;
-    if (!sentinel || !root || !hasMoreHomeFeed) return;
+    if (!sentinel || !hasMoreHomeFeed) return;
 
     const observer = new IntersectionObserver((entries) => {
       const entry = entries[0];
@@ -2760,7 +2759,7 @@ export default function App() {
         setHomeFeedVisibleCount((prev) => Math.min(prev + HOME_FEED_PAGE_SIZE, homeFeedSource.length));
         setHomeFeedIsLoadingMore(false);
       }, 180);
-    }, { root, rootMargin: "0px 0px 280px 0px", threshold: 0.01 });
+    }, { root: null, rootMargin: "0px 0px 320px 0px", threshold: 0.01 });
 
     observer.observe(sentinel);
     return () => observer.disconnect();

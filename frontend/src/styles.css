@@ -1244,13 +1244,13 @@ pre {
   .random-match-toolbar { grid-template-columns: minmax(0, 1fr) 84px; }
   .random-start-btn { min-width: 100%; font-size: 16px; min-height: 54px; }
   .history-feed-card { min-height: calc(100dvh - 204px); grid-template-rows: auto minmax(260px, 1fr) auto auto; }
-  .feed-post-list { max-height: calc(100dvh - 180px); }
+  .feed-post-list { max-height: none; }
 }
 @media (max-width: 480px) {
   .random-match-center { padding: 24px 0 32px; }
   .random-settings-menu { left: 0; right: auto; }
   .history-feed-card { min-height: calc(100dvh - 196px); grid-template-rows: auto minmax(240px, 1fr) auto auto; }
-  .feed-post-list { max-height: calc(100dvh - 172px); }
+  .feed-post-list { max-height: none; }
   .history-feed-card .feed-media { margin: 10px 10px 0; width: calc(100% - 20px); max-width: calc(100% - 20px); }
   .random-skeleton-actions { grid-template-columns: 1fr; }
 }
@@ -1321,10 +1321,10 @@ pre {
   display: grid;
   gap: 14px;
   min-height: 0;
-  max-height: calc(100dvh - 210px);
-  overflow-y: auto;
+  max-height: none;
+  overflow: visible;
   overflow-x: hidden;
-  scroll-snap-type: y proximity;
+  scroll-snap-type: none;
   padding-right: 0;
 }
 .feed-post-list > * {
@@ -1538,7 +1538,7 @@ pre {
   min-width: 0;
 }
 .home-feed-pane {
-  overflow: hidden;
+  overflow: visible;
 }
 .feed-post-list {
   width: 100%;
@@ -1591,7 +1591,7 @@ pre {
   }
   .feed-post-list {
     gap: 10px;
-    max-height: calc(100dvh - 168px);
+    max-height: none;
   }
   .history-feed-card {
     min-height: calc(100dvh - 188px);
@@ -4338,7 +4338,7 @@ pre,
 .feed-post-list {
   content-visibility: auto;
   contain-intrinsic-size: 2400px;
-  max-height: calc(100dvh - 168px);
+  max-height: none;
 }
 .feed-post-list > div {
   content-visibility: auto;
@@ -4357,7 +4357,7 @@ pre,
     min-height: 74px !important;
   }
   .feed-post-list {
-    max-height: calc(100dvh - 164px);
+    max-height: none;
   }
 }
 .feed-loading-row {
