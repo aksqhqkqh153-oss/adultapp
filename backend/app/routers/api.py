@@ -1497,12 +1497,6 @@ def legal_documents():
     return {"items": items, "required_signup_consents": REQUIRED_SIGNUP_CONSENT_TYPES}
 
 
-@router.get("/legal/{doc_slug}")
-def legal_document(doc_slug: str):
-    normalized = doc_slug.replace('-', '_')
-    return {"doc_key": normalized, "version": LEGAL_DOC_VERSIONS.get(normalized, "2026-04-11.v1"), "content": _read_legal_markdown(normalized)}
-
-
 @router.get("/legal/public-links")
 def legal_public_links():
     return {
@@ -3798,6 +3792,12 @@ def legal_document_files():
         file_path = base / name
         items.append({"name": name, "exists": file_path.exists(), "path": str(file_path.relative_to(base.parents[1])) if file_path.exists() else str(file_path)})
     return {"items": items}
+
+
+@router.get("/legal/{doc_slug}")
+def legal_document(doc_slug: str):
+    normalized = doc_slug.replace('-', '_')
+    return {"doc_key": normalized, "version": LEGAL_DOC_VERSIONS.get(normalized, "2026-04-11.v1"), "content": _read_legal_markdown(normalized)}
 
 
 @router.get("/tax/month-close.csv")
