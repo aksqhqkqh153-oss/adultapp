@@ -867,6 +867,56 @@ function deterministicHash(value: string) {
   return hash;
 }
 
+const HOME_FEED_PAGE_SIZE = 8;
+const HOME_FEED_CACHE_KEY = "adultapp_home_feed_cache_v2";
+const HOME_FEED_CACHE_TTL_MS = 1000 * 60 * 10;
+
+type RankedFeedItem = FeedItem & { sortScore?: number };
+
+function rankHomeFeedItems({ items, keywordSignalMap, followedTopicKeywords, savedFeedIds, keyword }: {
+  items: FeedItem[];
+  keywordSignalMap: Map<string, number>;
+  followedTopicKeywords: string[];
+  savedFeedIds: number[];
+  keyword: string;
+}) {
+  const loweredKeyword = keyword.trim().toLowerCase();
+  const filtered = !loweredKeyword
+    ? items
+    : items.filter((item) => `${item.title} ${item.caption} ${item.category} ${item.author}`.toLowerCase().includes(loweredKeyword));
+
+  const ranked = filtered.map((item, idx) => {
+    const content = `${item.title} ${item.caption} ${item.category} ${item.author}`.toLowerCase();
+    const matchedSignalScore = Array.from(keywordSignalMap.entries()).reduce((sum, [token, score]) => sum + (content.includes(token) ? score : 0), 0);
+    const freshnessMinutes = parseRelativeMinutes(item.postedAt);
+    const freshnessScore = Math.max(0, 34 - Math.min(freshnessMinutes / 15, 34));
+    const followScore = followedTopicKeywords.some((token) => content.includes(token)) ? 16 : 0;
+    const savedScore = savedFeedIds.includes(item.id) ? 22 : 0;
+    const popularityScore = Math.min(24, (item.likes / 28) + (item.comments / 8) + ((item.views ?? 0) / 500));
+    const mediaBoost = item.type === "video" ? 6 : 0;
+    const nicheBoost = /딜도|바이브|본디지|패들|케인|젤|세정|보관|입문|리뷰|신상품|브랜드|추천/.test(content) ? 5 : 0;
+    const explorationScore = deterministicHash(`home-${item.id}-${item.title}`) % 100 < 6 ? 8 : 0;
+    const recencyPenalty = freshnessMinutes >= 1440 ? 6 : 0;
+    return { ...item, sortScore: matchedSignalScore + freshnessScore + followScore + savedScore + popularityScore + mediaBoost + nicheBoost + explorationScore - recencyPenalty + (filtered.length - idx) * 0.001 };
+  });
+
+  ranked.sort((a, b) => (b.sortScore ?? 0) - (a.sortScore ?? 0) || (b.views ?? 0) - (a.views ?? 0) || (b.likes - a.likes));
+  return ranked;
+}
+
+function loadCachedHomeFeedPage() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(HOME_FEED_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { expiresAt?: number; items?: RankedFeedItem[]; visibleCount?: number };
+    if (!parsed?.expiresAt || parsed.expiresAt < Date.now() || !Array.isArray(parsed.items)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 const storySeed: StoryItem[] = [
   { id: 1, name: "adult official", role: "브랜드 스토리", accent: "sunrise" },
   { id: 2, name: "seller studio", role: "판매자 소식", accent: "violet" },
@@ -2163,13 +2213,18 @@ export default function App() {
     if (typeof window === "undefined") return [];
     try { return JSON.parse(window.localStorage.getItem("adultapp_saved_feed_ids") ?? "[]"); } catch { return []; }
   });
+  const cachedHomeFeed = typeof window !== "undefined" ? loadCachedHomeFeedPage() : null;
   const [savedProductIds, setSavedProductIds] = useState<number[]>(() => {
     if (typeof window === "undefined") return [];
     try { return JSON.parse(window.localStorage.getItem("adultapp_saved_product_ids") ?? "[]"); } catch { return []; }
   });
   const [savedTab, setSavedTab] = useState<"피드" | "상품">("피드");
   const [shortsVisibleCount, setShortsVisibleCount] = useState(10);
-  const [feedVisibleCount, setFeedVisibleCount] = useState(20);
+  const [homeFeedVisibleCount, setHomeFeedVisibleCount] = useState<number>(() => Math.max(HOME_FEED_PAGE_SIZE, cachedHomeFeed?.visibleCount ?? HOME_FEED_PAGE_SIZE));
+  const [homeFeedBootItems, setHomeFeedBootItems] = useState<RankedFeedItem[]>(() => cachedHomeFeed?.items ?? []);
+  const [homeFeedIsLoadingMore, setHomeFeedIsLoadingMore] = useState(false);
+  const homeFeedSentinelRef = useRef<HTMLDivElement | null>(null);
+  const homeFeedScrollRef = useRef<HTMLDivElement | null>(null);
   const [shortsMoreItem, setShortsMoreItem] = useState<FeedItem | null>(null);
   const [shortsViewerItemId, setShortsViewerItemId] = useState<number | null>(null);
   const [shortsHeaderHidden, setShortsHeaderHidden] = useState(false);
@@ -2639,22 +2694,6 @@ export default function App() {
   ];
 
 
-  const visibleFeed = useMemo(() => {
-    const keyword = deferredGlobalKeyword.trim().toLowerCase();
-    const filtered = !keyword ? feedSeed : feedSeed.filter((item) => `${item.title} ${item.caption} ${item.category} ${item.author}`.toLowerCase().includes(keyword));
-    return filtered.slice(0, feedVisibleCount);
-  }, [deferredGlobalKeyword, feedVisibleCount]);
-
-  useEffect(() => {
-    setFeedVisibleCount(20);
-  }, [deferredGlobalKeyword]);
-
-  const handleHomeFeedScroll = (event: UIEvent<HTMLDivElement>) => {
-    const node = event.currentTarget;
-    if (node.scrollTop + node.clientHeight < node.scrollHeight - 160) return;
-    setFeedVisibleCount((prev) => Math.min(prev + 8, feedSeed.length));
-  };
-
   const shortsCategories = useMemo(() => {
     const dynamic = Array.from(new Set(feedSeed.filter((item) => item.type === "video").map((item) => item.category)));
     return ["전체", ...dynamic];
@@ -2674,6 +2713,58 @@ export default function App() {
     .map((id) => forumStarterUsers.find((user) => user.id === id))
     .filter((user): user is ForumStarterUser => Boolean(user))
     .flatMap((user) => extractInterestTokens(`${user.name} ${user.topic} ${user.role}`)), [followingUserIds]);
+
+  const recommendedHomeFeed = useMemo(() => rankHomeFeedItems({
+    items: feedSeed,
+    keywordSignalMap,
+    followedTopicKeywords,
+    savedFeedIds,
+    keyword: deferredGlobalKeyword,
+  }), [keywordSignalMap, followedTopicKeywords, savedFeedIds, deferredGlobalKeyword]);
+
+  useEffect(() => {
+    if (!homeFeedBootItems.length) return;
+    const cachedIds = homeFeedBootItems.map((item) => item.id).join(",");
+    const nextIds = recommendedHomeFeed.slice(0, homeFeedBootItems.length).map((item) => item.id).join(",");
+    if (cachedIds === nextIds) return;
+    setHomeFeedBootItems([]);
+  }, [recommendedHomeFeed, homeFeedBootItems]);
+
+  const homeFeedSource = homeFeedBootItems.length ? homeFeedBootItems : recommendedHomeFeed;
+  const visibleFeed = useMemo(() => homeFeedSource.slice(0, homeFeedVisibleCount), [homeFeedSource, homeFeedVisibleCount]);
+  const hasMoreHomeFeed = homeFeedVisibleCount < homeFeedSource.length;
+
+  useEffect(() => {
+    setHomeFeedVisibleCount(HOME_FEED_PAGE_SIZE);
+  }, [deferredGlobalKeyword]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !homeFeedSource.length) return;
+    window.localStorage.setItem(HOME_FEED_CACHE_KEY, JSON.stringify({
+      expiresAt: Date.now() + HOME_FEED_CACHE_TTL_MS,
+      visibleCount: homeFeedVisibleCount,
+      items: homeFeedSource.slice(0, Math.max(homeFeedVisibleCount, HOME_FEED_PAGE_SIZE * 2)),
+    }));
+  }, [homeFeedSource, homeFeedVisibleCount]);
+
+  useEffect(() => {
+    const sentinel = homeFeedSentinelRef.current;
+    const root = homeFeedScrollRef.current;
+    if (!sentinel || !root || !hasMoreHomeFeed) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      const entry = entries[0];
+      if (!entry?.isIntersecting || homeFeedIsLoadingMore) return;
+      setHomeFeedIsLoadingMore(true);
+      window.setTimeout(() => {
+        setHomeFeedVisibleCount((prev) => Math.min(prev + HOME_FEED_PAGE_SIZE, homeFeedSource.length));
+        setHomeFeedIsLoadingMore(false);
+      }, 180);
+    }, { root, rootMargin: "0px 0px 280px 0px", threshold: 0.01 });
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [homeFeedSource.length, hasMoreHomeFeed, homeFeedIsLoadingMore]);
 
   const getContentKeywordTags = (item: FeedItem) => getTopMatchedKeywords(item, keywordSignalMap);
 
@@ -4480,7 +4571,7 @@ export default function App() {
           <section className={`tab-pane fill-pane home-feed-pane${homeTab === "쇼츠" ? " home-feed-pane-shorts" : ""}`}>
             {homeTab === "피드" ? (
               <>
-                <div className="feed-post-list compact-scroll-list" onScroll={handleHomeFeedScroll}>{visibleFeed.map((item, idx) => (<div key={`feed-wrap-${item.id}`}><FeedPoster item={item} onAsk={openAskFromFeed} saved={savedFeedIds.includes(item.id)} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} />{(idx + 1) % 4 === 0 ? <SponsoredFeedProductCard item={sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length]} saved={savedProductIds.includes(sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length].id)} onToggleSave={toggleSavedProduct} /> : null}</div>))}</div>
+                <div className="feed-post-list compact-scroll-list" ref={homeFeedScrollRef}>{visibleFeed.map((item, idx) => (<div key={`feed-wrap-${item.id}`}><FeedPoster item={item} onAsk={openAskFromFeed} saved={savedFeedIds.includes(item.id)} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} />{(idx + 1) % 4 === 0 ? <SponsoredFeedProductCard item={sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length]} saved={savedProductIds.includes(sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length].id)} onToggleSave={toggleSavedProduct} /> : null}</div>))}{hasMoreHomeFeed ? <div ref={homeFeedSentinelRef} className="feed-loading-row">추천 피드 불러오는 중</div> : <div className="feed-loading-row feed-loading-row-end">추천 피드를 모두 확인했습니다.</div>}</div>
               </>
             ) : homeTab === "쇼츠" ? (
               <>

@@ -4360,3 +4360,15 @@ pre,
     max-height: calc(100dvh - 164px);
   }
 }
+.feed-loading-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  padding: 14px 12px 24px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.68);
+}
+.feed-loading-row-end {
+  color: rgba(255,255,255,0.45);
+}

@@ -4269,11 +4269,27 @@ def create_story(payload: StoryCreate, current_user: User = Depends(get_current_
 
 
 @router.get("/social/feed")
-def list_feed(session: Session = Depends(get_session)):
+def list_feed(page: int = 1, limit: int = 12, response: Response | None = None, session: Session = Depends(get_session)):
+    page = max(1, page)
+    limit = max(1, min(limit, 30))
+    stmt = select(FeedPost).order_by(FeedPost.created_at.desc())
+    items = session.exec(stmt.offset((page - 1) * limit).limit(limit)).all()
+    total = session.exec(select(func.count()).select_from(FeedPost)).one()
+
     rows = []
-    for item in session.exec(select(FeedPost).order_by(FeedPost.created_at.desc())).all():
+    for item in items:
         rows.append({**item.model_dump(), "author": _user_public_meta(session, item.author_id), "created_at": item.created_at.isoformat() if item.created_at else "", "updated_at": item.updated_at.isoformat() if item.updated_at else ""})
-    return rows
+
+    if response is not None:
+        response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=120"
+
+    return {
+        "page": page,
+        "limit": limit,
+        "total": total,
+        "has_more": page * limit < total,
+        "items": rows,
+    }
 
 
 @router.post("/social/feed")
