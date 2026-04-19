@@ -738,6 +738,10 @@ function QuestionMarkIcon() {
   );
 }
 
+const generatedFeedAuthors = ["adult official", "seller studio", "care lab", "review crew", "brand note", "event pick"] as const;
+const generatedFeedCategories = ["추천", "브랜드", "리뷰", "보관팁", "실사용", "이벤트"] as const;
+const generatedFeedAccents = ["sunrise", "violet", "teal", "rose"] as const;
+
 const feedSeed: FeedItem[] = [
   { id: 1, type: "video", category: "브랜드", title: "입문 가이드", caption: "입문용 제품을 안전하게 고르는 기준을 10초 요약 쇼츠로 정리했습니다.", author: "adult official", likes: 428, comments: 31, accent: "sunrise", views: 3200, postedAt: "방금", videoUrl: "/generated/shorts/short_1.mp4" },
   { id: 2, type: "video", category: "추천", title: "오늘의 인기 케어 키트", caption: "관리 루틴과 함께 보기 좋은 인기 케어 키트를 짧게 소개합니다.", author: "seller studio", likes: 391, comments: 28, accent: "violet", views: 2890, postedAt: "3분 전", videoUrl: "/generated/shorts/short_2.mp4" },
@@ -943,6 +947,9 @@ const storyPreviewText: Record<string, string> = {
 
 const shopCategories: ShopCategory[] = [];
 
+const generatedProductCategories = ["딜도", "바이브레이터", "러브젤", "플러그", "케어 키트", "패들"] as const;
+const generatedProductBadges = ["추천", "베스트", "신규", "인기", "테스트", "리뷰다수"] as const;
+
 const productsSeed: ProductCard[] = [
   { id: 1, category: "딜도", name: "슬림 입문 딜도", subtitle: "초보자용 실리콘 라인", price: "₩18,000", badge: "인기", reviewCount: 184, thumbnailUrl: "/generated/shop/dildo.png" },
   { id: 2, category: "바이브레이터", name: "저소음 바이브레이터", subtitle: "데일리 사용감 중심", price: "₩29,000", badge: "베스트", reviewCount: 266, thumbnailUrl: "/generated/shop/vibe.png" },
@@ -953,6 +960,16 @@ const productsSeed: ProductCard[] = [
   { id: 7, category: "플러그", name: "실리콘 플러그", subtitle: "보관이 쉬운 구조", price: "₩21,000", badge: "입문", reviewCount: 134, thumbnailUrl: "/generated/shop/plug.png" },
   { id: 8, category: "마사지기", name: "프리미엄 마사지기", subtitle: "조용한 모터 라인", price: "₩39,000", badge: "프리미엄", reviewCount: 157, thumbnailUrl: "/generated/shop/massager.png" },
   { id: 9, category: "케어 키트", name: "세정·보관 케어 키트", subtitle: "위생 루틴 번들", price: "₩17,500", badge: "안전", reviewCount: 203, thumbnailUrl: "/generated/shop/carekit.png" },
+  ...Array.from({ length: 30 }, (_, index) => ({
+    id: 10 + index,
+    category: generatedProductCategories[index % generatedProductCategories.length],
+    name: `랜덤 테스트 상품 ${index + 1}`,
+    subtitle: `${generatedProductCategories[index % generatedProductCategories.length]} 카테고리 무한 스크롤 테스트용 샘플 버튼`,
+    price: `₩${(15900 + index * 1300).toLocaleString()}`,
+    badge: generatedProductBadges[index % generatedProductBadges.length],
+    reviewCount: 60 + (index * 5),
+    thumbnailUrl: null,
+  })),
 ];
 
 const sponsoredFeedProducts = [
@@ -1256,18 +1273,21 @@ function DualRangeSlider({ min, max, valueMin, valueMax, step = 1, leftLabel, ri
   );
 }
 
-const FeedPoster = memo(function FeedPoster({ item, onAsk, saved, onToggleSave, keywordTags = [], onOpenAuthorProfile }: { item: FeedItem; onAsk: (item: FeedItem) => void; saved: boolean; onToggleSave: (feedId: number) => void; keywordTags?: string[]; onOpenAuthorProfile: (author: string) => void }) {
+const FeedPoster = memo(function FeedPoster({ item, onAsk, saved, onToggleSave, keywordTags = [], onOpenAuthorProfile, following, onToggleFollow }: { item: FeedItem; onAsk: (item: FeedItem) => void; saved: boolean; onToggleSave: (feedId: number) => void; keywordTags?: string[]; onOpenAuthorProfile: (author: string) => void; following: boolean; onToggleFollow: (author: string) => void }) {
   return (
     <article className={`feed-card history-feed-card ${item.accent}`}>
       <div className="history-feed-head">
         <div className="history-feed-profile">
           <div className="story-mini-avatar">{item.author.slice(0, 1).toUpperCase()}</div>
-          <div>
+          <div className="history-feed-profile-copy">
             <button type="button" className="feed-author-link" onClick={() => onOpenAuthorProfile(item.author)}>{item.author}</button>
             <p>방금 업데이트</p>
           </div>
         </div>
-        <button type="button" className="feed-question-btn" onClick={() => onAsk(item)} aria-label="질문"><QuestionMarkIcon /></button>
+        <div className="history-feed-head-actions">
+          <button type="button" className={`feed-follow-btn ${following ? "active" : ""}`} onClick={() => onToggleFollow(item.author)}>{following ? "팔로잉" : "팔로우"}</button>
+          <button type="button" className="feed-question-btn" onClick={() => onAsk(item)} aria-label="질문">질문</button>
+        </div>
       </div>
       <div className="feed-media">
         {keywordTags.length ? (
@@ -2213,6 +2233,10 @@ export default function App() {
     if (typeof window === "undefined") return [];
     try { return JSON.parse(window.localStorage.getItem("adultapp_saved_feed_ids") ?? "[]"); } catch { return []; }
   });
+  const [followedFeedAuthors, setFollowedFeedAuthors] = useState<string[]>(() => {
+    if (typeof window === "undefined") return ["adult official", "seller studio"];
+    try { return JSON.parse(window.localStorage.getItem("adultapp_followed_feed_authors") ?? '["adult official","seller studio"]'); } catch { return ["adult official", "seller studio"]; }
+  });
   const cachedHomeFeed = typeof window !== "undefined" ? loadCachedHomeFeedPage() : null;
   const [savedProductIds, setSavedProductIds] = useState<number[]>(() => {
     if (typeof window === "undefined") return [];
@@ -2591,6 +2615,10 @@ export default function App() {
     setSavedFeedIds((prev) => prev.includes(feedId) ? prev.filter((item) => item !== feedId) : [feedId, ...prev]);
   };
 
+  const toggleFollowedFeedAuthor = (author: string) => {
+    setFollowedFeedAuthors((prev) => prev.includes(author) ? prev.filter((item) => item !== author) : [...prev, author]);
+  };
+
   const toggleSavedProduct = (productId: number) => {
     setSavedProductIds((prev) => prev.includes(productId) ? prev.filter((item) => item !== productId) : [productId, ...prev]);
   };
@@ -2885,7 +2913,7 @@ export default function App() {
 
   useEffect(() => {
     if (activeTab !== "쇼핑" || shoppingTab !== "홈") return;
-    setShopHomeVisibleCount(9);
+    setShopHomeVisibleCount(30);
     setShopHomeBannerIndex(0);
     setShopHomeBannerDragOffset(0);
   }, [activeTab, shoppingTab, shopKeyword, globalKeyword, selectedShopCategory]);
@@ -4570,7 +4598,7 @@ export default function App() {
           <section className={`tab-pane fill-pane home-feed-pane${homeTab === "쇼츠" ? " home-feed-pane-shorts" : ""}`}>
             {homeTab === "피드" ? (
               <>
-                <div className="feed-post-list compact-scroll-list" ref={homeFeedScrollRef}>{visibleFeed.map((item, idx) => (<div key={`feed-wrap-${item.id}`}><FeedPoster item={item} onAsk={openAskFromFeed} saved={savedFeedIds.includes(item.id)} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} />{(idx + 1) % 4 === 0 ? <SponsoredFeedProductCard item={sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length]} saved={savedProductIds.includes(sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length].id)} onToggleSave={toggleSavedProduct} /> : null}</div>))}{hasMoreHomeFeed ? <div ref={homeFeedSentinelRef} className="feed-loading-row">추천 피드 불러오는 중</div> : <div className="feed-loading-row feed-loading-row-end">추천 피드를 모두 확인했습니다.</div>}</div>
+                <div className="feed-post-list compact-scroll-list" ref={homeFeedScrollRef}>{visibleFeed.map((item, idx) => (<div key={`feed-wrap-${item.id}`}><FeedPoster item={item} onAsk={openAskFromFeed} saved={savedFeedIds.includes(item.id)} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} following={followedFeedAuthors.includes(item.author)} onToggleFollow={toggleFollowedFeedAuthor} />{(idx + 1) % 4 === 0 ? <SponsoredFeedProductCard item={sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length]} saved={savedProductIds.includes(sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length].id)} onToggleSave={toggleSavedProduct} /> : null}</div>))}{hasMoreHomeFeed ? <div ref={homeFeedSentinelRef} className="feed-loading-row">추천 피드 불러오는 중</div> : <div className="feed-loading-row feed-loading-row-end">추천 피드를 모두 확인했습니다.</div>}</div>
               </>
             ) : homeTab === "쇼츠" ? (
               <>
@@ -4605,7 +4633,7 @@ export default function App() {
                 </div>
                 {savedTab === "피드" ? (
                   <div className="feed-post-list compact-scroll-list">
-                    {savedFeedItems.length ? savedFeedItems.map((item) => <FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} saved={true} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} />) : <div className="legacy-box compact"><p>보관한 피드가 없습니다.</p></div>}
+                    {savedFeedItems.length ? savedFeedItems.map((item) => <FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} saved={true} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} following={followedFeedAuthors.includes(item.author)} onToggleFollow={toggleFollowedFeedAuthor} />) : <div className="legacy-box compact"><p>보관한 피드가 없습니다.</p></div>}
                   </div>
                 ) : (
                   <div className="content-grid product-grid compact-scroll-list">
