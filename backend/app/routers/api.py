@@ -4269,7 +4269,7 @@ def create_story(payload: StoryCreate, current_user: User = Depends(get_current_
 
 
 @router.get("/social/feed")
-def list_feed(page: int = 1, limit: int = 12, response: Response | None = None, session: Session = Depends(get_session)):
+def list_feed(page: int = 1, limit: int = 12, response: Response = None, session: Session = Depends(get_session)):
     page = max(1, page)
     limit = max(1, min(limit, 30))
     stmt = select(FeedPost).order_by(FeedPost.created_at.desc())
