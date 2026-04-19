@@ -3553,6 +3553,34 @@ export default function App() {
     event.preventDefault();
   };
 
+  const handleShopHomeGridTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    const touch = event.touches[0];
+    if (!touch) return;
+    shopHomeGridHasDraggedRef.current = false;
+    shopHomeGridDraggingRef.current = true;
+    setShopHomeGridDragging(true);
+    shopHomeGridDragStartYRef.current = touch.clientY;
+    shopHomeGridDragStartScrollTopRef.current = event.currentTarget.scrollTop;
+  };
+
+  const handleShopHomeGridTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    const touch = event.touches[0];
+    if (!touch || !shopHomeGridDraggingRef.current || shopHomeGridDragStartYRef.current === null) return;
+    const deltaY = touch.clientY - shopHomeGridDragStartYRef.current;
+    if (Math.abs(deltaY) > 4) {
+      shopHomeGridHasDraggedRef.current = true;
+      shopHomeGridSuppressClickUntilRef.current = Date.now() + 260;
+    }
+    event.currentTarget.scrollTop = shopHomeGridDragStartScrollTopRef.current - deltaY;
+    event.preventDefault();
+  };
+
+  const finishShopHomeGridTouchDrag = () => {
+    shopHomeGridDraggingRef.current = false;
+    setShopHomeGridDragging(false);
+    shopHomeGridDragStartYRef.current = null;
+  };
+
   const finishShopHomeGridPointerDrag = (event?: PointerEvent<HTMLDivElement>) => {
     if (event) {
       try {
@@ -4989,6 +5017,12 @@ export default function App() {
                 autoFocus
               />
             </div>
+            <div className="topbar-search-trailing">
+              <div className="topbar-title-inline" aria-live="polite">{currentScreenTitle}</div>
+              <button className="header-inline-btn header-icon-btn header-toolbar-btn active" onClick={() => openOverlay("search")} aria-label={`${activeTab}검색`} title={`${activeTab}검색`}><SearchIcon /></button>
+              <button className="header-inline-btn header-icon-btn header-notification-btn header-toolbar-btn" onClick={() => openOverlay("notifications")} aria-label={`${activeTab}알림`} title={`${activeTab}알림`}><BellIcon />{unreadNotificationCount > 0 ? <span className="header-badge">{unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}</span> : null}</button>
+              <button className="header-inline-btn header-icon-btn header-toolbar-btn" onClick={() => openOverlay("settings")} aria-label={`${activeTab}설정`} title={`${activeTab}설정`}><SettingsIcon /></button>
+            </div>
           </div>
         ) : (
           <div className="topbar-row">
@@ -5492,7 +5526,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <div ref={shopHomeGridScrollRef} className={`shop-home-product-grid-scroll compact-scroll-list ${shopHomeGridDragging ? "dragging" : ""}`} onScroll={handleShopHomeScroll} onPointerDown={handleShopHomeGridPointerDown} onPointerMove={handleShopHomeGridPointerMove} onPointerUp={finishShopHomeGridPointerDrag} onPointerCancel={finishShopHomeGridPointerDrag} onPointerLeave={finishShopHomeGridPointerDrag}>
+                <div ref={shopHomeGridScrollRef} className={`shop-home-product-grid-scroll compact-scroll-list ${shopHomeGridDragging ? "dragging" : ""}`} onScroll={handleShopHomeScroll} onPointerDown={handleShopHomeGridPointerDown} onPointerMove={handleShopHomeGridPointerMove} onPointerUp={finishShopHomeGridPointerDrag} onPointerCancel={finishShopHomeGridPointerDrag} onPointerLeave={finishShopHomeGridPointerDrag} onTouchStart={handleShopHomeGridTouchStart} onTouchMove={handleShopHomeGridTouchMove} onTouchEnd={finishShopHomeGridTouchDrag} onTouchCancel={finishShopHomeGridTouchDrag}>
                   <div className="shop-home-product-grid">
                     {shopHomeFeedItems.map((product) => (
                       <button
@@ -6114,21 +6148,6 @@ export default function App() {
                     <span>{currentProfileMeta.hashtags.map((tag) => `#${tag}`).join(" ")}</span>
                   </div>
                 </div>
-              </div>
-
-              <div className="profile-ig-highlights">
-                {[
-                  { label: "추천", sub: "오늘의 픽" },
-                  { label: "리뷰", sub: "후기 모음" },
-                  { label: "브랜드", sub: "공식관" },
-                  { label: "케어", sub: "관리 팁" },
-                ].map((item) => (
-                  <button type="button" key={item.label} className="profile-ig-highlight">
-                    <span>{item.label.slice(0, 1)}</span>
-                    <b>{item.label}</b>
-                    <small>{item.sub}</small>
-                  </button>
-                ))}
               </div>
 
               <div className="profile-ig-tabbar profile-ig-action-grid" aria-label="프로필 바로가기">

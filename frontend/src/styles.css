@@ -5923,3 +5923,73 @@ body {
     flex: 0 0 auto;
   }
 }
+
+/* ===== 2026-04-20 topbar/search/profile/shop refinements ===== */
+.top-header .header-toolbar-btn.active,
+.top-header .header-icon-btn.active {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.top-header .header-toolbar-btn.active svg,
+.top-header .header-icon-btn.active svg,
+.top-header .header-toolbar-btn.active .header-toolbar-label,
+.top-header .header-icon-btn.active .header-toolbar-label {
+  color: var(--pink-2) !important;
+  filter: drop-shadow(0 0 8px rgba(255, 122, 182, 0.24));
+}
+
+.topbar-search-row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.topbar-search-trailing {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  min-width: 0;
+}
+
+.topbar-search-trailing .topbar-title-inline {
+  margin-right: 2px;
+  white-space: nowrap;
+}
+
+.shop-home-product-grid-scroll {
+  cursor: default !important;
+  touch-action: none;
+}
+
+.shop-home-product-grid-scroll:active,
+.shop-home-product-grid-scroll.dragging {
+  cursor: default !important;
+}
+
+.profile-ig-highlights {
+  display: none !important;
+}
+
+@media (max-width: 640px) {
+  .topbar-search-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 8px;
+    padding: 8px 10px;
+  }
+
+  .topbar-search-trailing {
+    gap: 2px;
+  }
+
+  .topbar-search-trailing .topbar-title-inline {
+    max-width: 64px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .topbar-search-trailing .header-toolbar-btn {
+    padding: 0 4px;
+  }
+}
