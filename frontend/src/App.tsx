@@ -14,6 +14,8 @@ type FeedItem = {
   views?: number;
   postedAt?: string;
   videoUrl?: string;
+  mediaUrl?: string;
+  mediaName?: string;
 };
 
 type FeedCommentEntry = {
@@ -28,6 +30,13 @@ type FeedCommentEntry = {
 type FeedCommentAttachment = {
   name: string;
   dataUrl: string;
+  size: number;
+  type: string;
+};
+
+type FeedComposerAttachment = {
+  name: string;
+  previewUrl: string;
   size: number;
   type: string;
 };
@@ -1526,6 +1535,11 @@ const FeedPoster = memo(function FeedPoster({ item, onAsk, saved, liked, comment
         </div>
       </div>
       <div className="feed-media">
+        {item.type === "image" && item.mediaUrl ? (
+          <img src={item.mediaUrl} alt={item.mediaName ?? item.title} className="feed-media-preview" loading="lazy" />
+        ) : item.type === "video" && item.videoUrl ? (
+          <video src={item.videoUrl} className="feed-media-preview" controls playsInline muted preload="metadata" />
+        ) : null}
         {keywordTags.length ? (
           <div className="content-keyword-stack content-keyword-stack--feed">
             {keywordTags.slice(0, 2).map((keyword) => (
@@ -2033,6 +2047,98 @@ function FeedCommentScreen({ item, comments, draft, attachment, attachmentBusy, 
   );
 }
 
+
+type FeedComposeScreenProps = {
+  title: string;
+  caption: string;
+  attachment: FeedComposerAttachment | null;
+  onChangeTitle: (value: string) => void;
+  onChangeCaption: (value: string) => void;
+  onAttachFile: (file: File | null) => void;
+  onClearAttachment: () => void;
+  onSubmit: () => void;
+  onClose: () => void;
+};
+
+function FeedComposeScreen({ title, caption, attachment, onChangeTitle, onChangeCaption, onAttachFile, onClearAttachment, onSubmit, onClose }: FeedComposeScreenProps) {
+  const canSubmit = Boolean(caption.trim() && attachment);
+
+  return (
+    <div className="feed-compose-overlay">
+      <section className="asked-page-head feed-compose-head">
+        <div className="asked-nav-row">
+          <button type="button" className="header-inline-btn header-icon-btn topbar-search-back" onClick={onClose} aria-label="뒤로가기"><BackArrowIcon /></button>
+          <div className="asked-page-title">피드 작성</div>
+          <button type="button" className="header-inline-btn feed-comment-submit-top" onClick={onSubmit} disabled={!canSubmit}>등록</button>
+        </div>
+      </section>
+      <div className="feed-compose-overlay-body compact-scroll-list">
+        <section className="feed-compose-card">
+          <div className="feed-compose-profile-row">
+            <div className="feed-comment-composer-avatar">나</div>
+            <div>
+              <strong>내 피드</strong>
+              <span>사진 또는 영상을 첨부하고 설명을 입력해 피드를 등록합니다.</span>
+            </div>
+          </div>
+
+          <div className="feed-compose-field">
+            <span>제목</span>
+            <input
+              value={title}
+              onChange={(event) => onChangeTitle(event.target.value)}
+              placeholder="피드 제목을 입력하세요"
+              maxLength={60}
+            />
+          </div>
+
+          <div className="feed-compose-field">
+            <span>내용</span>
+            <textarea
+              value={caption}
+              onChange={(event) => onChangeCaption(event.target.value)}
+              placeholder="피드 내용을 입력하세요"
+              maxLength={400}
+            />
+          </div>
+
+          <div className="feed-compose-attach-row">
+            <label className="creator-launch-btn feed-compose-attach-btn">
+              사진/영상 첨부
+              <input
+                type="file"
+                accept="image/*,video/*"
+                hidden
+                onChange={(event) => {
+                  onAttachFile(event.target.files?.[0] ?? null);
+                  event.currentTarget.value = "";
+                }}
+              />
+            </label>
+            <span>최대 1개 첨부</span>
+          </div>
+
+          {attachment ? (
+            <div className="feed-compose-preview-card">
+              {attachment.type.startsWith("image/") ? (
+                <img src={attachment.previewUrl} alt={attachment.name} className="feed-compose-preview-media" loading="lazy" />
+              ) : (
+                <video src={attachment.previewUrl} className="feed-compose-preview-media" controls playsInline preload="metadata" />
+              )}
+              <div className="feed-compose-preview-copy">
+                <strong>{attachment.name}</strong>
+                <span>{attachment.type.startsWith("video/") ? "영상 첨부" : "사진 첨부"} · {Math.max(1, Math.round(attachment.size / 1024))}KB</span>
+              </div>
+              <button type="button" className="ghost-btn" onClick={onClearAttachment}>삭제</button>
+            </div>
+          ) : (
+            <div className="feed-compose-empty">첨부한 사진/영상이 여기에 미리보기로 표시됩니다.</div>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}
 
 function isCompanyMailRouteActive() {
   if (typeof window === "undefined") return false;
@@ -2939,6 +3045,11 @@ export default function App() {
     }
   });
   const [openFeedCommentItem, setOpenFeedCommentItem] = useState<FeedItem | null>(null);
+  const [customFeedItems, setCustomFeedItems] = useState<FeedItem[]>([]);
+  const [feedComposeOpen, setFeedComposeOpen] = useState(false);
+  const [feedComposeTitle, setFeedComposeTitle] = useState("");
+  const [feedComposeCaption, setFeedComposeCaption] = useState("");
+  const [feedComposeAttachment, setFeedComposeAttachment] = useState<FeedComposerAttachment | null>(null);
   const [feedCommentDrafts, setFeedCommentDrafts] = useState<Record<number, string>>(() => {
     if (typeof window === "undefined") return {};
     try { return JSON.parse(window.localStorage.getItem("adultapp_feed_comment_drafts") ?? "{}"); } catch { return {}; }
@@ -2963,6 +3074,7 @@ export default function App() {
   const [shortsVisibleCount, setShortsVisibleCount] = useState(10);
   const [homeFeedVisibleCount, setHomeFeedVisibleCount] = useState<number>(() => Math.max(HOME_FEED_PAGE_SIZE, cachedHomeFeed?.visibleCount ?? HOME_FEED_PAGE_SIZE));
   const [homeFeedBootItems, setHomeFeedBootItems] = useState<RankedFeedItem[]>(() => cachedHomeFeed?.items ?? []);
+  const allFeedItems = useMemo(() => [...customFeedItems, ...feedSeed], [customFeedItems]);
   const [homeFeedIsLoadingMore, setHomeFeedIsLoadingMore] = useState(false);
   const homeFeedSentinelRef = useRef<HTMLDivElement | null>(null);
   const homeFeedScrollRef = useRef<HTMLDivElement | null>(null);
@@ -3273,7 +3385,7 @@ export default function App() {
 
   useEffect(() => {
     if (!savedFeedIds.length) return;
-    const savedShorts = feedSeed.filter((item) => savedFeedIds.includes(item.id));
+    const savedShorts = allFeedItems.filter((item) => savedFeedIds.includes(item.id));
     if (!savedShorts.length) return;
     setShortsKeywordSignals((prev) => {
       const next = { ...prev };
@@ -3455,6 +3567,71 @@ export default function App() {
     }
   };
 
+  const handleFeedComposeAttach = (file: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
+      window.alert("사진 또는 영상 파일만 첨부할 수 있습니다.");
+      return;
+    }
+    if (feedComposeAttachment?.previewUrl?.startsWith("blob:")) {
+      URL.revokeObjectURL(feedComposeAttachment.previewUrl);
+    }
+    setFeedComposeAttachment({
+      name: file.name,
+      previewUrl: URL.createObjectURL(file),
+      size: file.size,
+      type: file.type || (file.name.match(/\.mp4$/i) ? "video/mp4" : "image/jpeg"),
+    });
+  };
+
+  const clearFeedComposeAttachment = () => {
+    setFeedComposeAttachment((prev) => {
+      if (prev?.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(prev.previewUrl);
+      return null;
+    });
+  };
+
+  const closeFeedCompose = () => {
+    setFeedComposeOpen(false);
+  };
+
+  const submitFeedCompose = () => {
+    if (!feedComposeCaption.trim() || !feedComposeAttachment) {
+      window.alert("피드 내용과 사진/영상을 함께 입력해 주세요.");
+      return;
+    }
+    const nextId = Math.max(...allFeedItems.map((item) => item.id), 0) + 1;
+    const type = feedComposeAttachment.type.startsWith("video/") ? "video" : "image";
+    const trimmedTitle = feedComposeTitle.trim();
+    const caption = feedComposeCaption.trim();
+    const nextItem: FeedItem = {
+      id: nextId,
+      type,
+      category: type === "video" ? "쇼츠" : "실사용",
+      title: trimmedTitle || caption.slice(0, 28) || "새 피드",
+      caption,
+      author: viewedProfileAuthor ?? currentProfileMeta.name ?? "adult official",
+      likes: 0,
+      comments: 0,
+      accent: "rose",
+      views: type === "video" ? 0 : undefined,
+      postedAt: "방금",
+      videoUrl: type === "video" ? feedComposeAttachment.previewUrl : undefined,
+      mediaUrl: type === "image" ? feedComposeAttachment.previewUrl : undefined,
+      mediaName: feedComposeAttachment.name,
+    };
+    setCustomFeedItems((prev) => [nextItem, ...prev]);
+    setFeedCommentMap((prev) => ({ ...prev, [nextId]: [] }));
+    setFeedComposeTitle("");
+    setFeedComposeCaption("");
+    setFeedComposeAttachment(null);
+    setFeedComposeOpen(false);
+    setActiveTab("홈");
+    setHomeTab("피드");
+    setHomeFeedBootItems([]);
+    setHomeFeedVisibleCount((prev) => Math.max(prev, HOME_FEED_PAGE_SIZE));
+  };
+
   const clearFeedCommentAttachment = (feedId: number) => {
     setFeedCommentAttachments((prev) => ({ ...prev, [feedId]: null }));
   };
@@ -3486,7 +3663,7 @@ export default function App() {
     setSavedProductIds((prev) => prev.includes(productId) ? prev.filter((item) => item !== productId) : [productId, ...prev]);
   };
 
-  const savedFeedItems = useMemo(() => feedSeed.filter((item) => item.type !== "video" && savedFeedIds.includes(item.id)), [savedFeedIds]);
+  const savedFeedItems = useMemo(() => allFeedItems.filter((item) => item.type !== "video" && savedFeedIds.includes(item.id)), [savedFeedIds]);
 
   const openMenuOverlay = () => setOverlayMode("menu");
 
@@ -3610,7 +3787,7 @@ export default function App() {
 
   const shortsCategories = useMemo(() => {
     const fixed = ["전체", "추천", "최신"];
-    const dynamic = Array.from(new Set(feedSeed.filter((item) => item.type === "video").map((item) => item.category))).filter((category) => !fixed.includes(category));
+    const dynamic = Array.from(new Set(allFeedItems.filter((item) => item.type === "video").map((item) => item.category))).filter((category) => !fixed.includes(category));
     return [...fixed, ...dynamic];
   }, []);
 
@@ -3620,7 +3797,7 @@ export default function App() {
     globalKeyword,
     followingUserIds,
     savedFeedIds,
-    feedItems: feedSeed,
+    feedItems: allFeedItems,
     forumUsers: forumStarterUsers,
   }), [shopKeywordSignals, shortsKeywordSignals, globalKeyword, followingUserIds, savedFeedIds]);
 
@@ -3630,7 +3807,7 @@ export default function App() {
     .flatMap((user) => extractInterestTokens(`${user.name} ${user.topic} ${user.role}`)), [followingUserIds]);
 
   const recommendedHomeFeed = useMemo(() => rankHomeFeedItems({
-    items: feedSeed,
+    items: allFeedItems,
     keywordSignalMap,
     followedTopicKeywords,
     savedFeedIds,
@@ -3678,6 +3855,12 @@ export default function App() {
   useEffect(() => {
     setHomeFeedVisibleCount(HOME_FEED_PAGE_SIZE);
   }, [deferredGlobalKeyword]);
+  useEffect(() => () => {
+    if (feedComposeAttachment?.previewUrl?.startsWith("blob:")) {
+      URL.revokeObjectURL(feedComposeAttachment.previewUrl);
+    }
+  }, [feedComposeAttachment]);
+
 
   useEffect(() => {
     if (typeof window === "undefined" || !homeFeedSource.length) return;
@@ -3720,7 +3903,7 @@ export default function App() {
   const getContentKeywordTags = (item: FeedItem) => getTopMatchedKeywords(item, keywordSignalMap);
 
   const recommendedShorts = useMemo(() => {
-    const base = feedSeed.filter((item) => item.type === "video" || item.category.includes("숏"));
+    const base = allFeedItems.filter((item) => item.type === "video" || item.category.includes("숏"));
     const ranked = base.map((item, idx) => {
       const content = `${item.title} ${item.caption} ${item.category} ${item.author}`.toLowerCase();
       const matchedSignalScore = Array.from(keywordSignalMap.entries()).reduce((sum, [token, score]) => sum + (content.includes(token) ? score : 0), 0);
@@ -3859,7 +4042,7 @@ export default function App() {
   const currentProfileAuthor = viewedProfileAuthor ?? "adult official";
   const currentProfileMeta = useMemo(() => {
     const askProfile = askProfiles.find((item) => item.name === currentProfileAuthor);
-    const authorFeeds = feedSeed.filter((item) => item.author === currentProfileAuthor);
+    const authorFeeds = allFeedItems.filter((item) => item.author === currentProfileAuthor);
     const firstFeed = authorFeeds[0];
     const hash = deterministicHash(currentProfileAuthor);
     const followerCount = 1200 + (hash % 4200);
@@ -3870,7 +4053,7 @@ export default function App() {
       avatar: currentProfileAuthor.slice(0, 1).toUpperCase(),
       headline: askProfile?.headline ?? firstFeed?.category ?? "프로필",
       bio: askProfile?.intro ?? firstFeed?.caption ?? "피드와 질문, 쇼핑 정보를 함께 운영하는 계정입니다.",
-      hashtags: getContentKeywordTags(firstFeed ?? feedSeed[0]),
+      hashtags: getContentKeywordTags(firstFeed ?? allFeedItems[0] ?? feedSeed[0]),
       postCount,
       followerCount,
       followingCount,
@@ -4062,7 +4245,7 @@ export default function App() {
   const homeSearchResults = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
     if (!keyword) return [];
-    return feedSeed.filter((item) => {
+    return allFeedItems.filter((item) => {
       const source = `${item.title} ${item.caption} ${item.author} ${item.category}`.toLowerCase();
       if (searchFilter === "피드") return `${item.title} ${item.caption}`.toLowerCase().includes(keyword);
       if (searchFilter === "작성자") return item.author.toLowerCase().includes(keyword);
@@ -5174,7 +5357,7 @@ export default function App() {
   }, [globalKeyword]);
 
   const selectBottomTab = (tab: MobileTab) => {
-    if (tab === activeTab && overlayMode === null && !roomModalOpen && !selectedAskProfile && !openFeedCommentItem) {
+    if (tab === activeTab && overlayMode === null && !roomModalOpen && !selectedAskProfile && !openFeedCommentItem && !feedComposeOpen) {
       if (tab === "쇼핑" && shoppingTab !== "홈") {
         setProductDetail(null);
         setSelectedProductId(null);
@@ -5184,6 +5367,7 @@ export default function App() {
     }
     setSelectedAskProfile(null);
     setOpenFeedCommentItem(null);
+    setFeedComposeOpen(false);
     setActiveTab(tab);
     if (tab === "홈") setHomeTab((prev) => prev || "피드");
     if (tab === "프로필") {
@@ -5214,7 +5398,7 @@ export default function App() {
   const profileSearchResults = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
     if (!keyword) return [];
-    return feedSeed.filter((item) => {
+    return allFeedItems.filter((item) => {
       if (searchFilter === "아이디") return item.author.toLowerCase().includes(keyword);
       if (searchFilter === "피드") return `${item.title} ${item.caption}`.toLowerCase().includes(keyword);
       return `${item.author} ${item.title} ${item.caption}`.toLowerCase().includes(keyword);
@@ -5890,10 +6074,9 @@ export default function App() {
                     <strong>피드 작성</strong>
                     <span>새 피드 이미지/영상과 설명을 등록하는 업로드 시작 버튼입니다.</span>
                   </div>
-                  <label className="creator-launch-btn">
+                  <button type="button" className="creator-launch-btn" onClick={() => setFeedComposeOpen(true)}>
                     피드 작성
-                    <input type="file" accept="image/*,video/*" hidden onChange={(event) => { const fileName = event.target.files?.[0]?.name; if (fileName) window.alert(`피드 업로드 준비: ${fileName}`); event.currentTarget.value = ""; }} />
-                  </label>
+                  </button>
                 </div>
                 <div className="feed-post-list compact-scroll-list" ref={homeFeedScrollRef}>{visibleFeed.map((item, idx) => (<div key={`feed-wrap-${item.id}`}><FeedPoster item={item} onAsk={openAskFromFeed} saved={savedFeedIds.includes(item.id)} liked={likedFeedIds.includes(item.id)} commentsOpen={openFeedCommentItem?.id === item.id} onOpenComments={openFeedComments} onToggleLike={toggleLikedFeed} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} following={followedFeedAuthors.includes(item.author)} onToggleFollow={toggleFollowedFeedAuthor} />{(idx + 1) % 4 === 0 ? <SponsoredFeedProductCard item={sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length]} saved={savedProductIds.includes(sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length].id)} onToggleSave={toggleSavedProduct} /> : null}</div>))}{hasMoreHomeFeed ? <div ref={homeFeedSentinelRef} className="feed-loading-row">추천 피드 불러오는 중</div> : <div className="feed-loading-row feed-loading-row-end">추천 피드를 모두 확인했습니다.</div>}</div>
               </>
@@ -6682,7 +6865,7 @@ export default function App() {
 
               {profileSection === "게시물" ? (
                 <div className="profile-ig-grid">
-                  {feedSeed.filter((item) => item.type === "image" && item.author === currentProfileMeta.name).slice(0, 12).map((item) => (
+                  {allFeedItems.filter((item) => item.type === "image" && item.author === currentProfileMeta.name).slice(0, 12).map((item) => (
                     <article key={item.id} className={`profile-ig-tile ${item.accent}`}>
                       <div className="profile-ig-tile-media">
                         <span>{item.category}</span>
@@ -6721,7 +6904,7 @@ export default function App() {
 
               {profileSection === "릴스" ? (
                 <div className="profile-ig-grid">
-                  {feedSeed.filter((item) => item.type === "video" && item.author === currentProfileMeta.name).slice(0, 9).map((item) => (
+                  {allFeedItems.filter((item) => item.type === "video" && item.author === currentProfileMeta.name).slice(0, 9).map((item) => (
                     <article key={`reel-${item.id}`} className={`profile-ig-tile ${item.accent}`}>
                       <div className="profile-ig-tile-media profile-ig-tile-media-reel">
                         <span>릴스</span>
@@ -6737,7 +6920,7 @@ export default function App() {
 
               {profileSection === "태그됨" ? (
                 <div className="profile-ig-grid">
-                  {feedSeed.filter((item) => item.type === "image").slice(12, 21).map((item) => (
+                  {allFeedItems.filter((item) => item.type === "image").slice(12, 21).map((item) => (
                     <article key={`tagged-${item.id}`} className={`profile-ig-tile ${item.accent}`}>
                       <div className="profile-ig-tile-media">
                         <span>태그됨</span>
@@ -6861,6 +7044,20 @@ export default function App() {
         ))}</nav>
 
       {selectedAskProfile ? <AskProfileScreen profile={selectedAskProfile} activeTab={activeTab} onClose={() => setSelectedAskProfile(null)} onNavigate={selectBottomTab} renderBottomTabIcon={renderBottomTabIcon} onOpenProfile={openProfileFromAuthor} /> : null}
+
+      {feedComposeOpen ? (
+        <FeedComposeScreen
+          title={feedComposeTitle}
+          caption={feedComposeCaption}
+          attachment={feedComposeAttachment}
+          onChangeTitle={setFeedComposeTitle}
+          onChangeCaption={setFeedComposeCaption}
+          onAttachFile={handleFeedComposeAttach}
+          onClearAttachment={clearFeedComposeAttachment}
+          onSubmit={submitFeedCompose}
+          onClose={closeFeedCompose}
+        />
+      ) : null}
 
       {openFeedCommentItem ? (
         <FeedCommentScreen
