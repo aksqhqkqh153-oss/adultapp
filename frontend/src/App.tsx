@@ -1855,13 +1855,8 @@ function AskProfileScreen({ profile, activeTab, onClose, onSelectTab, renderBott
           </div>
         </section>
 
-        <div className="ad-banner ad-banner-top">
-          <span>Google AdSense 영역</span>
-          <strong>질문 화면 상단 광고</strong>
-        </div>
-
         <section className="question-list">
-          {questionSeed.map((item, idx) => (
+          {questionSeed.map((item) => (
             <div key={`ask-${item.id}`} className="question-feed-stack">
               <article className="question-feed-card">
                 <div className="question-feed-top">
@@ -1884,12 +1879,6 @@ function AskProfileScreen({ profile, activeTab, onClose, onSelectTab, renderBott
                   <button type="button">공유</button>
                 </div>
               </article>
-              {idx === 0 ? (
-                <div className="ad-banner ad-banner-inline">
-                  <span>Google AdSense 영역</span>
-                  <strong>질문 피드 중간 광고</strong>
-                </div>
-              ) : null}
             </div>
           ))}
         </section>
@@ -1933,6 +1922,8 @@ type FeedCommentScreenProps = {
 };
 
 function FeedCommentScreen({ item, comments, draft, onChangeDraft, onSubmit, onClose }: FeedCommentScreenProps) {
+  const postedLabel = formatFeedPostedAt(item.postedAt);
+
   return (
     <div className="feed-comment-overlay">
       <section className="asked-page-head feed-comment-head">
@@ -1949,7 +1940,11 @@ function FeedCommentScreen({ item, comments, draft, onChangeDraft, onSubmit, onC
               <div className="story-mini-avatar">{item.author.slice(0, 1).toUpperCase()}</div>
               <div className="history-feed-profile-copy">
                 <strong>{item.author}</strong>
-                <p>{item.postedAt ?? "방금"}</p>
+                <div className="feed-author-meta-row">
+                  <span className="feed-posted-at">{postedLabel}</span>
+                  <span>팔로워 2,184</span>
+                  <span>팔로잉 318</span>
+                </div>
               </div>
             </div>
           </div>
@@ -1958,20 +1953,30 @@ function FeedCommentScreen({ item, comments, draft, onChangeDraft, onSubmit, onC
               <strong>{item.title}</strong>
               <p>{item.caption}</p>
             </div>
+            <div className="feed-meta">
+              <span>좋아요 {item.likes}</span>
+              <span>댓글 {(comments.length || item.comments).toLocaleString()}</span>
+            </div>
+          </div>
+
+          <div className="feed-comment-thread-shell">
+            <div className="feed-comment-thread-head">
+              <strong>댓글 {comments.length.toLocaleString()}</strong>
+              <span>다른 사용자가 남긴 대화를 확인해보세요.</span>
+            </div>
+            <section className="feed-comment-thread">
+              {comments.length ? comments.map((comment) => (
+                <article key={comment.id} className="feed-comment-row">
+                  <div className="feed-comment-avatar">{comment.author.slice(0, 1).toUpperCase()}</div>
+                  <div className="feed-comment-copy">
+                    <div className="feed-comment-meta"><strong>{comment.author}</strong><span>{comment.meta}</span></div>
+                    <p>{comment.text}</p>
+                  </div>
+                </article>
+              )) : <div className="legacy-box compact"><p>첫 댓글을 남겨보세요.</p></div>}
+            </section>
           </div>
         </article>
-
-        <section className="feed-comment-thread">
-          {comments.length ? comments.map((comment) => (
-            <article key={comment.id} className="feed-comment-row">
-              <div className="feed-comment-avatar">{comment.author.slice(0, 1).toUpperCase()}</div>
-              <div className="feed-comment-copy">
-                <div className="feed-comment-meta"><strong>{comment.author}</strong><span>{comment.meta}</span></div>
-                <p>{comment.text}</p>
-              </div>
-            </article>
-          )) : <div className="legacy-box compact"><p>첫 댓글을 남겨보세요.</p></div>}
-        </section>
       </div>
       <div className="feed-comment-composer">
         <div className="feed-comment-composer-avatar">나</div>

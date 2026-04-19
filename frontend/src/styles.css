@@ -5774,3 +5774,99 @@ body {
     border-radius: 18px;
   }
 }
+
+/* ===== 2026-04-20 feed comment/follow/date/ask cleanup ===== */
+.feed-comment-overlay {
+  inset: 0 0 calc(60px + env(safe-area-inset-bottom, 0px)) 0;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+.feed-comment-overlay-body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 0 10px;
+  display: block;
+}
+.feed-comment-focus-card {
+  min-height: 100%;
+  padding-bottom: 12px;
+}
+.feed-comment-thread-shell {
+  display: grid;
+  gap: 0;
+  margin-top: 4px;
+  border-top: 1px solid rgba(255,255,255,0.07);
+}
+.feed-comment-thread-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0 10px;
+}
+.feed-comment-thread-head strong {
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+}
+.feed-comment-thread-head span {
+  font-size: 11px;
+  color: rgba(255,255,255,0.58);
+}
+.feed-comment-thread {
+  overflow: visible;
+  padding: 0;
+}
+.feed-comment-row {
+  padding: 12px 0;
+}
+.feed-comment-composer {
+  position: relative;
+  z-index: 3;
+  padding: 10px 12px max(10px, env(safe-area-inset-bottom, 0px));
+  background: rgba(0,0,0,0.985);
+}
+.feed-comment-composer-box textarea {
+  min-height: 48px;
+  max-height: 108px;
+}
+.feed-comment-composer-actions {
+  align-items: center;
+}
+.feed-comment-composer-actions button {
+  box-shadow: 0 8px 18px rgba(255, 90, 163, 0.12);
+}
+.feed-follow-btn.active {
+  background: transparent !important;
+  border-color: transparent !important;
+  color: var(--pink-2) !important;
+  font-weight: 900 !important;
+  box-shadow: none !important;
+}
+@keyframes feed-heart-bloom {
+  0% { transform: scale(0.96); filter: drop-shadow(0 0 0 rgba(255, 122, 182, 0)); }
+  40% { transform: scale(1.12); filter: drop-shadow(0 0 10px rgba(255, 122, 182, 0.32)); }
+  100% { transform: scale(1); filter: drop-shadow(0 0 6px rgba(255, 122, 182, 0.18)); }
+}
+.history-feed-footer-icons button[aria-label="좋아요"].active svg,
+.history-feed-footer-icons button[aria-label="좋아요"].active svg [stroke],
+.history-feed-footer-icons button[aria-label="좋아요"].active svg [fill] {
+  animation: feed-heart-bloom 220ms ease-out;
+}
+@media (max-width: 640px) {
+  .feed-comment-overlay {
+    inset: 0 0 calc(60px + env(safe-area-inset-bottom, 0px)) 0;
+  }
+  .feed-comment-head .asked-nav-row {
+    min-height: 54px;
+  }
+  .feed-comment-composer {
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 8px;
+  }
+  .feed-comment-avatar,
+  .feed-comment-composer-avatar {
+    width: 34px;
+    height: 34px;
+    font-size: 12px;
+  }
+}
