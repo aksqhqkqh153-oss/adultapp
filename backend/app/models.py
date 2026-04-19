@@ -403,6 +403,7 @@ class Order(SQLModel, table=True):
     order_no: str = Field(index=True, unique=True)
     member_id: int = Field(index=True)
     seller_id: int = Field(index=True)
+    status: str = Field(default="payment_requested", index=True)
     order_status: str = Field(default="paid")
     payment_method: str = Field(default="card")
     payment_pg: str = Field(default="pending")
@@ -413,12 +414,15 @@ class Order(SQLModel, table=True):
     total_amount: int = 0
     fee_rate: float = 0.08
     settlement_status: str = Field(default="open")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class OrderItem(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     order_id: int = Field(index=True)
     product_id: int = Field(index=True)
+    seller_id: Optional[int] = Field(default=None, index=True)
+    price: int = Field(default=0)
     sku_code: str
     qty: int
     unit_price: int
@@ -430,6 +434,60 @@ class OrderItem(SQLModel, table=True):
 
 
 
+
+
+
+class Settlement(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    seller_id: int = Field(index=True)
+    period: str = Field(index=True)
+    gross: int = Field(default=0)
+    fee: int = Field(default=0)
+    net: int = Field(default=0)
+    status: str = Field(default="scheduled", index=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class Transaction(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    order_id: Optional[int] = Field(default=None, index=True)
+    type: str = Field(default="payment", index=True)
+    amount: int = Field(default=0)
+    ref: Optional[str] = Field(default=None, index=True)
+    status: str = Field(default="pending", index=True)
+    provider: Optional[str] = Field(default=None)
+    payload_json: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class PaymentWebhookEvent(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    order_no: Optional[str] = Field(default=None, index=True)
+    order_id: Optional[int] = Field(default=None, index=True)
+    event_key: str = Field(index=True, unique=True)
+    event_status: str = Field(default="received", index=True)
+    signature_valid: bool = Field(default=False)
+    payload_json: str = Field(default="{}")
+    processed_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ChargebackEvidence(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    order_id: int = Field(index=True)
+    evidence_type: str = Field(default="receipt")
+    file_ref: Optional[str] = None
+    note: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class MinorAccessBlockLog(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: Optional[int] = Field(default=None, index=True)
+    route: str = Field(default="/shop")
+    outcome: str = Field(default="blocked", index=True)
+    reason: str = Field(default="minor_or_unverified")
+    ip_address: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class VerotelPaymentSession(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

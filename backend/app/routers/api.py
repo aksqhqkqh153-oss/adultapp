@@ -58,6 +58,7 @@ from ..models import (
     AdminActionLog,
     AppAsset,
     AppealCase,
+    ChargebackEvidence,
     CommunityPost,
     ConsentRecord,
     ContentItem,
@@ -72,6 +73,7 @@ from ..models import (
     OrderItem,
     Product,
     ProductMedia,
+    PaymentWebhookEvent,
     ProfileQuestion,
     RandomChatRule,
     RandomMatchTicket,
@@ -79,11 +81,14 @@ from ..models import (
     UserBlock,
     UserFollow,
     RefundCase,
+    Settlement,
     SlaEvent,
     SellerPenalty,
     SellerProfile,
     SellerOnboardingStatus,
+    Transaction,
     User,
+    MinorAccessBlockLog,
 )
 from ..services.realtime import thread_connection_manager
 
@@ -193,6 +198,70 @@ CLOUDFLARE_MANUAL_DEPLOY = {
 ALLOWED_UPLOAD_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".mp4", ".mov", ".webm"}
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
+
+
+
+def _payment_ledger_mode() -> dict[str, Any]:
+    return {
+        "model": "platform_single_checkout_seller_payout",
+        "catalog_mode": "low_intensity",
+        "checkout_mode": "neutral_without_product_images",
+        "checkout_label": "주문 확인 및 결제",
+        "payout_method": "seller_bank_transfer",
+        "settlement_clause": "플랫폼이 결제 수취 후 판매자에게 재정산",
+        "restricted_categories": ["고위험 카테고리", "PG 사전승인 필요 카테고리"],
+        "risk_controls": ["고위험 카테고리 제한", "주문 금액/빈도 룰", "의심거래 플래그", "차지백 증빙 자동 저장"],
+    }
+
+
+def _payment_webhook_secret() -> str:
+    candidate = (settings.pg_primary_webhook_secret or '').strip()
+    if candidate and candidate != 'change-me':
+        return candidate
+    candidate = (settings.portone_webhook_secret_test or '').strip()
+    if candidate and candidate != 'change-me-portone-webhook-test':
+        return candidate
+    return 'dev-payment-webhook-secret'
+
+
+def _verify_hmac_sha256(raw_body: bytes, signature: str | None, secret: str) -> bool:
+    if not signature:
+        return False
+    normalized = str(signature).strip()
+    if normalized.startswith('sha256='):
+        normalized = normalized.split('=', 1)[1]
+    expected = hmac.new(secret.encode('utf-8'), raw_body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, normalized)
+
+
+def _append_transaction(session: Session, order: Order, tx_type: str, amount: int, ref: str | None, status: str, payload: dict[str, Any], provider: str = 'primary_pg') -> Transaction:
+    row = Transaction(order_id=order.id, type=tx_type, amount=amount, ref=ref, status=status, provider=provider, payload_json=json.dumps(payload, ensure_ascii=False))
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return row
+
+
+def _ensure_settlement_snapshot(session: Session, order: Order) -> Settlement:
+    period = (order.created_at or utcnow()).strftime('%Y-%m')
+    row = session.exec(select(Settlement).where(Settlement.seller_id == order.seller_id, Settlement.period == period)).first()
+    if row:
+        return row
+    gross = int(order.total_amount or 0)
+    fee = int(round(gross * float(order.fee_rate or 0)))
+    row = Settlement(seller_id=order.seller_id, period=period, gross=gross, fee=fee, net=max(0, gross - fee), status='scheduled')
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return row
+
+
+def _store_chargeback_evidence(session: Session, order: Order, note: str) -> None:
+    existing = session.exec(select(ChargebackEvidence).where(ChargebackEvidence.order_id == (order.id or 0))).first()
+    if existing:
+        return
+    session.add(ChargebackEvidence(order_id=order.id or 0, evidence_type='order_snapshot', file_ref=order.order_no, note=note))
+    session.commit()
 
 def _ensure_random_chat_enabled() -> None:
     if not settings.random_chat_enabled:
@@ -1513,7 +1582,7 @@ def legal_public_links():
 @router.get("/legal/business-info")
 def legal_business_info(session: Session = Depends(get_session)):
     business_info, placeholder_fields, complete, source = _business_info_payload(session)
-    return {"business_info": business_info, "placeholder_fields": placeholder_fields, "complete": complete, "source": source, "beta_db_override_enabled": settings.beta_business_info_db_override_enabled}
+    return {"business_info": business_info, "placeholder_fields": placeholder_fields, "complete": complete, "source": source, "beta_db_override_enabled": settings.beta_business_info_db_override_enabled, "checkout_mode": _payment_ledger_mode()}
 
 
 @router.get("/admin/business-info")
@@ -1688,6 +1757,7 @@ def payments_operational_path() -> dict[str, Any]:
             "PortOne 콘솔에서 테스트 webhook secret / Store ID / channel key / API Secret 발급",
             "backend/.env에 test 값만 먼저 입력",
             "결제 성공 / 취소 / 부분취소 / 환불 / webhook 재전송 / 중복수신 테스트",
+            "플랫폼 단일 결제 후 판매자 정산 분배 레저 검증",
             "판매자 필수 입력 누락 시 실제 차단되는지 확인",
             "허용 SKU만 공개한 상태로 PG 사전상담 진행",
             "푸터 / 상품상세 / 주문서의 통신판매중개 고지 점검",
@@ -3704,7 +3774,105 @@ def settlement_preview(current_user: User = Depends(get_current_user), session: 
                 "coupon_burden_owner": item.coupon_burden_owner,
             }
         )
-    return {"items": lines, "summary": {"count": len(lines), "gross_amount": sum(int(x["seller_receivable"]) + int(x["platform_fee"]) + int(x["pg_fee"]) for x in lines), "seller_receivable_total": sum(int(x["seller_receivable"]) for x in lines)}, "policy": {"settlement_cycle": settings.settlement_cycle_policy, "tax_invoice_direct": settings.tax_invoice_responsibility_direct, "tax_invoice_marketplace": settings.tax_invoice_responsibility_marketplace, "cash_receipt_direct": settings.cash_receipt_responsibility_direct, "cash_receipt_marketplace": settings.cash_receipt_responsibility_marketplace}}
+    return {"items": lines, "summary": {"count": len(lines), "gross_amount": sum(int(x["seller_receivable"]) + int(x["platform_fee"]) + int(x["pg_fee"]) for x in lines), "seller_receivable_total": sum(int(x["seller_receivable"]) for x in lines)}, "policy": {"settlement_cycle": settings.settlement_cycle_policy, "tax_invoice_direct": settings.tax_invoice_responsibility_direct, "tax_invoice_marketplace": settings.tax_invoice_responsibility_marketplace, "cash_receipt_direct": settings.cash_receipt_responsibility_direct, "cash_receipt_marketplace": settings.cash_receipt_responsibility_marketplace}, "checkout_mode": _payment_ledger_mode(), "refund_flow": {"platform_checkout": "환불 요청 → 플랫폼 PG 환불 → 레저 롤백 → 판매자 정산 차감"}}
+
+
+@router.get("/payments/review-ready")
+def payments_review_ready() -> dict[str, Any]:
+    return {
+        "mode": _payment_ledger_mode(),
+        "required_components": {
+            "ledger_tables": [
+                "orders(id, user_id/member_id, status, total_amount, created_at)",
+                "order_items(order_id, product_id, seller_id, price, qty)",
+                "settlements(id, seller_id, period, gross, fee, net, status)",
+                "transactions(id, order_id, type, amount, ref, status)",
+            ],
+            "webhook": {"path": "/api/webhook/payment", "signature": "HMAC-SHA256", "idempotent": True},
+            "refund_flow": "platform_pg_refund_then_ledger_adjustment",
+            "compliance": [
+                "사업자/통신판매/약관/환불정책 명시",
+                "성인 인증 게이트(서버 검증)",
+                "상품 표현 수위 관리",
+                "미성년자 접근 차단 로그 보관",
+                "차지백 대응 프로세스",
+            ],
+        },
+    }
+
+
+@router.post("/webhook/payment")
+async def webhook_payment(request: Request, session: Session = Depends(get_session)):
+    raw_body = await request.body()
+    signature = request.headers.get('x-signature') or request.headers.get('x-webhook-signature')
+    payload = json.loads(raw_body.decode('utf-8') or '{}')
+    order_ref = str(payload.get('order_id') or payload.get('order_no') or '').strip()
+    status = str(payload.get('status') or '').strip().lower()
+    amount = int(payload.get('amount') or 0)
+    event_ref = str(payload.get('ref') or payload.get('transaction_id') or order_ref or 'unknown').strip()
+    event_key = f"{order_ref}:{status}:{event_ref}"
+    valid = _verify_hmac_sha256(raw_body, signature, _payment_webhook_secret())
+    if not valid:
+        session.add(PaymentWebhookEvent(order_no=order_ref or None, event_key=event_key, event_status='signature_invalid', signature_valid=False, payload_json=payload if isinstance(payload, str) else json.dumps(payload, ensure_ascii=False)))
+        session.commit()
+        raise HTTPException(status_code=400, detail='invalid webhook signature')
+
+    seen = session.exec(select(PaymentWebhookEvent).where(PaymentWebhookEvent.event_key == event_key)).first()
+    if seen:
+        return {"ok": True, "idempotent": True, "event_key": event_key, "order_ref": order_ref}
+
+    order = session.exec(select(Order).where((Order.order_no == order_ref) | (func.cast(Order.id, str) == order_ref))).first()
+    if not order:
+        session.add(PaymentWebhookEvent(order_no=order_ref or None, event_key=event_key, event_status='order_not_found', signature_valid=True, payload_json=json.dumps(payload, ensure_ascii=False)))
+        session.commit()
+        raise HTTPException(status_code=404, detail='order not found')
+
+    next_status = order.status
+    tx_type = 'payment'
+    tx_status = 'success'
+    if status in {'paid', 'success', 'approved'}:
+        next_status = 'paid'
+        order.order_status = 'paid'
+        order.approved_at = utcnow()
+        order.settlement_status = 'scheduled'
+    elif status in {'cancelled', 'canceled', 'refund', 'refunded'}:
+        next_status = 'refunded' if 'refund' in status else 'cancelled'
+        order.order_status = next_status
+        order.cancel_at = utcnow()
+        order.settlement_status = 'deducted'
+        tx_type = 'refund' if 'refund' in status else 'cancel'
+    else:
+        tx_status = 'pending'
+
+    order.status = next_status
+    session.add(order)
+    session.commit()
+    session.refresh(order)
+    _append_transaction(session, order, tx_type=tx_type, amount=amount or int(order.total_amount or 0), ref=event_ref, status=tx_status, payload=payload)
+    _ensure_settlement_snapshot(session, order)
+    _store_chargeback_evidence(session, order, '자동 생성된 주문/결제 스냅샷')
+    session.add(PaymentWebhookEvent(order_no=order.order_no, order_id=order.id, event_key=event_key, event_status=next_status, signature_valid=True, payload_json=json.dumps(payload, ensure_ascii=False)))
+    session.commit()
+    return {"ok": True, "order_no": order.order_no, "status": next_status, "amount": amount or int(order.total_amount or 0), "event_key": event_key}
+
+
+@router.get("/ledger/overview")
+def ledger_overview(current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    orders = session.exec(select(Order)).all()
+    txs = session.exec(select(Transaction)).all()
+    settlements = session.exec(select(Settlement)).all()
+    if not _is_admin_like(current_user):
+        orders = [row for row in orders if row.seller_id == (current_user.id or 0) or row.member_id == (current_user.id or 0)]
+        order_ids = {row.id for row in orders}
+        txs = [row for row in txs if row.order_id in order_ids]
+        settlements = [row for row in settlements if row.seller_id == (current_user.id or 0)]
+    return {
+        "mode": _payment_ledger_mode(),
+        "orders": {"count": len(orders), "gross": sum(int(row.total_amount or 0) for row in orders)},
+        "transactions": {"count": len(txs), "paid": sum(int(row.amount or 0) for row in txs if row.type == 'payment' and row.status == 'success'), "refund": sum(int(row.amount or 0) for row in txs if row.type == 'refund')},
+        "settlements": {"count": len(settlements), "gross": sum(int(row.gross or 0) for row in settlements), "fee": sum(int(row.fee or 0) for row in settlements), "net": sum(int(row.net or 0) for row in settlements)},
+        "webhook": {"path": "/api/webhook/payment", "signature": "HMAC-SHA256", "idempotent": True},
+    }
 
 
 @router.get("/reports")

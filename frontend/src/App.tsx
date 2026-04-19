@@ -424,6 +424,33 @@ type SettlementPreviewResponse = {
   policy?: { settlement_cycle?: string; tax_invoice_direct?: string; tax_invoice_marketplace?: string; cash_receipt_direct?: string; cash_receipt_marketplace?: string };
 };
 
+type PaymentReviewReadyResponse = {
+  mode?: {
+    model?: string;
+    catalog_mode?: string;
+    checkout_mode?: string;
+    checkout_label?: string;
+    payout_method?: string;
+    settlement_clause?: string;
+    restricted_categories?: string[];
+    risk_controls?: string[];
+  };
+  required_components?: {
+    ledger_tables?: string[];
+    webhook?: { path?: string; signature?: string; idempotent?: boolean };
+    refund_flow?: string;
+    compliance?: string[];
+  };
+};
+
+type LedgerOverviewResponse = {
+  mode?: PaymentReviewReadyResponse["mode"];
+  orders?: { count?: number; gross?: number };
+  transactions?: { count?: number; paid?: number; refund?: number };
+  settlements?: { count?: number; gross?: number; fee?: number; net?: number };
+  webhook?: { path?: string; signature?: string; idempotent?: boolean };
+};
+
 type ProductRegistrationDraft = {
   category: string;
   name: string;
@@ -2202,6 +2229,8 @@ export default function App() {
   const [productApprovalQueue, setProductApprovalQueue] = useState<ProductApprovalItem[]>([]);
   const [sellerProducts, setSellerProducts] = useState<SellerProductItem[]>([]);
   const [settlementPreview, setSettlementPreview] = useState<SettlementPreviewResponse | null>(null);
+  const [paymentReviewReady, setPaymentReviewReady] = useState<PaymentReviewReadyResponse | null>(null);
+  const [ledgerOverview, setLedgerOverview] = useState<LedgerOverviewResponse | null>(null);
   const [threadItems, setThreadItems] = useState<ThreadItem[]>(threadSeed);
   const [forumTopic, setForumTopic] = useState<(typeof forumStarterTopics)[number]>("제품 이야기");
   const [followingUserIds, setFollowingUserIds] = useState<number[]>([301, 303, 304]);
@@ -2389,6 +2418,8 @@ export default function App() {
           getJson<{ items: SellerApprovalItem[] }>("/admin/seller-approvals").then((res) => setSellerApprovalQueue(res.items ?? [])).catch(() => null);
           getJson<{ items: ProductApprovalItem[] }>("/admin/product-approvals").then((res) => setProductApprovalQueue(res.items ?? [])).catch(() => null);
           getJson<SettlementPreviewResponse>("/settlements/preview").then(setSettlementPreview).catch(() => null);
+          getJson<PaymentReviewReadyResponse>("/payments/review-ready").then(setPaymentReviewReady).catch(() => null);
+          getJson<LedgerOverviewResponse>("/ledger/overview").then(setLedgerOverview).catch(() => null);
         } else {
           setReleaseReadiness(null);
         }
@@ -3566,10 +3597,10 @@ export default function App() {
         form.appendChild(input);
       });
       document.body.appendChild(form);
-      setOrderMessage(`Verotel 결제 페이지로 이동 준비 완료: ${targetOrderNo}`);
+      setOrderMessage(`중립 결제 페이지 이동 준비 완료: ${targetOrderNo}`);
       form.submit();
     } catch (error) {
-      setOrderMessage(error instanceof Error ? error.message : "Verotel 결제 시작 실패");
+      setOrderMessage(error instanceof Error ? error.message : "결제창 시작 실패");
     }
   };
 
@@ -4821,10 +4852,10 @@ export default function App() {
                       </div>
                       <div className="legacy-box">
                         <h3>결제 테스트 버튼 UI</h3>
-                        <p>장바구니 → 주문 생성 → Verotel 이동 → 완료 확인 흐름을 그대로 점검합니다.</p>
+                        <p>장바구니 → 주문 생성 → 중립 결제창 이동 → 완료 확인 흐름을 점검합니다.</p>
                         <div className="product-card-actions">
                           <button type="button" onClick={createOrderForSelectedProduct}>주문 생성</button>
-                          <button type="button" className="ghost-btn" onClick={() => launchVerotelCheckout()}>Verotel 결제 테스트</button>
+                          <button type="button" className="ghost-btn" onClick={() => launchVerotelCheckout()}>중립 결제 테스트</button>
                           <button type="button" className="ghost-btn" onClick={() => setShoppingTab("주문")}>주문 탭 열기</button>
                         </div>
                         <p className="muted-mini">미성년자는 쇼핑과 결제가 차단됩니다. PASS 실연동 전에는 자체 성인 확인으로 QA 가능합니다.</p>
@@ -4853,6 +4884,23 @@ export default function App() {
                         </div>
                       </div>
                     </div>
+                    <div className="legacy-grid two-col compact-grid">
+                      <div className="legacy-box compact">
+                        <h3>PG 심사 대응 결제 구조</h3>
+                        <div className="consent-record-list">
+                          <div className="simple-list-row multi-line"><div><b>결제 모델</b><span>{paymentReviewReady?.mode?.model ?? "platform_single_checkout_seller_payout"}</span></div></div>
+                          <div className="simple-list-row multi-line"><div><b>체크아웃 표현</b><span>{paymentReviewReady?.mode?.checkout_mode ?? "neutral_without_product_images"}</span></div></div>
+                          <div className="simple-list-row multi-line"><div><b>정산 원칙</b><span>{paymentReviewReady?.mode?.settlement_clause ?? "플랫폼이 결제 수취 후 판매자에게 재정산"}</span></div></div>
+                          <div className="simple-list-row multi-line"><div><b>판매자 지급</b><span>{paymentReviewReady?.mode?.payout_method ?? "seller_bank_transfer"}</span></div></div>
+                        </div>
+                      </div>
+                      <div className="legacy-box compact">
+                        <h3>리스크 완화 규칙</h3>
+                        <div className="copy-action-row wrap-row">
+                          {(paymentReviewReady?.mode?.risk_controls ?? ["고위험 카테고리 제한", "주문 금액/빈도 룰", "의심거래 플래그", "차지백 증빙 저장"]).map((item) => <span key={item} className="question-profile-chip">{item}</span>)}
+                        </div>
+                      </div>
+                    </div>
                     <div className="legacy-box compact">
                       <h3>필수 정책 문서</h3>
                       <div className="notification-policy-links">
@@ -4878,6 +4926,11 @@ export default function App() {
                   <div className="legacy-box"><h3>취소/환불 검증</h3><p>부분 처리 금액 입력값: ₩{Number(orderActionAmount || "0").toLocaleString()}</p></div>
                   <div className="legacy-box"><h3>webhook 점검</h3><p>서명 점검 API와 주문 상태머신을 한 화면에서 검증합니다.</p></div>
                 </div>
+                <div className="legacy-grid three">
+                  <div className="legacy-box compact"><h3>레저 요약</h3><p>주문 {ledgerOverview?.orders?.count ?? 0}건 · 총 거래액 ₩{Number(ledgerOverview?.orders?.gross ?? 0).toLocaleString()}</p><p>거래 {ledgerOverview?.transactions?.count ?? 0}건 · 결제 ₩{Number(ledgerOverview?.transactions?.paid ?? 0).toLocaleString()}</p></div>
+                  <div className="legacy-box compact"><h3>판매자 정산</h3><p>정산 {ledgerOverview?.settlements?.count ?? 0}건 · 지급예정 ₩{Number(ledgerOverview?.settlements?.net ?? 0).toLocaleString()}</p><p>수수료 합계 ₩{Number(ledgerOverview?.settlements?.fee ?? 0).toLocaleString()}</p></div>
+                  <div className="legacy-box compact"><h3>심사용 webhook</h3><p>{ledgerOverview?.webhook?.path ?? "/api/webhook/payment"}</p><p>{ledgerOverview?.webhook?.signature ?? "HMAC-SHA256"} · idem {String(Boolean(ledgerOverview?.webhook?.idempotent ?? true))}</p></div>
+                </div>
                 <div className="legacy-box">
                   <h3>결제 테스트 센터</h3>
                   <div className="profile-form-grid">
@@ -4886,7 +4939,7 @@ export default function App() {
                   </div>
                   <div className="product-card-actions">
                     <button type="button" onClick={confirmSelectedOrder}>선택 주문 결제승인</button>
-                    <button type="button" className="ghost-btn" onClick={() => launchVerotelCheckout()}>Verotel 결제창 열기</button>
+                    <button type="button" className="ghost-btn" onClick={() => launchVerotelCheckout()}>중립 결제창 열기</button>
                     <button type="button" className="ghost-btn" onClick={() => cancelSelectedOrder(false)}>선택 주문 전체취소</button>
                     <button type="button" className="ghost-btn" onClick={() => cancelSelectedOrder(true)}>선택 주문 부분취소</button>
                     <button type="button" className="ghost-btn" onClick={() => refundSelectedOrder(false)}>선택 주문 전체환불</button>
@@ -4915,6 +4968,7 @@ export default function App() {
                     <span>결제금액: ₩{Number(checkoutSelectedOrder.total_amount || 0).toLocaleString()}</span>
                     <span>상품 목록: {orderDetail?.items?.length ? orderDetail.items.map((item) => `${item.sku_code || item.product_id} x${item.qty}`).join(' · ') : `${checkoutSelectedOrder.item_count}건`}</span>
                     <span>결제상태: {checkoutSelectedOrder.status}</span>
+                    <span>정산방식: 플랫폼 수취 후 판매자 재정산</span>
                     <div className="product-card-actions">
                       <button type="button" onClick={() => setCheckoutStage('order_confirm')}>주문 확인 보기</button>
                       <button type="button" className="ghost-btn" onClick={() => setShoppingTab('바구니')}>장바구니로</button>
@@ -4941,6 +4995,12 @@ export default function App() {
                   <span>본 서비스는 만 19세 이상만 이용 가능합니다.</span>
                   <span>인증 방식: PASS / NICE / Danal 등 본인확인 결과 연동 예정</span>
                   <span>인증 미완료 시 상품/결제/채팅/커뮤니티 접근이 차단됩니다.</span>
+                </div>
+                <div className="legacy-box compact legal-disclosure-card">
+                  <strong>플랫폼 결제 및 재정산 안내</strong>
+                  <span>결제는 플랫폼이 중립 명칭의 체크아웃 화면에서 수취합니다.</span>
+                  <span>판매자 정산은 주문 확정 후 레저 기준으로 계산되어 계좌이체로 분배됩니다.</span>
+                  <span>환불 요청 시 플랫폼 PG 환불 후 판매자 정산 금액에서 차감될 수 있습니다.</span>
                 </div>
                 <div className="legacy-box compact">
                   <h3>1. 장바구니</h3>
