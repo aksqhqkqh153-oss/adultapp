@@ -1,4 +1,4 @@
-import { CSSProperties, UIEvent, memo, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, UIEvent, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { clearTokens, ensureAuthSession, getApiBase, getJson, getRefreshToken, hasAuthToken, postJson, setAuthToken, setRefreshToken } from "./lib/api";
 
 type FeedItem = {
@@ -807,19 +807,19 @@ const feedSeed: FeedItem[] = [
   { id: 35, type: "image", category: "추천", title: "테스트 피드 카드 18", caption: "테스트용 피드 데이터 18번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "seller studio", likes: 255, comments: 19, accent: "rose", views: 2425, postedAt: "18시간 전" },
   { id: 36, type: "image", category: "리뷰", title: "테스트 피드 카드 19", caption: "테스트용 피드 데이터 19번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "review crew", likes: 258, comments: 8, accent: "sunrise", views: 2460, postedAt: "19시간 전" },
   { id: 37, type: "image", category: "브랜드", title: "테스트 피드 카드 20", caption: "테스트용 피드 데이터 20번입니다. 홈 피드 스크롤과 카드 레이아웃 점검용 샘플 문구입니다.", author: "brand note", likes: 261, comments: 9, accent: "violet", views: 2495, postedAt: "20시간 전" },
-  { id: 18, type: "image", category: "브랜드", title: "수입 브랜드 집중 소개", caption: "수입 브랜드 중 반응이 좋은 제품군만 골라 정리했습니다.", author: "brand note", likes: 159, comments: 7, accent: "violet", views: 1172, postedAt: "52분 전" },
-  { id: 19, type: "image", category: "이벤트", title: "이번 주 기획전 소식", caption: "행사 중인 인기 카테고리와 재고 상태를 한눈에 보여줍니다.", author: "event pick", likes: 247, comments: 18, accent: "teal", views: 1880, postedAt: "1시간 전" },
-  { id: 20, type: "image", category: "신상품", title: "신상품 등록 미리보기", caption: "막 등록된 상품 중 반응이 빠른 제품만 먼저 보여줍니다.", author: "seller studio", likes: 177, comments: 9, accent: "rose", views: 1307, postedAt: "1시간 전" },
-  { id: 21, type: "image", category: "실사용", title: "리얼 사용 후기 모음", caption: "자극 강도, 소음, 보관성 중심으로 모은 후기 카드입니다.", author: "review crew", likes: 221, comments: 21, accent: "sunrise", views: 1615, postedAt: "2시간 전" },
-  { id: 22, type: "image", category: "리뷰", title: "리뷰 100+ 추천 제품", caption: "리뷰가 누적된 제품만 별도 묶음으로 보여줍니다.", author: "review crew", likes: 239, comments: 17, accent: "violet", views: 1702, postedAt: "2시간 전" },
-  { id: 23, type: "image", category: "추천", title: "본디지 테이프 큐레이션", caption: "안전하게 시작하기 좋은 본디지 테이프 위주로 정리했습니다.", author: "seller studio", likes: 187, comments: 12, accent: "teal", views: 1424, postedAt: "3시간 전" },
-  { id: 24, type: "image", category: "추천", title: "패들 & 케인 추천", caption: "입문형 패들과 케인을 비교해 보여주는 추천 카드입니다.", author: "seller studio", likes: 175, comments: 10, accent: "rose", views: 1362, postedAt: "3시간 전" },
-  { id: 25, type: "image", category: "보관팁", title: "세정제 고르는 기준", caption: "자극도와 성분 기준으로 세정제를 고르는 방법입니다.", author: "care lab", likes: 164, comments: 8, accent: "sunrise", views: 1234, postedAt: "오늘" },
-  { id: 26, type: "image", category: "보관팁", title: "보관함 정리 루틴", caption: "사용 후 말림, 보관 순서를 카드형으로 정리했습니다.", author: "care lab", likes: 154, comments: 7, accent: "violet", views: 1150, postedAt: "오늘" },
-  { id: 27, type: "image", category: "브랜드", title: "프리미엄 라인 픽", caption: "고급형 라인에서 반응이 좋은 제품만 선별했습니다.", author: "adult official", likes: 208, comments: 11, accent: "teal", views: 1538, postedAt: "어제" },
-  { id: 28, type: "image", category: "추천", title: "러브젤 인기 순위", caption: "후기와 재구매 데이터를 기준으로 러브젤을 정리했습니다.", author: "seller studio", likes: 191, comments: 13, accent: "rose", views: 1468, postedAt: "어제" },
-  { id: 29, type: "image", category: "신상품", title: "이번 주 신규 입점", caption: "이번 주 입점한 셀러와 신규 상품 정보를 모았습니다.", author: "event pick", likes: 169, comments: 9, accent: "sunrise", views: 1260, postedAt: "어제" },
-  { id: 30, type: "image", category: "리뷰", title: "입문자 만족도 상위", caption: "입문자 평점이 높은 구성만 묶은 리뷰 카드입니다.", author: "review crew", likes: 236, comments: 14, accent: "violet", views: 1741, postedAt: "어제" },
+  { id: 38, type: "image", category: "브랜드", title: "수입 브랜드 집중 소개", caption: "수입 브랜드 중 반응이 좋은 제품군만 골라 정리했습니다.", author: "brand note", likes: 159, comments: 7, accent: "violet", views: 1172, postedAt: "52분 전" },
+  { id: 39, type: "image", category: "이벤트", title: "이번 주 기획전 소식", caption: "행사 중인 인기 카테고리와 재고 상태를 한눈에 보여줍니다.", author: "event pick", likes: 247, comments: 18, accent: "teal", views: 1880, postedAt: "1시간 전" },
+  { id: 40, type: "image", category: "신상품", title: "신상품 등록 미리보기", caption: "막 등록된 상품 중 반응이 빠른 제품만 먼저 보여줍니다.", author: "seller studio", likes: 177, comments: 9, accent: "rose", views: 1307, postedAt: "1시간 전" },
+  { id: 41, type: "image", category: "실사용", title: "리얼 사용 후기 모음", caption: "자극 강도, 소음, 보관성 중심으로 모은 후기 카드입니다.", author: "review crew", likes: 221, comments: 21, accent: "sunrise", views: 1615, postedAt: "2시간 전" },
+  { id: 42, type: "image", category: "리뷰", title: "리뷰 100+ 추천 제품", caption: "리뷰가 누적된 제품만 별도 묶음으로 보여줍니다.", author: "review crew", likes: 239, comments: 17, accent: "violet", views: 1702, postedAt: "2시간 전" },
+  { id: 43, type: "image", category: "추천", title: "본디지 테이프 큐레이션", caption: "안전하게 시작하기 좋은 본디지 테이프 위주로 정리했습니다.", author: "seller studio", likes: 187, comments: 12, accent: "teal", views: 1424, postedAt: "3시간 전" },
+  { id: 44, type: "image", category: "추천", title: "패들 & 케인 추천", caption: "입문형 패들과 케인을 비교해 보여주는 추천 카드입니다.", author: "seller studio", likes: 175, comments: 10, accent: "rose", views: 1362, postedAt: "3시간 전" },
+  { id: 45, type: "image", category: "보관팁", title: "세정제 고르는 기준", caption: "자극도와 성분 기준으로 세정제를 고르는 방법입니다.", author: "care lab", likes: 164, comments: 8, accent: "sunrise", views: 1234, postedAt: "오늘" },
+  { id: 46, type: "image", category: "보관팁", title: "보관함 정리 루틴", caption: "사용 후 말림, 보관 순서를 카드형으로 정리했습니다.", author: "care lab", likes: 154, comments: 7, accent: "violet", views: 1150, postedAt: "오늘" },
+  { id: 47, type: "image", category: "브랜드", title: "프리미엄 라인 픽", caption: "고급형 라인에서 반응이 좋은 제품만 선별했습니다.", author: "adult official", likes: 208, comments: 11, accent: "teal", views: 1538, postedAt: "어제" },
+  { id: 48, type: "image", category: "추천", title: "러브젤 인기 순위", caption: "후기와 재구매 데이터를 기준으로 러브젤을 정리했습니다.", author: "seller studio", likes: 191, comments: 13, accent: "rose", views: 1468, postedAt: "어제" },
+  { id: 49, type: "image", category: "신상품", title: "이번 주 신규 입점", caption: "이번 주 입점한 셀러와 신규 상품 정보를 모았습니다.", author: "event pick", likes: 169, comments: 9, accent: "sunrise", views: 1260, postedAt: "어제" },
+  { id: 50, type: "image", category: "리뷰", title: "입문자 만족도 상위", caption: "입문자 평점이 높은 구성만 묶은 리뷰 카드입니다.", author: "review crew", likes: 236, comments: 14, accent: "violet", views: 1741, postedAt: "어제" },
 ];
 
 
@@ -2278,6 +2278,8 @@ export default function App() {
   const [homeFeedIsLoadingMore, setHomeFeedIsLoadingMore] = useState(false);
   const homeFeedSentinelRef = useRef<HTMLDivElement | null>(null);
   const homeFeedScrollRef = useRef<HTMLDivElement | null>(null);
+  const mobileMainRef = useRef<HTMLElement | null>(null);
+  const homeFeedLoadMoreTimerRef = useRef<number | null>(null);
   const [shortsMoreItem, setShortsMoreItem] = useState<FeedItem | null>(null);
   const [shortsViewerItemId, setShortsViewerItemId] = useState<number | null>(null);
   const [shortsHeaderHidden, setShortsHeaderHidden] = useState(false);
@@ -2820,6 +2822,32 @@ export default function App() {
   const visibleFeed = useMemo(() => homeFeedSource.slice(0, homeFeedVisibleCount), [homeFeedSource, homeFeedVisibleCount]);
   const hasMoreHomeFeed = homeFeedVisibleCount < homeFeedSource.length;
 
+  const queueHomeFeedLoadMore = useCallback(() => {
+    if (typeof window === "undefined" || !hasMoreHomeFeed || homeFeedIsLoadingMore) return;
+    if (homeFeedLoadMoreTimerRef.current !== null) return;
+    setHomeFeedIsLoadingMore(true);
+    homeFeedLoadMoreTimerRef.current = window.setTimeout(() => {
+      setHomeFeedVisibleCount((prev) => Math.min(prev + HOME_FEED_PAGE_SIZE, homeFeedSource.length));
+      setHomeFeedIsLoadingMore(false);
+      homeFeedLoadMoreTimerRef.current = null;
+    }, 180);
+  }, [hasMoreHomeFeed, homeFeedIsLoadingMore, homeFeedSource.length]);
+
+  const checkHomeFeedScrollThreshold = useCallback((container?: HTMLElement | null) => {
+    const scrollTarget = container ?? mobileMainRef.current;
+    if (!scrollTarget || !hasMoreHomeFeed || homeFeedIsLoadingMore) return;
+    const remaining = scrollTarget.scrollHeight - scrollTarget.scrollTop - scrollTarget.clientHeight;
+    if (remaining <= 420) {
+      queueHomeFeedLoadMore();
+    }
+  }, [hasMoreHomeFeed, homeFeedIsLoadingMore, queueHomeFeedLoadMore]);
+
+  const handleMobileMainScroll = useCallback((event: UIEvent<HTMLElement>) => {
+    if (activeTab === "홈" && homeTab === "피드" && overlayMode === null) {
+      checkHomeFeedScrollThreshold(event.currentTarget);
+    }
+  }, [activeTab, homeTab, overlayMode, checkHomeFeedScrollThreshold]);
+
   useEffect(() => {
     setHomeFeedVisibleCount(HOME_FEED_PAGE_SIZE);
   }, [deferredGlobalKeyword]);
@@ -2833,23 +2861,34 @@ export default function App() {
     }));
   }, [homeFeedSource, homeFeedVisibleCount]);
 
+  useEffect(() => () => {
+    if (homeFeedLoadMoreTimerRef.current !== null) {
+      window.clearTimeout(homeFeedLoadMoreTimerRef.current);
+      homeFeedLoadMoreTimerRef.current = null;
+    }
+  }, []);
+
   useEffect(() => {
     const sentinel = homeFeedSentinelRef.current;
-    if (!sentinel || !hasMoreHomeFeed) return;
+    const root = mobileMainRef.current;
+    if (!sentinel || !root || !hasMoreHomeFeed) return;
 
     const observer = new IntersectionObserver((entries) => {
       const entry = entries[0];
-      if (!entry?.isIntersecting || homeFeedIsLoadingMore) return;
-      setHomeFeedIsLoadingMore(true);
-      window.setTimeout(() => {
-        setHomeFeedVisibleCount((prev) => Math.min(prev + HOME_FEED_PAGE_SIZE, homeFeedSource.length));
-        setHomeFeedIsLoadingMore(false);
-      }, 180);
-    }, { root: null, rootMargin: "0px 0px 320px 0px", threshold: 0.01 });
+      if (!entry?.isIntersecting) return;
+      queueHomeFeedLoadMore();
+    }, { root, rootMargin: "0px 0px 420px 0px", threshold: 0.01 });
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [homeFeedSource.length, hasMoreHomeFeed, homeFeedIsLoadingMore]);
+  }, [hasMoreHomeFeed, queueHomeFeedLoadMore, visibleFeed.length]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (activeTab !== "홈" || homeTab !== "피드" || overlayMode !== null) return;
+    const rafId = window.requestAnimationFrame(() => checkHomeFeedScrollThreshold());
+    return () => window.cancelAnimationFrame(rafId);
+  }, [activeTab, homeTab, overlayMode, visibleFeed.length, checkHomeFeedScrollThreshold]);
 
   const getContentKeywordTags = (item: FeedItem) => getTopMatchedKeywords(item, keywordSignalMap);
 
@@ -4352,7 +4391,7 @@ export default function App() {
         </div>
       ) : null}
 
-      <main className="mobile-main">
+      <main className="mobile-main" ref={mobileMainRef} onScroll={handleMobileMainScroll}>
         {showBaseTabContent && reconsentRequired ? (
           <section className="reconsent-banner" role="button" tabIndex={0} onClick={() => { setHomeShopConsentGuideSeen(true); setOverlayMode("reconsent_info"); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setHomeShopConsentGuideSeen(true); setOverlayMode("reconsent_info"); } }}>
             <strong>필수 문서 재동의 필요</strong>
