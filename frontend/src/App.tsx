@@ -2254,7 +2254,10 @@ export default function App() {
   const [shortsHeaderHidden, setShortsHeaderHidden] = useState(false);
   const [shortsCategoryVisible, setShortsCategoryVisible] = useState(true);
   const [selectedShortsCategory, setSelectedShortsCategory] = useState("전체");
-  const [lastShortsScrollTop, setLastShortsScrollTop] = useState(0);
+  const lastShortsScrollTopRef = useRef(0);
+  const shortsScrollRafRef = useRef<number | null>(null);
+  const shortsHideThresholdRef = useRef(0);
+  const shortsShowThresholdRef = useRef(0);
   const [authStandaloneScreen, setAuthStandaloneScreen] = useState<AuthStandaloneScreen | null>(null);
   const [homeShopConsentGuideSeen, setHomeShopConsentGuideSeen] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -2700,31 +2703,55 @@ export default function App() {
     if (remain < 240) {
       setShortsVisibleCount((prev) => Math.min(prev + 10, shortsFeedItems.length));
     }
-    const scrollingDown = currentTop > lastShortsScrollTop + 6;
-    const scrollingUp = currentTop < lastShortsScrollTop - 6;
-    if (scrollingDown && currentTop > 24) {
-      setShortsHeaderHidden(true);
-      setShortsCategoryVisible(false);
-    } else if (scrollingUp) {
-      setShortsHeaderHidden(false);
-      setShortsCategoryVisible(true);
-    } else if (currentTop <= 8) {
-      setShortsHeaderHidden(false);
-      setShortsCategoryVisible(true);
+
+    if (shortsScrollRafRef.current !== null) {
+      window.cancelAnimationFrame(shortsScrollRafRef.current);
     }
-    setLastShortsScrollTop(currentTop);
+
+    shortsScrollRafRef.current = window.requestAnimationFrame(() => {
+      const prevTop = lastShortsScrollTopRef.current;
+      const delta = currentTop - prevTop;
+      lastShortsScrollTopRef.current = currentTop;
+
+      if (currentTop <= 8) {
+        shortsHideThresholdRef.current = 0;
+        shortsShowThresholdRef.current = 0;
+        setShortsHeaderHidden(false);
+        setShortsCategoryVisible(true);
+        return;
+      }
+
+      if (delta > 2) {
+        shortsHideThresholdRef.current += delta;
+        shortsShowThresholdRef.current = 0;
+      } else if (delta < -2) {
+        shortsShowThresholdRef.current += Math.abs(delta);
+        shortsHideThresholdRef.current = 0;
+      }
+
+      if (!shortsHeaderHidden && shortsHideThresholdRef.current >= 28 && currentTop > 32) {
+        shortsHideThresholdRef.current = 0;
+        setShortsHeaderHidden(true);
+        setShortsCategoryVisible(false);
+      } else if (shortsHeaderHidden && shortsShowThresholdRef.current >= 18) {
+        shortsShowThresholdRef.current = 0;
+        setShortsHeaderHidden(false);
+        setShortsCategoryVisible(true);
+      }
+    });
   };
 
   const homeMenuItems = [
     { label: "피드", onClick: () => { setHomeTab("피드"); setOverlayMode(null); } },
-    { label: "쇼츠", onClick: () => { setHomeTab("쇼츠"); setOverlayMode(null); setShortsHeaderHidden(false); setShortsCategoryVisible(true); setSelectedShortsCategory("전체"); } },
+    { label: "쇼츠", onClick: () => { setHomeTab("쇼츠"); setOverlayMode(null); setShortsHeaderHidden(false); setShortsCategoryVisible(true); setSelectedShortsCategory("전체"); lastShortsScrollTopRef.current = 0; shortsHideThresholdRef.current = 0; shortsShowThresholdRef.current = 0; } },
     { label: "보관함", onClick: goToSavedBox },
   ];
 
 
   const shortsCategories = useMemo(() => {
-    const dynamic = Array.from(new Set(feedSeed.filter((item) => item.type === "video").map((item) => item.category)));
-    return ["전체", ...dynamic];
+    const fixed = ["전체", "추천", "최신"];
+    const dynamic = Array.from(new Set(feedSeed.filter((item) => item.type === "video").map((item) => item.category))).filter((category) => !fixed.includes(category));
+    return [...fixed, ...dynamic];
   }, []);
 
   const keywordSignalMap = useMemo(() => buildKeywordSignalMap({
@@ -2824,10 +2851,13 @@ export default function App() {
   }, [keywordSignalMap, followedTopicKeywords, savedFeedIds]);
 
   const visibleShorts = useMemo(() => {
-    const source = recommendedShorts;
     const keyword = globalKeyword.trim().toLowerCase();
-    return source.filter((item) => {
-      const categoryMatch = selectedShortsCategory === "전체" || item.category === selectedShortsCategory;
+    const baseSource = selectedShortsCategory === "최신"
+      ? [...recommendedShorts].sort((a, b) => parseRelativeMinutes(a.postedAt) - parseRelativeMinutes(b.postedAt) || (b.views ?? 0) - (a.views ?? 0))
+      : recommendedShorts;
+
+    return baseSource.filter((item) => {
+      const categoryMatch = ["전체", "추천", "최신"].includes(selectedShortsCategory) || item.category === selectedShortsCategory;
       const keywordMatch = !keyword || `${item.title} ${item.caption} ${item.category} ${item.author}`.toLowerCase().includes(keyword);
       return categoryMatch && keywordMatch;
     });
@@ -2841,6 +2871,12 @@ export default function App() {
   useEffect(() => {
     setShortsVisibleCount(10);
   }, [globalKeyword, selectedShortsCategory]);
+
+  useEffect(() => () => {
+    if (shortsScrollRafRef.current !== null) {
+      window.cancelAnimationFrame(shortsScrollRafRef.current);
+    }
+  }, []);
 
 
   const allShopItems = useMemo<ProductCard[]>(() => {
@@ -4280,7 +4316,7 @@ export default function App() {
       {showBaseTabContent && activeTab === "홈" && homeTab === "쇼츠" ? (
         <div className={`shorts-category-strip${shortsCategoryVisible ? " visible" : ""}`}>
           {shortsCategories.map((category) => (
-            <button key={category} type="button" className={`shorts-category-chip${selectedShortsCategory === category ? " active" : ""}`} onClick={() => { setSelectedShortsCategory(category); setShortsHeaderHidden(false); setShortsCategoryVisible(true); }}>{category}</button>
+            <button key={category} type="button" className={`shorts-category-chip${selectedShortsCategory === category ? " active" : ""}`} onClick={() => { setSelectedShortsCategory(category); setShortsHeaderHidden(false); setShortsCategoryVisible(true); lastShortsScrollTopRef.current = 0; shortsHideThresholdRef.current = 0; shortsShowThresholdRef.current = 0; }}>{category}</button>
           ))}
         </div>
       ) : null}
