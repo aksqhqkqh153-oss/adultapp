@@ -3,7 +3,7 @@ import logging
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session, select
 
@@ -124,3 +124,13 @@ async def websocket_chat(thread_id: int, websocket: WebSocket) -> None:
             await thread_connection_manager.broadcast(thread_id, payload)
     except WebSocketDisconnect:
         thread_connection_manager.disconnect(thread_id, websocket)
+
+
+@app.get("/shop/checkout/success", response_class=HTMLResponse)
+def shop_checkout_success(order_no: str = "") -> str:
+    return f"""<!doctype html><html lang='ko'><head><meta charset='utf-8'><title>결제 완료</title><style>body{{font-family:Arial,sans-serif;padding:32px;background:#111827;color:#f9fafb}} .box{{max-width:720px;margin:0 auto;background:#1f2937;border-radius:16px;padding:24px}} a{{color:#93c5fd}}</style></head><body><div class='box'><h1>결제 완료 안내</h1><p>주문번호: <strong>{order_no or '-'}</strong></p><p>Verotel 결제가 완료되면 webhook으로 최종 상태가 반영됩니다.</p><p>앱으로 돌아가 주문 탭에서 최종 승인 상태를 확인하세요.</p><p><a href='/api/health'>API 상태 확인</a></p></div></body></html>"""
+
+
+@app.get("/shop/checkout/back", response_class=HTMLResponse)
+def shop_checkout_back(order_no: str = "") -> str:
+    return f"""<!doctype html><html lang='ko'><head><meta charset='utf-8'><title>결제 복귀</title><style>body{{font-family:Arial,sans-serif;padding:32px;background:#111827;color:#f9fafb}} .box{{max-width:720px;margin:0 auto;background:#1f2937;border-radius:16px;padding:24px}} a{{color:#93c5fd}}</style></head><body><div class='box'><h1>결제 페이지에서 돌아왔습니다</h1><p>주문번호: <strong>{order_no or '-'}</strong></p><p>결제 미완료 또는 취소일 수 있습니다. 앱 주문 탭에서 상태를 다시 확인하세요.</p><p><a href='/api/health'>API 상태 확인</a></p></div></body></html>"""

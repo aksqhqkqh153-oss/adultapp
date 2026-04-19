@@ -8,3 +8,10 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <App />
   </React.StrictMode>
 );
+
+
+window.addEventListener("load", () => {
+  window.setTimeout(() => {
+    document.getElementById("app-boot-splash")?.classList.add("is-hidden");
+  }, 700);
+});
