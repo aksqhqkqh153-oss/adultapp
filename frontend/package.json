@@ -8,10 +8,11 @@
     "build": "node ./node_modules/typescript/lib/tsc.js -b && node ./node_modules/vite/bin/vite.js build",
     "preview": "node ./node_modules/vite/bin/vite.js preview",
     "typecheck": "node ./node_modules/typescript/lib/tsc.js -b --pretty false",
-    "cf:login": "npx wrangler login",
-    "cf:whoami": "npx wrangler whoami",
+    "cf:login": "npx --yes wrangler@4 login",
+    "cf:whoami": "npx --yes wrangler@4 whoami",
     "cf:build": "node ./node_modules/typescript/lib/tsc.js -b && node ./node_modules/vite/bin/vite.js build",
-    "cf:deploy": "npx wrangler pages deploy dist --project-name adultapp --branch main --commit-dirty=true"
+    "cf:deploy": "npx --yes wrangler@4 pages deploy dist --project-name adultapp --branch main --commit-dirty=true",
+    "cf:deploy:project": "npx --yes wrangler@4 pages deploy dist --commit-dirty=true"
   },
   "dependencies": {
     "react": "^18.3.1",
