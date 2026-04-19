@@ -1796,7 +1796,7 @@ function ShortsViewer({
   );
 }
 
-function AskProfileScreen({ profile, activeTab, onClose, onSelectTab, renderBottomTabIcon, onOpenProfile }: { profile: AskProfile; activeTab: MobileTab; onClose: () => void; onSelectTab: (tab: MobileTab) => void; renderBottomTabIcon: (tab: MobileTab, filled: boolean) => JSX.Element; onOpenProfile: (author: string) => void }) {
+function AskProfileScreen({ profile, activeTab, onClose, onNavigate, renderBottomTabIcon, onOpenProfile }: { profile: AskProfile; activeTab: MobileTab; onClose: () => void; onNavigate: (tab: MobileTab) => void; renderBottomTabIcon: (tab: MobileTab, filled: boolean) => JSX.Element; onOpenProfile: (author: string) => void }) {
   const storageKey = `adultapp_ask_draft_${profile.id}`;
   const [questionText, setQuestionText] = useState(() => {
     if (typeof window === "undefined") return "";
@@ -1898,10 +1898,7 @@ function AskProfileScreen({ profile, activeTab, onClose, onSelectTab, renderBott
               key={`ask-nav-${tab}`}
               type="button"
               className={`bottom-nav-btn ${filled ? "active" : ""}`}
-              onClick={() => {
-                onSelectTab(tab);
-                onClose();
-              }}
+              onClick={() => onNavigate(tab)}
             >
               <span className="bottom-nav-icon">{renderBottomTabIcon(tab, filled)}</span>
               <span className="bottom-nav-label">{tab}</span>
@@ -1918,12 +1915,15 @@ type FeedCommentScreenProps = {
   item: FeedItem;
   comments: FeedCommentEntry[];
   draft: string;
+  activeTab: MobileTab;
   onChangeDraft: (value: string) => void;
   onSubmit: () => void;
   onClose: () => void;
+  onNavigate: (tab: MobileTab) => void;
+  renderBottomTabIcon: (tab: MobileTab, filled: boolean) => JSX.Element;
 };
 
-function FeedCommentScreen({ item, comments, draft, onChangeDraft, onSubmit, onClose }: FeedCommentScreenProps) {
+function FeedCommentScreen({ item, comments, draft, activeTab, onChangeDraft, onSubmit, onClose, onNavigate, renderBottomTabIcon }: FeedCommentScreenProps) {
   const postedLabel = formatFeedPostedAt(item.postedAt);
 
   return (
@@ -1990,6 +1990,308 @@ function FeedCommentScreen({ item, comments, draft, onChangeDraft, onSubmit, onC
           </div>
         </div>
       </div>
+      <nav className="bottom-nav question-overlay-bottom-nav feed-comment-bottom-nav">
+        {mobileTabs.map((tab) => {
+          const filled = activeTab === tab;
+          return (
+            <button
+              key={`comment-nav-${tab}`}
+              type="button"
+              className={`bottom-nav-btn ${filled ? "active" : ""}`}
+              onClick={() => onNavigate(tab)}
+            >
+              <span className="bottom-nav-icon">{renderBottomTabIcon(tab, filled)}</span>
+              <span className="bottom-nav-label">{tab}</span>
+            </button>
+          );
+        })}
+      </nav>
+    </div>
+  );
+}
+
+
+function isCompanyMailRouteActive() {
+  if (typeof window === "undefined") return false;
+  const host = window.location.hostname.toLowerCase();
+  const path = window.location.pathname.toLowerCase();
+  const hash = window.location.hash.toLowerCase();
+  const params = new URLSearchParams(window.location.search);
+  return host.includes("opsmail") || host.includes("corpmail") || host.includes("mailops") || path.startsWith("/__ops/company-mail") || hash === "#corp-mail-admin" || params.get("internal") === "company-mail";
+}
+
+function isCompanyMailHostLocked() {
+  if (typeof window === "undefined") return false;
+  const host = window.location.hostname.toLowerCase();
+  return host.includes("opsmail") || host.includes("corpmail") || host.includes("mailops");
+}
+
+function CompanyMailAdminScreen({
+  isAdmin,
+  onExit,
+  onRequestLogin,
+  hostLabel,
+}: {
+  isAdmin: boolean;
+  onExit?: () => void;
+  onRequestLogin: () => void;
+  hostLabel: string;
+}) {
+  const folderDefs = [
+    { key: "받은편지함", label: "받은편지함" },
+    { key: "공지/정책", label: "공지/정책" },
+    { key: "주문/정산", label: "주문/정산" },
+    { key: "거래처", label: "거래처" },
+    { key: "임시보관", label: "임시보관" },
+  ] as const;
+  type FolderKey = (typeof folderDefs)[number]["key"];
+  type CompanyMailMessage = {
+    id: number;
+    folder: FolderKey;
+    category: string;
+    subject: string;
+    sender: string;
+    receivedAt: string;
+    preview: string;
+    body: string[];
+    unread?: boolean;
+    priority?: "일반" | "중요" | "긴급";
+    tags?: string[];
+  };
+
+  const messages = useMemo<CompanyMailMessage[]>(() => ([
+    {
+      id: 1,
+      folder: "받은편지함",
+      category: "운영",
+      subject: "오늘 오전 관리자 점검 일정 공유",
+      sender: "ops@internal.mail",
+      receivedAt: "2026.04.20 09:10",
+      preview: "운영 점검, 결제 리허설, 공지 반영 상태를 오전 10시에 재확인합니다.",
+      body: [
+        "관리자 전용 점검 화면입니다.",
+        "오늘 오전 10시에 운영 점검, 결제 리허설, 공지 반영 상태를 순서대로 확인합니다.",
+        "앱 내 노출 없이 관리자 계정만 접근 가능하도록 유지합니다.",
+      ],
+      unread: true,
+      priority: "중요",
+      tags: ["운영", "점검"],
+    },
+    {
+      id: 2,
+      folder: "공지/정책",
+      category: "정책",
+      subject: "청소년 보호정책 문구 최종 검수 요청",
+      sender: "policy@internal.mail",
+      receivedAt: "2026.04.19 18:45",
+      preview: "앱 공지/회원가입/상품 상세에 동일 문구가 반영되었는지 확인해주세요.",
+      body: [
+        "청소년 보호정책 최종 검수 요청입니다.",
+        "회원가입, 알림 공지, 상품 상세의 고지 문구가 동일한지 확인 후 승인 처리해주세요.",
+      ],
+      priority: "중요",
+      tags: ["정책", "문구"],
+    },
+    {
+      id: 3,
+      folder: "주문/정산",
+      category: "주문",
+      subject: "주문 환불 처리 로그 점검",
+      sender: "ledger@internal.mail",
+      receivedAt: "2026.04.19 14:20",
+      preview: "환불 상태 변경 이력과 관리자 사유 로그를 오후 배치 전 확인하세요.",
+      body: [
+        "환불 처리 로그 점검 안내입니다.",
+        "주문 상태 변경 이력, 관리자 사유 기록, 환불 금액 반영값을 오후 배치 전에 검토해주세요.",
+      ],
+      priority: "일반",
+      tags: ["주문", "환불"],
+    },
+    {
+      id: 4,
+      folder: "거래처",
+      category: "거래처",
+      subject: "입점사 노출 상품 검수 요청",
+      sender: "sellerdesk@internal.mail",
+      receivedAt: "2026.04.18 16:00",
+      preview: "신규 입점사 공개 예정 상품 12건의 카테고리/문구 검수가 필요합니다.",
+      body: [
+        "입점사 검수 요청 건입니다.",
+        "신규 등록 예정 상품 12건에 대해 카테고리, 상세 문구, 노출 이미지 검수를 진행해주세요.",
+      ],
+      unread: true,
+      priority: "중요",
+      tags: ["판매자", "검수"],
+    },
+    {
+      id: 5,
+      folder: "임시보관",
+      category: "초안",
+      subject: "앰배서더 운영 약정서 보관",
+      sender: "docs@internal.mail",
+      receivedAt: "2026.04.20 11:40",
+      preview: "업로드한 HWP 문서를 DOCX로 변환해 docs/internal/ambassador 폴더에 보관했습니다.",
+      body: [
+        "문서 보관 완료 안내입니다.",
+        "앰배서더 운영 가이드라인 및 참여약정서를 DOCX 형식으로 변환해 프로젝트 내부 문서 폴더에 저장했습니다.",
+      ],
+      priority: "일반",
+      tags: ["문서", "보관"],
+    },
+  ]), []);
+
+  const [folder, setFolder] = useState<FolderKey>("받은편지함");
+  const visibleMessages = useMemo(() => messages.filter((item) => item.folder === folder), [messages, folder]);
+  const [selectedId, setSelectedId] = useState<number>(1);
+  useEffect(() => {
+    if (!visibleMessages.some((item) => item.id === selectedId)) {
+      setSelectedId(visibleMessages[0]?.id ?? 0);
+    }
+  }, [visibleMessages, selectedId]);
+
+  const selectedMessage = visibleMessages.find((item) => item.id === selectedId) ?? visibleMessages[0] ?? null;
+  const folderCounts = useMemo(() => {
+    return folderDefs.reduce<Record<FolderKey, number>>((acc, item) => {
+      acc[item.key] = messages.filter((message) => message.folder === item.key).length;
+      return acc;
+    }, {
+      "받은편지함": 0,
+      "공지/정책": 0,
+      "주문/정산": 0,
+      "거래처": 0,
+      "임시보관": 0,
+    });
+  }, [messages]);
+
+  if (!isAdmin) {
+    return (
+      <div className="company-mail-shell company-mail-shell--blocked">
+        <section className="company-mail-auth-card">
+          <div className="company-mail-auth-head">
+            <strong>회사메일 관리자 화면</strong>
+            <span>{hostLabel}</span>
+          </div>
+          <div className="legacy-box compact">
+            <p>이 화면은 관리자 계정만 접근할 수 있습니다.</p>
+            <p>일반 회원 및 판매자 계정에서는 접근이 차단됩니다.</p>
+          </div>
+          <div className="copy-action-row">
+            <button type="button" onClick={onRequestLogin}>로그인 화면으로 이동</button>
+            {onExit ? <button type="button" className="ghost-btn" onClick={onExit}>닫기</button> : null}
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  return (
+    <div className="company-mail-shell">
+      <header className="company-mail-topbar">
+        <div className="company-mail-topbar-main">
+          {onExit ? (
+            <button type="button" className="header-inline-btn header-icon-btn topbar-search-back" onClick={onExit} aria-label="뒤로가기">
+              <BackArrowIcon />
+            </button>
+          ) : <span className="company-mail-topbar-spacer" aria-hidden="true" />}
+          <div>
+            <strong>회사메일 관리자 화면</strong>
+            <span>{hostLabel}</span>
+          </div>
+        </div>
+        <div className="company-mail-topbar-actions">
+          <button type="button" className="ghost-btn">새 메일</button>
+          <button type="button" className="ghost-btn">보안 로그</button>
+        </div>
+      </header>
+
+      <main className="company-mail-layout">
+        <aside className="company-mail-sidebar">
+          <div className="company-mail-sidebar-head">
+            <strong>숨김 폴더</strong>
+            <span>관리자 전용</span>
+          </div>
+          <div className="company-mail-folder-list">
+            {folderDefs.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                className={`company-mail-folder-btn ${folder === item.key ? "active" : ""}`}
+                onClick={() => setFolder(item.key)}
+              >
+                <span>{item.label}</span>
+                <b>{folderCounts[item.key]}</b>
+              </button>
+            ))}
+          </div>
+          <div className="company-mail-sidebar-note">
+            <strong>보안 주의</strong>
+            <p>숨김 경로·숨김 도메인 연결 후 관리자 계정만 접근하도록 유지합니다.</p>
+          </div>
+        </aside>
+
+        <section className="company-mail-list-pane">
+          <div className="company-mail-pane-head">
+            <div>
+              <strong>{folder}</strong>
+              <span>목록 {visibleMessages.length}건</span>
+            </div>
+            <button type="button" className="ghost-btn ghost-btn-small">새로고침</button>
+          </div>
+          <div className="company-mail-message-list">
+            {visibleMessages.map((message) => (
+              <button
+                key={message.id}
+                type="button"
+                className={`company-mail-message-row ${selectedMessage?.id === message.id ? "active" : ""} ${message.unread ? "unread" : ""}`}
+                onClick={() => setSelectedId(message.id)}
+              >
+                <div className="company-mail-message-row-top">
+                  <span className="company-mail-chip">{message.category}</span>
+                  <strong>{message.subject}</strong>
+                </div>
+                <div className="company-mail-message-row-meta">
+                  <span>{message.sender}</span>
+                  <span>{message.receivedAt}</span>
+                </div>
+                <p>{message.preview}</p>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <article className="company-mail-viewer">
+          {selectedMessage ? (
+            <>
+              <div className="company-mail-viewer-head">
+                <div className="company-mail-viewer-title-row">
+                  <span className="company-mail-chip strong">{selectedMessage.category}</span>
+                  <h2>{selectedMessage.subject}</h2>
+                </div>
+                <div className="company-mail-viewer-meta">
+                  <span><b>보낸사람</b> {selectedMessage.sender}</span>
+                  <span><b>수신일</b> {selectedMessage.receivedAt}</span>
+                  <span><b>우선순위</b> {selectedMessage.priority ?? "일반"}</span>
+                </div>
+                {selectedMessage.tags?.length ? (
+                  <div className="company-mail-tag-row">
+                    {selectedMessage.tags.map((tag) => <span key={tag} className="company-mail-tag">#{tag}</span>)}
+                  </div>
+                ) : null}
+              </div>
+              <div className="company-mail-body">
+                {selectedMessage.body.map((line, index) => <p key={`${selectedMessage.id}-${index}`}>{line}</p>)}
+              </div>
+              <div className="company-mail-viewer-actions">
+                <button type="button">답장</button>
+                <button type="button" className="ghost-btn">전달</button>
+                <button type="button" className="ghost-btn">보관</button>
+              </div>
+            </>
+          ) : (
+            <div className="legacy-box compact"><p>표시할 메일이 없습니다.</p></div>
+          )}
+        </article>
+      </main>
     </div>
   );
 }
@@ -2670,6 +2972,15 @@ export default function App() {
   });
 
   const isAdmin = ["ADMIN", "1", "GRADE_1"].includes(currentUserRole);
+  const companyMailHostLocked = useMemo(() => isCompanyMailHostLocked(), []);
+  const [companyMailPreviewOpen, setCompanyMailPreviewOpen] = useState(() => isCompanyMailRouteActive());
+  const companyMailMode = companyMailHostLocked || companyMailPreviewOpen;
+  const companyMailHostLabel = useMemo(() => {
+    if (typeof window === "undefined") return "숨김 경로 미리보기";
+    const host = window.location.host;
+    const path = window.location.pathname;
+    return `${host}${path === "/" ? "" : path}`;
+  }, [companyMailMode]);
   const productCategoryOptions = useMemo(() => {
     const backendCategories = uiCategoryGroups.flatMap((group) => group.items).filter((item) => !["상품등록", "사진/영상 첨부", "SKU 관리", "재고/상태 변경"].includes(item));
     const fallbackCategories = shopCategories.flatMap((group) => group.items.map((item) => item.name));
@@ -3719,6 +4030,43 @@ export default function App() {
     setSelectedAskProfile(null);
   };
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const syncCompanyMailRoute = () => {
+      setCompanyMailPreviewOpen(isCompanyMailRouteActive());
+    };
+    window.addEventListener("hashchange", syncCompanyMailRoute);
+    window.addEventListener("popstate", syncCompanyMailRoute);
+    return () => {
+      window.removeEventListener("hashchange", syncCompanyMailRoute);
+      window.removeEventListener("popstate", syncCompanyMailRoute);
+    };
+  }, []);
+
+  const openCompanyMailPreview = useCallback(() => {
+    setOverlayMode(null);
+    setCompanyMailPreviewOpen(true);
+    if (typeof window !== "undefined" && window.location.hash.toLowerCase() !== "#corp-mail-admin") {
+      const next = `${window.location.pathname}${window.location.search}#corp-mail-admin`;
+      window.history.replaceState(null, "", next);
+    }
+  }, []);
+
+  const closeCompanyMailPreview = useCallback(() => {
+    if (companyMailHostLocked) return;
+    setCompanyMailPreviewOpen(false);
+    if (typeof window !== "undefined" && window.location.hash.toLowerCase() === "#corp-mail-admin") {
+      const next = `${window.location.pathname}${window.location.search}`;
+      window.history.replaceState(null, "", next);
+    }
+  }, [companyMailHostLocked]);
+
+  const requestCompanyMailLogin = useCallback(() => {
+    if (!companyMailHostLocked) closeCompanyMailPreview();
+    setAuthStandaloneScreen("login");
+    setAuthMessage("회사메일은 관리자 계정으로만 접근할 수 있습니다.");
+  }, [closeCompanyMailPreview, companyMailHostLocked]);
+
   const renderBottomTabIcon = (tab: MobileTab, filled: boolean) => ({
     홈: <HomeIcon filled={filled} />,
     쇼핑: <ShoppingBagIcon filled={filled} />,
@@ -4735,7 +5083,9 @@ export default function App() {
   }, [globalKeyword]);
 
   const selectBottomTab = (tab: MobileTab) => {
-    if (tab === activeTab && overlayMode === null && !roomModalOpen) return;
+    if (tab === activeTab && overlayMode === null && !roomModalOpen && !selectedAskProfile && !openFeedCommentItem) return;
+    setSelectedAskProfile(null);
+    setOpenFeedCommentItem(null);
     setActiveTab(tab);
     if (tab === "홈") setHomeTab((prev) => prev || "피드");
     if (tab === "프로필") {
@@ -4991,6 +5341,17 @@ export default function App() {
           </section>
         </main>
       </div>
+    );
+  }
+
+  if (companyMailMode) {
+    return (
+      <CompanyMailAdminScreen
+        isAdmin={isAdmin}
+        onExit={companyMailHostLocked ? undefined : closeCompanyMailPreview}
+        onRequestLogin={requestCompanyMailLogin}
+        hostLabel={companyMailHostLocked ? `숨김 도메인 접속 · ${companyMailHostLabel}` : `미리보기 경로 · ${companyMailHostLabel}#corp-mail-admin`}
+      />
     );
   }
 
@@ -5383,6 +5744,18 @@ export default function App() {
                   accountPrivate={accountPrivate}
                   setAccountPrivate={setAccountPrivate}
                 />
+                {isAdmin ? (
+                  <div className="legacy-box compact company-mail-admin-shortcut">
+                    <div className="split-row">
+                      <div>
+                        <h3>회사메일 숨김 화면</h3>
+                        <p>관리자 계정만 열 수 있는 내부 메일 화면 미리보기입니다.</p>
+                      </div>
+                      <button type="button" onClick={openCompanyMailPreview}>열기</button>
+                    </div>
+                    <p className="muted-mini">미리보기 경로: <code>#corp-mail-admin</code> · 실제 숨김 도메인은 추후 별도 연결</p>
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </section>
@@ -6339,16 +6712,19 @@ export default function App() {
           </button>
         ))}</nav>
 
-      {selectedAskProfile ? <AskProfileScreen profile={selectedAskProfile} activeTab={activeTab} onClose={() => setSelectedAskProfile(null)} onSelectTab={selectBottomTab} renderBottomTabIcon={renderBottomTabIcon} onOpenProfile={openProfileFromAuthor} /> : null}
+      {selectedAskProfile ? <AskProfileScreen profile={selectedAskProfile} activeTab={activeTab} onClose={() => setSelectedAskProfile(null)} onNavigate={selectBottomTab} renderBottomTabIcon={renderBottomTabIcon} onOpenProfile={openProfileFromAuthor} /> : null}
 
       {openFeedCommentItem ? (
         <FeedCommentScreen
           item={openFeedCommentItem}
           comments={feedCommentMap[openFeedCommentItem.id] ?? []}
           draft={feedCommentDrafts[openFeedCommentItem.id] ?? ""}
+          activeTab={activeTab}
           onChangeDraft={(value) => updateFeedCommentDraft(openFeedCommentItem.id, value)}
           onSubmit={() => submitFeedComment(openFeedCommentItem.id)}
           onClose={closeFeedComments}
+          onNavigate={selectBottomTab}
+          renderBottomTabIcon={renderBottomTabIcon}
         />
       ) : null}
 
