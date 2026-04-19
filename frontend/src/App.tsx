@@ -738,7 +738,7 @@ function QuestionMarkIcon() {
   );
 }
 
-const feedSeed: FeedItem[] = [
+const rawFeedSeed: FeedItem[] = [
   { id: 1, type: "video", category: "브랜드", title: "입문 가이드", caption: "입문용 제품을 안전하게 고르는 기준을 10초 요약 쇼츠로 정리했습니다.", author: "adult official", likes: 428, comments: 31, accent: "sunrise", views: 3200, postedAt: "방금", videoUrl: "/generated/shorts/short_1.mp4" },
   { id: 2, type: "video", category: "추천", title: "오늘의 인기 케어 키트", caption: "관리 루틴과 함께 보기 좋은 인기 케어 키트를 짧게 소개합니다.", author: "seller studio", likes: 391, comments: 28, accent: "violet", views: 2890, postedAt: "3분 전", videoUrl: "/generated/shorts/short_2.mp4" },
   { id: 3, type: "video", category: "보관팁", title: "위생 보관 3단계", caption: "보관 파우치, 세정, 건조 순서를 한 화면으로 확인할 수 있습니다.", author: "care lab", likes: 512, comments: 44, accent: "teal", views: 4100, postedAt: "8분 전", videoUrl: "/generated/shorts/short_3.mp4" },
@@ -790,6 +790,55 @@ const feedSeed: FeedItem[] = [
   { id: 29, type: "image", category: "신상품", title: "이번 주 신규 입점", caption: "이번 주 입점한 셀러와 신규 상품 정보를 모았습니다.", author: "event pick", likes: 169, comments: 9, accent: "sunrise", views: 1260, postedAt: "어제" },
   { id: 30, type: "image", category: "리뷰", title: "입문자 만족도 상위", caption: "입문자 평점이 높은 구성만 묶은 리뷰 카드입니다.", author: "review crew", likes: 236, comments: 14, accent: "violet", views: 1741, postedAt: "어제" },
 ];
+
+const randomFeedCategories = ["브랜드", "추천", "리뷰", "보관팁", "실사용", "이벤트", "신상품"] as const;
+const randomFeedAuthors = ["adult official", "seller studio", "care lab", "review crew", "brand note", "event pick"] as const;
+const randomFeedAccents = ["sunrise", "violet", "teal", "rose"] as const;
+const randomFeedTitles = [
+  "테스트 홈 피드 샘플",
+  "홈 피드 레이아웃 점검",
+  "카드형 추천 노출 테스트",
+  "브랜드 큐레이션 테스트",
+  "실사용 후기 샘플 카드",
+  "보관 루틴 안내 카드",
+  "추천 상품 요약 카드",
+  "신규 피드 배치 테스트",
+] as const;
+const randomFeedCaptionTemplates = [
+  "홈 화면 카드 간격과 스크롤 흐름을 점검하기 위한 테스트 피드입니다.",
+  "상단바·하단바 높이 변경 후 콘텐츠 노출 영역을 확인하기 위한 샘플입니다.",
+  "추천/리뷰/브랜드형 카드가 섞여 보일 때 레이아웃 균형을 점검하는 데이터입니다.",
+  "모바일 홈 피드에서 카드 길이와 메타 영역을 확인하기 위한 테스트 문구입니다.",
+] as const;
+const randomFeedPostedAt = ["방금", "3분 전", "9분 전", "15분 전", "28분 전", "1시간 전", "2시간 전", "오늘"] as const;
+
+function createRandomHomeFeedItems(count: number, startId: number): FeedItem[] {
+  return Array.from({ length: count }, (_, index) => {
+    const id = startId + index;
+    const category = randomFeedCategories[index % randomFeedCategories.length];
+    const accent = randomFeedAccents[(index * 3) % randomFeedAccents.length];
+    const author = randomFeedAuthors[(index * 5) % randomFeedAuthors.length];
+    const title = `${randomFeedTitles[index % randomFeedTitles.length]} ${String(index + 1).padStart(2, "0")}`;
+    const caption = `랜덤 테스트 피드 ${index + 1}번 · ${randomFeedCaptionTemplates[index % randomFeedCaptionTemplates.length]}`;
+    return {
+      id,
+      type: "image",
+      category,
+      title,
+      caption,
+      author,
+      likes: 180 + ((index * 17) % 120),
+      comments: 8 + (index % 12),
+      accent,
+      views: 1400 + index * 91,
+      postedAt: randomFeedPostedAt[index % randomFeedPostedAt.length],
+    };
+  });
+}
+
+function ensureUniqueFeedIds(items: FeedItem[]): FeedItem[] {
+  return items.map((item, index) => ({ ...item, id: index + 1 }));
+}
 
 
 function parseRelativeMinutes(postedAt?: string) {
@@ -866,6 +915,8 @@ function deterministicHash(value: string) {
   }
   return hash;
 }
+
+const feedSeed: FeedItem[] = ensureUniqueFeedIds([...rawFeedSeed, ...createRandomHomeFeedItems(20, rawFeedSeed.length + 1)]);
 
 const storySeed: StoryItem[] = [
   { id: 1, name: "adult official", role: "브랜드 스토리", accent: "sunrise" },
