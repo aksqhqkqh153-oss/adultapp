@@ -30,3 +30,6 @@
 
 /splash-logo.png
   Cache-Control: public, max-age=604800
+
+/version.json
+  Cache-Control: no-cache, no-store, must-revalidate
