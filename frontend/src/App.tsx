@@ -1,4 +1,5 @@
 import { CSSProperties, PointerEvent, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import type { UIEvent as ReactUIEvent } from "react";
 import { clearTokens, ensureAuthSession, getApiBase, getJson, getRefreshToken, hasAuthToken, postJson, setAuthToken, setRefreshToken } from "./lib/api";
 
 type FeedItem = {
@@ -872,43 +873,6 @@ const generatedFeedAuthors = ["adult official", "seller studio", "care lab", "re
 const generatedFeedCategories = ["추천", "브랜드", "리뷰", "보관팁", "실사용", "이벤트"] as const;
 const generatedFeedAccents = ["sunrise", "violet", "teal", "rose"] as const;
 
-const infiniteScrollDemoFeedBlueprint = [
-  { category: "보관팁", title: "실리콘 제품 세정 루틴", caption: "세정 → 건조 → 개별 보관 순서를 카드형으로 정리한 테스트 피드입니다." },
-  { category: "실사용", title: "입문자 만족도 체크 메모", caption: "강도, 소음, 사이즈 기준으로 처음 고를 때 보는 포인트를 정리했습니다." },
-  { category: "추천", title: "오늘의 저소음 추천 픽", caption: "늦은 시간대에도 부담이 적은 저소음 라인업을 모아 본 테스트 피드입니다." },
-  { category: "리뷰", title: "후기 많은 스타터 구성", caption: "후기 수가 많은 입문 조합을 한 장으로 정리한 카드형 게시글입니다." },
-  { category: "브랜드", title: "브랜드별 무드보드 모음", caption: "패키지 톤과 제품 포지션을 빠르게 비교할 수 있도록 만든 샘플 게시글입니다." },
-  { category: "이벤트", title: "주말 특가 미리보기", caption: "주말 행사 예정 상품을 미리 훑어보는 용도의 무한스크롤 테스트 게시글입니다." },
-  { category: "보관팁", title: "보관함 냄새 관리 팁", caption: "향이 강한 제품을 분리 보관할 때 체크할 점을 간단한 문장으로 구성했습니다." },
-  { category: "실사용", title: "리얼 사용감 비교 노트", caption: "진동감, 그립감, 세척 편의성 비교 문구를 담은 피드 샘플입니다." },
-  { category: "추천", title: "재구매율 높은 젤 모음", caption: "재구매율 기준으로 정리한 러브젤 추천 게시글 예시입니다." },
-  { category: "리뷰", title: "별점 4.8 이상 제품 모음", caption: "평점 기준으로 큐레이션한 리뷰형 카드라서 피드 흐름 테스트에 적합합니다." },
-  { category: "브랜드", title: "국내 브랜드 집중 소개", caption: "국내 브랜드 라인업을 간단한 요약문과 함께 보여주는 샘플 카드입니다." },
-  { category: "이벤트", title: "신규 입점 셀러 알림", caption: "새로 입점한 셀러의 대표 상품을 소개하는 형태의 테스트 피드입니다." },
-  { category: "보관팁", title: "방수 제품 건조 체크", caption: "방수 제품 사용 후 물기 제거 포인트를 짧게 적은 정보형 게시글입니다." },
-  { category: "실사용", title: "그립감 좋은 제품 메모", caption: "손에 잘 잡히는 디자인 위주로 정리한 실사용형 샘플 피드입니다." },
-  { category: "추천", title: "커플용 인기 구성 안내", caption: "커플용으로 많이 찾는 조합을 짧게 정리한 추천형 피드 예시입니다." },
-  { category: "리뷰", title: "초보자 재구매 후기 요약", caption: "초보자 재구매 후기를 짧은 요약문으로 압축한 테스트 게시글입니다." },
-  { category: "브랜드", title: "프리미엄 라인 요약 카드", caption: "프리미엄 라인의 특징과 포인트를 짧게 보여주는 브랜드형 피드입니다." },
-  { category: "이벤트", title: "타임특가 카운트다운", caption: "짧은 시간 동안 노출되는 행사 카드 느낌으로 구성한 샘플 게시글입니다." },
-  { category: "보관팁", title: "파우치 분리 보관 기준", caption: "재질별로 파우치를 분리하는 이유를 설명하는 정보형 테스트 피드입니다." },
-  { category: "실사용", title: "조용한 사용감 베스트 모음", caption: "저소음 반응이 좋았던 제품을 모아 본 무한스크롤 확인용 마지막 카드입니다." },
-] as const;
-
-const infiniteScrollDemoFeed: FeedItem[] = infiniteScrollDemoFeedBlueprint.map((item, index) => ({
-  id: 18 + index,
-  type: "image",
-  category: item.category,
-  title: item.title,
-  caption: item.caption,
-  author: generatedFeedAuthors[index % generatedFeedAuthors.length],
-  likes: 204 + (index * 7),
-  comments: 8 + (index % 9),
-  accent: generatedFeedAccents[index % generatedFeedAccents.length],
-  views: 1830 + (index * 95),
-  postedAt: `${index + 1}시간 전`,
-}));
-
 const feedSeed: FeedItem[] = [
   { id: 1, type: "video", category: "브랜드", title: "입문 가이드", caption: "입문용 제품을 안전하게 고르는 기준을 10초 요약 쇼츠로 정리했습니다.", author: "adult official", likes: 428, comments: 31, accent: "sunrise", views: 3200, postedAt: "방금", videoUrl: "/generated/shorts/short_1.mp4" },
   { id: 2, type: "video", category: "추천", title: "오늘의 인기 케어 키트", caption: "관리 루틴과 함께 보기 좋은 인기 케어 키트를 짧게 소개합니다.", author: "seller studio", likes: 391, comments: 28, accent: "violet", views: 2890, postedAt: "3분 전", videoUrl: "/generated/shorts/short_2.mp4" },
@@ -927,7 +891,6 @@ const feedSeed: FeedItem[] = [
   { id: 15, type: "image", category: "실사용", title: "사용감 비교 메모", caption: "실사용 후기를 짧게 정리해 제품 선택 시간을 줄여줍니다.", author: "review crew", likes: 201, comments: 14, accent: "teal", views: 1455, postedAt: "29분 전" },
   { id: 16, type: "image", category: "보관팁", title: "보관 파우치 추천", caption: "위생적인 보관을 위한 파우치와 실링 키트를 정리했습니다.", author: "care lab", likes: 194, comments: 9, accent: "rose", views: 1332, postedAt: "38분 전" },
   { id: 17, type: "image", category: "브랜드", title: "국내 브랜드 집중 소개", caption: "국내 브랜드별 대표 라인업을 한 장으로 묶은 카드입니다.", author: "brand note", likes: 166, comments: 8, accent: "sunrise", views: 1201, postedAt: "43분 전" },
-  ...infiniteScrollDemoFeed,
   { id: 38, type: "image", category: "브랜드", title: "수입 브랜드 집중 소개", caption: "수입 브랜드 중 반응이 좋은 제품군만 골라 정리했습니다.", author: "brand note", likes: 159, comments: 7, accent: "violet", views: 1172, postedAt: "52분 전" },
   { id: 39, type: "image", category: "이벤트", title: "이번 주 기획전 소식", caption: "행사 중인 인기 카테고리와 재고 상태를 한눈에 보여줍니다.", author: "event pick", likes: 247, comments: 18, accent: "teal", views: 1880, postedAt: "1시간 전" },
   { id: 40, type: "image", category: "신상품", title: "신상품 등록 미리보기", caption: "막 등록된 상품 중 반응이 빠른 제품만 먼저 보여줍니다.", author: "seller studio", likes: 177, comments: 9, accent: "rose", views: 1307, postedAt: "1시간 전" },
@@ -1188,10 +1151,6 @@ function buildShopHomeRecommendationFeed({
   return finalItems;
 }
 
-const HOME_FEED_PAGE_SIZE = 8;
-const HOME_FEED_CACHE_KEY = "adultapp_home_feed_cache_v3";
-const HOME_FEED_CACHE_TTL_MS = 1000 * 60 * 10;
-
 type RankedFeedItem = FeedItem & { sortScore?: number };
 
 function rankHomeFeedItems({ items, keywordSignalMap, followedTopicKeywords, savedFeedIds, keyword }: {
@@ -1223,19 +1182,6 @@ function rankHomeFeedItems({ items, keywordSignalMap, followedTopicKeywords, sav
 
   ranked.sort((a, b) => (b.sortScore ?? 0) - (a.sortScore ?? 0) || (b.views ?? 0) - (a.views ?? 0) || (b.likes - a.likes));
   return ranked;
-}
-
-function loadCachedHomeFeedPage() {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(HOME_FEED_CACHE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as { expiresAt?: number; visibleCount?: number };
-    if (!parsed?.expiresAt || parsed.expiresAt < Date.now()) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
 }
 
 const storySeed: StoryItem[] = [
@@ -1776,7 +1722,7 @@ function ShortsViewer({
     setPausedMap((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
   };
 
-  const handleViewerScroll = (event: UIEvent<HTMLDivElement>) => {
+  const handleViewerScroll = (event: ReactUIEvent<HTMLDivElement>) => {
     restartOverlayTimer();
     const container = event.currentTarget;
     const nextIndex = Math.round(container.scrollTop / Math.max(container.clientHeight, 1));
@@ -3152,19 +3098,13 @@ export default function App() {
     if (typeof window === "undefined") return ["adult official", "seller studio"];
     try { return JSON.parse(window.localStorage.getItem("adultapp_followed_feed_authors") ?? '["adult official","seller studio"]'); } catch { return ["adult official", "seller studio"]; }
   });
-  const cachedHomeFeed = typeof window !== "undefined" ? loadCachedHomeFeedPage() : null;
   const [savedProductIds, setSavedProductIds] = useState<number[]>(() => {
     if (typeof window === "undefined") return [];
     try { return JSON.parse(window.localStorage.getItem("adultapp_saved_product_ids") ?? "[]"); } catch { return []; }
   });
   const [savedTab, setSavedTab] = useState<"피드" | "쇼츠">("피드");
   const [shortsVisibleCount, setShortsVisibleCount] = useState(10);
-  const [homeFeedVisibleCount, setHomeFeedVisibleCount] = useState<number>(() => Math.max(HOME_FEED_PAGE_SIZE, cachedHomeFeed?.visibleCount ?? HOME_FEED_PAGE_SIZE));
   const allFeedItems = useMemo(() => [...customFeedItems, ...feedSeed], [customFeedItems]);
-  const [homeFeedIsLoadingMore, setHomeFeedIsLoadingMore] = useState(false);
-  const homeFeedSentinelRef = useRef<HTMLDivElement | null>(null);
-  const mobileMainRef = useRef<HTMLElement | null>(null);
-  const homeFeedLoadMoreTimerRef = useRef<number | null>(null);
   const [shortsMoreItem, setShortsMoreItem] = useState<FeedItem | null>(null);
   const [shortsViewerItemId, setShortsViewerItemId] = useState<number | null>(null);
   const [savedShortsViewerItemId, setSavedShortsViewerItemId] = useState<number | null>(null);
@@ -4129,8 +4069,6 @@ export default function App() {
     setFeedComposeOpen(false);
     setActiveTab("홈");
     setHomeTab("피드");
-    setHomeFeedBootItems([]);
-    setHomeFeedVisibleCount((prev) => Math.max(prev, HOME_FEED_PAGE_SIZE));
   };
 
   const clearFeedCommentAttachment = (feedId: number) => {
@@ -4234,7 +4172,7 @@ export default function App() {
 
   };
 
-  const handleShortsScroll = (event: UIEvent<HTMLDivElement>) => {
+  const handleShortsScroll = (event: ReactUIEvent<HTMLDivElement>) => {
     const target = event.currentTarget;
     const currentTop = target.scrollTop;
     const remain = target.scrollHeight - currentTop - target.clientHeight;
@@ -4316,84 +4254,12 @@ export default function App() {
   }), [keywordSignalMap, followedTopicKeywords, savedFeedIds, deferredGlobalKeyword]);
 
   const homeFeedSource = recommendedHomeFeed;
-  const visibleFeed = useMemo(() => homeFeedSource.slice(0, homeFeedVisibleCount), [homeFeedSource, homeFeedVisibleCount]);
-  const hasMoreHomeFeed = homeFeedVisibleCount < homeFeedSource.length;
 
-  const queueHomeFeedLoadMore = useCallback(() => {
-    if (typeof window === "undefined" || !hasMoreHomeFeed || homeFeedIsLoadingMore) return;
-    if (homeFeedLoadMoreTimerRef.current !== null) return;
-    setHomeFeedIsLoadingMore(true);
-    homeFeedLoadMoreTimerRef.current = window.setTimeout(() => {
-      setHomeFeedVisibleCount((prev) => Math.min(prev + HOME_FEED_PAGE_SIZE, homeFeedSource.length));
-      setHomeFeedIsLoadingMore(false);
-      homeFeedLoadMoreTimerRef.current = null;
-    }, 180);
-  }, [hasMoreHomeFeed, homeFeedIsLoadingMore, homeFeedSource.length]);
-
-  const maybeLoadMoreHomeFeed = useCallback((node?: HTMLElement | null) => {
-    const target = node ?? mobileMainRef.current;
-    if (!target || !hasMoreHomeFeed || homeFeedIsLoadingMore) return;
-    const remainingScroll = target.scrollHeight - target.scrollTop - target.clientHeight;
-    if (remainingScroll <= 420) {
-      queueHomeFeedLoadMore();
-    }
-  }, [hasMoreHomeFeed, homeFeedIsLoadingMore, queueHomeFeedLoadMore]);
-
-  const handleMobileMainScroll = useCallback((event: UIEvent<HTMLElement>) => {
-    if (activeTab === "홈" && homeTab === "피드" && overlayMode === null) {
-      maybeLoadMoreHomeFeed(event.currentTarget);
-    }
-  }, [activeTab, homeTab, overlayMode, maybeLoadMoreHomeFeed]);
-
-
-  useEffect(() => {
-    setHomeFeedVisibleCount(HOME_FEED_PAGE_SIZE);
-  }, [deferredGlobalKeyword]);
   useEffect(() => () => {
     if (feedComposeAttachment?.previewUrl?.startsWith("blob:")) {
       URL.revokeObjectURL(feedComposeAttachment.previewUrl);
     }
   }, [feedComposeAttachment]);
-
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !homeFeedSource.length) return;
-    window.localStorage.setItem(HOME_FEED_CACHE_KEY, JSON.stringify({
-      expiresAt: Date.now() + HOME_FEED_CACHE_TTL_MS,
-      visibleCount: homeFeedVisibleCount,
-    }));
-  }, [homeFeedSource.length, homeFeedVisibleCount]);
-
-  useEffect(() => () => {
-    if (homeFeedLoadMoreTimerRef.current !== null) {
-      window.clearTimeout(homeFeedLoadMoreTimerRef.current);
-      homeFeedLoadMoreTimerRef.current = null;
-    }
-  }, []);
-
-  useEffect(() => {
-    const sentinel = homeFeedSentinelRef.current;
-    const root = mobileMainRef.current;
-    if (!sentinel || !root) return;
-    if (activeTab !== "홈" || homeTab !== "피드" || overlayMode !== null || !hasMoreHomeFeed) return;
-
-    const observer = new IntersectionObserver((entries) => {
-      const entry = entries[0];
-      if (!entry?.isIntersecting) return;
-      queueHomeFeedLoadMore();
-    }, { root, rootMargin: "0px 0px 420px 0px", threshold: 0.01 });
-
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [activeTab, homeTab, overlayMode, hasMoreHomeFeed, queueHomeFeedLoadMore, visibleFeed.length]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (activeTab !== "홈" || homeTab !== "피드" || overlayMode !== null) return;
-    const rafId = window.requestAnimationFrame(() => maybeLoadMoreHomeFeed());
-    return () => window.cancelAnimationFrame(rafId);
-  }, [activeTab, homeTab, overlayMode, visibleFeed.length, maybeLoadMoreHomeFeed]);
-
 
   const getContentKeywordTags = (item: FeedItem) => getTopMatchedKeywords(item, keywordSignalMap);
 
@@ -4621,7 +4487,7 @@ export default function App() {
     setShopHomeBannerDragOffset(0);
   };
 
-  const handleShopHomeScroll = (event: UIEvent<HTMLDivElement>) => {
+  const handleShopHomeScroll = (event: ReactUIEvent<HTMLDivElement>) => {
     const node = event.currentTarget;
     if (node.scrollTop + node.clientHeight < node.scrollHeight - 120) return;
     setShopHomeVisibleCount((prev) => prev + 9);
@@ -6258,7 +6124,7 @@ export default function App() {
         </div>
       ) : null}
 
-      <main className="mobile-main" ref={mobileMainRef} onScroll={handleMobileMainScroll}>
+      <main className="mobile-main">
         {showBaseTabContent && reconsentRequired ? (
           <section className="reconsent-banner" role="button" tabIndex={0} onClick={() => { setHomeShopConsentGuideSeen(true); setOverlayMode("reconsent_info"); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setHomeShopConsentGuideSeen(true); setOverlayMode("reconsent_info"); } }}>
             <strong>필수 문서 재동의 필요</strong>
@@ -6640,8 +6506,7 @@ export default function App() {
                   </div>
                 </div>
                 <div className="feed-post-list compact-scroll-list">
-                  {visibleFeed.map((item, idx) => (<div key={`feed-wrap-${item.id}`}><FeedPoster item={item} onAsk={openAskFromFeed} saved={savedFeedIds.includes(item.id)} liked={likedFeedIds.includes(item.id)} commentsOpen={openFeedCommentItem?.id === item.id} onOpenComments={openFeedComments} onToggleLike={toggleLikedFeed} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} following={followedFeedAuthors.includes(item.author)} onToggleFollow={toggleFollowedFeedAuthor} />{(idx + 1) % 4 === 0 ? <SponsoredFeedProductCard item={sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length]} saved={savedProductIds.includes(sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length].id)} onToggleSave={toggleSavedProduct} /> : null}</div>))}
-                  {hasMoreHomeFeed ? <div ref={homeFeedSentinelRef} className="feed-loading-row">추천 피드 불러오는 중 · {visibleFeed.length}/{homeFeedSource.length}</div> : <div className="feed-loading-row feed-loading-row-end">추천 피드를 모두 확인했습니다 · 총 {homeFeedSource.length}개</div>}
+                  {homeFeedSource.map((item, idx) => (<div key={`feed-wrap-${item.id}`}><FeedPoster item={item} onAsk={openAskFromFeed} saved={savedFeedIds.includes(item.id)} liked={likedFeedIds.includes(item.id)} commentsOpen={openFeedCommentItem?.id === item.id} onOpenComments={openFeedComments} onToggleLike={toggleLikedFeed} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} following={followedFeedAuthors.includes(item.author)} onToggleFollow={toggleFollowedFeedAuthor} />{(idx + 1) % 4 === 0 ? <SponsoredFeedProductCard item={sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length]} saved={savedProductIds.includes(sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length].id)} onToggleSave={toggleSavedProduct} /> : null}</div>))}
                 </div>
               </>
             ) : homeTab === "쇼츠" ? (
