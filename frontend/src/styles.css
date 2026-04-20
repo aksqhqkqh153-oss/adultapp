@@ -7836,3 +7836,97 @@ body {
     font-size: 13px !important;
   }
 }
+
+
+/* === 2026-04-20 request: feed caption two-line inline more inside feed-copy === */
+.history-feed-card .feed-copy,
+.history-feed-card .feed-copy > div:first-child,
+.feed-caption-block {
+  min-width: 0 !important;
+}
+
+.history-feed-card .feed-copy > div:first-child,
+.feed-caption-block {
+  overflow: hidden;
+}
+
+.history-feed-card .feed-copy strong,
+.history-feed-card .feed-copy .feed-caption-text,
+.history-feed-card .feed-copy .feed-caption-inline-more,
+.history-feed-card .feed-copy .feed-caption-inline-less,
+.history-feed-card .feed-copy .feed-caption-inline-ellipsis {
+  font-size: 13px !important;
+  line-height: 1.44 !important;
+}
+
+.feed-caption-block {
+  position: relative;
+  display: grid;
+  gap: 4px;
+}
+
+.feed-caption-block.has-toggle:not(.expanded) {
+  min-height: calc(1.44em * 2) !important;
+}
+
+.feed-caption-text {
+  margin: 0 !important;
+}
+
+.feed-caption-block.has-toggle:not(.expanded) .feed-caption-text {
+  display: -webkit-box !important;
+  -webkit-box-orient: vertical !important;
+  -webkit-line-clamp: 2 !important;
+  overflow: hidden !important;
+  white-space: pre-wrap !important;
+  padding-right: 66px !important;
+}
+
+.feed-caption-text.expanded {
+  display: block !important;
+  -webkit-line-clamp: unset !important;
+  overflow: visible !important;
+  padding-right: 0 !important;
+}
+
+.feed-caption-inline-more-wrap {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  max-width: 66px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  padding-left: 10px;
+  background: linear-gradient(90deg, rgba(13, 18, 31, 0) 0%, rgba(13, 18, 31, 0.94) 30%, rgba(13, 18, 31, 1) 62%);
+}
+
+.feed-caption-inline-ellipsis {
+  flex: 0 0 auto;
+  color: rgba(255, 255, 255, 0.72);
+  font-weight: 700;
+}
+
+.feed-caption-inline-more,
+.feed-caption-inline-less {
+  flex: 0 0 auto;
+  color: #f8b4d9;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+}
+
+.feed-caption-inline-less {
+  justify-self: end;
+}
+
+@media (max-width: 640px) {
+  .feed-caption-block.has-toggle:not(.expanded) .feed-caption-text {
+    padding-right: 64px !important;
+  }
+
+  .feed-caption-inline-more-wrap {
+    max-width: 64px;
+  }
+}
