@@ -1610,13 +1610,18 @@ const FeedCaption = memo(function FeedCaption({ caption }: { caption: string }) 
   );
 });
 
-const FeedPoster = memo(function FeedPoster({ item, onAsk, saved, liked, commentsOpen, onOpenComments, onToggleLike, onToggleSave, keywordTags = [], onOpenAuthorProfile, following, onToggleFollow }: { item: FeedItem; onAsk: (item: FeedItem) => void; saved: boolean; liked: boolean; commentsOpen: boolean; onOpenComments: (item: FeedItem) => void; onToggleLike: (feedId: number) => void; onToggleSave: (feedId: number) => void; keywordTags?: string[]; onOpenAuthorProfile: (author: string) => void; following: boolean; onToggleFollow: (author: string) => void }) {
+const FeedPoster = memo(function FeedPoster({ item, onAsk, saved, liked, commentsOpen, onOpenComments, onToggleLike, onToggleSave, keywordTags = [], onOpenAuthorProfile, onPreviewAuthorAvatar, following, onToggleFollow }: { item: FeedItem; onAsk: (item: FeedItem) => void; saved: boolean; liked: boolean; commentsOpen: boolean; onOpenComments: (item: FeedItem) => void; onToggleLike: (feedId: number) => void; onToggleSave: (feedId: number) => void; keywordTags?: string[]; onOpenAuthorProfile: (author: string) => void; onPreviewAuthorAvatar?: (item: FeedItem) => void; following: boolean; onToggleFollow: (author: string) => void }) {
   const postedLabel = formatFeedPostedAt(item.postedAt);
+  const handlePreviewAuthorAvatar = () => {
+    onPreviewAuthorAvatar?.(item);
+  };
   return (
     <article className={`feed-card history-feed-card ${item.accent}`}>
       <div className="history-feed-head">
         <div className="history-feed-profile">
-          <div className="story-mini-avatar">{item.author.slice(0, 1).toUpperCase()}</div>
+          <button type="button" className="story-mini-avatar-button" onClick={handlePreviewAuthorAvatar} aria-label={`${item.author} 프로필 사진 크게 보기`}>
+            <div className="story-mini-avatar">{item.author.slice(0, 1).toUpperCase()}</div>
+          </button>
           <div className="history-feed-profile-copy">
             <button type="button" className="feed-author-link" onClick={() => onOpenAuthorProfile(item.author)}>{item.author}</button>
             <div className="feed-author-meta-row">
@@ -3178,8 +3183,14 @@ export default function App() {
     if (isHomeFeedStateExpired(stored)) return HOME_FEED_BATCH_SIZE;
     return Math.max(HOME_FEED_BATCH_SIZE, stored.visibleCount ?? HOME_FEED_BATCH_SIZE);
   });
+  const [homeFeedHeaderHidden, setHomeFeedHeaderHidden] = useState(false);
+  const [feedAvatarPreviewItem, setFeedAvatarPreviewItem] = useState<FeedItem | null>(null);
   const homeFeedScrollRef = useRef<HTMLDivElement | null>(null);
   const homeFeedResetOnNextShowRef = useRef(false);
+  const lastHomeFeedScrollTopRef = useRef(0);
+  const homeFeedScrollRafRef = useRef<number | null>(null);
+  const homeFeedHideThresholdRef = useRef(0);
+  const homeFeedShowThresholdRef = useRef(0);
   const allFeedItems = useMemo(() => [...customFeedItems, ...feedSeed], [customFeedItems]);
   const [shortsMoreItem, setShortsMoreItem] = useState<FeedItem | null>(null);
   const [shortsViewerItemId, setShortsViewerItemId] = useState<number | null>(null);
@@ -4260,6 +4271,14 @@ export default function App() {
 
   };
 
+  const openFeedAvatarPreview = useCallback((item: FeedItem) => {
+    setFeedAvatarPreviewItem(item);
+  }, []);
+
+  const closeFeedAvatarPreview = useCallback(() => {
+    setFeedAvatarPreviewItem(null);
+  }, []);
+
   const handleShortsScroll = (event: ReactUIEvent<HTMLDivElement>) => {
     const target = event.currentTarget;
     const currentTop = target.scrollTop;
@@ -4306,7 +4325,7 @@ export default function App() {
   };
 
   const homeMenuItems = [
-    { label: "피드", onClick: () => { setHomeTab("피드"); setOverlayMode(null); } },
+    { label: "피드", onClick: () => { setHomeTab("피드"); setOverlayMode(null); setHomeFeedHeaderHidden(false); lastHomeFeedScrollTopRef.current = 0; homeFeedHideThresholdRef.current = 0; homeFeedShowThresholdRef.current = 0; } },
     { label: "쇼츠", onClick: () => { setHomeTab("쇼츠"); setOverlayMode(null); setShortsHeaderHidden(false); setShortsCategoryVisible(true); setSelectedShortsCategory("전체"); lastShortsScrollTopRef.current = 0; shortsHideThresholdRef.current = 0; shortsShowThresholdRef.current = 0; } },
     { label: "보관함", onClick: goToSavedBox },
   ];
@@ -4371,6 +4390,10 @@ export default function App() {
       homeFeedResetOnNextShowRef.current = true;
       setHomeFeedVisibleCount(HOME_FEED_BATCH_SIZE);
       persistHomeFeedState({ visibleCount: HOME_FEED_BATCH_SIZE, scrollTop: 0, lastInactiveAt: 0 });
+      setHomeFeedHeaderHidden(false);
+      lastHomeFeedScrollTopRef.current = 0;
+      homeFeedHideThresholdRef.current = 0;
+      homeFeedShowThresholdRef.current = 0;
       if (homeFeedScrollRef.current) {
         homeFeedScrollRef.current.scrollTop = 0;
       }
@@ -4386,6 +4409,20 @@ export default function App() {
       window.removeEventListener("beforeunload", markInactive);
     };
   }, [persistHomeFeedState]);
+
+  useEffect(() => {
+    if (homeTab === "피드" && activeTab === "홈") return;
+    setHomeFeedHeaderHidden(false);
+    lastHomeFeedScrollTopRef.current = 0;
+    homeFeedHideThresholdRef.current = 0;
+    homeFeedShowThresholdRef.current = 0;
+  }, [activeTab, homeTab]);
+
+  useEffect(() => () => {
+    if (typeof window !== "undefined" && homeFeedScrollRafRef.current !== null) {
+      window.cancelAnimationFrame(homeFeedScrollRafRef.current);
+    }
+  }, []);
 
   useEffect(() => () => {
     if (feedComposeAttachment?.previewUrl?.startsWith("blob:")) {
@@ -4621,16 +4658,52 @@ export default function App() {
 
   const handleHomeFeedScroll = useCallback((event: ReactUIEvent<HTMLDivElement>) => {
     const node = event.currentTarget;
-    persistHomeFeedState({ scrollTop: node.scrollTop });
-    if (node.scrollTop + node.clientHeight < node.scrollHeight - 160) return;
-    setHomeFeedVisibleCount((prev) => {
-      const next = prev >= recommendedHomeFeed.length ? prev : Math.min(prev + HOME_FEED_BATCH_SIZE, recommendedHomeFeed.length);
-      if (next !== prev) {
-        persistHomeFeedState({ visibleCount: next, scrollTop: node.scrollTop });
+    const currentTop = node.scrollTop;
+    persistHomeFeedState({ scrollTop: currentTop });
+
+    if (node.scrollTop + node.clientHeight >= node.scrollHeight - 160) {
+      setHomeFeedVisibleCount((prev) => {
+        const next = prev >= recommendedHomeFeed.length ? prev : Math.min(prev + HOME_FEED_BATCH_SIZE, recommendedHomeFeed.length);
+        if (next !== prev) {
+          persistHomeFeedState({ visibleCount: next, scrollTop: currentTop });
+        }
+        return next;
+      });
+    }
+
+    if (homeFeedScrollRafRef.current !== null) {
+      window.cancelAnimationFrame(homeFeedScrollRafRef.current);
+    }
+
+    homeFeedScrollRafRef.current = window.requestAnimationFrame(() => {
+      const prevTop = lastHomeFeedScrollTopRef.current;
+      const delta = currentTop - prevTop;
+      lastHomeFeedScrollTopRef.current = currentTop;
+
+      if (currentTop <= 8) {
+        homeFeedHideThresholdRef.current = 0;
+        homeFeedShowThresholdRef.current = 0;
+        setHomeFeedHeaderHidden(false);
+        return;
       }
-      return next;
+
+      if (delta > 2) {
+        homeFeedHideThresholdRef.current += delta;
+        homeFeedShowThresholdRef.current = 0;
+      } else if (delta < -2) {
+        homeFeedShowThresholdRef.current += Math.abs(delta);
+        homeFeedHideThresholdRef.current = 0;
+      }
+
+      if (!homeFeedHeaderHidden && homeFeedHideThresholdRef.current >= 28 && currentTop > 32) {
+        homeFeedHideThresholdRef.current = 0;
+        setHomeFeedHeaderHidden(true);
+      } else if (homeFeedHeaderHidden && homeFeedShowThresholdRef.current >= 18) {
+        homeFeedShowThresholdRef.current = 0;
+        setHomeFeedHeaderHidden(false);
+      }
     });
-  }, [persistHomeFeedState, recommendedHomeFeed.length]);
+  }, [homeFeedHeaderHidden, persistHomeFeedState, recommendedHomeFeed.length]);
 
   const handleShopHomeScroll = (event: ReactUIEvent<HTMLDivElement>) => {
     const node = event.currentTarget;
@@ -4973,7 +5046,11 @@ export default function App() {
       if (!node) return;
       const targetScrollTop = shouldReset ? 0 : Math.max(0, stored.scrollTop ?? 0);
       node.scrollTop = Math.min(targetScrollTop, Math.max(0, node.scrollHeight - node.clientHeight));
+      lastHomeFeedScrollTopRef.current = node.scrollTop;
       homeFeedResetOnNextShowRef.current = false;
+      if (shouldReset || node.scrollTop <= 8) {
+        setHomeFeedHeaderHidden(false);
+      }
       persistHomeFeedState({
         visibleCount: homeFeedVisibleCount,
         scrollTop: node.scrollTop,
@@ -6239,7 +6316,7 @@ export default function App() {
 
   return (
     <div className="mobile-app-shell">
-      <header className={`top-header${activeTab === "홈" && homeTab === "쇼츠" && shortsHeaderHidden ? " shorts-top-header-hidden" : ""}`}>
+      <header className={`top-header${activeTab === "홈" && ((homeTab === "쇼츠" && shortsHeaderHidden) || (homeTab === "피드" && homeFeedHeaderHidden)) ? " shorts-top-header-hidden" : ""}`}>
         {overlayMode === "search" ? (
           <div className="topbar-search-row">
             <button
@@ -6674,7 +6751,7 @@ export default function App() {
           <section className={`tab-pane fill-pane home-feed-pane${homeTab === "쇼츠" ? " home-feed-pane-shorts" : ""}${homeTab === "피드" ? " home-feed-pane-feed-scroll" : ""}`}>
             {homeTab === "피드" ? (
               <>
-                <div className="chat-toolbar kakao-toolbar compact-only-toolbar feed-compose-launch-toolbar">
+                <div className={`chat-toolbar kakao-toolbar compact-only-toolbar feed-compose-launch-toolbar${homeFeedHeaderHidden ? " feed-compose-launch-toolbar-hidden" : ""}`}>
                   <div className="chat-category-scroll">
                     <button type="button" className="category-chip active feed-compose-launch-chip" onClick={() => setFeedComposeOpen(true)}>
                       피드 작성
@@ -6695,6 +6772,7 @@ export default function App() {
                         onToggleSave={toggleSavedFeed}
                         keywordTags={getContentKeywordTags(item)}
                         onOpenAuthorProfile={openProfileFromAuthor}
+                        onPreviewAuthorAvatar={openFeedAvatarPreview}
                         following={followedFeedAuthors.includes(item.author)}
                         onToggleFollow={toggleFollowedFeedAuthor}
                       />
@@ -6744,7 +6822,7 @@ export default function App() {
                 </div>
                 {savedTab === "피드" ? (
                   <div className="feed-post-list compact-scroll-list">
-                    {savedFeedItems.length ? savedFeedItems.map((item) => <FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} saved={true} liked={likedFeedIds.includes(item.id)} commentsOpen={openFeedCommentItem?.id === item.id} onOpenComments={openFeedComments} onToggleLike={toggleLikedFeed} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} following={followedFeedAuthors.includes(item.author)} onToggleFollow={toggleFollowedFeedAuthor} />) : <div className="legacy-box compact"><p>보관한 피드가 없습니다.</p></div>}
+                    {savedFeedItems.length ? savedFeedItems.map((item) => <FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} saved={true} liked={likedFeedIds.includes(item.id)} commentsOpen={openFeedCommentItem?.id === item.id} onOpenComments={openFeedComments} onToggleLike={toggleLikedFeed} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} onPreviewAuthorAvatar={openFeedAvatarPreview} following={followedFeedAuthors.includes(item.author)} onToggleFollow={toggleFollowedFeedAuthor} />) : <div className="legacy-box compact"><p>보관한 피드가 없습니다.</p></div>}
                   </div>
                 ) : (
                   <>
@@ -7685,6 +7763,23 @@ export default function App() {
         ))}</nav>
 
       {selectedAskProfile ? <AskProfileScreen profile={selectedAskProfile} activeTab={activeTab} onClose={() => setSelectedAskProfile(null)} onNavigate={selectBottomTab} renderBottomTabIcon={renderBottomTabIcon} onOpenProfile={openProfileFromAuthor} /> : null}
+
+      {feedAvatarPreviewItem ? (
+        <div className="feed-avatar-preview-backdrop" onClick={closeFeedAvatarPreview}>
+          <div className="feed-avatar-preview-sheet" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="프로필 사진 미리보기">
+            <div className={`feed-avatar-preview-stage ${feedAvatarPreviewItem.accent}`}>
+              <div className="feed-avatar-preview-square">
+                <div className="feed-avatar-preview-badge">프로필 사진 미리보기</div>
+                <div className="feed-avatar-preview-initial">{feedAvatarPreviewItem.author.slice(0, 1).toUpperCase()}</div>
+                <div className="feed-avatar-preview-meta">
+                  <strong>{feedAvatarPreviewItem.author}</strong>
+                  <span>{feedAvatarPreviewItem.title}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {feedComposeOpen ? (
         <FeedComposeScreen
