@@ -904,9 +904,9 @@ const feedSeed: FeedItem[] = [
   { id: 48, type: "image", category: "추천", title: "러브젤 인기 순위", caption: "후기와 재구매 데이터를 기준으로 러브젤을 정리했습니다.", author: "seller studio", likes: 191, comments: 13, accent: "rose", views: 1468, postedAt: "어제" },
   { id: 49, type: "image", category: "신상품", title: "이번 주 신규 입점", caption: "이번 주 입점한 셀러와 신규 상품 정보를 모았습니다.", author: "event pick", likes: 169, comments: 9, accent: "sunrise", views: 1260, postedAt: "어제" },
   { id: 50, type: "image", category: "리뷰", title: "입문자 만족도 상위", caption: "입문자 평점이 높은 구성만 묶은 리뷰 카드입니다.", author: "review crew", likes: 236, comments: 14, accent: "violet", views: 1741, postedAt: "어제" },
-  { id: 51, type: "image", category: "추천", title: "홈 피드 테스트 01 · 오늘 많이 저장된 제품", caption: "홈 피드 스크롤 테스트용 카드입니다. 저장 수가 높은 제품과 요약 포인트를 카드형으로 보여줍니다.", author: "adult official", likes: 287, comments: 23, accent: "sunrise", views: 1968, postedAt: "방금" },
-  { id: 52, type: "image", category: "리뷰", title: "홈 피드 테스트 02 · 실사용 후기 한눈에", caption: "인스타그램·트위터형 리스트 피드 테스트용 카드입니다. 실제 후기 요약과 반응 포인트를 빠르게 확인할 수 있습니다.", author: "review crew", likes: 264, comments: 19, accent: "teal", views: 1824, postedAt: "2분 전" },
-  { id: 53, type: "image", category: "보관팁", title: "홈 피드 테스트 03 · 세정과 보관 루틴", caption: "스크롤 시 다음 피드가 자연스럽게 이어지도록 배치한 테스트 카드입니다. 세정, 건조, 보관 루틴을 한 장에 정리했습니다.", author: "care lab", likes: 241, comments: 17, accent: "violet", views: 1712, postedAt: "4분 전" },
+  { id: 51, type: "image", category: "추천", title: "홈 피드 테스트 01 · 오늘 많이 저장된 제품", caption: "홈 피드 스크롤 테스트용 카드입니다. 저장 수가 높은 제품과 요약 포인트를 카드형으로 보여줍니다. 실제 운영 화면에서는 본문이 길어질 수 있으므로 첫 화면에서는 3줄까지만 노출하고, 이어지는 설명은 더보기로 펼쳐 보도록 구성했습니다.", author: "adult official", likes: 287, comments: 23, accent: "sunrise", views: 1968, postedAt: "방금" },
+  { id: 52, type: "image", category: "리뷰", title: "홈 피드 테스트 02 · 실사용 후기 한눈에", caption: "인스타그램·트위터형 리스트 피드 테스트용 카드입니다. 실제 후기 요약과 반응 포인트를 빠르게 확인할 수 있습니다. 제품별 장점, 사용감, 소음감, 보관성 같은 항목이 길어질 때에도 첫 화면은 짧게 유지하고 상세 문장은 접어서 보여줍니다.", author: "review crew", likes: 264, comments: 19, accent: "teal", views: 1824, postedAt: "2분 전" },
+  { id: 53, type: "image", category: "보관팁", title: "홈 피드 테스트 03 · 세정과 보관 루틴", caption: "스크롤 시 다음 피드가 자연스럽게 이어지도록 배치한 테스트 카드입니다. 세정, 건조, 보관 루틴을 한 장에 정리했습니다. 사용 후 세정제를 어떻게 고르고, 어느 정도 건조한 뒤, 어떤 파우치에 넣어두는지까지 순서형으로 설명하는 긴 본문 테스트용 문장입니다.", author: "care lab", likes: 241, comments: 17, accent: "violet", views: 1712, postedAt: "4분 전" },
 ];
 
 
@@ -1545,6 +1545,44 @@ function DualRangeSlider({ min, max, valueMin, valueMax, step = 1, leftLabel, ri
   );
 }
 
+
+const FeedCaption = memo(function FeedCaption({ caption }: { caption: string }) {
+  const captionRef = useRef<HTMLParagraphElement | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [showToggle, setShowToggle] = useState(false);
+
+  useEffect(() => {
+    setExpanded(false);
+  }, [caption]);
+
+  useEffect(() => {
+    const measure = () => {
+      const element = captionRef.current;
+      if (!element) return;
+      const isOverflowing = element.scrollHeight > element.clientHeight + 1;
+      setShowToggle(isOverflowing || expanded);
+    };
+
+    const rafId = window.requestAnimationFrame(measure);
+    window.addEventListener("resize", measure);
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.removeEventListener("resize", measure);
+    };
+  }, [caption, expanded]);
+
+  return (
+    <div className="feed-caption-block">
+      <p ref={captionRef} className={`feed-caption-text${expanded ? " expanded" : ""}`}>{caption}</p>
+      {showToggle ? (
+        <button type="button" className="feed-caption-toggle" onClick={() => setExpanded((prev) => !prev)}>
+          {expanded ? "접기" : "더보기"}
+        </button>
+      ) : null}
+    </div>
+  );
+});
+
 const FeedPoster = memo(function FeedPoster({ item, onAsk, saved, liked, commentsOpen, onOpenComments, onToggleLike, onToggleSave, keywordTags = [], onOpenAuthorProfile, following, onToggleFollow }: { item: FeedItem; onAsk: (item: FeedItem) => void; saved: boolean; liked: boolean; commentsOpen: boolean; onOpenComments: (item: FeedItem) => void; onToggleLike: (feedId: number) => void; onToggleSave: (feedId: number) => void; keywordTags?: string[]; onOpenAuthorProfile: (author: string) => void; following: boolean; onToggleFollow: (author: string) => void }) {
   const postedLabel = formatFeedPostedAt(item.postedAt);
   return (
@@ -1582,7 +1620,7 @@ const FeedPoster = memo(function FeedPoster({ item, onAsk, saved, liked, comment
       <div className="feed-copy">
         <div>
           <strong>{item.title}</strong>
-          <p>{item.caption}</p>
+          <FeedCaption caption={item.caption} />
         </div>
         <div className="feed-meta">
           <span>좋아요 {item.likes}</span>
@@ -2007,7 +2045,7 @@ function FeedCommentScreen({ item, comments, draft, attachment, attachmentBusy, 
           <div className="feed-copy">
             <div>
               <strong>{item.title}</strong>
-              <p>{item.caption}</p>
+              <FeedCaption caption={item.caption} />
             </div>
             <div className="feed-meta">
               <span>좋아요 {item.likes}</span>
@@ -6190,14 +6228,14 @@ export default function App() {
                   {activeTab === "홈" && searchSection === "피드결과" ? homeSearchResults.map((item) => (
                     <article key={`home-feed-${item.id}`} className="legacy-box compact search-result-card search-result-list-card">
                       <div className="split-row"><strong>{item.title}</strong><span>{item.author}</span></div>
-                      <p>{item.caption}</p>
+                      <FeedCaption caption={item.caption} />
                       <span className="community-meta">{item.category}</span>
                     </article>
                   )) : null}
                   {activeTab === "홈" && searchSection === "쇼츠결과" ? homeShortSearchResults.map((item) => (
                     <article key={`home-short-${item.id}`} className="legacy-box compact search-result-card search-result-list-card">
                       <div className="split-row"><strong>{item.title}</strong><span>{item.author}</span></div>
-                      <p>{item.caption}</p>
+                      <FeedCaption caption={item.caption} />
                       <span className="community-meta">쇼츠 · {(item.views ?? 0).toLocaleString()}회</span>
                     </article>
                   )) : null}
