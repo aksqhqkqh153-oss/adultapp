@@ -4447,8 +4447,6 @@ pre,
     max-height: none;
   }
 }
-<<<<<<< Updated upstream
-=======
 .feed-scroll-status {
   display: flex;
   flex-direction: column;
@@ -4470,7 +4468,6 @@ pre,
   color: rgba(255,255,255,0.7);
 }
 
->>>>>>> Stashed changes
 .feed-loading-row {
   display: flex;
   align-items: center;
@@ -7155,4 +7152,134 @@ body {
     max-width: min(32vw, 320px) !important;
     max-height: min(34vh, 300px) !important;
   }
+}
+
+
+/* === 2026-04-20 request: home/community/chat spacing + square corners === */
+.feed-compose-launch-toolbar {
+  min-height: 40px !important;
+  max-height: 40px !important;
+  height: 40px !important;
+  margin: 0 0 6px !important;
+  padding: 0 !important;
+}
+.feed-compose-launch-toolbar .chat-category-scroll {
+  width: 100% !important;
+  min-height: 40px !important;
+  max-height: 40px !important;
+  height: 40px !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  padding: 0 !important;
+}
+.feed-compose-launch-chip {
+  min-height: 32px !important;
+  height: 32px !important;
+  padding: 0 2px !important;
+  line-height: 1 !important;
+}
+
+.feed-post-list.compact-scroll-list,
+.feed-post-list.compact-scroll-list > div,
+.feed-post-list .history-feed-card,
+.feed-post-list .feed-media {
+  border-radius: 0 !important;
+}
+
+.history-feed-head {
+  align-items: flex-start !important;
+}
+.history-feed-profile {
+  align-items: flex-start !important;
+  gap: 10px !important;
+}
+.history-feed-profile .story-mini-avatar {
+  width: 45px !important;
+  height: 45px !important;
+  min-width: 45px !important;
+  min-height: 45px !important;
+  margin-top: 0 !important;
+  flex-shrink: 0;
+}
+.history-feed-profile-copy {
+  min-height: 45px !important;
+  display: grid !important;
+  align-content: center !important;
+  gap: 2px !important;
+}
+.history-feed-profile-copy .feed-author-link,
+.history-feed-profile-copy strong {
+  display: block;
+  line-height: 1.15 !important;
+  font-size: 13px !important;
+}
+.feed-author-meta-row {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 4px 6px !important;
+  min-height: 0 !important;
+  line-height: 1.05 !important;
+  font-size: 10px !important;
+}
+.feed-author-meta-row span {
+  line-height: 1.05 !important;
+}
+.feed-posted-at {
+  color: rgba(255,255,255,0.82) !important;
+}
+
+.chat-toolbar.kakao-toolbar.compact-only-toolbar {
+  min-height: 40px !important;
+  max-height: 40px !important;
+  height: 40px !important;
+  margin: 0 0 6px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+.chat-category-scroll {
+  min-height: 40px !important;
+  max-height: 40px !important;
+  height: 40px !important;
+  align-items: center !important;
+  padding: 0 !important;
+}
+.chat-category-scroll .category-chip {
+  min-height: 32px !important;
+  height: 32px !important;
+}
+
+.community-simple-category-row {
+  min-height: 40px !important;
+  max-height: 40px !important;
+  height: 40px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  align-items: center !important;
+}
+.community-simple-chip {
+  min-height: 32px !important;
+  height: 32px !important;
+}
+.community-simple-board.compact-scroll-list {
+  grid-template-rows: 40px minmax(0, 1fr) 36px !important;
+}
+
+.chat-list.compact-scroll-list.kakao-chat-list,
+.chat-list.compact-scroll-list.kakao-chat-list .kakao-chat-row,
+.chat-list.compact-scroll-list.kakao-chat-list .kakao-avatar,
+.chat-list.compact-scroll-list.kakao-chat-list .chat-meta b {
+  border-radius: 0 !important;
+}
+.kakao-chat-list {
+  border-radius: 0 !important;
+}
+.kakao-avatar {
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 0 !important;
+}
+
+.community-simple-item {
+  padding: 0 2px 12px !important;
 }
