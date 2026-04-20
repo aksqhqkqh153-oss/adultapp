@@ -7841,16 +7841,24 @@ body {
 /* === 2026-04-20 request: feed caption two-line inline more inside feed-copy === */
 .history-feed-card .feed-copy,
 .history-feed-card .feed-copy > div:first-child,
-.feed-caption-block {
+.feed-caption-block,
+.feed-caption-body {
   min-width: 0 !important;
 }
 
 .history-feed-card .feed-copy > div:first-child,
-.feed-caption-block {
+.feed-caption-block,
+.feed-caption-body {
   overflow: hidden;
 }
 
+.history-feed-card .feed-copy {
+  display: grid;
+  gap: 4px !important;
+}
+
 .history-feed-card .feed-copy strong,
+.history-feed-card .feed-copy .feed-caption-title,
 .history-feed-card .feed-copy .feed-caption-text,
 .history-feed-card .feed-copy .feed-caption-inline-more,
 .history-feed-card .feed-copy .feed-caption-inline-less,
@@ -7865,12 +7873,28 @@ body {
   gap: 4px;
 }
 
-.feed-caption-block.has-toggle:not(.expanded) {
-  min-height: calc(1.44em * 2) !important;
+.feed-caption-title-row {
+  min-width: 0;
+}
+
+.feed-caption-title {
+  display: block;
+  margin: 0 !important;
+  font-weight: 700;
+  color: #f8f7fb;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.feed-caption-body {
+  position: relative;
+  min-height: calc(1.44em * 2);
 }
 
 .feed-caption-text {
   margin: 0 !important;
+  white-space: pre-wrap !important;
 }
 
 .feed-caption-block.has-toggle:not(.expanded) .feed-caption-text {
@@ -7879,7 +7903,7 @@ body {
   -webkit-line-clamp: 2 !important;
   overflow: hidden !important;
   white-space: pre-wrap !important;
-  padding-right: 66px !important;
+  padding-right: 68px !important;
 }
 
 .feed-caption-text.expanded {
@@ -7893,18 +7917,19 @@ body {
   position: absolute;
   right: 0;
   bottom: 0;
-  max-width: 66px;
+  min-width: 68px;
+  max-width: 68px;
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
   gap: 2px;
   padding-left: 10px;
-  background: linear-gradient(90deg, rgba(13, 18, 31, 0) 0%, rgba(13, 18, 31, 0.94) 30%, rgba(13, 18, 31, 1) 62%);
+  background: linear-gradient(90deg, rgba(13, 18, 31, 0) 0%, rgba(13, 18, 31, 0.94) 28%, rgba(13, 18, 31, 1) 58%);
 }
 
 .feed-caption-inline-ellipsis {
   flex: 0 0 auto;
-  color: rgba(255, 255, 255, 0.72);
+  color: rgba(255, 255, 255, 0.74);
   font-weight: 700;
 }
 
@@ -7927,6 +7952,7 @@ body {
   }
 
   .feed-caption-inline-more-wrap {
+    min-width: 64px;
     max-width: 64px;
   }
 }

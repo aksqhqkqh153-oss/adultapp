@@ -1611,17 +1611,22 @@ const FeedCaption = memo(function FeedCaption({ caption, title }: { caption: str
 
   return (
     <div className={`feed-caption-block${expanded ? " expanded" : ""}${showToggle ? " has-toggle" : ""}`}>
-      <p ref={captionRef} className={`feed-caption-text${expanded ? " expanded" : ""}`}>
-        {title ? <strong className="feed-caption-title">{title}</strong> : null}
-        {title ? <span className="feed-caption-gap" aria-hidden="true"> </span> : null}
-        <span>{caption}</span>
-      </p>
-      {!expanded && showToggle ? (
-        <span className="feed-caption-inline-more-wrap" aria-hidden="false">
-          <span className="feed-caption-inline-ellipsis" aria-hidden="true">...</span>
-          <span className="feed-caption-inline-more" role="button" tabIndex={0} onClick={handleExpand} onKeyDown={handleExpandKeyDown}>더보기</span>
-        </span>
+      {title ? (
+        <div className="feed-caption-title-row">
+          <strong className="feed-caption-title">{title}</strong>
+        </div>
       ) : null}
+      <div className="feed-caption-body">
+        <p ref={captionRef} className={`feed-caption-text${expanded ? " expanded" : ""}`}>
+          <span>{caption}</span>
+        </p>
+        {!expanded && showToggle ? (
+          <span className="feed-caption-inline-more-wrap" aria-hidden="false">
+            <span className="feed-caption-inline-ellipsis" aria-hidden="true">...</span>
+            <span className="feed-caption-inline-more" role="button" tabIndex={0} onClick={handleExpand} onKeyDown={handleExpandKeyDown}>더보기</span>
+          </span>
+        ) : null}
+      </div>
       {expanded && showToggle ? (
         <span className="feed-caption-inline-less" role="button" tabIndex={0} onClick={handleCollapse} onKeyDown={handleCollapseKeyDown}>접기</span>
       ) : null}
