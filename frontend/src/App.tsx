@@ -4253,7 +4253,7 @@ export default function App() {
     keyword: deferredGlobalKeyword,
   }), [keywordSignalMap, followedTopicKeywords, savedFeedIds, deferredGlobalKeyword]);
 
-  const homeFeedSource = recommendedHomeFeed;
+  const homeFeedSource = useMemo(() => recommendedHomeFeed.slice(0, 3), [recommendedHomeFeed]);
 
   useEffect(() => () => {
     if (feedComposeAttachment?.previewUrl?.startsWith("blob:")) {
@@ -6495,7 +6495,7 @@ export default function App() {
         ) : null}
 
         {showAppTabContent && activeTab === "홈" ? (
-          <section className={`tab-pane fill-pane home-feed-pane${homeTab === "쇼츠" ? " home-feed-pane-shorts" : ""}`}>
+          <section className={`tab-pane fill-pane home-feed-pane${homeTab === "쇼츠" ? " home-feed-pane-shorts" : ""}${homeTab === "피드" ? " home-feed-pane-feed-scroll" : ""}`}>
             {homeTab === "피드" ? (
               <>
                 <div className="chat-toolbar kakao-toolbar compact-only-toolbar feed-compose-launch-toolbar">
@@ -6505,8 +6505,25 @@ export default function App() {
                     </button>
                   </div>
                 </div>
-                <div className="feed-post-list compact-scroll-list">
-                  {homeFeedSource.map((item, idx) => (<div key={`feed-wrap-${item.id}`}><FeedPoster item={item} onAsk={openAskFromFeed} saved={savedFeedIds.includes(item.id)} liked={likedFeedIds.includes(item.id)} commentsOpen={openFeedCommentItem?.id === item.id} onOpenComments={openFeedComments} onToggleLike={toggleLikedFeed} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} following={followedFeedAuthors.includes(item.author)} onToggleFollow={toggleFollowedFeedAuthor} />{(idx + 1) % 4 === 0 ? <SponsoredFeedProductCard item={sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length]} saved={savedProductIds.includes(sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length].id)} onToggleSave={toggleSavedProduct} /> : null}</div>))}
+                <div className="feed-post-list compact-scroll-list feed-post-list-screen">
+                  {homeFeedSource.map((item) => (
+                    <div key={`feed-wrap-${item.id}`} className="feed-screen-item">
+                      <FeedPoster
+                        item={item}
+                        onAsk={openAskFromFeed}
+                        saved={savedFeedIds.includes(item.id)}
+                        liked={likedFeedIds.includes(item.id)}
+                        commentsOpen={openFeedCommentItem?.id === item.id}
+                        onOpenComments={openFeedComments}
+                        onToggleLike={toggleLikedFeed}
+                        onToggleSave={toggleSavedFeed}
+                        keywordTags={getContentKeywordTags(item)}
+                        onOpenAuthorProfile={openProfileFromAuthor}
+                        following={followedFeedAuthors.includes(item.author)}
+                        onToggleFollow={toggleFollowedFeedAuthor}
+                      />
+                    </div>
+                  ))}
                 </div>
               </>
             ) : homeTab === "쇼츠" ? (
