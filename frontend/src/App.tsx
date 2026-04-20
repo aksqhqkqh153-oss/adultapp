@@ -44,6 +44,9 @@ type FeedComposerAttachment = {
   optimized?: boolean;
 };
 
+type FeedComposeMode = "피드게시" | "사진피드" | "쇼츠게시";
+type HomeFeedFilter = "일반" | "추천" | "팔로잉";
+
 const HOME_FEED_BATCH_SIZE = 5;
 const HOME_FEED_STATE_KEY = "adultapp_home_feed_state";
 const HOME_FEED_RESET_MS = 30 * 60 * 1000;
@@ -65,6 +68,35 @@ function readHomeFeedPersistedState(): HomeFeedPersistedState {
 
 function isHomeFeedStateExpired(state: HomeFeedPersistedState) {
   return Boolean(state.lastInactiveAt && Date.now() - state.lastInactiveAt >= HOME_FEED_RESET_MS);
+}
+
+function getFeedComposeModeMeta(mode: FeedComposeMode) {
+  switch (mode) {
+    case "사진피드":
+      return {
+        title: "사진피드",
+        description: "사진 중심 피드를 등록합니다.",
+        accept: "image/*",
+        attachLabel: "사진 첨부",
+        helper: "최대 1개 첨부 · 사진 전용 등록 · 권장 JPG / PNG / WEBP",
+      } as const;
+    case "쇼츠게시":
+      return {
+        title: "쇼츠게시",
+        description: "짧은 세로형 영상을 등록합니다.",
+        accept: "video/*",
+        attachLabel: "쇼츠 영상 첨부",
+        helper: "최대 1개 첨부 · 쇼츠 영상은 최대 20초 / 30MB · 권장 MP4(H.264) 또는 WEBM",
+      } as const;
+    default:
+      return {
+        title: "피드게시",
+        description: "일반 피드를 등록합니다.",
+        accept: "image/*,video/*",
+        attachLabel: "사진/영상 첨부",
+        helper: "최대 1개 첨부 · 영상은 최대 20초 / 30MB · 권장 MP4(H.264) 또는 WEBM",
+      } as const;
+  }
 }
 
 type ShortOption = "공유" | "보관함저장" | "관심없음" | "채널 추천 안함" | "신고";
@@ -819,6 +851,14 @@ function MoreDotsIcon() {
       <circle cx="6" cy="12" r="1.8" fill="currentColor" />
       <circle cx="12" cy="12" r="1.8" fill="currentColor" />
       <circle cx="18" cy="12" r="1.8" fill="currentColor" />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M12 5.2v13.6M5.2 12h13.6" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
     </svg>
   );
 }
@@ -2233,6 +2273,7 @@ function FeedCommentScreen({ item, comments, draft, attachment, attachmentBusy, 
 
 
 type FeedComposeScreenProps = {
+  mode: FeedComposeMode;
   title: string;
   caption: string;
   attachment: FeedComposerAttachment | null;
@@ -2246,15 +2287,16 @@ type FeedComposeScreenProps = {
   onClose: () => void;
 };
 
-function FeedComposeScreen({ title, caption, attachment, busy, helperText, onChangeTitle, onChangeCaption, onAttachFile, onClearAttachment, onSubmit, onClose }: FeedComposeScreenProps) {
+function FeedComposeScreen({ mode, title, caption, attachment, busy, helperText, onChangeTitle, onChangeCaption, onAttachFile, onClearAttachment, onSubmit, onClose }: FeedComposeScreenProps) {
   const canSubmit = Boolean(caption.trim() || attachment);
+  const composeMeta = getFeedComposeModeMeta(mode);
 
   return (
     <div className="feed-compose-overlay">
       <section className="asked-page-head feed-compose-head">
         <div className="asked-nav-row">
           <button type="button" className="header-inline-btn header-icon-btn topbar-search-back" onClick={onClose} aria-label="뒤로가기"><BackArrowIcon /></button>
-          <div className="asked-page-title">피드 작성</div>
+          <div className="asked-page-title">{composeMeta.title}</div>
           <button type="button" className="header-inline-btn feed-comment-submit-top" onClick={onSubmit} disabled={!canSubmit}>등록</button>
         </div>
       </section>
@@ -2263,8 +2305,8 @@ function FeedComposeScreen({ title, caption, attachment, busy, helperText, onCha
           <div className="feed-compose-profile-row">
             <div className="feed-comment-composer-avatar">나</div>
             <div>
-              <strong>내 피드</strong>
-              <span>사진 또는 영상을 첨부하고 설명을 입력해 피드를 등록합니다.</span>
+              <strong>{composeMeta.title}</strong>
+              <span>{composeMeta.description}</span>
             </div>
           </div>
 
@@ -2290,10 +2332,10 @@ function FeedComposeScreen({ title, caption, attachment, busy, helperText, onCha
 
           <div className="feed-compose-attach-row">
             <label className={`creator-launch-btn feed-compose-attach-btn${busy ? " is-busy" : ""}`}>
-              {busy ? "첨부 최적화 중" : "사진/영상 첨부"}
+              {busy ? "첨부 최적화 중" : composeMeta.attachLabel}
               <input
                 type="file"
-                accept="image/*,video/*"
+                accept={composeMeta.accept}
                 hidden
                 disabled={busy}
                 onChange={(event) => {
@@ -3234,6 +3276,9 @@ export default function App() {
   const [openFeedCommentItem, setOpenFeedCommentItem] = useState<FeedItem | null>(null);
   const [customFeedItems, setCustomFeedItems] = useState<FeedItem[]>([]);
   const [feedComposeOpen, setFeedComposeOpen] = useState(false);
+  const [feedComposeLauncherOpen, setFeedComposeLauncherOpen] = useState(false);
+  const [feedComposeMode, setFeedComposeMode] = useState<FeedComposeMode>("피드게시");
+  const [homeFeedFilter, setHomeFeedFilter] = useState<HomeFeedFilter>("일반");
   const [feedComposeTitle, setFeedComposeTitle] = useState("");
   const [feedComposeCaption, setFeedComposeCaption] = useState("");
   const [feedComposeAttachment, setFeedComposeAttachment] = useState<FeedComposerAttachment | null>(null);
@@ -4197,7 +4242,7 @@ export default function App() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "첨부 파일을 처리하지 못했습니다.";
       window.alert(message);
-      setFeedComposeHelperText("최대 1개 첨부 · 영상은 최대 20초 / 30MB · 권장 MP4(H.264) 또는 WEBM");
+      setFeedComposeHelperText(getFeedComposeModeMeta(feedComposeMode).helper);
     } finally {
       setFeedComposeBusy(false);
     }
@@ -4208,8 +4253,22 @@ export default function App() {
       if (prev?.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(prev.previewUrl);
       return null;
     });
-    setFeedComposeHelperText("최대 1개 첨부 · 영상은 최대 20초 / 30MB · 권장 MP4(H.264) 또는 WEBM");
+    setFeedComposeHelperText(getFeedComposeModeMeta(feedComposeMode).helper);
   };
+
+  const openFeedComposeWithMode = useCallback((mode: FeedComposeMode) => {
+    setFeedComposeAttachment((prev) => {
+      if (prev?.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(prev.previewUrl);
+      return null;
+    });
+    setFeedComposeTitle("");
+    setFeedComposeCaption("");
+    setFeedComposeBusy(false);
+    setFeedComposeMode(mode);
+    setFeedComposeHelperText(getFeedComposeModeMeta(mode).helper);
+    setFeedComposeLauncherOpen(false);
+    setFeedComposeOpen(true);
+  }, []);
 
   const closeFeedCompose = () => {
     setFeedComposeOpen(false);
@@ -4217,18 +4276,28 @@ export default function App() {
   };
 
   const submitFeedCompose = () => {
+    const composeMeta = getFeedComposeModeMeta(feedComposeMode);
     if (!feedComposeCaption.trim() && !feedComposeAttachment) {
-      window.alert("피드 내용 또는 사진/영상을 입력해 주세요.");
+      window.alert(`${composeMeta.title} 내용 또는 첨부 파일을 입력해 주세요.`);
+      return;
+    }
+    if (feedComposeMode === "쇼츠게시" && !feedComposeAttachment?.type.startsWith("video/")) {
+      window.alert("쇼츠게시에는 영상 첨부가 필요합니다.");
+      return;
+    }
+    if (feedComposeMode === "사진피드" && !feedComposeAttachment?.type.startsWith("image/")) {
+      window.alert("사진피드에는 사진 첨부가 필요합니다.");
       return;
     }
     const nextId = Math.max(...allFeedItems.map((item) => item.id), 0) + 1;
-    const type = feedComposeAttachment?.type.startsWith("video/") ? "video" : "image";
+    const inferredType = feedComposeAttachment?.type.startsWith("video/") ? "video" : "image";
+    const type = feedComposeMode === "쇼츠게시" ? "video" : feedComposeMode === "사진피드" ? "image" : inferredType;
     const trimmedTitle = feedComposeTitle.trim();
     const caption = feedComposeCaption.trim();
     const nextItem: FeedItem = {
       id: nextId,
       type,
-      category: type === "video" ? "쇼츠" : "실사용",
+      category: feedComposeMode === "쇼츠게시" ? "쇼츠" : feedComposeMode === "사진피드" ? "사진피드" : "일반",
       title: trimmedTitle || caption.slice(0, 28) || "새 피드",
       caption,
       author: viewedProfileAuthor ?? currentProfileMeta.name ?? "adult official",
@@ -4247,7 +4316,7 @@ export default function App() {
     setFeedComposeCaption("");
     setFeedComposeAttachment(null);
     setFeedComposeBusy(false);
-    setFeedComposeHelperText("최대 1개 첨부 · 영상은 최대 20초 / 30MB · 권장 MP4(H.264) 또는 WEBM");
+    setFeedComposeHelperText(getFeedComposeModeMeta(feedComposeMode).helper);
     setFeedComposeOpen(false);
     setActiveTab("홈");
     setHomeTab("피드");
@@ -4443,18 +4512,27 @@ export default function App() {
     keyword: deferredGlobalKeyword,
   }), [keywordSignalMap, followedTopicKeywords, savedFeedIds, deferredGlobalKeyword]);
 
-  const homeFeedSource = useMemo(() => recommendedHomeFeed.slice(0, homeFeedVisibleCount), [recommendedHomeFeed, homeFeedVisibleCount]);
+  const chronologicalHomeFeed = useMemo(() => [...allFeedItems].sort((a, b) => b.id - a.id), [allFeedItems]);
+  const followingHomeFeed = useMemo(() => chronologicalHomeFeed.filter((item) => followedFeedAuthors.includes(item.author)), [chronologicalHomeFeed, followedFeedAuthors]);
+  const activeHomeFeedItems = useMemo(() => {
+    if (homeFeedFilter === "추천") return recommendedHomeFeed;
+    if (homeFeedFilter === "팔로잉") return followingHomeFeed;
+    return chronologicalHomeFeed;
+  }, [homeFeedFilter, recommendedHomeFeed, followingHomeFeed, chronologicalHomeFeed]);
+
+  const homeFeedSource = useMemo(() => activeHomeFeedItems.slice(0, homeFeedVisibleCount), [activeHomeFeedItems, homeFeedVisibleCount]);
 
   useEffect(() => {
     setHomeFeedVisibleCount((prev) => {
-      if (!recommendedHomeFeed.length) return HOME_FEED_BATCH_SIZE;
-      return Math.min(Math.max(prev, HOME_FEED_BATCH_SIZE), recommendedHomeFeed.length);
+      if (!activeHomeFeedItems.length) return HOME_FEED_BATCH_SIZE;
+      return Math.min(Math.max(prev, HOME_FEED_BATCH_SIZE), activeHomeFeedItems.length);
     });
-  }, [recommendedHomeFeed]);
+  }, [activeHomeFeedItems]);
 
   useEffect(() => {
     persistHomeFeedState({ visibleCount: homeFeedVisibleCount });
   }, [homeFeedVisibleCount, persistHomeFeedState]);
+
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -4746,7 +4824,7 @@ export default function App() {
 
     if (node.scrollTop + node.clientHeight >= node.scrollHeight - 160) {
       setHomeFeedVisibleCount((prev) => {
-        const next = prev >= recommendedHomeFeed.length ? prev : Math.min(prev + HOME_FEED_BATCH_SIZE, recommendedHomeFeed.length);
+        const next = prev >= activeHomeFeedItems.length ? prev : Math.min(prev + HOME_FEED_BATCH_SIZE, activeHomeFeedItems.length);
         if (next !== prev) {
           persistHomeFeedState({ visibleCount: next, scrollTop: currentTop });
         }
@@ -4786,7 +4864,7 @@ export default function App() {
         setHomeFeedHeaderHidden(false);
       }
     });
-  }, [homeFeedHeaderHidden, persistHomeFeedState, recommendedHomeFeed.length]);
+  }, [activeHomeFeedItems.length, homeFeedHeaderHidden, persistHomeFeedState]);
 
   const handleShopHomeScroll = (event: ReactUIEvent<HTMLDivElement>) => {
     const node = event.currentTarget;
@@ -5111,6 +5189,12 @@ export default function App() {
   const shouldForceAuthStandalone = authBootstrapDone && blockedByIdentity;
 
   useEffect(() => {
+    if (!(showAppTabContent && activeTab === "홈" && homeTab === "피드") || feedComposeOpen || openFeedCommentItem || selectedAskProfile) {
+      setFeedComposeLauncherOpen(false);
+    }
+  }, [showAppTabContent, activeTab, homeTab, feedComposeOpen, openFeedCommentItem, selectedAskProfile]);
+
+  useEffect(() => {
     if (!(showAppTabContent && activeTab === "홈" && homeTab === "피드")) return;
 
     const stored = readHomeFeedPersistedState();
@@ -5120,7 +5204,7 @@ export default function App() {
       : Math.max(HOME_FEED_BATCH_SIZE, stored.visibleCount ?? HOME_FEED_BATCH_SIZE);
 
     if (nextVisibleCount !== homeFeedVisibleCount) {
-      setHomeFeedVisibleCount(Math.min(nextVisibleCount, Math.max(recommendedHomeFeed.length, HOME_FEED_BATCH_SIZE)));
+      setHomeFeedVisibleCount(Math.min(nextVisibleCount, Math.max(activeHomeFeedItems.length, HOME_FEED_BATCH_SIZE)));
       return;
     }
 
@@ -5142,7 +5226,7 @@ export default function App() {
     });
 
     return () => window.cancelAnimationFrame(rafId);
-  }, [showAppTabContent, activeTab, homeTab, homeFeedVisibleCount, recommendedHomeFeed.length, persistHomeFeedState]);
+  }, [showAppTabContent, activeTab, homeTab, homeFeedVisibleCount, activeHomeFeedItems.length, persistHomeFeedState]);
 
 
   useEffect(() => {
@@ -6118,7 +6202,7 @@ export default function App() {
   }, [globalKeyword]);
 
   const selectBottomTab = (tab: MobileTab) => {
-    if (tab === activeTab && overlayMode === null && !roomModalOpen && !selectedAskProfile && !openFeedCommentItem && !feedComposeOpen) {
+    if (tab === activeTab && overlayMode === null && !roomModalOpen && !selectedAskProfile && !openFeedCommentItem && !feedComposeOpen && !feedComposeLauncherOpen) {
       if (tab === "쇼핑" && shoppingTab !== "홈") {
         setProductDetail(null);
         setSelectedProductId(null);
@@ -6129,6 +6213,7 @@ export default function App() {
     setSelectedAskProfile(null);
     setOpenFeedCommentItem(null);
     setFeedComposeOpen(false);
+    setFeedComposeLauncherOpen(false);
     setActiveTab(tab);
     if (tab === "홈") setHomeTab((prev) => prev || "피드");
     if (tab === "프로필") {
@@ -6836,10 +6921,19 @@ export default function App() {
             {homeTab === "피드" ? (
               <>
                 <div className={`chat-toolbar kakao-toolbar compact-only-toolbar feed-compose-launch-toolbar${homeFeedHeaderHidden ? " feed-compose-launch-toolbar-hidden" : ""}`}>
-                  <div className="chat-category-scroll">
-                    <button type="button" className="category-chip active feed-compose-launch-chip" onClick={() => setFeedComposeOpen(true)}>
-                      피드 작성
-                    </button>
+                  <div className="feed-filter-tabs" role="tablist" aria-label="피드 보기 필터">
+                    {(["일반", "추천", "팔로잉"] as const).map((filter) => (
+                      <button
+                        key={filter}
+                        type="button"
+                        className={`feed-filter-tab ${homeFeedFilter === filter ? "active" : ""}`}
+                        onClick={() => setHomeFeedFilter(filter)}
+                        role="tab"
+                        aria-selected={homeFeedFilter === filter}
+                      >
+                        {filter}
+                      </button>
+                    ))}
                   </div>
                 </div>
                 <div ref={homeFeedScrollRef} className={`feed-post-list compact-scroll-list feed-post-list-stream${homeFeedHeaderHidden ? " feed-post-list-stream-collapsed" : ""}`} onScroll={handleHomeFeedScroll}>
@@ -7847,6 +7941,34 @@ export default function App() {
         <div className="app-back-hint-toast" role="status" aria-live="polite">뒤로가기 버튼을 한 번 더 누르면 앱이 최소화됩니다.</div>
       ) : null}
 
+      {showAppTabContent && activeTab === "홈" && homeTab === "피드" && !feedComposeOpen && !openFeedCommentItem && !selectedAskProfile ? (
+        <>
+          {feedComposeLauncherOpen ? <button type="button" className="feed-create-backdrop" aria-label="피드 작성 메뉴 닫기" onClick={() => setFeedComposeLauncherOpen(false)} /> : null}
+          <div className={`feed-create-dock${feedComposeLauncherOpen ? " open" : ""}`}>
+            <div className="feed-create-options" aria-hidden={!feedComposeLauncherOpen}>
+              {([
+                { mode: "피드게시" as const, label: "피드게시", icon: "피" },
+                { mode: "사진피드" as const, label: "사진피드", icon: "사" },
+                { mode: "쇼츠게시" as const, label: "쇼츠게시", icon: "쇼" },
+              ]).map((item) => (
+                <button key={item.mode} type="button" className="feed-create-option" onClick={() => openFeedComposeWithMode(item.mode)}>
+                  <span className="feed-create-option-label">{item.label}</span>
+                  <span className="feed-create-option-icon" aria-hidden="true">{item.icon}</span>
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              className={`feed-create-fab${feedComposeLauncherOpen ? " open" : ""}`}
+              onClick={() => setFeedComposeLauncherOpen((prev) => !prev)}
+              aria-label={feedComposeLauncherOpen ? "피드 작성 메뉴 닫기" : "피드 작성 메뉴 열기"}
+            >
+              <span className="feed-create-fab-icon"><PlusIcon /></span>
+            </button>
+          </div>
+        </>
+      ) : null}
+
       <nav className="bottom-nav">{mobileTabs.map((tab) => (
           <button key={tab} className={`bottom-nav-btn ${overlayMode === null && activeTab === tab ? "active" : ""}`} onClick={() => selectBottomTab(tab)}>
             <span className="bottom-nav-icon">{bottomNavIconMap[tab]}</span>
@@ -7875,6 +7997,7 @@ export default function App() {
 
       {feedComposeOpen ? (
         <FeedComposeScreen
+          mode={feedComposeMode}
           title={feedComposeTitle}
           caption={feedComposeCaption}
           attachment={feedComposeAttachment}
