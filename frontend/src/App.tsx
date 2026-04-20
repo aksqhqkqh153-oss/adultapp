@@ -1,5 +1,5 @@
 import { CSSProperties, PointerEvent, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import type { UIEvent as ReactUIEvent } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, UIEvent as ReactUIEvent } from "react";
 import { clearTokens, ensureAuthSession, getApiBase, getJson, getRefreshToken, hasAuthToken, postJson, setAuthToken, setRefreshToken } from "./lib/api";
 
 type FeedItem = {
@@ -1569,14 +1569,14 @@ function DualRangeSlider({ min, max, valueMin, valueMax, step = 1, leftLabel, ri
 }
 
 
-const FeedCaption = memo(function FeedCaption({ caption }: { caption: string }) {
+const FeedCaption = memo(function FeedCaption({ caption, title }: { caption: string; title?: string }) {
   const captionRef = useRef<HTMLParagraphElement | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [showToggle, setShowToggle] = useState(false);
 
   useEffect(() => {
     setExpanded(false);
-  }, [caption]);
+  }, [caption, title]);
 
   useEffect(() => {
     const measure = () => {
@@ -1592,19 +1592,38 @@ const FeedCaption = memo(function FeedCaption({ caption }: { caption: string }) 
       window.cancelAnimationFrame(rafId);
       window.removeEventListener("resize", measure);
     };
-  }, [caption, expanded]);
+  }, [caption, title, expanded]);
+
+  const handleExpand = () => setExpanded(true);
+  const handleCollapse = () => setExpanded(false);
+  const handleExpandKeyDown = (event: ReactKeyboardEvent<HTMLSpanElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      handleExpand();
+    }
+  };
+  const handleCollapseKeyDown = (event: ReactKeyboardEvent<HTMLSpanElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      handleCollapse();
+    }
+  };
 
   return (
     <div className={`feed-caption-block${expanded ? " expanded" : ""}${showToggle ? " has-toggle" : ""}`}>
-      <p ref={captionRef} className={`feed-caption-text${expanded ? " expanded" : ""}`}>{caption}</p>
+      <p ref={captionRef} className={`feed-caption-text${expanded ? " expanded" : ""}`}>
+        {title ? <strong className="feed-caption-title">{title}</strong> : null}
+        {title ? <span className="feed-caption-gap" aria-hidden="true"> </span> : null}
+        <span>{caption}</span>
+      </p>
       {!expanded && showToggle ? (
-        <span className="feed-caption-collapsed-actions">
-          <button type="button" className="feed-caption-toggle" onClick={() => setExpanded(true)}>더보기</button>
-          <span className="feed-caption-ellipsis" aria-hidden="true">...</span>
+        <span className="feed-caption-inline-more-wrap" aria-hidden="false">
+          <span className="feed-caption-inline-ellipsis" aria-hidden="true">...</span>
+          <span className="feed-caption-inline-more" role="button" tabIndex={0} onClick={handleExpand} onKeyDown={handleExpandKeyDown}>더보기</span>
         </span>
       ) : null}
       {expanded && showToggle ? (
-        <button type="button" className="feed-caption-toggle feed-caption-toggle-expanded" onClick={() => setExpanded(false)}>접기</button>
+        <span className="feed-caption-inline-less" role="button" tabIndex={0} onClick={handleCollapse} onKeyDown={handleCollapseKeyDown}>접기</span>
       ) : null}
     </div>
   );
@@ -1651,8 +1670,7 @@ const FeedPoster = memo(function FeedPoster({ item, onAsk, saved, liked, comment
       </div>
       <div className="feed-copy">
         <div>
-          <strong>{item.title}</strong>
-          <FeedCaption caption={item.caption} />
+          <FeedCaption title={item.title} caption={item.caption} />
         </div>
         <div className="feed-meta">
           <span>좋아요 {item.likes}</span>
@@ -6748,7 +6766,7 @@ export default function App() {
         ) : null}
 
         {showAppTabContent && activeTab === "홈" ? (
-          <section className={`tab-pane fill-pane home-feed-pane${homeTab === "쇼츠" ? " home-feed-pane-shorts" : ""}${homeTab === "피드" ? " home-feed-pane-feed-scroll" : ""}`}>
+          <section className={`tab-pane fill-pane home-feed-pane${homeTab === "쇼츠" ? " home-feed-pane-shorts" : ""}${homeTab === "피드" ? " home-feed-pane-feed-scroll" : ""}${homeTab === "피드" && homeFeedHeaderHidden ? " home-feed-pane-feed-scroll-collapsed" : ""}`}>
             {homeTab === "피드" ? (
               <>
                 <div className={`chat-toolbar kakao-toolbar compact-only-toolbar feed-compose-launch-toolbar${homeFeedHeaderHidden ? " feed-compose-launch-toolbar-hidden" : ""}`}>
@@ -6758,7 +6776,7 @@ export default function App() {
                     </button>
                   </div>
                 </div>
-                <div ref={homeFeedScrollRef} className="feed-post-list compact-scroll-list feed-post-list-stream" onScroll={handleHomeFeedScroll}>
+                <div ref={homeFeedScrollRef} className={`feed-post-list compact-scroll-list feed-post-list-stream${homeFeedHeaderHidden ? " feed-post-list-stream-collapsed" : ""}`} onScroll={handleHomeFeedScroll}>
                   {homeFeedSource.map((item) => (
                     <div key={`feed-wrap-${item.id}`} className="feed-stream-item">
                       <FeedPoster

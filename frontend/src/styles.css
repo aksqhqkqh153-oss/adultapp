@@ -7725,3 +7725,114 @@ body {
     padding: 14px;
   }
 }
+
+
+/* === 2026-04-20 request: instagram-style feed caption + hidden header gap fix === */
+.feed-post-list.feed-post-list-stream,
+.feed-post-list-stream {
+  padding-top: 0 !important;
+}
+
+.home-feed-pane-feed-scroll.home-feed-pane-feed-scroll-collapsed {
+  grid-template-rows: 0 minmax(0, 1fr) !important;
+}
+
+.home-feed-pane-feed-scroll.home-feed-pane-feed-scroll-collapsed .feed-post-list.feed-post-list-stream,
+.feed-post-list.feed-post-list-stream.feed-post-list-stream-collapsed {
+  max-height: none !important;
+  height: 100% !important;
+  padding-top: 0 !important;
+}
+
+.feed-post-list-stream .feed-stream-item:first-child {
+  margin-top: 0 !important;
+}
+
+.history-feed-card .feed-copy strong,
+.history-feed-card .feed-copy .feed-caption-text,
+.history-feed-card .feed-copy .feed-caption-inline-more,
+.history-feed-card .feed-copy .feed-caption-inline-less,
+.history-feed-card .feed-copy .feed-caption-inline-ellipsis {
+  font-size: 13px !important;
+  line-height: 1.44 !important;
+}
+
+.feed-caption-block {
+  position: relative;
+  display: grid;
+  gap: 4px;
+}
+
+.feed-caption-block.has-toggle:not(.expanded) {
+  min-height: calc(1.44em * 3);
+}
+
+.feed-caption-block.has-toggle:not(.expanded) .feed-caption-text {
+  padding-right: 54px;
+}
+
+.feed-caption-text {
+  margin: 0 !important;
+}
+
+.feed-caption-title {
+  font-weight: 700;
+}
+
+.feed-caption-inline-more-wrap {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: 12px;
+  background: linear-gradient(90deg, rgba(13, 18, 31, 0) 0%, rgba(13, 18, 31, 0.92) 34%, rgba(13, 18, 31, 1) 62%);
+}
+
+.feed-caption-inline-ellipsis {
+  color: rgba(255, 255, 255, 0.72);
+  font-weight: 700;
+}
+
+.feed-caption-inline-more,
+.feed-caption-inline-less {
+  color: #f8b4d9;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+}
+
+.feed-caption-inline-less {
+  justify-self: end;
+}
+
+.feed-caption-inline-more:hover,
+.feed-caption-inline-more:focus-visible,
+.feed-caption-inline-less:hover,
+.feed-caption-inline-less:focus-visible {
+  color: #ffd2e9;
+  outline: none;
+}
+
+.feed-caption-toggle,
+.feed-caption-collapsed-actions,
+.feed-caption-ellipsis {
+  display: none !important;
+}
+
+@media (max-width: 640px) {
+  .feed-post-list.feed-post-list-stream,
+  .feed-post-list-stream {
+    padding-top: 0 !important;
+    max-height: none !important;
+  }
+
+  .history-feed-card .feed-copy strong,
+  .history-feed-card .feed-copy .feed-caption-text,
+  .history-feed-card .feed-copy .feed-caption-inline-more,
+  .history-feed-card .feed-copy .feed-caption-inline-less,
+  .history-feed-card .feed-copy .feed-caption-inline-ellipsis {
+    font-size: 13px !important;
+  }
+}
