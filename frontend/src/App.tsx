@@ -1,4 +1,4 @@
-import { CSSProperties, PointerEvent, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, PointerEvent, memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { clearTokens, ensureAuthSession, getApiBase, getJson, getRefreshToken, hasAuthToken, postJson, setAuthToken, setRefreshToken } from "./lib/api";
 
 type FeedItem = {
@@ -3163,6 +3163,7 @@ export default function App() {
   const allFeedItems = useMemo(() => [...customFeedItems, ...feedSeed], [customFeedItems]);
   const [homeFeedIsLoadingMore, setHomeFeedIsLoadingMore] = useState(false);
   const homeFeedSentinelRef = useRef<HTMLDivElement | null>(null);
+  const homeFeedListRef = useRef<HTMLDivElement | null>(null);
   const mobileMainRef = useRef<HTMLElement | null>(null);
   const homeFeedLoadMoreTimerRef = useRef<number | null>(null);
   const [shortsMoreItem, setShortsMoreItem] = useState<FeedItem | null>(null);
@@ -4330,6 +4331,19 @@ export default function App() {
     }, 180);
   }, [hasMoreHomeFeed, homeFeedIsLoadingMore, homeFeedSource.length]);
 
+  const maybeLoadMoreHomeFeed = useCallback((node?: HTMLElement | null) => {
+    const target = node ?? homeFeedListRef.current;
+    if (!target || !hasMoreHomeFeed || homeFeedIsLoadingMore) return;
+    const remainingScroll = target.scrollHeight - target.scrollTop - target.clientHeight;
+    if (remainingScroll <= 240) {
+      queueHomeFeedLoadMore();
+    }
+  }, [hasMoreHomeFeed, homeFeedIsLoadingMore, queueHomeFeedLoadMore]);
+
+  const handleHomeFeedScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
+    maybeLoadMoreHomeFeed(event.currentTarget);
+  }, [maybeLoadMoreHomeFeed]);
+
 
   useEffect(() => {
     setHomeFeedVisibleCount(HOME_FEED_PAGE_SIZE);
@@ -4356,20 +4370,9 @@ export default function App() {
     }
   }, []);
 
-  useEffect(() => {
-    const sentinel = homeFeedSentinelRef.current;
-    const root = mobileMainRef.current;
-    if (!sentinel || !root || !hasMoreHomeFeed) return;
-
-    const observer = new IntersectionObserver((entries) => {
-      const entry = entries[0];
-      if (!entry?.isIntersecting) return;
-      queueHomeFeedLoadMore();
-    }, { root, rootMargin: "0px 0px 420px 0px", threshold: 0.01 });
-
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [hasMoreHomeFeed, queueHomeFeedLoadMore, visibleFeed.length]);
+  useLayoutEffect(() => {
+    maybeLoadMoreHomeFeed();
+  }, [maybeLoadMoreHomeFeed, visibleFeed.length, homeTab, activeTab]);
 
 
   const getContentKeywordTags = (item: FeedItem) => getTopMatchedKeywords(item, keywordSignalMap);
@@ -6616,7 +6619,7 @@ export default function App() {
                     </button>
                   </div>
                 </div>
-                <div className="feed-post-list compact-scroll-list">
+                <div ref={homeFeedListRef} className="feed-post-list compact-scroll-list home-feed-scroll-region" onScroll={handleHomeFeedScroll}>
                   <div className="feed-scroll-status feed-scroll-status-inline" aria-live="polite">
                     <strong>무한 스크롤 테스트</strong>
                     <span>테스트 피드 20개 포함 · 초기 {HOME_FEED_PAGE_SIZE}개 노출 후 하단 감지 시 {HOME_FEED_PAGE_SIZE}개씩 추가 로딩 · 현재 {visibleFeed.length}/{homeFeedSource.length}개 표시</span>

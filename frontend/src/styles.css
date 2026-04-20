@@ -7323,3 +7323,30 @@ body {
   justify-content: center !important;
   text-align: center !important;
 }
+
+/* === 2026-04-20 request: reinitialize home feed infinite scroll region === */
+.home-feed-pane {
+  overflow: hidden !important;
+}
+
+.feed-post-list.compact-scroll-list.home-feed-scroll-region {
+  min-height: 0 !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  align-content: start;
+  padding-right: 0 !important;
+  padding-bottom: 18px;
+  content-visibility: visible !important;
+  contain-intrinsic-size: auto !important;
+}
+
+.feed-post-list.compact-scroll-list.home-feed-scroll-region > div,
+.feed-post-list.compact-scroll-list.home-feed-scroll-region > .feed-loading-row,
+.feed-post-list.compact-scroll-list.home-feed-scroll-region > .feed-scroll-status {
+  content-visibility: visible !important;
+  contain-intrinsic-size: auto !important;
+}
