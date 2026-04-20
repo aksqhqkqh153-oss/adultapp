@@ -8601,3 +8601,51 @@ body {
     font-size: 9px;
   }
 }
+
+
+/* === 2026-04-21 request: keep feed-copy/footer inside history-feed-card and match 392px media width === */
+.history-feed-card {
+  overflow: hidden;
+}
+
+.history-feed-card .feed-media,
+.history-feed-card .feed-copy,
+.history-feed-card .history-feed-footer.history-feed-footer-icons {
+  width: min(392px, calc(100% - 24px)) !important;
+  max-width: min(392px, calc(100% - 24px)) !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  box-sizing: border-box;
+}
+
+.history-feed-card .feed-copy,
+.history-feed-card .history-feed-footer.history-feed-footer-icons {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.history-feed-card .feed-copy > div,
+.history-feed-card .feed-caption-block,
+.history-feed-card .feed-caption-body,
+.history-feed-card .feed-caption-text {
+  max-width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .history-feed-card .feed-media,
+  .history-feed-card .feed-copy,
+  .history-feed-card .history-feed-footer.history-feed-footer-icons {
+    width: min(392px, calc(100% - 20px)) !important;
+    max-width: min(392px, calc(100% - 20px)) !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .history-feed-card .feed-media,
+  .history-feed-card .feed-copy,
+  .history-feed-card .history-feed-footer.history-feed-footer-icons {
+    width: min(392px, calc(100% - 16px)) !important;
+    max-width: min(392px, calc(100% - 16px)) !important;
+  }
+}
