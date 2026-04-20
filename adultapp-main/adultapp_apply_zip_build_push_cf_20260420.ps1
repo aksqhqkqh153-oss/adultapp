@@ -4,14 +4,14 @@ $ErrorActionPreference = "Stop"
 # 고정값
 # =========================
 $project = "C:\Users\icj24\Downloads\adultapp"
-$zip = "C:\Users\icj24\Downloads\adultapp_20260420_home_feed_infinite_scroll_unified.zip"
+$zip = "C:\Users\icj24\Downloads\adultapp_20260420_feed_alignment_toolbar_center_fix.zip"
 $branch = "main"
 $pagesProject = "adultapp"
 $frontend = Join-Path $project "frontend"
 $backend = Join-Path $project "backend"
 $dist = Join-Path $frontend "dist"
 $static = Join-Path $backend "static"
-$commitMsg = "update: unify home feed infinite scroll behavior"
+$commitMsg = "update: refine feed community chat toolbar alignment"
 
 function Stop-RunningProcesses {
     Write-Host "1) 실행 중 프로세스 종료"
@@ -37,9 +37,8 @@ git clean -fd
 Write-Host "4) ZIP 재덮어쓰기"
 Expand-Archive -LiteralPath $zip -DestinationPath $project -Force
 
-Set-Location $frontend
-
 Write-Host "5) 프론트 빌드"
+Set-Location $frontend
 npm run build
 if (!(Test-Path $dist)) { throw "dist 폴더가 생성되지 않았습니다: $dist" }
 
