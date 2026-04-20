@@ -8166,3 +8166,59 @@ body {
     padding: 9px 12px;
   }
 }
+
+/* ===== 2026-04-21 profile tabbar + inquiry/follow refinement ===== */
+.profile-ig-tabbar.profile-ig-action-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+}
+.profile-ig-tabbar.profile-ig-action-grid button {
+  min-height: 52px;
+  white-space: normal;
+  line-height: 1.35;
+  border: 1px solid transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+.profile-ig-tabbar.profile-ig-action-grid button.active {
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transform: none !important;
+  color: #fff !important;
+}
+.profile-inline-actions {
+  gap: 8px;
+}
+.profile-contact-btn,
+.profile-follow-btn {
+  min-height: 36px;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.profile-contact-btn {
+  border-color: rgba(255,255,255,0.14) !important;
+  color: #fff !important;
+}
+.profile-follow-btn {
+  border-color: rgba(255,255,255,0.14) !important;
+  color: #fff !important;
+}
+.profile-follow-btn.active {
+  border-color: transparent !important;
+  background: transparent !important;
+  color: var(--pink-2) !important;
+}
+@media (max-width: 640px) {
+  .profile-ig-tabbar.profile-ig-action-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 8px;
+  }
+  .profile-ig-tabbar.profile-ig-action-grid button {
+    min-height: 48px;
+    font-size: 12px;
+  }
+  .profile-inline-actions {
+    gap: 6px;
+  }
+}

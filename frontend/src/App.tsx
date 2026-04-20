@@ -7737,7 +7737,8 @@ export default function App() {
                       <button type="button" className="ghost-btn profile-ig-mini-btn" onClick={() => setAuthStandaloneScreen("login")}>프로필 편집</button>
                     ) : (
                       <div className="asked-question-toolbar asked-question-toolbar-inline profile-inline-actions">
-                        <button type="button" onClick={() => toggleFollowedFeedAuthor(currentProfileMeta.name)}>{followedFeedAuthors.includes(currentProfileMeta.name) ? "팔로잉" : "팔로우"}</button>
+                        <button type="button" className="feed-question-btn profile-contact-btn" onClick={() => { setChatTab("채팅"); setActiveTab("채팅"); }}>문의</button>
+                        <button type="button" className={`feed-follow-btn profile-follow-btn ${followedFeedAuthors.includes(currentProfileMeta.name) ? "active" : ""}`} onClick={() => toggleFollowedFeedAuthor(currentProfileMeta.name)}>{followedFeedAuthors.includes(currentProfileMeta.name) ? "팔로잉" : "팔로우"}</button>
                         <button type="button" className="ghost-btn">공유</button>
                       </div>
                     )}
@@ -7761,7 +7762,6 @@ export default function App() {
                 <button type="button" className={profileSection === "릴스" ? "active" : ""} onClick={() => setProfileSection("릴스")}>릴스</button>
                 <button type="button" className={profileSection === "태그됨" ? "active" : ""} onClick={() => setProfileSection("태그됨")}>태그됨</button>
                 <button type="button" className={profileSection === "상품보기" ? "active" : ""} onClick={() => setProfileSection("상품보기")}>상품 보기</button>
-                <button type="button" onClick={() => setActiveTab("채팅")}>문의하기</button>
               </div>
 
               {profileSection === "게시물" ? (
