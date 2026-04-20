@@ -904,6 +904,9 @@ const feedSeed: FeedItem[] = [
   { id: 48, type: "image", category: "추천", title: "러브젤 인기 순위", caption: "후기와 재구매 데이터를 기준으로 러브젤을 정리했습니다.", author: "seller studio", likes: 191, comments: 13, accent: "rose", views: 1468, postedAt: "어제" },
   { id: 49, type: "image", category: "신상품", title: "이번 주 신규 입점", caption: "이번 주 입점한 셀러와 신규 상품 정보를 모았습니다.", author: "event pick", likes: 169, comments: 9, accent: "sunrise", views: 1260, postedAt: "어제" },
   { id: 50, type: "image", category: "리뷰", title: "입문자 만족도 상위", caption: "입문자 평점이 높은 구성만 묶은 리뷰 카드입니다.", author: "review crew", likes: 236, comments: 14, accent: "violet", views: 1741, postedAt: "어제" },
+  { id: 51, type: "image", category: "추천", title: "홈 피드 테스트 01 · 오늘 많이 저장된 제품", caption: "홈 피드 스크롤 테스트용 카드입니다. 저장 수가 높은 제품과 요약 포인트를 카드형으로 보여줍니다.", author: "adult official", likes: 287, comments: 23, accent: "sunrise", views: 1968, postedAt: "방금" },
+  { id: 52, type: "image", category: "리뷰", title: "홈 피드 테스트 02 · 실사용 후기 한눈에", caption: "인스타그램·트위터형 리스트 피드 테스트용 카드입니다. 실제 후기 요약과 반응 포인트를 빠르게 확인할 수 있습니다.", author: "review crew", likes: 264, comments: 19, accent: "teal", views: 1824, postedAt: "2분 전" },
+  { id: 53, type: "image", category: "보관팁", title: "홈 피드 테스트 03 · 세정과 보관 루틴", caption: "스크롤 시 다음 피드가 자연스럽게 이어지도록 배치한 테스트 카드입니다. 세정, 건조, 보관 루틴을 한 장에 정리했습니다.", author: "care lab", likes: 241, comments: 17, accent: "violet", views: 1712, postedAt: "4분 전" },
 ];
 
 
@@ -3104,6 +3107,7 @@ export default function App() {
   });
   const [savedTab, setSavedTab] = useState<"피드" | "쇼츠">("피드");
   const [shortsVisibleCount, setShortsVisibleCount] = useState(10);
+  const [homeFeedVisibleCount, setHomeFeedVisibleCount] = useState(5);
   const allFeedItems = useMemo(() => [...customFeedItems, ...feedSeed], [customFeedItems]);
   const [shortsMoreItem, setShortsMoreItem] = useState<FeedItem | null>(null);
   const [shortsViewerItemId, setShortsViewerItemId] = useState<number | null>(null);
@@ -4253,7 +4257,11 @@ export default function App() {
     keyword: deferredGlobalKeyword,
   }), [keywordSignalMap, followedTopicKeywords, savedFeedIds, deferredGlobalKeyword]);
 
-  const homeFeedSource = useMemo(() => recommendedHomeFeed.slice(0, 3), [recommendedHomeFeed]);
+  const homeFeedSource = useMemo(() => recommendedHomeFeed.slice(0, homeFeedVisibleCount), [recommendedHomeFeed, homeFeedVisibleCount]);
+
+  useEffect(() => {
+    setHomeFeedVisibleCount(Math.min(5, recommendedHomeFeed.length || 5));
+  }, [recommendedHomeFeed]);
 
   useEffect(() => () => {
     if (feedComposeAttachment?.previewUrl?.startsWith("blob:")) {
@@ -4486,6 +4494,12 @@ export default function App() {
     shopHomeBannerPointerStartXRef.current = null;
     setShopHomeBannerDragOffset(0);
   };
+
+  const handleHomeFeedScroll = useCallback((event: ReactUIEvent<HTMLDivElement>) => {
+    const node = event.currentTarget;
+    if (node.scrollTop + node.clientHeight < node.scrollHeight - 160) return;
+    setHomeFeedVisibleCount((prev) => prev >= recommendedHomeFeed.length ? prev : Math.min(prev + 5, recommendedHomeFeed.length));
+  }, [recommendedHomeFeed.length]);
 
   const handleShopHomeScroll = (event: ReactUIEvent<HTMLDivElement>) => {
     const node = event.currentTarget;
@@ -6505,9 +6519,9 @@ export default function App() {
                     </button>
                   </div>
                 </div>
-                <div className="feed-post-list compact-scroll-list feed-post-list-screen">
+                <div className="feed-post-list compact-scroll-list feed-post-list-stream" onScroll={handleHomeFeedScroll}>
                   {homeFeedSource.map((item) => (
-                    <div key={`feed-wrap-${item.id}`} className="feed-screen-item">
+                    <div key={`feed-wrap-${item.id}`} className="feed-stream-item">
                       <FeedPoster
                         item={item}
                         onAsk={openAskFromFeed}
