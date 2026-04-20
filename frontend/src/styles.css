@@ -4447,6 +4447,30 @@ pre,
     max-height: none;
   }
 }
+<<<<<<< Updated upstream
+=======
+.feed-scroll-status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 12px 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  background: rgba(255,255,255,0.04);
+}
+.feed-scroll-status strong {
+  font-size: 12px;
+  font-weight: 800;
+  color: rgba(255,255,255,0.92);
+}
+.feed-scroll-status span {
+  font-size: 11px;
+  line-height: 1.45;
+  color: rgba(255,255,255,0.7);
+}
+
+>>>>>>> Stashed changes
 .feed-loading-row {
   display: flex;
   align-items: center;

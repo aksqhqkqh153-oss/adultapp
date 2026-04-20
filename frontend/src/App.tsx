@@ -872,6 +872,7 @@ const generatedFeedAuthors = ["adult official", "seller studio", "care lab", "re
 const generatedFeedCategories = ["추천", "브랜드", "리뷰", "보관팁", "실사용", "이벤트"] as const;
 const generatedFeedAccents = ["sunrise", "violet", "teal", "rose"] as const;
 
+<<<<<<< Updated upstream
 const feedSeed: FeedItem[] = [
   { id: 1, type: "video", category: "브랜드", title: "입문 가이드", caption: "입문용 제품을 안전하게 고르는 기준을 10초 요약 쇼츠로 정리했습니다.", author: "adult official", likes: 428, comments: 31, accent: "sunrise", views: 3200, postedAt: "방금", videoUrl: "/generated/shorts/short_1.mp4" },
   { id: 2, type: "video", category: "추천", title: "오늘의 인기 케어 키트", caption: "관리 루틴과 함께 보기 좋은 인기 케어 키트를 짧게 소개합니다.", author: "seller studio", likes: 391, comments: 28, accent: "violet", views: 2890, postedAt: "3분 전", videoUrl: "/generated/shorts/short_2.mp4" },
@@ -1171,6 +1172,373 @@ function buildShopHomeRecommendationFeed({
 }
 
 const HOME_FEED_PAGE_SIZE = 20;
+const HOME_FEED_CACHE_KEY = "adultapp_home_feed_cache_v2";
+const HOME_FEED_CACHE_TTL_MS = 1000 * 60 * 10;
+
+type RankedFeedItem = FeedItem & { sortScore?: number };
+
+function rankHomeFeedItems({ items, keywordSignalMap, followedTopicKeywords, savedFeedIds, keyword }: {
+  items: FeedItem[];
+  keywordSignalMap: Map<string, number>;
+  followedTopicKeywords: string[];
+  savedFeedIds: number[];
+  keyword: string;
+}) {
+  const loweredKeyword = keyword.trim().toLowerCase();
+  const filtered = !loweredKeyword
+    ? items
+    : items.filter((item) => `${item.title} ${item.caption} ${item.category} ${item.author}`.toLowerCase().includes(loweredKeyword));
+
+  const ranked = filtered.map((item, idx) => {
+    const content = `${item.title} ${item.caption} ${item.category} ${item.author}`.toLowerCase();
+    const matchedSignalScore = Array.from(keywordSignalMap.entries()).reduce((sum, [token, score]) => sum + (content.includes(token) ? score : 0), 0);
+    const freshnessMinutes = parseRelativeMinutes(item.postedAt);
+    const freshnessScore = Math.max(0, 34 - Math.min(freshnessMinutes / 15, 34));
+    const followScore = followedTopicKeywords.some((token) => content.includes(token)) ? 16 : 0;
+    const savedScore = savedFeedIds.includes(item.id) ? 22 : 0;
+    const popularityScore = Math.min(24, (item.likes / 28) + (item.comments / 8) + ((item.views ?? 0) / 500));
+    const mediaBoost = item.type === "video" ? 6 : 0;
+    const nicheBoost = /딜도|바이브|본디지|패들|케인|젤|세정|보관|입문|리뷰|신상품|브랜드|추천/.test(content) ? 5 : 0;
+    const explorationScore = deterministicHash(`home-${item.id}-${item.title}`) % 100 < 6 ? 8 : 0;
+    const recencyPenalty = freshnessMinutes >= 1440 ? 6 : 0;
+    return { ...item, sortScore: matchedSignalScore + freshnessScore + followScore + savedScore + popularityScore + mediaBoost + nicheBoost + explorationScore - recencyPenalty + (filtered.length - idx) * 0.001 };
+  });
+
+  ranked.sort((a, b) => (b.sortScore ?? 0) - (a.sortScore ?? 0) || (b.views ?? 0) - (a.views ?? 0) || (b.likes - a.likes));
+  return ranked;
+}
+
+function loadCachedHomeFeedPage() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(HOME_FEED_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { expiresAt?: number; items?: RankedFeedItem[]; visibleCount?: number };
+    if (!parsed?.expiresAt || parsed.expiresAt < Date.now() || !Array.isArray(parsed.items)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+=======
+const infiniteScrollDemoFeedBlueprint = [
+  { category: "보관팁", title: "실리콘 제품 세정 루틴", caption: "세정 → 건조 → 개별 보관 순서를 카드형으로 정리한 테스트 피드입니다." },
+  { category: "실사용", title: "입문자 만족도 체크 메모", caption: "강도, 소음, 사이즈 기준으로 처음 고를 때 보는 포인트를 정리했습니다." },
+  { category: "추천", title: "오늘의 저소음 추천 픽", caption: "늦은 시간대에도 부담이 적은 저소음 라인업을 모아 본 테스트 피드입니다." },
+  { category: "리뷰", title: "후기 많은 스타터 구성", caption: "후기 수가 많은 입문 조합을 한 장으로 정리한 카드형 게시글입니다." },
+  { category: "브랜드", title: "브랜드별 무드보드 모음", caption: "패키지 톤과 제품 포지션을 빠르게 비교할 수 있도록 만든 샘플 게시글입니다." },
+  { category: "이벤트", title: "주말 특가 미리보기", caption: "주말 행사 예정 상품을 미리 훑어보는 용도의 무한스크롤 테스트 게시글입니다." },
+  { category: "보관팁", title: "보관함 냄새 관리 팁", caption: "향이 강한 제품을 분리 보관할 때 체크할 점을 간단한 문장으로 구성했습니다." },
+  { category: "실사용", title: "리얼 사용감 비교 노트", caption: "진동감, 그립감, 세척 편의성 비교 문구를 담은 피드 샘플입니다." },
+  { category: "추천", title: "재구매율 높은 젤 모음", caption: "재구매율 기준으로 정리한 러브젤 추천 게시글 예시입니다." },
+  { category: "리뷰", title: "별점 4.8 이상 제품 모음", caption: "평점 기준으로 큐레이션한 리뷰형 카드라서 피드 흐름 테스트에 적합합니다." },
+  { category: "브랜드", title: "국내 브랜드 집중 소개", caption: "국내 브랜드 라인업을 간단한 요약문과 함께 보여주는 샘플 카드입니다." },
+  { category: "이벤트", title: "신규 입점 셀러 알림", caption: "새로 입점한 셀러의 대표 상품을 소개하는 형태의 테스트 피드입니다." },
+  { category: "보관팁", title: "방수 제품 건조 체크", caption: "방수 제품 사용 후 물기 제거 포인트를 짧게 적은 정보형 게시글입니다." },
+  { category: "실사용", title: "그립감 좋은 제품 메모", caption: "손에 잘 잡히는 디자인 위주로 정리한 실사용형 샘플 피드입니다." },
+  { category: "추천", title: "커플용 인기 구성 안내", caption: "커플용으로 많이 찾는 조합을 짧게 정리한 추천형 피드 예시입니다." },
+  { category: "리뷰", title: "초보자 재구매 후기 요약", caption: "초보자 재구매 후기를 짧은 요약문으로 압축한 테스트 게시글입니다." },
+  { category: "브랜드", title: "프리미엄 라인 요약 카드", caption: "프리미엄 라인의 특징과 포인트를 짧게 보여주는 브랜드형 피드입니다." },
+  { category: "이벤트", title: "타임특가 카운트다운", caption: "짧은 시간 동안 노출되는 행사 카드 느낌으로 구성한 샘플 게시글입니다." },
+  { category: "보관팁", title: "파우치 분리 보관 기준", caption: "재질별로 파우치를 분리하는 이유를 설명하는 정보형 테스트 피드입니다." },
+  { category: "실사용", title: "조용한 사용감 베스트 모음", caption: "저소음 반응이 좋았던 제품을 모아 본 무한스크롤 확인용 마지막 카드입니다." },
+] as const;
+
+const infiniteScrollDemoFeed: FeedItem[] = infiniteScrollDemoFeedBlueprint.map((item, index) => ({
+  id: 18 + index,
+  type: "image",
+  category: item.category,
+  title: item.title,
+  caption: item.caption,
+  author: generatedFeedAuthors[index % generatedFeedAuthors.length],
+  likes: 204 + (index * 7),
+  comments: 8 + (index % 9),
+  accent: generatedFeedAccents[index % generatedFeedAccents.length],
+  views: 1830 + (index * 95),
+  postedAt: `${index + 1}시간 전`,
+}));
+>>>>>>> Stashed changes
+
+const feedSeed: FeedItem[] = [
+  { id: 1, type: "video", category: "브랜드", title: "입문 가이드", caption: "입문용 제품을 안전하게 고르는 기준을 10초 요약 쇼츠로 정리했습니다.", author: "adult official", likes: 428, comments: 31, accent: "sunrise", views: 3200, postedAt: "방금", videoUrl: "/generated/shorts/short_1.mp4" },
+  { id: 2, type: "video", category: "추천", title: "오늘의 인기 케어 키트", caption: "관리 루틴과 함께 보기 좋은 인기 케어 키트를 짧게 소개합니다.", author: "seller studio", likes: 391, comments: 28, accent: "violet", views: 2890, postedAt: "3분 전", videoUrl: "/generated/shorts/short_2.mp4" },
+  { id: 3, type: "video", category: "보관팁", title: "위생 보관 3단계", caption: "보관 파우치, 세정, 건조 순서를 한 화면으로 확인할 수 있습니다.", author: "care lab", likes: 512, comments: 44, accent: "teal", views: 4100, postedAt: "8분 전", videoUrl: "/generated/shorts/short_3.mp4" },
+  { id: 4, type: "video", category: "리뷰", title: "초보자 추천 구성", caption: "리뷰가 많은 스타터 구성과 선택 포인트를 빠르게 보여줍니다.", author: "review crew", likes: 366, comments: 19, accent: "rose", views: 2510, postedAt: "15분 전", videoUrl: "/generated/shorts/short_4.mp4" },
+  { id: 5, type: "video", category: "실사용", title: "조용한 사용감 비교", caption: "저소음 위주로 비교한 추천 라인업을 짧게 살펴봅니다.", author: "seller studio", likes: 448, comments: 36, accent: "sunrise", views: 3670, postedAt: "22분 전", videoUrl: "/generated/shorts/short_5.mp4" },
+  { id: 6, type: "video", category: "이벤트", title: "이번 주 할인 픽", caption: "행사 중인 제품과 리뷰 수가 높은 상품을 함께 보여줍니다.", author: "event pick", likes: 299, comments: 17, accent: "violet", views: 2190, postedAt: "35분 전", videoUrl: "/generated/shorts/short_6.mp4" },
+  { id: 7, type: "video", category: "신상품", title: "신상품 언박싱 컷", caption: "이번 주 새로 올라온 상품의 포장과 구성만 간단히 확인합니다.", author: "adult official", likes: 537, comments: 48, accent: "teal", views: 4620, postedAt: "48분 전", videoUrl: "/generated/shorts/short_7.mp4" },
+  { id: 8, type: "video", category: "브랜드", title: "브랜드 큐레이션", caption: "브랜드별 무드와 포지션을 10초 요약으로 보여주는 소개 영상입니다.", author: "brand note", likes: 324, comments: 20, accent: "rose", views: 2430, postedAt: "1시간 전", videoUrl: "/generated/shorts/short_8.mp4" },
+  { id: 9, type: "video", category: "추천", title: "리뷰 순위 TOP 제품", caption: "리뷰 수와 재구매율 기준으로 정리한 오늘의 추천 제품입니다.", author: "review crew", likes: 605, comments: 52, accent: "sunrise", views: 5080, postedAt: "2시간 전", videoUrl: "/generated/shorts/short_9.mp4" },
+  { id: 10, type: "video", category: "보관팁", title: "세정 루틴 한 컷", caption: "세정 제품과 보관 방법을 아주 짧은 루틴으로 보여줍니다.", author: "care lab", likes: 417, comments: 29, accent: "violet", views: 3010, postedAt: "오늘", videoUrl: "/generated/shorts/short_10.mp4" },
+  { id: 11, type: "image", category: "브랜드", title: "무광 블랙 패키지 모음", caption: "패키지 디자인과 무드 중심으로 큐레이션한 브랜드 피드입니다.", author: "adult official", likes: 182, comments: 11, accent: "teal", views: 1280, postedAt: "방금" },
+  { id: 12, type: "image", category: "리뷰", title: "리뷰 많은 입문 제품", caption: "초보자 선호도가 높은 제품을 후기 중심으로 정리했습니다.", author: "review crew", likes: 173, comments: 13, accent: "rose", views: 1190, postedAt: "11분 전" },
+  { id: 13, type: "image", category: "추천", title: "오늘의 추천 딜도", caption: "형태, 재질, 보관 편의성을 함께 본 추천 카드입니다.", author: "seller studio", likes: 214, comments: 16, accent: "sunrise", views: 1490, postedAt: "18분 전" },
+  { id: 14, type: "image", category: "추천", title: "오늘의 추천 바이브", caption: "입문자용 저소음 바이브레이터 추천 모음입니다.", author: "seller studio", likes: 228, comments: 15, accent: "violet", views: 1560, postedAt: "24분 전" },
+  { id: 15, type: "image", category: "실사용", title: "사용감 비교 메모", caption: "실사용 후기를 짧게 정리해 제품 선택 시간을 줄여줍니다.", author: "review crew", likes: 201, comments: 14, accent: "teal", views: 1455, postedAt: "29분 전" },
+  { id: 16, type: "image", category: "보관팁", title: "보관 파우치 추천", caption: "위생적인 보관을 위한 파우치와 실링 키트를 정리했습니다.", author: "care lab", likes: 194, comments: 9, accent: "rose", views: 1332, postedAt: "38분 전" },
+  { id: 17, type: "image", category: "브랜드", title: "국내 브랜드 집중 소개", caption: "국내 브랜드별 대표 라인업을 한 장으로 묶은 카드입니다.", author: "brand note", likes: 166, comments: 8, accent: "sunrise", views: 1201, postedAt: "43분 전" },
+  ...infiniteScrollDemoFeed,
+  { id: 38, type: "image", category: "브랜드", title: "수입 브랜드 집중 소개", caption: "수입 브랜드 중 반응이 좋은 제품군만 골라 정리했습니다.", author: "brand note", likes: 159, comments: 7, accent: "violet", views: 1172, postedAt: "52분 전" },
+  { id: 39, type: "image", category: "이벤트", title: "이번 주 기획전 소식", caption: "행사 중인 인기 카테고리와 재고 상태를 한눈에 보여줍니다.", author: "event pick", likes: 247, comments: 18, accent: "teal", views: 1880, postedAt: "1시간 전" },
+  { id: 40, type: "image", category: "신상품", title: "신상품 등록 미리보기", caption: "막 등록된 상품 중 반응이 빠른 제품만 먼저 보여줍니다.", author: "seller studio", likes: 177, comments: 9, accent: "rose", views: 1307, postedAt: "1시간 전" },
+  { id: 41, type: "image", category: "실사용", title: "리얼 사용 후기 모음", caption: "자극 강도, 소음, 보관성 중심으로 모은 후기 카드입니다.", author: "review crew", likes: 221, comments: 21, accent: "sunrise", views: 1615, postedAt: "2시간 전" },
+  { id: 42, type: "image", category: "리뷰", title: "리뷰 100+ 추천 제품", caption: "리뷰가 누적된 제품만 별도 묶음으로 보여줍니다.", author: "review crew", likes: 239, comments: 17, accent: "violet", views: 1702, postedAt: "2시간 전" },
+  { id: 43, type: "image", category: "추천", title: "본디지 테이프 큐레이션", caption: "안전하게 시작하기 좋은 본디지 테이프 위주로 정리했습니다.", author: "seller studio", likes: 187, comments: 12, accent: "teal", views: 1424, postedAt: "3시간 전" },
+  { id: 44, type: "image", category: "추천", title: "패들 & 케인 추천", caption: "입문형 패들과 케인을 비교해 보여주는 추천 카드입니다.", author: "seller studio", likes: 175, comments: 10, accent: "rose", views: 1362, postedAt: "3시간 전" },
+  { id: 45, type: "image", category: "보관팁", title: "세정제 고르는 기준", caption: "자극도와 성분 기준으로 세정제를 고르는 방법입니다.", author: "care lab", likes: 164, comments: 8, accent: "sunrise", views: 1234, postedAt: "오늘" },
+  { id: 46, type: "image", category: "보관팁", title: "보관함 정리 루틴", caption: "사용 후 말림, 보관 순서를 카드형으로 정리했습니다.", author: "care lab", likes: 154, comments: 7, accent: "violet", views: 1150, postedAt: "오늘" },
+  { id: 47, type: "image", category: "브랜드", title: "프리미엄 라인 픽", caption: "고급형 라인에서 반응이 좋은 제품만 선별했습니다.", author: "adult official", likes: 208, comments: 11, accent: "teal", views: 1538, postedAt: "어제" },
+  { id: 48, type: "image", category: "추천", title: "러브젤 인기 순위", caption: "후기와 재구매 데이터를 기준으로 러브젤을 정리했습니다.", author: "seller studio", likes: 191, comments: 13, accent: "rose", views: 1468, postedAt: "어제" },
+  { id: 49, type: "image", category: "신상품", title: "이번 주 신규 입점", caption: "이번 주 입점한 셀러와 신규 상품 정보를 모았습니다.", author: "event pick", likes: 169, comments: 9, accent: "sunrise", views: 1260, postedAt: "어제" },
+  { id: 50, type: "image", category: "리뷰", title: "입문자 만족도 상위", caption: "입문자 평점이 높은 구성만 묶은 리뷰 카드입니다.", author: "review crew", likes: 236, comments: 14, accent: "violet", views: 1741, postedAt: "어제" },
+];
+
+
+function parseRelativeMinutes(postedAt?: string) {
+  if (!postedAt) return 240;
+  if (postedAt === "방금") return 1;
+  if (postedAt === "오늘") return 180;
+  if (postedAt === "어제") return 1440;
+  const minuteMatch = postedAt.match(/(\d+)분 전/);
+  if (minuteMatch) return Number(minuteMatch[1]);
+  const hourMatch = postedAt.match(/(\d+)시간 전/);
+  if (hourMatch) return Number(hourMatch[1]) * 60;
+  return 240;
+}
+
+const FEED_ALGO_FALLBACK_KEYWORDS = ["추천", "인기", "리뷰", "케어"] as const;
+
+function formatShortDateLabel(value?: string) {
+  if (!value) return "26.4.18";
+  if (/^\d{2}\.\d{1,2}\.\d{1,2}$/.test(value)) return value;
+  if (/^\d{4}-\d{2}-\d{2}/.test(value)) {
+    const [year, month, day] = value.split("T")[0].split("-");
+    return `${year.slice(2)}.${Number(month)}.${Number(day)}`;
+  }
+  if (value === "어제") return "26.4.18";
+  return value;
+}
+
+function formatFeedPostedAt(postedAt?: string) {
+  const minutes = parseRelativeMinutes(postedAt);
+  if (minutes <= 2) return "방금 업데이트";
+  if (minutes < 60) return `${minutes}분 전`;
+  if (minutes < 1440) return `${Math.floor(minutes / 60)}시간 전`;
+  return formatShortDateLabel(postedAt);
+}
+
+function formatCommunityPostedAt(postedAt?: string) {
+  const minutes = parseRelativeMinutes(postedAt);
+  if (minutes < 60) return "1시간 전";
+  if (minutes < 1440) return `${Math.max(1, Math.floor(minutes / 60))}시간 전`;
+  return formatShortDateLabel(postedAt);
+}
+
+function parseCommunityMeta(meta: string) {
+  const [authorRaw, postedAtRaw] = meta.split("·").map((item) => item.trim());
+  return {
+    author: authorRaw || "운영팀",
+    postedAt: formatCommunityPostedAt(postedAtRaw || "26.4.18"),
+  };
+}
+
+function extractInterestTokens(source: string) {
+  return source
+    .toLowerCase()
+    .split(/[^a-z0-9가-힣]+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 2);
+}
+
+function buildKeywordSignalMap({
+  shopKeywordSignals,
+  shortsKeywordSignals,
+  globalKeyword,
+  followingUserIds,
+  savedFeedIds,
+  feedItems,
+  forumUsers,
+}: {
+  shopKeywordSignals: Record<string, number>;
+  shortsKeywordSignals: Record<string, number>;
+  globalKeyword: string;
+  followingUserIds: number[];
+  savedFeedIds: number[];
+  feedItems: FeedItem[];
+  forumUsers: ForumStarterUser[];
+}) {
+  const signalMap = new Map<string, number>();
+  Object.entries(shopKeywordSignals).forEach(([token, score]) => signalMap.set(token.toLowerCase(), (signalMap.get(token.toLowerCase()) ?? 0) + score * 1.4));
+  Object.entries(shortsKeywordSignals).forEach(([token, score]) => signalMap.set(token.toLowerCase(), (signalMap.get(token.toLowerCase()) ?? 0) + score * 1.8));
+  extractInterestTokens(globalKeyword).forEach((token) => signalMap.set(token, (signalMap.get(token) ?? 0) + 4));
+
+  const followedTopicKeywords = followingUserIds
+    .map((id) => forumUsers.find((user) => user.id === id))
+    .filter((user): user is ForumStarterUser => Boolean(user))
+    .flatMap((user) => extractInterestTokens(`${user.name} ${user.topic} ${user.role}`));
+  followedTopicKeywords.forEach((token) => signalMap.set(token, (signalMap.get(token) ?? 0) + 2.5));
+
+  const savedKeywords = feedItems
+    .filter((item) => savedFeedIds.includes(item.id))
+    .flatMap((item) => extractInterestTokens(`${item.title} ${item.caption} ${item.category} ${item.author}`));
+  savedKeywords.forEach((token) => signalMap.set(token, (signalMap.get(token) ?? 0) + 3.5));
+  return signalMap;
+}
+
+function getTopMatchedKeywords(item: FeedItem, signalMap: Map<string, number>) {
+  const content = `${item.title} ${item.caption} ${item.category} ${item.author}`.toLowerCase();
+  const rankedSignals = Array.from(signalMap.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([token]) => token.toLowerCase())
+    .filter((token, index, array) => token && array.indexOf(token) === index);
+  const directMatches = rankedSignals.filter((token) => content.includes(token));
+  const fallback = rankedSignals.length ? rankedSignals : [...FEED_ALGO_FALLBACK_KEYWORDS];
+  return Array.from(new Set([...(directMatches.length ? directMatches : fallback)])).slice(0, 2);
+}
+
+function deterministicHash(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) % 1000003;
+  }
+  return hash;
+}
+
+function withProductMetrics(product: ProductCard, index: number): ProductCard {
+  const seedText = `${product.id}-${product.name}-${product.category}-${product.badge}`;
+  const reviewCount = product.reviewCount ?? 40 + (deterministicHash(`${seedText}-review`) % 260);
+  const orderCount = product.orderCount ?? 20 + (deterministicHash(`${seedText}-order`) % 320);
+  const repurchaseCount = product.repurchaseCount ?? 5 + (deterministicHash(`${seedText}-re`) % 140);
+  const isPremium = product.isPremium ?? (/프리미엄|premium|고급/.test(`${product.name} ${product.subtitle} ${product.badge}`.toLowerCase()) || (deterministicHash(`${seedText}-premium`) % 100 < 18));
+  const month = (deterministicHash(`${seedText}-month`) % 4) + 1;
+  const day = (deterministicHash(`${seedText}-day`) % 27) + 1;
+  const createdAt = product.createdAt ?? `2026-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  return {
+    ...product,
+    reviewCount,
+    orderCount,
+    repurchaseCount,
+    isPremium,
+    createdAt,
+    stock_qty: product.stock_qty ?? 12 + (index % 9),
+  };
+}
+
+function parseIsoDateScore(value?: string) {
+  if (!value) return 0;
+  const score = Date.parse(value);
+  return Number.isNaN(score) ? 0 : score;
+}
+
+function buildShopHomeRecommendationFeed({
+  items,
+  keywordSignals,
+  visibleCount,
+}: {
+  items: ProductCard[];
+  keywordSignals: Record<string, number>;
+  visibleCount: number;
+}) {
+  const normalizedItems = items.map((item, index) => withProductMetrics(item, index));
+  if (!normalizedItems.length) return [] as Array<ProductCard & { feedIndex: number; recommendationBucket: string }>;
+
+  const rankedTokens = Object.entries(keywordSignals)
+    .sort((a, b) => b[1] - a[1])
+    .map(([token]) => token.toLowerCase())
+    .filter((token) => token.length >= 2)
+    .slice(0, 6);
+
+  const fallbackTokens = normalizedItems
+    .flatMap((item) => [item.category, ...extractInterestTokens(`${item.name} ${item.subtitle}`)])
+    .map((token) => token.toLowerCase())
+    .filter((token, index, arr) => token && arr.indexOf(token) === index)
+    .slice(0, 6);
+
+  const interestTokens = rankedTokens.length ? rankedTokens : fallbackTokens;
+  const matchesInterest = (item: ProductCard) => {
+    const source = `${item.category} ${item.name} ${item.subtitle} ${item.badge}`.toLowerCase();
+    return interestTokens.some((token) => source.includes(token));
+  };
+
+  const interestPoolBase = normalizedItems.filter(matchesInterest);
+  const interestPool = interestPoolBase.length ? interestPoolBase : normalizedItems;
+  const nonInterestPoolBase = normalizedItems.filter((item) => !interestPool.some((picked) => picked.id === item.id));
+  const nonInterestPool = nonInterestPoolBase.length ? nonInterestPoolBase : normalizedItems;
+
+  const interestTarget = Math.max(1, Math.round(visibleCount * 0.8));
+  const nonInterestTarget = Math.max(0, visibleCount - interestTarget);
+  const bucketTargets = {
+    review: Math.round(interestTarget * 0.30),
+    popular: Math.round(interestTarget * 0.20),
+    best: Math.round(interestTarget * 0.20),
+    newest: Math.round(interestTarget * 0.20),
+    premium: 0,
+  };
+  bucketTargets.premium = Math.max(1, interestTarget - bucketTargets.review - bucketTargets.popular - bucketTargets.best - bucketTargets.newest);
+
+  const sortByStable = (itemsToSort: ProductCard[], valueGetter: (item: ProductCard) => number, salt: string) => (
+    [...itemsToSort].sort((a, b) => valueGetter(b) - valueGetter(a) || deterministicHash(`${salt}-${a.id}`) - deterministicHash(`${salt}-${b.id}`))
+  );
+
+  const buckets = {
+    review: sortByStable(interestPool, (item) => item.reviewCount ?? 0, 'review'),
+    popular: sortByStable(interestPool, (item) => item.orderCount ?? 0, 'popular'),
+    best: sortByStable(interestPool, (item) => item.repurchaseCount ?? 0, 'best'),
+    newest: sortByStable(interestPool, (item) => parseIsoDateScore(item.createdAt), 'newest'),
+    premium: sortByStable(interestPool, (item) => (item.isPremium ? 100000 : 0) + (item.reviewCount ?? 0), 'premium'),
+  } as const;
+
+  const makeRepeated = (source: ProductCard[], count: number, bucket: string) => Array.from({ length: Math.max(0, count) }, (_, index) => ({
+    ...source[index % source.length],
+    recommendationBucket: bucket,
+  }));
+
+  const preparedBuckets = {
+    review: makeRepeated(buckets.review.length ? buckets.review : interestPool, bucketTargets.review, '관심·리뷰다수'),
+    popular: makeRepeated(buckets.popular.length ? buckets.popular : interestPool, bucketTargets.popular, '관심·인기'),
+    best: makeRepeated(buckets.best.length ? buckets.best : interestPool, bucketTargets.best, '관심·베스트'),
+    newest: makeRepeated(buckets.newest.length ? buckets.newest : interestPool, bucketTargets.newest, '관심·신규'),
+    premium: makeRepeated(buckets.premium.length ? buckets.premium : interestPool, bucketTargets.premium, '관심·고급화'),
+  };
+
+  const randomPool = [...nonInterestPool].sort((a, b) => deterministicHash(`random-${a.id}`) - deterministicHash(`random-${b.id}`));
+  const randomSelections = makeRepeated(randomPool.length ? randomPool : normalizedItems, nonInterestTarget, '랜덤');
+
+  const interestSequence: Array<ProductCard & { recommendationBucket: string }> = [];
+  const bucketOrder: Array<keyof typeof preparedBuckets> = ['review', 'popular', 'best', 'newest', 'premium'];
+  const cursors = { review: 0, popular: 0, best: 0, newest: 0, premium: 0 };
+  while (interestSequence.length < interestTarget) {
+    let pushed = false;
+    for (const bucketKey of bucketOrder) {
+      const bucket = preparedBuckets[bucketKey];
+      const cursor = cursors[bucketKey];
+      if (cursor < bucket.length) {
+        interestSequence.push(bucket[cursor]);
+        cursors[bucketKey] += 1;
+        pushed = true;
+        if (interestSequence.length >= interestTarget) break;
+      }
+    }
+    if (!pushed) break;
+  }
+
+  const finalItems: Array<ProductCard & { recommendationBucket: string; feedIndex: number }> = [];
+  let interestIndex = 0;
+  let randomIndex = 0;
+  for (let index = 0; index < visibleCount; index += 1) {
+    const shouldUseRandom = ((index + 1) % 5 === 0 && randomSelections[randomIndex]) || !interestSequence[interestIndex];
+    const picked = shouldUseRandom ? randomSelections[randomIndex++] : interestSequence[interestIndex++];
+    if (!picked) break;
+    finalItems.push({ ...picked, feedIndex: index });
+  }
+  while (finalItems.length < visibleCount) {
+    const fallback = interestSequence[interestIndex++] ?? randomSelections[randomIndex++] ?? { ...normalizedItems[finalItems.length % normalizedItems.length], recommendationBucket: '기본' };
+    finalItems.push({ ...fallback, feedIndex: finalItems.length });
+  }
+  return finalItems;
+}
+
+const HOME_FEED_PAGE_SIZE = 8;
 const HOME_FEED_CACHE_KEY = "adultapp_home_feed_cache_v2";
 const HOME_FEED_CACHE_TTL_MS = 1000 * 60 * 10;
 
@@ -6629,7 +6997,15 @@ export default function App() {
                     </button>
                   </div>
                 </div>
+<<<<<<< Updated upstream
                 <div className="feed-post-list compact-scroll-list" ref={homeFeedScrollRef}>{visibleFeed.map((item, idx) => (<div key={`feed-wrap-${item.id}`}><FeedPoster item={item} onAsk={openAskFromFeed} saved={savedFeedIds.includes(item.id)} liked={likedFeedIds.includes(item.id)} commentsOpen={openFeedCommentItem?.id === item.id} onOpenComments={openFeedComments} onToggleLike={toggleLikedFeed} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} following={followedFeedAuthors.includes(item.author)} onToggleFollow={toggleFollowedFeedAuthor} />{(idx + 1) % 4 === 0 ? <SponsoredFeedProductCard item={sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length]} saved={savedProductIds.includes(sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length].id)} onToggleSave={toggleSavedProduct} /> : null}</div>))}{hasMoreHomeFeed ? <div ref={homeFeedSentinelRef} className="feed-loading-row">추천 피드 불러오는 중</div> : <div className="feed-loading-row feed-loading-row-end">추천 피드를 모두 확인했습니다.</div>}</div>
+=======
+                <div className="feed-scroll-status" aria-live="polite">
+                  <strong>무한 스크롤 테스트</strong>
+                  <span>테스트 피드 20개 포함 · 초기 {HOME_FEED_PAGE_SIZE}개 노출 후 하단 감지 시 {HOME_FEED_PAGE_SIZE}개씩 추가 로딩 · 현재 {visibleFeed.length}/{homeFeedSource.length}개 표시</span>
+                </div>
+                <div className="feed-post-list compact-scroll-list" ref={homeFeedScrollRef}>{visibleFeed.map((item, idx) => (<div key={`feed-wrap-${item.id}`}><FeedPoster item={item} onAsk={openAskFromFeed} saved={savedFeedIds.includes(item.id)} liked={likedFeedIds.includes(item.id)} commentsOpen={openFeedCommentItem?.id === item.id} onOpenComments={openFeedComments} onToggleLike={toggleLikedFeed} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} following={followedFeedAuthors.includes(item.author)} onToggleFollow={toggleFollowedFeedAuthor} />{(idx + 1) % 4 === 0 ? <SponsoredFeedProductCard item={sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length]} saved={savedProductIds.includes(sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length].id)} onToggleSave={toggleSavedProduct} /> : null}</div>))}{hasMoreHomeFeed ? <div ref={homeFeedSentinelRef} className="feed-loading-row">추천 피드 추가 로딩 중 · {visibleFeed.length}/{homeFeedSource.length}</div> : <div className="feed-loading-row feed-loading-row-end">추천 피드를 모두 확인했습니다 · 총 {homeFeedSource.length}개</div>}</div>
+>>>>>>> Stashed changes
               </>
             ) : homeTab === "쇼츠" ? (
               <>
