@@ -8431,3 +8431,173 @@ body {
     padding-right: 4.6em !important;
   }
 }
+
+/* === 2026-04-21 request: feed fab natural glow + inline more inside text + 7 action columns === */
+.feed-create-dock {
+  pointer-events: none;
+}
+.feed-create-fab,
+.feed-create-options,
+.feed-create-option,
+.feed-create-backdrop {
+  pointer-events: auto;
+}
+.feed-create-fab {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0 !important;
+  outline: none !important;
+  -webkit-tap-highlight-color: transparent;
+  background: #000 !important;
+  color: var(--pink-2) !important;
+  overflow: visible !important;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.44) !important;
+}
+.feed-create-fab::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 122, 182, 0) 62%, rgba(255, 122, 182, 0.18) 76%, rgba(255, 122, 182, 0.09) 86%, rgba(255, 122, 182, 0) 100%);
+  opacity: 0;
+  transform: scale(0.98);
+  filter: blur(4px);
+  transition: opacity .24s ease, transform .24s ease, filter .24s ease;
+  pointer-events: none;
+  z-index: 0;
+}
+.feed-create-fab:hover::before,
+.feed-create-fab.open::before {
+  opacity: 1;
+  transform: scale(1.02);
+  filter: blur(5px);
+}
+.feed-create-fab:focus,
+.feed-create-fab:focus-visible,
+.feed-create-fab:active {
+  outline: none !important;
+  border: 0 !important;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.44) !important;
+}
+.feed-create-fab::-moz-focus-inner {
+  border: 0;
+}
+.feed-create-fab.open {
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.48) !important;
+}
+.feed-create-fab-icon {
+  position: relative;
+  z-index: 1;
+  transform-origin: 50% 50%;
+}
+.feed-create-fab-icon svg {
+  color: var(--pink-2) !important;
+}
+
+.feed-caption-body {
+  position: relative;
+}
+.feed-caption-text {
+  position: relative;
+}
+.feed-caption-text-content {
+  display: inline;
+}
+.feed-caption-block.has-toggle:not(.expanded) .feed-caption-text {
+  padding-right: 0 !important;
+}
+.feed-caption-more-inline {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  padding-left: 12px;
+  background: linear-gradient(90deg, rgba(13, 18, 31, 0) 0%, rgba(13, 18, 31, 0.9) 34%, rgba(13, 18, 31, 1) 64%);
+  color: var(--pink-2) !important;
+  font-size: 13px;
+  line-height: 1.44;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+}
+.feed-caption-more-inline::before {
+  content: '...';
+  margin-right: 2px;
+  color: rgba(255,255,255,0.72);
+}
+.feed-caption-more-inline:hover,
+.feed-caption-more-inline:focus-visible {
+  color: #ffd2e9 !important;
+  outline: none;
+}
+
+.history-feed-footer.history-feed-footer-icons {
+  grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+  gap: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  padding-bottom: 0 !important;
+}
+.history-feed-footer-icons .feed-action-btn {
+  width: 100%;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 46px !important;
+  padding: 4px 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+.history-feed-footer-icons .feed-action-icon {
+  width: 24px;
+  height: 24px;
+}
+.history-feed-footer-icons .feed-action-count {
+  display: block;
+  min-height: 11px;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 700;
+  color: rgba(255,255,255,0.82);
+}
+.history-feed-footer-icons .feed-action-count-empty {
+  opacity: 0;
+}
+.history-feed-footer-icons button[aria-label="좋아요"].active .feed-action-count,
+.history-feed-footer-icons button[aria-label="좋아요"].active svg,
+.history-feed-footer-icons button[aria-label="좋아요"].active svg [stroke],
+.history-feed-footer-icons button[aria-label="좋아요"].active svg [fill],
+.history-feed-footer-icons button[aria-label="재게시"].active .feed-action-count,
+.history-feed-footer-icons button[aria-label="재게시"].active svg,
+.history-feed-footer-icons button[aria-label="재게시"].active svg [stroke],
+.history-feed-footer-icons button[aria-label="재게시"].active svg [fill],
+.history-feed-footer-icons button[aria-label="댓글"].active .feed-action-count,
+.history-feed-footer-icons button[aria-label="댓글"].active svg,
+.history-feed-footer-icons button[aria-label="댓글"].active svg [stroke],
+.history-feed-footer-icons button[aria-label="댓글"].active svg [fill] {
+  color: var(--pink-2) !important;
+  stroke: currentColor !important;
+  fill: currentColor;
+}
+.history-feed-footer-icons button[aria-label="재게시"] svg {
+  transform: translateY(0.5px);
+}
+.history-feed-footer-icons button[aria-label="조회수"] .feed-action-count {
+  color: rgba(255,255,255,0.76);
+}
+@media (max-width: 640px) {
+  .history-feed-footer.history-feed-footer-icons {
+    gap: 0 !important;
+  }
+  .history-feed-footer-icons .feed-action-btn {
+    min-height: 44px !important;
+  }
+  .history-feed-footer-icons .feed-action-count {
+    font-size: 9px;
+  }
+}

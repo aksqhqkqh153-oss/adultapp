@@ -13,6 +13,7 @@ type FeedItem = {
   comments: number;
   accent: string;
   views?: number;
+  reposts?: number;
   postedAt?: string;
   videoUrl?: string;
   mediaUrl?: string;
@@ -912,6 +913,19 @@ function ShareArrowIcon() {
   );
 }
 
+function RepostIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M7 7.5h9.6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M14.1 4.6 17 7.5l-2.9 2.9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M17 16.5H7.4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M9.9 13.6 7 16.5l2.9 2.9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M7 7.5H6a2 2 0 0 0-2 2V11" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M17 16.5h1a2 2 0 0 0 2-2V13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function HeartIcon({ filled = false }: { filled?: boolean }) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -1667,11 +1681,11 @@ const FeedCaption = memo(function FeedCaption({ caption, title }: { caption: str
       ) : null}
       <div className="feed-caption-body">
         <p ref={captionRef} className={`feed-caption-text${expanded ? " expanded" : ""}`}>
-          <span>{caption}</span>
+          <span className="feed-caption-text-content">{caption}</span>
+          {!expanded && showToggle ? (
+            <span className="feed-caption-more-inline" role="button" tabIndex={0} onClick={handleExpand} onKeyDown={handleExpandKeyDown}>더보기</span>
+          ) : null}
         </p>
-        {!expanded && showToggle ? (
-          <span className="feed-caption-more-inline" role="button" tabIndex={0} onClick={handleExpand} onKeyDown={handleExpandKeyDown}>더보기</span>
-        ) : null}
       </div>
       {expanded && showToggle ? (
         <span className="feed-caption-inline-less" role="button" tabIndex={0} onClick={handleCollapse} onKeyDown={handleCollapseKeyDown}>접기</span>
@@ -1680,12 +1694,13 @@ const FeedCaption = memo(function FeedCaption({ caption, title }: { caption: str
   );
 });
 
-const FeedPoster = memo(function FeedPoster({ item, onAsk, saved, liked, commentsOpen, commentCount, onOpenComments, onToggleLike, onToggleSave, onShare, keywordTags = [], onOpenAuthorProfile, onPreviewAuthorAvatar, following, onToggleFollow }: { item: FeedItem; onAsk: (item: FeedItem) => void; saved: boolean; liked: boolean; commentsOpen: boolean; commentCount: number; onOpenComments: (item: FeedItem) => void; onToggleLike: (feedId: number) => void; onToggleSave: (feedId: number) => void; onShare: (item: FeedItem) => void; keywordTags?: string[]; onOpenAuthorProfile: (author: string) => void; onPreviewAuthorAvatar?: (item: FeedItem) => void; following: boolean; onToggleFollow: (author: string) => void }) {
+const FeedPoster = memo(function FeedPoster({ item, onAsk, saved, liked, reposted, commentsOpen, commentCount, onOpenComments, onToggleLike, onToggleRepost, onToggleSave, onShare, keywordTags = [], onOpenAuthorProfile, onPreviewAuthorAvatar, following, onToggleFollow }: { item: FeedItem; onAsk: (item: FeedItem) => void; saved: boolean; liked: boolean; reposted: boolean; commentsOpen: boolean; commentCount: number; onOpenComments: (item: FeedItem) => void; onToggleLike: (feedId: number) => void; onToggleRepost: (feedId: number) => void; onToggleSave: (feedId: number) => void; onShare: (item: FeedItem) => void; keywordTags?: string[]; onOpenAuthorProfile: (author: string) => void; onPreviewAuthorAvatar?: (item: FeedItem) => void; following: boolean; onToggleFollow: (author: string) => void }) {
   const postedLabel = formatFeedPostedAt(item.postedAt);
   const handlePreviewAuthorAvatar = () => {
     onPreviewAuthorAvatar?.(item);
   };
   const likeCount = item.likes + (liked ? 1 : 0);
+  const repostCount = (item.reposts ?? Math.max(0, Math.round((item.likes + item.comments) / 7))) + (reposted ? 1 : 0);
   const viewCount = item.views ?? 0;
   return (
     <article className={`feed-card history-feed-card ${item.accent}`}>
@@ -1727,12 +1742,13 @@ const FeedPoster = memo(function FeedPoster({ item, onAsk, saved, liked, comment
         </div>
       </div>
       <div className="history-feed-footer history-feed-footer-icons">
-        <button type="button" className={`feed-action-btn feed-action-btn-count ${liked ? "active" : ""}`} aria-label="좋아요" onClick={() => onToggleLike(item.id)}><span className="feed-action-icon"><HeartIcon filled={liked} /></span><b className="feed-action-count">{formatCompactSocialCount(likeCount)}</b></button>
         <button type="button" className={`feed-action-btn feed-action-btn-count ${commentsOpen ? "active" : ""}`} aria-label="댓글" onClick={() => onOpenComments(item)}><span className="feed-action-icon"><CommentBubbleIcon /></span><b className="feed-action-count">{formatCompactSocialCount(commentCount)}</b></button>
-        <button type="button" className="feed-action-btn" aria-label="질문하기" onClick={() => onAsk(item)}><span className="feed-action-icon"><QuestionAnswerIcon /></span></button>
+        <button type="button" className={`feed-action-btn feed-action-btn-count ${liked ? "active" : ""}`} aria-label="좋아요" onClick={() => onToggleLike(item.id)}><span className="feed-action-icon"><HeartIcon filled={liked} /></span><b className="feed-action-count">{formatCompactSocialCount(likeCount)}</b></button>
+        <button type="button" className={`feed-action-btn feed-action-btn-count ${reposted ? "active" : ""}`} aria-label="재게시" onClick={() => onToggleRepost(item.id)}><span className="feed-action-icon"><RepostIcon /></span><b className="feed-action-count">{formatCompactSocialCount(repostCount)}</b></button>
         <button type="button" className="feed-action-btn feed-action-btn-count" aria-label="조회수"><span className="feed-action-icon"><ViewCountIcon /></span><b className="feed-action-count">{formatCompactSocialCount(viewCount)}</b></button>
-        <button type="button" className={`feed-action-btn ${saved ? "active" : ""}`} aria-label="보관함" onClick={() => onToggleSave(item.id)}><span className="feed-action-icon"><BookmarkIcon filled={saved} /></span></button>
-        <button type="button" className="feed-action-btn" aria-label="공유" onClick={() => onShare(item)}><span className="feed-action-icon"><ShareArrowIcon /></span></button>
+        <button type="button" className={`feed-action-btn ${saved ? "active" : ""}`} aria-label="보관함" onClick={() => onToggleSave(item.id)}><span className="feed-action-icon"><BookmarkIcon filled={saved} /></span><b className="feed-action-count feed-action-count-empty" aria-hidden="true">{"\u00A0"}</b></button>
+        <button type="button" className="feed-action-btn" aria-label="질문하기" onClick={() => onAsk(item)}><span className="feed-action-icon"><QuestionAnswerIcon /></span><b className="feed-action-count feed-action-count-empty" aria-hidden="true">{"\u00A0"}</b></button>
+        <button type="button" className="feed-action-btn" aria-label="공유" onClick={() => onShare(item)}><span className="feed-action-icon"><ShareArrowIcon /></span><b className="feed-action-count feed-action-count-empty" aria-hidden="true">{"\u00A0"}</b></button>
       </div>
     </article>
   );
@@ -3274,6 +3290,10 @@ export default function App() {
     if (typeof window === "undefined") return [];
     try { return JSON.parse(window.localStorage.getItem("adultapp_liked_feed_ids") ?? "[]"); } catch { return []; }
   });
+  const [repostedFeedIds, setRepostedFeedIds] = useState<number[]>(() => {
+    if (typeof window === "undefined") return [];
+    try { return JSON.parse(window.localStorage.getItem("adultapp_reposted_feed_ids") ?? "[]"); } catch { return []; }
+  });
   const [feedCommentMap, setFeedCommentMap] = useState<Record<number, FeedCommentEntry[]>>(() => {
     const fallback = Object.fromEntries(feedSeed.map((item) => [item.id, [
       { id: item.id * 100 + 1, author: "trend_user", text: `${item.title} 분위기 괜찮네요.`, meta: "방금" },
@@ -3898,6 +3918,11 @@ export default function App() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_reposted_feed_ids", JSON.stringify(repostedFeedIds));
+  }, [repostedFeedIds]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
     window.localStorage.setItem("adultapp_feed_comment_map", JSON.stringify(feedCommentMap));
   }, [feedCommentMap]);
 
@@ -3977,6 +4002,10 @@ export default function App() {
 
   const toggleLikedFeed = (feedId: number) => {
     setLikedFeedIds((prev) => prev.includes(feedId) ? prev.filter((item) => item !== feedId) : [feedId, ...prev]);
+  };
+
+  const toggleRepostedFeed = (feedId: number) => {
+    setRepostedFeedIds((prev) => prev.includes(feedId) ? prev.filter((item) => item !== feedId) : [feedId, ...prev]);
   };
 
   const openFeedComments = (item: FeedItem) => {
@@ -6972,10 +7001,12 @@ export default function App() {
                         onAsk={openAskFromFeed}
                         saved={savedFeedIds.includes(item.id)}
                         liked={likedFeedIds.includes(item.id)}
+                        reposted={repostedFeedIds.includes(item.id)}
                         commentsOpen={openFeedCommentItem?.id === item.id}
                         commentCount={feedCommentMap[item.id]?.length ?? item.comments}
                         onOpenComments={openFeedComments}
                         onToggleLike={toggleLikedFeed}
+                        onToggleRepost={toggleRepostedFeed}
                         onToggleSave={toggleSavedFeed}
                         onShare={shareFeedItem}
                         keywordTags={getContentKeywordTags(item)}
@@ -7034,7 +7065,7 @@ export default function App() {
                 </div>
                 {savedTab === "피드" ? (
                   <div className="feed-post-list compact-scroll-list">
-                    {savedFeedItems.length ? savedFeedItems.map((item) => <FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} saved={true} liked={likedFeedIds.includes(item.id)} commentsOpen={openFeedCommentItem?.id === item.id} commentCount={feedCommentMap[item.id]?.length ?? item.comments} onOpenComments={openFeedComments} onToggleLike={toggleLikedFeed} onToggleSave={toggleSavedFeed} onShare={shareFeedItem} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} onPreviewAuthorAvatar={openFeedAvatarPreview} following={followedFeedAuthors.includes(item.author)} onToggleFollow={toggleFollowedFeedAuthor} />) : <div className="legacy-box compact"><p>보관한 피드가 없습니다.</p></div>}
+                    {savedFeedItems.length ? savedFeedItems.map((item) => <FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} saved={true} liked={likedFeedIds.includes(item.id)} reposted={repostedFeedIds.includes(item.id)} commentsOpen={openFeedCommentItem?.id === item.id} commentCount={feedCommentMap[item.id]?.length ?? item.comments} onOpenComments={openFeedComments} onToggleLike={toggleLikedFeed} onToggleRepost={toggleRepostedFeed} onToggleSave={toggleSavedFeed} onShare={shareFeedItem} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} onPreviewAuthorAvatar={openFeedAvatarPreview} following={followedFeedAuthors.includes(item.author)} onToggleFollow={toggleFollowedFeedAuthor} />) : <div className="legacy-box compact"><p>보관한 피드가 없습니다.</p></div>}
                   </div>
                 ) : (
                   <>
@@ -7608,14 +7639,14 @@ export default function App() {
                             <div className="community-simple-head-row">
                               <div className="community-simple-title-wrap">
                                 <span className="community-chip community-chip-placeholder">빈 칸</span>
-                                <strong>&nbsp;</strong>
+                                <strong>{"\u00A0"}</strong>
                               </div>
                               <div className="community-simple-meta-row">
-                                <span>&nbsp;</span>
-                                <span>&nbsp;</span>
+                                <span>{"\u00A0"}</span>
+                                <span>{"\u00A0"}</span>
                               </div>
                             </div>
-                            <p>&nbsp;</p>
+                            <p>{"\u00A0"}</p>
                           </article>
                         );
                       }
