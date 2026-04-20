@@ -2739,6 +2739,37 @@ pre {
   z-index: 60;
   background: #000;
 }
+.shorts-viewer-close-fab {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  left: 12px;
+  z-index: 6;
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  background: rgba(0,0,0,0.42);
+  color: #fff;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: opacity .2s ease, transform .2s ease, background .2s ease;
+}
+.shorts-viewer-close-fab.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.shorts-viewer-close-fab:hover,
+.shorts-viewer-close-fab:focus-visible {
+  background: rgba(0,0,0,0.62);
+}
+.shorts-viewer-close-fab svg {
+  width: 24px;
+  height: 24px;
+  display: block;
+}
 .shorts-viewer-topbar {
   position: absolute;
   top: 0;

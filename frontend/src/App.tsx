@@ -1782,8 +1782,6 @@ function ShortsViewer({
   const [likedIds, setLikedIds] = useState<number[]>([]);
   const [dislikedIds, setDislikedIds] = useState<number[]>([]);
   const [subscribedIds, setSubscribedIds] = useState<number[]>([]);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchText, setSearchText] = useState("");
   const [descriptionItem, setDescriptionItem] = useState<FeedItem | null>(null);
   const [overlayVisible, setOverlayVisible] = useState(true);
   const [commentOpenItemId, setCommentOpenItemId] = useState<number | null>(null);
@@ -1798,6 +1796,7 @@ function ShortsViewer({
   }, [initialIndex]);
 
   const activeItem = items[activeIndex] ?? items[0];
+  const activeKeywords = getKeywordTags(activeItem).slice(0, 2);
   const isPaused = !!pausedMap[activeItem?.id ?? 0];
 
   const restartOverlayTimer = () => {
@@ -1844,27 +1843,18 @@ function ShortsViewer({
   };
 
   return (
-    <div className="shorts-viewer-overlay">
-      <div className={`shorts-viewer-topbar${overlayVisible ? " visible" : ""}`}>
-        <div className="shorts-viewer-topbar-left">
-          <button type="button" className="shorts-icon-btn shorts-back-btn" onClick={onClose} aria-label="뒤로가기"><BackArrowIcon /></button>
-          <div className="content-keyword-stack content-keyword-stack--viewer">
-            {getKeywordTags(activeItem).slice(0, 2).map((keyword) => (
-              <span key={`viewer-${activeItem?.id ?? 0}-${keyword}`} className="content-keyword-pill">#{keyword}</span>
-            ))}
-          </div>
-        </div>
-        <div className="shorts-viewer-topbar-actions">
-          <button type="button" className="shorts-icon-btn" onClick={() => setSearchOpen((prev) => !prev)} aria-label="쇼츠 검색"><SearchIcon /></button>
-          <button type="button" className="shorts-icon-btn" onClick={() => onOpenMore(activeItem)} aria-label="쇼츠 더보기"><MoreDotsIcon /></button>
-        </div>
-      </div>
-
-      {searchOpen && overlayVisible ? (
-        <div className="shorts-viewer-searchbar">
-          <input value={searchText} onChange={(event) => setSearchText(event.target.value)} placeholder="쇼츠 검색" />
-        </div>
-      ) : null}
+    <div className="shorts-viewer-overlay" data-active-keywords={activeKeywords.join(",")}>
+      <button
+        type="button"
+        className={`shorts-viewer-close-fab${overlayVisible ? " visible" : ""}`}
+        onClick={() => {
+          restartOverlayTimer();
+          onClose();
+        }}
+        aria-label="뒤로가기"
+      >
+        <BackArrowIcon />
+      </button>
 
       <div className="shorts-viewer-scroll" ref={scrollRef} onScroll={handleViewerScroll}>
         {items.map((item, idx) => {
@@ -1895,7 +1885,7 @@ function ShortsViewer({
                 <button type="button" className={`shorts-viewer-action-btn${liked ? " active" : ""}`} onClick={() => toggleReaction("like", item.id)}><span><ThumbUpIcon filled={liked} /></span><b>{item.likes.toLocaleString()}</b></button>
                 <button type="button" className={`shorts-viewer-action-btn${disliked ? " active" : ""}`} onClick={() => toggleReaction("dislike", item.id)}><span><ThumbDownIcon filled={disliked} /></span><b>{Math.max(12, Math.round(item.likes / 11)).toLocaleString()}</b></button>
                 <button type="button" className={`shorts-viewer-action-btn${commentOpenItemId === item.id ? " active" : ""}`} onClick={() => { restartOverlayTimer(); setCommentOpenItemId(commentOpenItemId === item.id ? null : item.id); }}><span><CommentBubbleIcon /></span><b>{(commentMap[item.id] ?? []).length.toLocaleString()}</b></button>
-                <button type="button" className="shorts-viewer-action-btn"><span><ShareArrowIcon /></span><b>공유</b></button>
+                <button type="button" className="shorts-viewer-action-btn" onClick={() => { restartOverlayTimer(); onOpenMore(item); }}><span><ShareArrowIcon /></span><b>공유</b></button>
               </div>
 
               <div className={`shorts-viewer-bottom${overlayVisible ? " visible" : ""}`}>
@@ -5981,6 +5971,7 @@ export default function App() {
   }, []);
 
   const settingsNavItems = useMemo<SettingsCategory[]>(() => settingsCategories.filter((item) => (["운영", "관리자모드", "DB관리", "신고", "채팅", "기타"].includes(item) ? isAdmin : true)), [isAdmin]);
+  const isAnyShortsViewerOpen = shortsViewerItemId !== null || savedShortsViewerItemId !== null;
   const visibleHeaderNavItems = overlayMode === null ? headerNavItems : [];
   const currentMenuItems = (activeTab === "홈" ? homeMenuItems : currentTabMenuItems.map((item) => ({ label: item.label, onClick: item.onClick }))).map((item) => ({ label: item.label, onClick: () => { item.onClick?.(); setOverlayMode(null); } }));
 
@@ -6339,7 +6330,7 @@ export default function App() {
 
   return (
     <div className="mobile-app-shell">
-      <header className={`top-header${activeTab === "홈" && ((homeTab === "쇼츠" && shortsHeaderHidden) || (homeTab === "피드" && homeFeedHeaderHidden)) ? " shorts-top-header-hidden" : ""}`}>
+      <header className={`top-header${activeTab === "홈" && (((homeTab === "쇼츠" && shortsHeaderHidden) || (homeTab === "피드" && homeFeedHeaderHidden)) || isAnyShortsViewerOpen) ? " shorts-top-header-hidden" : ""}`}>
         {overlayMode === "search" ? (
           <div className="topbar-search-row">
             <button
@@ -6392,7 +6383,7 @@ export default function App() {
           </div>
         )}
       </header>
-      {showBaseTabContent && activeTab === "홈" && homeTab === "쇼츠" ? (
+      {showBaseTabContent && activeTab === "홈" && homeTab === "쇼츠" && !isAnyShortsViewerOpen ? (
         <div className={`shorts-category-strip${shortsCategoryVisible ? " visible" : ""}`}>
           {shortsCategories.map((category) => (
             <button key={category} type="button" className={`shorts-category-chip${selectedShortsCategory === category ? " active" : ""}`} onClick={() => { setSelectedShortsCategory(category); setShortsHeaderHidden(false); setShortsCategoryVisible(true); lastShortsScrollTopRef.current = 0; shortsHideThresholdRef.current = 0; shortsShowThresholdRef.current = 0; }}>{category}</button>
