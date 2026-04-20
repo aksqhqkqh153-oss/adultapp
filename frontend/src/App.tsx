@@ -1,4 +1,4 @@
-import { CSSProperties, PointerEvent, memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, PointerEvent, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { clearTokens, ensureAuthSession, getApiBase, getJson, getRefreshToken, hasAuthToken, postJson, setAuthToken, setRefreshToken } from "./lib/api";
 
 type FeedItem = {
@@ -3163,7 +3163,6 @@ export default function App() {
   const allFeedItems = useMemo(() => [...customFeedItems, ...feedSeed], [customFeedItems]);
   const [homeFeedIsLoadingMore, setHomeFeedIsLoadingMore] = useState(false);
   const homeFeedSentinelRef = useRef<HTMLDivElement | null>(null);
-  const homeFeedListRef = useRef<HTMLDivElement | null>(null);
   const mobileMainRef = useRef<HTMLElement | null>(null);
   const homeFeedLoadMoreTimerRef = useRef<number | null>(null);
   const [shortsMoreItem, setShortsMoreItem] = useState<FeedItem | null>(null);
@@ -4332,17 +4331,19 @@ export default function App() {
   }, [hasMoreHomeFeed, homeFeedIsLoadingMore, homeFeedSource.length]);
 
   const maybeLoadMoreHomeFeed = useCallback((node?: HTMLElement | null) => {
-    const target = node ?? homeFeedListRef.current;
+    const target = node ?? mobileMainRef.current;
     if (!target || !hasMoreHomeFeed || homeFeedIsLoadingMore) return;
     const remainingScroll = target.scrollHeight - target.scrollTop - target.clientHeight;
-    if (remainingScroll <= 240) {
+    if (remainingScroll <= 420) {
       queueHomeFeedLoadMore();
     }
   }, [hasMoreHomeFeed, homeFeedIsLoadingMore, queueHomeFeedLoadMore]);
 
-  const handleHomeFeedScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
-    maybeLoadMoreHomeFeed(event.currentTarget);
-  }, [maybeLoadMoreHomeFeed]);
+  const handleMobileMainScroll = useCallback((event: UIEvent<HTMLElement>) => {
+    if (activeTab === "홈" && homeTab === "피드" && overlayMode === null) {
+      maybeLoadMoreHomeFeed(event.currentTarget);
+    }
+  }, [activeTab, homeTab, overlayMode, maybeLoadMoreHomeFeed]);
 
 
   useEffect(() => {
@@ -4370,9 +4371,28 @@ export default function App() {
     }
   }, []);
 
-  useLayoutEffect(() => {
-    maybeLoadMoreHomeFeed();
-  }, [maybeLoadMoreHomeFeed, visibleFeed.length, homeTab, activeTab]);
+  useEffect(() => {
+    const sentinel = homeFeedSentinelRef.current;
+    const root = mobileMainRef.current;
+    if (!sentinel || !root) return;
+    if (activeTab !== "홈" || homeTab !== "피드" || overlayMode !== null || !hasMoreHomeFeed) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      const entry = entries[0];
+      if (!entry?.isIntersecting) return;
+      queueHomeFeedLoadMore();
+    }, { root, rootMargin: "0px 0px 420px 0px", threshold: 0.01 });
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [activeTab, homeTab, overlayMode, hasMoreHomeFeed, queueHomeFeedLoadMore, visibleFeed.length]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (activeTab !== "홈" || homeTab !== "피드" || overlayMode !== null) return;
+    const rafId = window.requestAnimationFrame(() => maybeLoadMoreHomeFeed());
+    return () => window.cancelAnimationFrame(rafId);
+  }, [activeTab, homeTab, overlayMode, visibleFeed.length, maybeLoadMoreHomeFeed]);
 
 
   const getContentKeywordTags = (item: FeedItem) => getTopMatchedKeywords(item, keywordSignalMap);
@@ -6238,7 +6258,7 @@ export default function App() {
         </div>
       ) : null}
 
-      <main className="mobile-main" ref={mobileMainRef}>
+      <main className="mobile-main" ref={mobileMainRef} onScroll={handleMobileMainScroll}>
         {showBaseTabContent && reconsentRequired ? (
           <section className="reconsent-banner" role="button" tabIndex={0} onClick={() => { setHomeShopConsentGuideSeen(true); setOverlayMode("reconsent_info"); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setHomeShopConsentGuideSeen(true); setOverlayMode("reconsent_info"); } }}>
             <strong>필수 문서 재동의 필요</strong>
@@ -6619,13 +6639,9 @@ export default function App() {
                     </button>
                   </div>
                 </div>
-                <div ref={homeFeedListRef} className="feed-post-list compact-scroll-list home-feed-scroll-region" onScroll={handleHomeFeedScroll}>
-                  <div className="feed-scroll-status feed-scroll-status-inline" aria-live="polite">
-                    <strong>무한 스크롤 테스트</strong>
-                    <span>테스트 피드 20개 포함 · 초기 {HOME_FEED_PAGE_SIZE}개 노출 후 하단 감지 시 {HOME_FEED_PAGE_SIZE}개씩 추가 로딩 · 현재 {visibleFeed.length}/{homeFeedSource.length}개 표시</span>
-                  </div>
+                <div className="feed-post-list compact-scroll-list">
                   {visibleFeed.map((item, idx) => (<div key={`feed-wrap-${item.id}`}><FeedPoster item={item} onAsk={openAskFromFeed} saved={savedFeedIds.includes(item.id)} liked={likedFeedIds.includes(item.id)} commentsOpen={openFeedCommentItem?.id === item.id} onOpenComments={openFeedComments} onToggleLike={toggleLikedFeed} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} following={followedFeedAuthors.includes(item.author)} onToggleFollow={toggleFollowedFeedAuthor} />{(idx + 1) % 4 === 0 ? <SponsoredFeedProductCard item={sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length]} saved={savedProductIds.includes(sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length].id)} onToggleSave={toggleSavedProduct} /> : null}</div>))}
-                  {hasMoreHomeFeed ? <div ref={homeFeedSentinelRef} className="feed-loading-row">추천 피드 추가 로딩 중 · {visibleFeed.length}/{homeFeedSource.length}</div> : <div className="feed-loading-row feed-loading-row-end">추천 피드를 모두 확인했습니다 · 총 {homeFeedSource.length}개</div>}
+                  {hasMoreHomeFeed ? <div ref={homeFeedSentinelRef} className="feed-loading-row">추천 피드 불러오는 중 · {visibleFeed.length}/{homeFeedSource.length}</div> : <div className="feed-loading-row feed-loading-row-end">추천 피드를 모두 확인했습니다 · 총 {homeFeedSource.length}개</div>}
                 </div>
               </>
             ) : homeTab === "쇼츠" ? (
