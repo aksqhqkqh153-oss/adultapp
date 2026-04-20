@@ -1770,19 +1770,26 @@ function ShortsViewer({
   onClose,
   onOpenMore,
   getKeywordTags,
+  onOpenAuthorProfile,
+  followedAuthors,
+  onToggleFollow,
 }: {
   items: FeedItem[];
   initialIndex: number;
   onClose: () => void;
   onOpenMore: (item: FeedItem) => void;
   getKeywordTags: (item: FeedItem) => string[];
+  onOpenAuthorProfile: (author: string) => void;
+  followedAuthors: string[];
+  onToggleFollow: (author: string) => void;
 }) {
   const [activeIndex, setActiveIndex] = useState(initialIndex);
   const [pausedMap, setPausedMap] = useState<Record<number, boolean>>(() => ({ [items[initialIndex]?.id ?? 0]: false }));
   const [likedIds, setLikedIds] = useState<number[]>([]);
   const [dislikedIds, setDislikedIds] = useState<number[]>([]);
-  const [subscribedIds, setSubscribedIds] = useState<number[]>([]);
   const [descriptionItem, setDescriptionItem] = useState<FeedItem | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchText, setSearchText] = useState("");
   const [overlayVisible, setOverlayVisible] = useState(true);
   const [commentOpenItemId, setCommentOpenItemId] = useState<number | null>(null);
   const [commentDraft, setCommentDraft] = useState("");
@@ -1797,7 +1804,6 @@ function ShortsViewer({
 
   const activeItem = items[activeIndex] ?? items[0];
   const activeKeywords = getKeywordTags(activeItem).slice(0, 2);
-  const isPaused = !!pausedMap[activeItem?.id ?? 0];
 
   const restartOverlayTimer = () => {
     setOverlayVisible(true);
@@ -1811,6 +1817,19 @@ function ShortsViewer({
       if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
     };
   }, [activeIndex]);
+
+  useEffect(() => {
+    if (!searchOpen) return;
+    const keyword = searchText.trim().toLowerCase();
+    if (!keyword) return;
+    const nextIndex = items.findIndex((item) => `${item.title} ${item.caption} ${item.author} ${item.category}`.toLowerCase().includes(keyword));
+    if (nextIndex === -1 || nextIndex === activeIndex) return;
+    const target = scrollRef.current?.querySelector<HTMLElement>(`[data-short-index="${nextIndex}"]`);
+    target?.scrollIntoView({ block: "start", behavior: "smooth" });
+    setActiveIndex(nextIndex);
+    restartOverlayTimer();
+  }, [activeIndex, items, searchOpen, searchText]);
+
 
   const togglePause = (itemId: number) => {
     restartOverlayTimer();
@@ -1837,11 +1856,6 @@ function ShortsViewer({
     setLikedIds((prev) => prev.filter((id) => id !== itemId));
   };
 
-  const toggleSubscribe = (itemId: number) => {
-    restartOverlayTimer();
-    setSubscribedIds((prev) => prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]);
-  };
-
   return (
     <div className="shorts-viewer-overlay" data-active-keywords={activeKeywords.join(",")}>
       <button
@@ -1856,12 +1870,52 @@ function ShortsViewer({
         <BackArrowIcon />
       </button>
 
+      <div className={`shorts-viewer-top-actions-floating${overlayVisible ? " visible" : ""}`}>
+        <button
+          type="button"
+          className="shorts-icon-btn"
+          onClick={() => {
+            restartOverlayTimer();
+            setSearchOpen((prev) => !prev);
+          }}
+          aria-label="쇼츠 검색"
+          title="쇼츠 검색"
+        >
+          <SearchIcon />
+        </button>
+        <button
+          type="button"
+          className="shorts-icon-btn"
+          onClick={() => {
+            restartOverlayTimer();
+            onOpenMore(activeItem);
+          }}
+          aria-label="쇼츠 메뉴"
+          title="쇼츠 메뉴"
+        >
+          <MoreDotsIcon />
+        </button>
+      </div>
+
+      {searchOpen && overlayVisible ? (
+        <div className="shorts-viewer-searchbar">
+          <input
+            value={searchText}
+            onChange={(event) => {
+              restartOverlayTimer();
+              setSearchText(event.target.value);
+            }}
+            placeholder="쇼츠 검색"
+          />
+        </div>
+      ) : null}
+
       <div className="shorts-viewer-scroll" ref={scrollRef} onScroll={handleViewerScroll}>
         {items.map((item, idx) => {
           const paused = !!pausedMap[item.id];
           const liked = likedIds.includes(item.id);
           const disliked = dislikedIds.includes(item.id);
-          const subscribed = subscribedIds.includes(item.id);
+          const following = followedAuthors.includes(item.author);
           return (
             <section key={`viewer-${item.id}`} className={`shorts-viewer-page ${item.accent}${commentOpenItemId === item.id ? " comments-open" : ""}`} data-short-index={idx}>
               <button type="button" className="shorts-viewer-video" onClick={() => togglePause(item.id)} aria-label={paused ? "영상 재생" : "영상 정지"}>
@@ -1891,8 +1945,8 @@ function ShortsViewer({
               <div className={`shorts-viewer-bottom${overlayVisible ? " visible" : ""}`}>
                 <div className="shorts-viewer-author-row">
                   <span className="shorts-profile-avatar shorts-profile-avatar-small" aria-hidden="true">{item.author.slice(0, 1).toUpperCase()}</span>
-                  <button type="button" className="shorts-viewer-author-link" onClick={restartOverlayTimer}>{item.author}</button>
-                  <button type="button" className={`shorts-subscribe-btn${subscribed ? " subscribed" : ""}`} onClick={() => toggleSubscribe(item.id)}>{subscribed ? "구독 중" : "구독"}</button>
+                  <button type="button" className="shorts-viewer-author-link" onClick={() => { restartOverlayTimer(); onOpenAuthorProfile(item.author); }}>{item.author}</button>
+                  <button type="button" className={`feed-follow-btn shorts-follow-btn ${following ? "active" : ""}`} onClick={() => { restartOverlayTimer(); onToggleFollow(item.author); }}>{following ? "팔로잉" : "팔로우"}</button>
                 </div>
                 <button type="button" className="shorts-viewer-full-title" onClick={restartOverlayTimer}>풀영상 {item.title}</button>
                 <button type="button" className="shorts-viewer-description" onClick={() => { restartOverlayTimer(); setDescriptionItem(item); }}>{item.caption}</button>
@@ -6824,6 +6878,9 @@ export default function App() {
                     onClose={() => setShortsViewerItemId(null)}
                     onOpenMore={setShortsMoreItem}
                     getKeywordTags={getContentKeywordTags}
+                    onOpenAuthorProfile={openProfileFromAuthor}
+                    followedAuthors={followedFeedAuthors}
+                    onToggleFollow={toggleFollowedFeedAuthor}
                   />
                 ) : null}
               </>
@@ -6857,6 +6914,9 @@ export default function App() {
                         onClose={() => setSavedShortsViewerItemId(null)}
                         onOpenMore={setShortsMoreItem}
                         getKeywordTags={getContentKeywordTags}
+                        onOpenAuthorProfile={openProfileFromAuthor}
+                        followedAuthors={followedFeedAuthors}
+                        onToggleFollow={toggleFollowedFeedAuthor}
                       />
                     ) : null}
                   </>

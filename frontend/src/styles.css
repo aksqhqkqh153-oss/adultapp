@@ -2770,6 +2770,25 @@ pre {
   height: 24px;
   display: block;
 }
+.shorts-viewer-top-actions-floating {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  right: 12px;
+  z-index: 4;
+  display: flex;
+  gap: 8px;
+  opacity: 0;
+  transform: translateY(-12px);
+  transition: opacity .28s ease, transform .28s ease;
+  pointer-events: none;
+}
+.shorts-viewer-top-actions-floating.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.shorts-viewer-top-actions-floating .shorts-icon-btn {
+  pointer-events: auto;
+}
 .shorts-viewer-topbar {
   position: absolute;
   top: 0;
@@ -2817,7 +2836,7 @@ pre {
 }
 .shorts-viewer-searchbar {
   position: absolute;
-  top: calc(max(12px, env(safe-area-inset-top)) + 48px);
+  top: calc(max(12px, env(safe-area-inset-top)) + 46px);
   left: 12px;
   right: 12px;
   z-index: 4;
@@ -2924,7 +2943,7 @@ pre {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: calc(var(--mobile-nav-height, 45px) + 10px);
+  bottom: calc(var(--mobile-nav-height, 45px) + 2px);
   z-index: 3;
   padding: 0 14px;
   display: grid;
@@ -2975,6 +2994,12 @@ pre {
   background: transparent;
   color: #fff;
   border-color: rgba(255,255,255,0.3);
+}
+.shorts-follow-btn {
+  min-height: 32px;
+  padding: 0 14px;
+  font-size: 12px;
+  flex: 0 0 auto;
 }
 .shorts-viewer-full-title {
   font-weight: 700;
@@ -3051,6 +3076,9 @@ pre {
 }
 .shorts-viewer-action-btn b {
   font-weight: 700;
+}
+.shorts-viewer-action-btn.active b {
+  color: var(--pink-2);
 }
 .shorts-viewer-action-btn.active svg {
   fill: currentColor;
@@ -4248,7 +4276,7 @@ pre,
 .shorts-viewer-page.comments-open .shorts-viewer-side-actions { bottom: calc(60dvh + 16px); }
 .shorts-viewer-page.comments-open .shorts-viewer-bottom { bottom: calc(60dvh + 8px); }
 .shorts-viewer-action-btn.active span { background: transparent !important; }
-.shorts-viewer-action-btn.active svg { color:#fff !important; fill: currentColor; }
+.shorts-viewer-action-btn.active svg { color:var(--pink-2) !important; fill: currentColor; }
 #app-boot-splash { position:fixed; inset:0; background:#000; display:grid; place-items:center; z-index:9999; transition:opacity .25s ease, visibility .25s ease; }
 #app-boot-splash.is-hidden { opacity:0; visibility:hidden; pointer-events:none; }
 .app-boot-splash__logo { width:120px; height:120px; object-fit:cover; border-radius:28px; box-shadow:0 0 0 1px rgba(255,255,255,0.1); background:#111; }
