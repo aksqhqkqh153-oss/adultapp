@@ -4,14 +4,14 @@ $ErrorActionPreference = "Stop"
 # 고정값
 # =========================
 $project = "C:\Users\icj24\Downloads\adultapp"
-$zip = "C:\Users\icj24\Downloads\adultapp_20260420_feed_alignment_toolbar_center_fix.zip"
+$zip = "C:\Users\icj24\Downloads\adultapp_20260420_home_feed_infinite_scroll_cache_fix.zip"
 $branch = "main"
 $pagesProject = "adultapp"
 $frontend = Join-Path $project "frontend"
 $backend = Join-Path $project "backend"
 $dist = Join-Path $frontend "dist"
 $static = Join-Path $backend "static"
-$commitMsg = "update: refine feed community chat toolbar alignment"
+$commitMsg = "update: fix home feed infinite scroll cache source"
 
 function Stop-RunningProcesses {
     Write-Host "1) 실행 중 프로세스 종료"

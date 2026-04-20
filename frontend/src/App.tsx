@@ -1189,7 +1189,7 @@ function buildShopHomeRecommendationFeed({
 }
 
 const HOME_FEED_PAGE_SIZE = 8;
-const HOME_FEED_CACHE_KEY = "adultapp_home_feed_cache_v2";
+const HOME_FEED_CACHE_KEY = "adultapp_home_feed_cache_v3";
 const HOME_FEED_CACHE_TTL_MS = 1000 * 60 * 10;
 
 type RankedFeedItem = FeedItem & { sortScore?: number };
@@ -1230,8 +1230,8 @@ function loadCachedHomeFeedPage() {
   try {
     const raw = window.localStorage.getItem(HOME_FEED_CACHE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as { expiresAt?: number; items?: RankedFeedItem[]; visibleCount?: number };
-    if (!parsed?.expiresAt || parsed.expiresAt < Date.now() || !Array.isArray(parsed.items)) return null;
+    const parsed = JSON.parse(raw) as { expiresAt?: number; visibleCount?: number };
+    if (!parsed?.expiresAt || parsed.expiresAt < Date.now()) return null;
     return parsed;
   } catch {
     return null;
@@ -3160,7 +3160,6 @@ export default function App() {
   const [savedTab, setSavedTab] = useState<"피드" | "쇼츠">("피드");
   const [shortsVisibleCount, setShortsVisibleCount] = useState(10);
   const [homeFeedVisibleCount, setHomeFeedVisibleCount] = useState<number>(() => Math.max(HOME_FEED_PAGE_SIZE, cachedHomeFeed?.visibleCount ?? HOME_FEED_PAGE_SIZE));
-  const [homeFeedBootItems, setHomeFeedBootItems] = useState<RankedFeedItem[]>(() => cachedHomeFeed?.items ?? []);
   const allFeedItems = useMemo(() => [...customFeedItems, ...feedSeed], [customFeedItems]);
   const [homeFeedIsLoadingMore, setHomeFeedIsLoadingMore] = useState(false);
   const homeFeedSentinelRef = useRef<HTMLDivElement | null>(null);
@@ -4316,15 +4315,7 @@ export default function App() {
     keyword: deferredGlobalKeyword,
   }), [keywordSignalMap, followedTopicKeywords, savedFeedIds, deferredGlobalKeyword]);
 
-  useEffect(() => {
-    if (!homeFeedBootItems.length) return;
-    const cachedIds = homeFeedBootItems.map((item) => item.id).join(",");
-    const nextIds = recommendedHomeFeed.slice(0, homeFeedBootItems.length).map((item) => item.id).join(",");
-    if (cachedIds === nextIds) return;
-    setHomeFeedBootItems([]);
-  }, [recommendedHomeFeed, homeFeedBootItems]);
-
-  const homeFeedSource = homeFeedBootItems.length ? homeFeedBootItems : recommendedHomeFeed;
+  const homeFeedSource = recommendedHomeFeed;
   const visibleFeed = useMemo(() => homeFeedSource.slice(0, homeFeedVisibleCount), [homeFeedSource, homeFeedVisibleCount]);
   const hasMoreHomeFeed = homeFeedVisibleCount < homeFeedSource.length;
 
@@ -4355,9 +4346,8 @@ export default function App() {
     window.localStorage.setItem(HOME_FEED_CACHE_KEY, JSON.stringify({
       expiresAt: Date.now() + HOME_FEED_CACHE_TTL_MS,
       visibleCount: homeFeedVisibleCount,
-      items: homeFeedSource.slice(0, Math.max(homeFeedVisibleCount, HOME_FEED_PAGE_SIZE * 2)),
     }));
-  }, [homeFeedSource, homeFeedVisibleCount]);
+  }, [homeFeedSource.length, homeFeedVisibleCount]);
 
   useEffect(() => () => {
     if (homeFeedLoadMoreTimerRef.current !== null) {
