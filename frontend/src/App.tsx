@@ -932,6 +932,15 @@ function QuestionAnswerIcon() {
   );
 }
 
+function ViewCountIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M2.8 12s3.4-5.5 9.2-5.5 9.2 5.5 9.2 5.5-3.4 5.5-9.2 5.5S2.8 12 2.8 12Z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <circle cx="12" cy="12" r="2.7" fill="none" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
+  );
+}
+
 const generatedFeedAuthors = ["adult official", "seller studio", "care lab", "review crew", "brand note", "event pick"] as const;
 const generatedFeedCategories = ["추천", "브랜드", "리뷰", "보관팁", "실사용", "이벤트"] as const;
 const generatedFeedAccents = ["sunrise", "violet", "teal", "rose"] as const;
@@ -1661,10 +1670,7 @@ const FeedCaption = memo(function FeedCaption({ caption, title }: { caption: str
           <span>{caption}</span>
         </p>
         {!expanded && showToggle ? (
-          <span className="feed-caption-inline-more-wrap" aria-hidden="false">
-            <span className="feed-caption-inline-ellipsis" aria-hidden="true">...</span>
-            <span className="feed-caption-inline-more" role="button" tabIndex={0} onClick={handleExpand} onKeyDown={handleExpandKeyDown}>더보기</span>
-          </span>
+          <span className="feed-caption-more-inline" role="button" tabIndex={0} onClick={handleExpand} onKeyDown={handleExpandKeyDown}>더보기</span>
         ) : null}
       </div>
       {expanded && showToggle ? (
@@ -1674,11 +1680,13 @@ const FeedCaption = memo(function FeedCaption({ caption, title }: { caption: str
   );
 });
 
-const FeedPoster = memo(function FeedPoster({ item, onAsk, saved, liked, commentsOpen, onOpenComments, onToggleLike, onToggleSave, keywordTags = [], onOpenAuthorProfile, onPreviewAuthorAvatar, following, onToggleFollow }: { item: FeedItem; onAsk: (item: FeedItem) => void; saved: boolean; liked: boolean; commentsOpen: boolean; onOpenComments: (item: FeedItem) => void; onToggleLike: (feedId: number) => void; onToggleSave: (feedId: number) => void; keywordTags?: string[]; onOpenAuthorProfile: (author: string) => void; onPreviewAuthorAvatar?: (item: FeedItem) => void; following: boolean; onToggleFollow: (author: string) => void }) {
+const FeedPoster = memo(function FeedPoster({ item, onAsk, saved, liked, commentsOpen, commentCount, onOpenComments, onToggleLike, onToggleSave, onShare, keywordTags = [], onOpenAuthorProfile, onPreviewAuthorAvatar, following, onToggleFollow }: { item: FeedItem; onAsk: (item: FeedItem) => void; saved: boolean; liked: boolean; commentsOpen: boolean; commentCount: number; onOpenComments: (item: FeedItem) => void; onToggleLike: (feedId: number) => void; onToggleSave: (feedId: number) => void; onShare: (item: FeedItem) => void; keywordTags?: string[]; onOpenAuthorProfile: (author: string) => void; onPreviewAuthorAvatar?: (item: FeedItem) => void; following: boolean; onToggleFollow: (author: string) => void }) {
   const postedLabel = formatFeedPostedAt(item.postedAt);
   const handlePreviewAuthorAvatar = () => {
     onPreviewAuthorAvatar?.(item);
   };
+  const likeCount = item.likes + (liked ? 1 : 0);
+  const viewCount = item.views ?? 0;
   return (
     <article className={`feed-card history-feed-card ${item.accent}`}>
       <div className="history-feed-head">
@@ -1717,16 +1725,14 @@ const FeedPoster = memo(function FeedPoster({ item, onAsk, saved, liked, comment
         <div>
           <FeedCaption title={item.title} caption={item.caption} />
         </div>
-        <div className="feed-meta">
-          <span>좋아요 {item.likes}</span>
-          <span>댓글 {item.comments}</span>
-        </div>
       </div>
       <div className="history-feed-footer history-feed-footer-icons">
-        <button type="button" className={liked ? "active" : ""} aria-label="좋아요" onClick={() => onToggleLike(item.id)}><HeartIcon filled={liked} /></button>
-        <button type="button" className={commentsOpen ? "active" : ""} aria-label="댓글" onClick={() => onOpenComments(item)}><CommentBubbleIcon /></button>
-        <button type="button" aria-label="질문하기" onClick={() => onAsk(item)}><QuestionAnswerIcon /></button>
-        <button type="button" className={saved ? "active" : ""} aria-label="보관함" onClick={() => onToggleSave(item.id)}><BookmarkIcon filled={saved} /></button>
+        <button type="button" className={`feed-action-btn feed-action-btn-count ${liked ? "active" : ""}`} aria-label="좋아요" onClick={() => onToggleLike(item.id)}><span className="feed-action-icon"><HeartIcon filled={liked} /></span><b className="feed-action-count">{formatCompactSocialCount(likeCount)}</b></button>
+        <button type="button" className={`feed-action-btn feed-action-btn-count ${commentsOpen ? "active" : ""}`} aria-label="댓글" onClick={() => onOpenComments(item)}><span className="feed-action-icon"><CommentBubbleIcon /></span><b className="feed-action-count">{formatCompactSocialCount(commentCount)}</b></button>
+        <button type="button" className="feed-action-btn" aria-label="질문하기" onClick={() => onAsk(item)}><span className="feed-action-icon"><QuestionAnswerIcon /></span></button>
+        <button type="button" className="feed-action-btn feed-action-btn-count" aria-label="조회수"><span className="feed-action-icon"><ViewCountIcon /></span><b className="feed-action-count">{formatCompactSocialCount(viewCount)}</b></button>
+        <button type="button" className={`feed-action-btn ${saved ? "active" : ""}`} aria-label="보관함" onClick={() => onToggleSave(item.id)}><span className="feed-action-icon"><BookmarkIcon filled={saved} /></span></button>
+        <button type="button" className="feed-action-btn" aria-label="공유" onClick={() => onShare(item)}><span className="feed-action-icon"><ShareArrowIcon /></span></button>
       </div>
     </article>
   );
@@ -2753,6 +2759,14 @@ function LegacyPanel({ section, projectStatus, deployGuide }: { section: LegacyT
 function copyToClipboard(text: string) {
   if (typeof navigator === "undefined" || !navigator.clipboard) return;
   navigator.clipboard.writeText(text).catch(() => null);
+}
+
+function formatCompactSocialCount(value: number) {
+  if (value >= 10000) {
+    const compact = Math.floor((value / 10000) * 10) / 10;
+    return Number.isInteger(compact) ? `${compact.toFixed(0)}만` : `${compact.toFixed(1)}만`;
+  }
+  return value.toLocaleString();
 }
 
 function buildElementSelector(element: HTMLElement) {
@@ -4347,6 +4361,20 @@ export default function App() {
 
   const toggleFollowedFeedAuthor = (author: string) => {
     setFollowedFeedAuthors((prev) => prev.includes(author) ? prev.filter((item) => item !== author) : [...prev, author]);
+  };
+
+  const shareFeedItem = async (item: FeedItem) => {
+    const shareText = `${item.title} · ${item.caption}`;
+    try {
+      if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+        await navigator.share({ title: item.title, text: shareText });
+        return;
+      }
+    } catch (error) {
+      return;
+    }
+    copyToClipboard(shareText);
+    window.alert("피드 내용이 클립보드에 복사되었습니다.");
   };
 
   const toggleSavedProduct = (productId: number) => {
@@ -6945,9 +6973,11 @@ export default function App() {
                         saved={savedFeedIds.includes(item.id)}
                         liked={likedFeedIds.includes(item.id)}
                         commentsOpen={openFeedCommentItem?.id === item.id}
+                        commentCount={feedCommentMap[item.id]?.length ?? item.comments}
                         onOpenComments={openFeedComments}
                         onToggleLike={toggleLikedFeed}
                         onToggleSave={toggleSavedFeed}
+                        onShare={shareFeedItem}
                         keywordTags={getContentKeywordTags(item)}
                         onOpenAuthorProfile={openProfileFromAuthor}
                         onPreviewAuthorAvatar={openFeedAvatarPreview}
@@ -7004,7 +7034,7 @@ export default function App() {
                 </div>
                 {savedTab === "피드" ? (
                   <div className="feed-post-list compact-scroll-list">
-                    {savedFeedItems.length ? savedFeedItems.map((item) => <FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} saved={true} liked={likedFeedIds.includes(item.id)} commentsOpen={openFeedCommentItem?.id === item.id} onOpenComments={openFeedComments} onToggleLike={toggleLikedFeed} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} onPreviewAuthorAvatar={openFeedAvatarPreview} following={followedFeedAuthors.includes(item.author)} onToggleFollow={toggleFollowedFeedAuthor} />) : <div className="legacy-box compact"><p>보관한 피드가 없습니다.</p></div>}
+                    {savedFeedItems.length ? savedFeedItems.map((item) => <FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} saved={true} liked={likedFeedIds.includes(item.id)} commentsOpen={openFeedCommentItem?.id === item.id} commentCount={feedCommentMap[item.id]?.length ?? item.comments} onOpenComments={openFeedComments} onToggleLike={toggleLikedFeed} onToggleSave={toggleSavedFeed} onShare={shareFeedItem} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} onPreviewAuthorAvatar={openFeedAvatarPreview} following={followedFeedAuthors.includes(item.author)} onToggleFollow={toggleFollowedFeedAuthor} />) : <div className="legacy-box compact"><p>보관한 피드가 없습니다.</p></div>}
                   </div>
                 ) : (
                   <>
@@ -7945,18 +7975,20 @@ export default function App() {
         <>
           {feedComposeLauncherOpen ? <button type="button" className="feed-create-backdrop" aria-label="피드 작성 메뉴 닫기" onClick={() => setFeedComposeLauncherOpen(false)} /> : null}
           <div className={`feed-create-dock${feedComposeLauncherOpen ? " open" : ""}`}>
-            <div className="feed-create-options" aria-hidden={!feedComposeLauncherOpen}>
-              {([
-                { mode: "피드게시" as const, label: "피드게시", icon: "피" },
-                { mode: "사진피드" as const, label: "사진피드", icon: "사" },
-                { mode: "쇼츠게시" as const, label: "쇼츠게시", icon: "쇼" },
-              ]).map((item) => (
-                <button key={item.mode} type="button" className="feed-create-option" onClick={() => openFeedComposeWithMode(item.mode)}>
-                  <span className="feed-create-option-label">{item.label}</span>
-                  <span className="feed-create-option-icon" aria-hidden="true">{item.icon}</span>
-                </button>
-              ))}
-            </div>
+            {feedComposeLauncherOpen ? (
+              <div className="feed-create-options" aria-hidden={false}>
+                {([
+                  { mode: "피드게시" as const, label: "피드게시", icon: "피" },
+                  { mode: "사진피드" as const, label: "사진피드", icon: "사" },
+                  { mode: "쇼츠게시" as const, label: "쇼츠게시", icon: "쇼" },
+                ]).map((item) => (
+                  <button key={item.mode} type="button" className="feed-create-option" onClick={() => openFeedComposeWithMode(item.mode)}>
+                    <span className="feed-create-option-label">{item.label}</span>
+                    <span className="feed-create-option-icon" aria-hidden="true">{item.icon}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <button
               type="button"
               className={`feed-create-fab${feedComposeLauncherOpen ? " open" : ""}`}

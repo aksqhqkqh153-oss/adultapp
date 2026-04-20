@@ -8305,3 +8305,129 @@ body {
     font-size: 14px !important;
   }
 }
+
+/* === 2026-04-21 request: feed fab glow + feed action counts/share + inline more === */
+.feed-create-dock {
+  pointer-events: none;
+}
+.feed-create-fab,
+.feed-create-options,
+.feed-create-option,
+.feed-create-backdrop {
+  pointer-events: auto;
+}
+.feed-create-fab {
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+  overflow: visible;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.42), 0 0 0 1px rgba(255, 122, 182, 0.12) inset;
+}
+.feed-create-fab:focus,
+.feed-create-fab:focus-visible,
+.feed-create-fab:active {
+  outline: none;
+}
+.feed-create-fab::before {
+  inset: -10px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 122, 182, 0) 56%, rgba(255, 122, 182, 0.18) 67%, rgba(255, 122, 182, 0.14) 75%, rgba(255, 122, 182, 0.08) 83%, rgba(255, 122, 182, 0) 100%);
+  opacity: 0;
+  transform: scale(0.96);
+  filter: blur(3px);
+}
+.feed-create-fab.open {
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.5), 0 0 18px rgba(255, 122, 182, 0.12), 0 0 0 1px rgba(255, 122, 182, 0.14) inset;
+}
+.feed-create-fab.open::before {
+  opacity: 1;
+  transform: scale(1.04);
+}
+.feed-create-fab-icon {
+  transform-origin: 50% 50%;
+}
+.feed-caption-body {
+  position: relative;
+}
+.feed-caption-block.has-toggle:not(.expanded) .feed-caption-body {
+  padding-right: 0 !important;
+}
+.feed-caption-block.has-toggle:not(.expanded) .feed-caption-text {
+  padding-right: 4.8em !important;
+}
+.feed-caption-more-inline {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: inline-flex;
+  align-items: center;
+  padding-left: 14px;
+  background: linear-gradient(90deg, rgba(13, 18, 31, 0) 0%, rgba(13, 18, 31, 0.92) 32%, rgba(13, 18, 31, 1) 62%);
+  color: var(--pink-2);
+  font-size: 13px;
+  line-height: 1.44;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+}
+.feed-caption-more-inline::before {
+  content: '...';
+  color: rgba(255,255,255,0.72);
+  margin-right: 2px;
+}
+.feed-caption-more-inline:hover,
+.feed-caption-more-inline:focus-visible {
+  color: #ffd2e9;
+  outline: none;
+}
+.history-feed-card .feed-meta {
+  display: none !important;
+}
+.history-feed-footer-icons {
+  grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+  gap: 2px;
+}
+.feed-action-btn {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 44px !important;
+}
+.feed-action-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+}
+.feed-action-count {
+  display: block;
+  min-height: 12px;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 700;
+  color: rgba(255,255,255,0.82);
+}
+.history-feed-footer-icons button.active .feed-action-count,
+.history-feed-footer-icons button[aria-label="좋아요"].active .feed-action-count,
+.history-feed-footer-icons button[aria-label="댓글"].active .feed-action-count {
+  color: var(--pink-2) !important;
+}
+.history-feed-footer-icons button[aria-label="조회수"] .feed-action-count {
+  color: rgba(255,255,255,0.78);
+}
+.history-feed-footer-icons button[aria-label="공유"] svg {
+  transform: translateX(1px);
+}
+@media (max-width: 640px) {
+  .history-feed-footer-icons {
+    gap: 0;
+  }
+  .feed-action-count {
+    font-size: 10px;
+  }
+  .feed-caption-block.has-toggle:not(.expanded) .feed-caption-text {
+    padding-right: 4.6em !important;
+  }
+}
