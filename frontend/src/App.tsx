@@ -44,6 +44,29 @@ type FeedComposerAttachment = {
   optimized?: boolean;
 };
 
+const HOME_FEED_BATCH_SIZE = 5;
+const HOME_FEED_STATE_KEY = "adultapp_home_feed_state";
+const HOME_FEED_RESET_MS = 30 * 60 * 1000;
+
+type HomeFeedPersistedState = {
+  visibleCount?: number;
+  scrollTop?: number;
+  lastInactiveAt?: number;
+};
+
+function readHomeFeedPersistedState(): HomeFeedPersistedState {
+  if (typeof window === "undefined") return {};
+  try {
+    return JSON.parse(window.localStorage.getItem(HOME_FEED_STATE_KEY) ?? "{}") ?? {};
+  } catch {
+    return {};
+  }
+}
+
+function isHomeFeedStateExpired(state: HomeFeedPersistedState) {
+  return Boolean(state.lastInactiveAt && Date.now() - state.lastInactiveAt >= HOME_FEED_RESET_MS);
+}
+
 type ShortOption = "공유" | "보관함저장" | "관심없음" | "채널 추천 안함" | "신고";
 
 type StoryItem = {
@@ -1572,12 +1595,16 @@ const FeedCaption = memo(function FeedCaption({ caption }: { caption: string }) 
   }, [caption, expanded]);
 
   return (
-    <div className="feed-caption-block">
+    <div className={`feed-caption-block${expanded ? " expanded" : ""}${showToggle ? " has-toggle" : ""}`}>
       <p ref={captionRef} className={`feed-caption-text${expanded ? " expanded" : ""}`}>{caption}</p>
-      {showToggle ? (
-        <button type="button" className="feed-caption-toggle" onClick={() => setExpanded((prev) => !prev)}>
-          {expanded ? "접기" : "더보기"}
-        </button>
+      {!expanded && showToggle ? (
+        <span className="feed-caption-collapsed-actions">
+          <button type="button" className="feed-caption-toggle" onClick={() => setExpanded(true)}>더보기</button>
+          <span className="feed-caption-ellipsis" aria-hidden="true">...</span>
+        </span>
+      ) : null}
+      {expanded && showToggle ? (
+        <button type="button" className="feed-caption-toggle feed-caption-toggle-expanded" onClick={() => setExpanded(false)}>접기</button>
       ) : null}
     </div>
   );
@@ -3145,7 +3172,14 @@ export default function App() {
   });
   const [savedTab, setSavedTab] = useState<"피드" | "쇼츠">("피드");
   const [shortsVisibleCount, setShortsVisibleCount] = useState(10);
-  const [homeFeedVisibleCount, setHomeFeedVisibleCount] = useState(5);
+  const [homeFeedVisibleCount, setHomeFeedVisibleCount] = useState(() => {
+    if (typeof window === "undefined") return HOME_FEED_BATCH_SIZE;
+    const stored = readHomeFeedPersistedState();
+    if (isHomeFeedStateExpired(stored)) return HOME_FEED_BATCH_SIZE;
+    return Math.max(HOME_FEED_BATCH_SIZE, stored.visibleCount ?? HOME_FEED_BATCH_SIZE);
+  });
+  const homeFeedScrollRef = useRef<HTMLDivElement | null>(null);
+  const homeFeedResetOnNextShowRef = useRef(false);
   const allFeedItems = useMemo(() => [...customFeedItems, ...feedSeed], [customFeedItems]);
   const [shortsMoreItem, setShortsMoreItem] = useState<FeedItem | null>(null);
   const [shortsViewerItemId, setShortsViewerItemId] = useState<number | null>(null);
@@ -3192,6 +3226,18 @@ export default function App() {
     const path = window.location.pathname;
     return `${host}${path === "/" ? "" : path}`;
   }, [companyMailMode]);
+
+  const persistHomeFeedState = useCallback((patch: Partial<HomeFeedPersistedState> = {}) => {
+    if (typeof window === "undefined") return;
+    const previous = readHomeFeedPersistedState();
+    const nextState: HomeFeedPersistedState = {
+      ...previous,
+      visibleCount: patch.visibleCount ?? homeFeedVisibleCount,
+      scrollTop: patch.scrollTop ?? homeFeedScrollRef.current?.scrollTop ?? previous.scrollTop ?? 0,
+      lastInactiveAt: patch.lastInactiveAt ?? previous.lastInactiveAt ?? 0,
+    };
+    window.localStorage.setItem(HOME_FEED_STATE_KEY, JSON.stringify(nextState));
+  }, [homeFeedVisibleCount]);
   const navigationHistoryRef = useRef<AppNavigationSnapshot[]>([]);
   const navigationSnapshotRef = useRef<AppNavigationSnapshot | null>(null);
   const navigationRestoreRef = useRef(false);
@@ -4298,8 +4344,48 @@ export default function App() {
   const homeFeedSource = useMemo(() => recommendedHomeFeed.slice(0, homeFeedVisibleCount), [recommendedHomeFeed, homeFeedVisibleCount]);
 
   useEffect(() => {
-    setHomeFeedVisibleCount(Math.min(5, recommendedHomeFeed.length || 5));
+    setHomeFeedVisibleCount((prev) => {
+      if (!recommendedHomeFeed.length) return HOME_FEED_BATCH_SIZE;
+      return Math.min(Math.max(prev, HOME_FEED_BATCH_SIZE), recommendedHomeFeed.length);
+    });
   }, [recommendedHomeFeed]);
+
+  useEffect(() => {
+    persistHomeFeedState({ visibleCount: homeFeedVisibleCount });
+  }, [homeFeedVisibleCount, persistHomeFeedState]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const markInactive = () => {
+      persistHomeFeedState({ lastInactiveAt: Date.now() });
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        markInactive();
+        return;
+      }
+      const stored = readHomeFeedPersistedState();
+      if (!isHomeFeedStateExpired(stored)) return;
+      homeFeedResetOnNextShowRef.current = true;
+      setHomeFeedVisibleCount(HOME_FEED_BATCH_SIZE);
+      persistHomeFeedState({ visibleCount: HOME_FEED_BATCH_SIZE, scrollTop: 0, lastInactiveAt: 0 });
+      if (homeFeedScrollRef.current) {
+        homeFeedScrollRef.current.scrollTop = 0;
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", markInactive);
+    window.addEventListener("beforeunload", markInactive);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", markInactive);
+      window.removeEventListener("beforeunload", markInactive);
+    };
+  }, [persistHomeFeedState]);
 
   useEffect(() => () => {
     if (feedComposeAttachment?.previewUrl?.startsWith("blob:")) {
@@ -4535,9 +4621,16 @@ export default function App() {
 
   const handleHomeFeedScroll = useCallback((event: ReactUIEvent<HTMLDivElement>) => {
     const node = event.currentTarget;
+    persistHomeFeedState({ scrollTop: node.scrollTop });
     if (node.scrollTop + node.clientHeight < node.scrollHeight - 160) return;
-    setHomeFeedVisibleCount((prev) => prev >= recommendedHomeFeed.length ? prev : Math.min(prev + 5, recommendedHomeFeed.length));
-  }, [recommendedHomeFeed.length]);
+    setHomeFeedVisibleCount((prev) => {
+      const next = prev >= recommendedHomeFeed.length ? prev : Math.min(prev + HOME_FEED_BATCH_SIZE, recommendedHomeFeed.length);
+      if (next !== prev) {
+        persistHomeFeedState({ visibleCount: next, scrollTop: node.scrollTop });
+      }
+      return next;
+    });
+  }, [persistHomeFeedState, recommendedHomeFeed.length]);
 
   const handleShopHomeScroll = (event: ReactUIEvent<HTMLDivElement>) => {
     const node = event.currentTarget;
@@ -4860,6 +4953,37 @@ export default function App() {
   const requiresAdultGate = !isAdmin && !adultVerified && ["홈", "쇼핑"].includes(activeTab);
   const showAppTabContent = showBaseTabContent && !blockedByIdentity && !requiresAdultGate;
   const shouldForceAuthStandalone = authBootstrapDone && blockedByIdentity;
+
+  useEffect(() => {
+    if (!(showAppTabContent && activeTab === "홈" && homeTab === "피드")) return;
+
+    const stored = readHomeFeedPersistedState();
+    const shouldReset = homeFeedResetOnNextShowRef.current || isHomeFeedStateExpired(stored);
+    const nextVisibleCount = shouldReset
+      ? HOME_FEED_BATCH_SIZE
+      : Math.max(HOME_FEED_BATCH_SIZE, stored.visibleCount ?? HOME_FEED_BATCH_SIZE);
+
+    if (nextVisibleCount !== homeFeedVisibleCount) {
+      setHomeFeedVisibleCount(Math.min(nextVisibleCount, Math.max(recommendedHomeFeed.length, HOME_FEED_BATCH_SIZE)));
+      return;
+    }
+
+    const rafId = window.requestAnimationFrame(() => {
+      const node = homeFeedScrollRef.current;
+      if (!node) return;
+      const targetScrollTop = shouldReset ? 0 : Math.max(0, stored.scrollTop ?? 0);
+      node.scrollTop = Math.min(targetScrollTop, Math.max(0, node.scrollHeight - node.clientHeight));
+      homeFeedResetOnNextShowRef.current = false;
+      persistHomeFeedState({
+        visibleCount: homeFeedVisibleCount,
+        scrollTop: node.scrollTop,
+        lastInactiveAt: shouldReset ? 0 : stored.lastInactiveAt ?? 0,
+      });
+    });
+
+    return () => window.cancelAnimationFrame(rafId);
+  }, [showAppTabContent, activeTab, homeTab, homeFeedVisibleCount, recommendedHomeFeed.length, persistHomeFeedState]);
+
 
   useEffect(() => {
     if (!shouldForceAuthStandalone) return;
@@ -6557,7 +6681,7 @@ export default function App() {
                     </button>
                   </div>
                 </div>
-                <div className="feed-post-list compact-scroll-list feed-post-list-stream" onScroll={handleHomeFeedScroll}>
+                <div ref={homeFeedScrollRef} className="feed-post-list compact-scroll-list feed-post-list-stream" onScroll={handleHomeFeedScroll}>
                   {homeFeedSource.map((item) => (
                     <div key={`feed-wrap-${item.id}`} className="feed-stream-item">
                       <FeedPoster

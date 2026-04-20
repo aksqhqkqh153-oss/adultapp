@@ -7461,3 +7461,73 @@ body {
     border-radius: 14px;
   }
 }
+
+/* === 2026-04-20 request: feed caption inline more button / feed persistence polish === */
+.history-feed-head,
+.history-feed-profile {
+  align-items: center !important;
+}
+
+.history-feed-profile .story-mini-avatar {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  align-self: center !important;
+  margin-top: 0 !important;
+}
+
+.history-feed-card .feed-copy strong {
+  font-size: 11px !important;
+  line-height: 1.35 !important;
+}
+
+.history-feed-card .feed-copy .feed-caption-text,
+.history-feed-card .feed-copy .feed-caption-toggle,
+.history-feed-card .feed-copy .feed-caption-ellipsis {
+  font-size: 11px !important;
+}
+
+.feed-caption-block {
+  position: relative;
+  display: grid;
+  gap: 6px;
+}
+
+.feed-caption-block.has-toggle:not(.expanded) {
+  min-height: calc(1.5em * 3);
+}
+
+.feed-caption-block.has-toggle:not(.expanded) .feed-caption-text {
+  padding-right: 72px;
+}
+
+.feed-caption-collapsed-actions {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: 12px;
+  background: linear-gradient(90deg, rgba(13, 18, 31, 0) 0%, rgba(13, 18, 31, 0.92) 32%, rgba(13, 18, 31, 1) 62%);
+}
+
+.feed-caption-ellipsis {
+  color: rgba(255,255,255,0.72);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.feed-caption-toggle {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #f8b4d9;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.feed-caption-toggle-expanded {
+  justify-self: end;
+}
