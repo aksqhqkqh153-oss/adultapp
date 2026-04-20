@@ -1771,6 +1771,7 @@ function ShortsViewer({
   onOpenMore,
   getKeywordTags,
   onOpenAuthorProfile,
+  onPreviewAuthorAvatar,
   followedAuthors,
   onToggleFollow,
 }: {
@@ -1780,6 +1781,7 @@ function ShortsViewer({
   onOpenMore: (item: FeedItem) => void;
   getKeywordTags: (item: FeedItem) => string[];
   onOpenAuthorProfile: (author: string) => void;
+  onPreviewAuthorAvatar: (item: FeedItem) => void;
   followedAuthors: string[];
   onToggleFollow: (author: string) => void;
 }) {
@@ -1944,7 +1946,17 @@ function ShortsViewer({
 
               <div className={`shorts-viewer-bottom${overlayVisible ? " visible" : ""}`}>
                 <div className="shorts-viewer-author-row">
-                  <span className="shorts-profile-avatar shorts-profile-avatar-small" aria-hidden="true">{item.author.slice(0, 1).toUpperCase()}</span>
+                  <button
+                    type="button"
+                    className="shorts-profile-avatar shorts-profile-avatar-small shorts-profile-avatar-button"
+                    onClick={() => {
+                      restartOverlayTimer();
+                      onPreviewAuthorAvatar(item);
+                    }}
+                    aria-label={`${item.author} 프로필 사진 크게 보기`}
+                  >
+                    {item.author.slice(0, 1).toUpperCase()}
+                  </button>
                   <button type="button" className="shorts-viewer-author-link" onClick={() => { restartOverlayTimer(); onOpenAuthorProfile(item.author); }}>{item.author}</button>
                   <button type="button" className={`feed-follow-btn shorts-follow-btn ${following ? "active" : ""}`} onClick={() => { restartOverlayTimer(); onToggleFollow(item.author); }}>{following ? "팔로잉" : "팔로우"}</button>
                 </div>
@@ -1959,8 +1971,12 @@ function ShortsViewer({
                     ))}
                   </div>
                   <div className="shorts-comment-input-row">
-                    <input value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} placeholder="댓글을 입력하세요" />
+                    <input value={commentDraft} onChange={(event) => {
+                      restartOverlayTimer();
+                      setCommentDraft(event.target.value);
+                    }} placeholder="댓글을 입력하세요" />
                     <button type="button" onClick={() => {
+                      restartOverlayTimer();
                       if (!commentDraft.trim()) return;
                       setCommentMap((prev) => ({ ...prev, [item.id]: [...(prev[item.id] ?? []), commentDraft.trim()] }));
                       setCommentDraft("");
@@ -6879,6 +6895,7 @@ export default function App() {
                     onOpenMore={setShortsMoreItem}
                     getKeywordTags={getContentKeywordTags}
                     onOpenAuthorProfile={openProfileFromAuthor}
+                    onPreviewAuthorAvatar={openFeedAvatarPreview}
                     followedAuthors={followedFeedAuthors}
                     onToggleFollow={toggleFollowedFeedAuthor}
                   />
@@ -6915,6 +6932,7 @@ export default function App() {
                         onOpenMore={setShortsMoreItem}
                         getKeywordTags={getContentKeywordTags}
                         onOpenAuthorProfile={openProfileFromAuthor}
+                        onPreviewAuthorAvatar={openFeedAvatarPreview}
                         followedAuthors={followedFeedAuthors}
                         onToggleFollow={toggleFollowedFeedAuthor}
                       />
