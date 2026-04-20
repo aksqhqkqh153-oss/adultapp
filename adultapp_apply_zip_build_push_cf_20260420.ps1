@@ -4,14 +4,14 @@ $ErrorActionPreference = "Stop"
 # 고정값
 # =========================
 $project = "C:\Users\icj24\Downloads\adultapp"
-$zip = "C:\Users\icj24\Downloads\adultapp_20260420_feed_chat_community_ui_adjust.zip"
+$zip = "C:\Users\icj24\Downloads\adultapp_20260420_home_feed_infinite_scroll_unified.zip"
 $branch = "main"
 $pagesProject = "adultapp"
 $frontend = Join-Path $project "frontend"
 $backend = Join-Path $project "backend"
 $dist = Join-Path $frontend "dist"
 $static = Join-Path $backend "static"
-$commitMsg = "update: adjust home feed community chat ui layout"
+$commitMsg = "update: unify home feed infinite scroll behavior"
 
 function Stop-RunningProcesses {
     Write-Host "1) 실행 중 프로세스 종료"
@@ -37,20 +37,18 @@ git clean -fd
 Write-Host "4) ZIP 재덮어쓰기"
 Expand-Archive -LiteralPath $zip -DestinationPath $project -Force
 
-Write-Host "5) 프론트 의존성 설치"
 Set-Location $frontend
-npm install
 
-Write-Host "6) 프론트 빌드"
+Write-Host "5) 프론트 빌드"
 npm run build
 if (!(Test-Path $dist)) { throw "dist 폴더가 생성되지 않았습니다: $dist" }
 
-Write-Host "7) backend/static 반영"
+Write-Host "6) backend/static 반영"
 if (!(Test-Path $static)) { New-Item -ItemType Directory -Path $static | Out-Null }
 robocopy $dist $static /MIR | Out-Null
 if ($LASTEXITCODE -gt 7) { throw "robocopy 실패 코드: $LASTEXITCODE" }
 
-Write-Host "8) Git 커밋 + 푸시"
+Write-Host "7) Git 커밋 + 푸시"
 Set-Location $project
 git add .
 $pending = git status --porcelain
@@ -61,11 +59,11 @@ if ([string]::IsNullOrWhiteSpace($pending)) {
     git push origin $branch
 }
 
-Write-Host "9) Cloudflare 로그인 상태 확인"
+Write-Host "8) Cloudflare 로그인 상태 확인"
 Set-Location $frontend
 npx --yes wrangler@4 whoami
 
-Write-Host "10) Cloudflare Pages 수동 업로드"
+Write-Host "9) Cloudflare Pages 수동 업로드"
 npx --yes wrangler@4 pages deploy dist --project-name $pagesProject --branch $branch --commit-dirty=true
 
 Write-Host "완료"

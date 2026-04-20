@@ -1,4 +1,4 @@
-import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, PointerEvent, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { clearTokens, ensureAuthSession, getApiBase, getJson, getRefreshToken, hasAuthToken, postJson, setAuthToken, setRefreshToken } from "./lib/api";
 
 type FeedItem = {
@@ -11,7 +11,39 @@ type FeedItem = {
   likes: number;
   comments: number;
   accent: string;
+  views?: number;
+  postedAt?: string;
+  videoUrl?: string;
+  mediaUrl?: string;
+  mediaName?: string;
 };
+
+type FeedCommentEntry = {
+  id: number;
+  author: string;
+  text: string;
+  meta: string;
+  imageUrl?: string;
+  imageName?: string;
+};
+
+type FeedCommentAttachment = {
+  name: string;
+  dataUrl: string;
+  size: number;
+  type: string;
+};
+
+type FeedComposerAttachment = {
+  name: string;
+  previewUrl: string;
+  size: number;
+  type: string;
+  durationSec?: number;
+  optimized?: boolean;
+};
+
+type ShortOption = "공유" | "보관함저장" | "관심없음" | "채널 추천 안함" | "신고";
 
 type StoryItem = {
   id: number;
@@ -28,6 +60,8 @@ type AskProfile = {
   highlight: string;
 };
 
+type ProfileSection = "게시물" | "질문" | "릴스" | "태그됨" | "상품보기";
+
 type ShopCategory = {
   group: string;
   icon: string;
@@ -41,6 +75,13 @@ type ProductCard = {
   subtitle: string;
   price: string;
   badge: string;
+  reviewCount?: number;
+  stock_qty?: number;
+  thumbnailUrl?: string | null;
+  orderCount?: number;
+  repurchaseCount?: number;
+  isPremium?: boolean;
+  createdAt?: string;
 };
 
 type CommunityPost = {
@@ -51,17 +92,21 @@ type CommunityPost = {
   meta: string;
   audience?: string;
   sortScore?: number;
+  board?: "커뮤" | "포럼" | "후기" | "이벤트";
 };
 
 
 type NotificationItem = {
   id: number;
-  section: "공지" | "주문" | "소통";
+  section: "공지" | "이벤트" | "주문" | "소통";
+  category: string;
   title: string;
   body: string;
   meta: string;
+  postedAt: string;
   unread?: boolean;
   ctaLabel?: string;
+  author?: string;
 };
 
 type ThreadItem = {
@@ -256,6 +301,7 @@ type AuthSummary = {
 };
 
 type AuthStandaloneScreen = "login" | "signup";
+type CheckoutStage = "cart" | "order_form" | "payment_request" | "payment_complete" | "order_confirm";
 
 type AuthMeResponse = AuthSummary & {
   id?: number;
@@ -271,9 +317,53 @@ type ApiProduct = {
   name: string;
   description?: string;
   price: number;
+  shipping_fee?: number;
   status?: string;
   sku_code?: string;
   stock_qty?: number;
+  thumbnail_url?: string | null;
+  review_count?: number;
+};
+
+type ProductDetailResponse = {
+  product: ApiProduct;
+  media?: Array<{ id?: number; file_url?: string; media_type?: string; sort_order?: number }>;
+  policy?: Record<string, unknown>;
+  site_ready?: {
+    adult_only_label?: string;
+    illegal_goods_blocked?: boolean;
+    price_visible?: boolean;
+    purchase_button_visible?: boolean;
+    customer_center_visible?: boolean;
+    minimum_refund_window_days?: number;
+  };
+  seller_contact?: {
+    name?: string;
+    business_name?: string;
+    business_registration_no?: string;
+    business_address?: string;
+    cs_contact?: string;
+    return_address?: string;
+    support_email?: string;
+  };
+};
+
+type AdultGateStatusResponse = {
+  adult_verified?: boolean;
+  identity_verified?: boolean;
+  member_status?: string;
+  allowed_to_shop?: boolean;
+  latest_audit?: { provider?: string | null; outcome?: string | null; fail_reason?: string | null; created_at?: string | null };
+  policy?: { adult_only_label?: string; minor_access_blocked?: boolean; verification_methods?: string[] };
+};
+
+type VerotelStartResponse = {
+  ok?: boolean;
+  provider?: string;
+  order_no?: string;
+  action_url?: string;
+  method?: string;
+  form_fields?: Record<string, string | number>;
 };
 
 type ApiOrder = {
@@ -371,6 +461,33 @@ type SettlementPreviewResponse = {
   policy?: { settlement_cycle?: string; tax_invoice_direct?: string; tax_invoice_marketplace?: string; cash_receipt_direct?: string; cash_receipt_marketplace?: string };
 };
 
+type PaymentReviewReadyResponse = {
+  mode?: {
+    model?: string;
+    catalog_mode?: string;
+    checkout_mode?: string;
+    checkout_label?: string;
+    payout_method?: string;
+    settlement_clause?: string;
+    restricted_categories?: string[];
+    risk_controls?: string[];
+  };
+  required_components?: {
+    ledger_tables?: string[];
+    webhook?: { path?: string; signature?: string; idempotent?: boolean };
+    refund_flow?: string;
+    compliance?: string[];
+  };
+};
+
+type LedgerOverviewResponse = {
+  mode?: PaymentReviewReadyResponse["mode"];
+  orders?: { count?: number; gross?: number };
+  transactions?: { count?: number; paid?: number; refund?: number };
+  settlements?: { count?: number; gross?: number; fee?: number; net?: number };
+  webhook?: { path?: string; signature?: string; idempotent?: boolean };
+};
+
 type ProductRegistrationDraft = {
   category: string;
   name: string;
@@ -409,8 +526,8 @@ type AdminDbManage = {
 
 const mobileTabs = ["홈", "쇼핑", "소통", "채팅", "프로필"] as const;
 const legacyMenu = ["운영현황", "주문관리", "보안", "앱심사", "포럼 분리 정책", "배포가이드"] as const;
-const homeTabs = ["피드", "상품", "보관함"] as const;
-const shoppingTabs = ["목록", "주문", "바구니", "사업자인증", "상품등록"] as const;
+const homeTabs = ["피드", "쇼츠", "보관함"] as const;
+const shoppingTabs = ["홈", "목록", "상품", "주문", "바구니", "사업자인증", "상품등록"] as const;
 const communityTabs = ["커뮤", "포럼", "후기", "이벤트"] as const;
 const chatTabs = ["채팅", "질문"] as const;
 const chatTabLabels: Record<ChatTab, string> = { "채팅": "채팅", "질문": "질문" };
@@ -431,8 +548,8 @@ const profileRegionOptions = ["", "서울", "경기", "인천", "강원", "충�
 const interestCategoryOptions = ["뷰티", "케어", "건강", "커뮤니티", "브랜드", "이벤트"] as const;
 
 const defaultHeaderFavorites: HeaderFavoriteMap = {
-  "홈": ["피드", "상품", "보관함"],
-  "쇼핑": ["목록", "주문", "바구니", "사업자인증", "상품등록"],
+  "홈": ["피드", "쇼츠", "보관함"],
+  "쇼핑": ["홈", "주문", "바구니"],
   "소통": ["커뮤", "포럼", "후기"],
   "채팅": ["채팅", "질문"],
   "프로필": ["내정보"],
@@ -476,6 +593,7 @@ type RandomRegionOption = (typeof randomRegionOptions)[number];
 type RandomEntryTab = (typeof randomEntryTabs)[number];
 type AdminModeTab = (typeof adminModeTabs)[number];
 type OverlayMode = "search" | "settings" | "notifications" | "menu" | "reconsent_info" | null;
+type NotificationSectionKey = "notices" | "events" | "orders" | "community";
 type DemoLoginProvider = "PASS" | "휴대폰" | "카카오";
 type AdultGateView = "intro" | "success" | "failed" | "minor";
 type SignupStep = "consent" | "account" | "profile";
@@ -496,13 +614,75 @@ type HtmlInspectorInfo = {
   modalStyle?: CSSProperties;
 };
 
+type AppNavigationSnapshot = {
+  activeTab: MobileTab;
+  homeTab: HomeTab;
+  shoppingTab: ShoppingTab;
+  communityTab: CommunityTab;
+  chatTab: ChatTab;
+  profileTab: ProfileTab;
+  settingsCategory: SettingsCategory;
+  overlayMode: OverlayMode;
+  notificationView: { view: "list" | "section" | "detail"; section: NotificationSectionKey | null; item: NotificationItem | null };
+  activeRandomRoomId: number | null;
+  randomEntryTab: RandomEntryTab;
+  roomModalOpen: boolean;
+  selectedAskProfile: AskProfile | null;
+  productDetail: ProductDetailResponse | null;
+  selectedProductId: number | null;
+  openFeedCommentItem: FeedItem | null;
+  feedComposeOpen: boolean;
+  viewedProfileAuthor: string | null;
+  profileSection: ProfileSection;
+  authStandaloneScreen: AuthStandaloneScreen | null;
+  adultPromptOpen: boolean;
+  checkoutStage: CheckoutStage;
+  companyMailPreviewOpen: boolean;
+  randomSettingsOpen: boolean;
+  shortsMoreItem: FeedItem | null;
+  shortsViewerItemId: number | null;
+  savedShortsViewerItemId: number | null;
+  savedTab: "피드" | "쇼츠";
+};
+
+type NativeAppListenerHandle = {
+  remove?: () => void | Promise<void>;
+};
+
+type NativeAppPlugin = {
+  addListener?: (eventName: "backButton", listener: () => void) => NativeAppListenerHandle | Promise<NativeAppListenerHandle>;
+  minimizeApp?: () => void | Promise<void>;
+};
+
+declare global {
+  interface Window {
+    Capacitor?: {
+      isNativePlatform?: () => boolean;
+      Plugins?: {
+        App?: NativeAppPlugin;
+      };
+    };
+  }
+}
+
 type HeaderNavItem = {
   label: string;
   active?: boolean;
   onClick?: () => void;
 };
 
+const APP_BACK_MINIMIZE_WINDOW_MS = 1800;
+const APP_NAVIGATION_HISTORY_LIMIT = 120;
+
+const cloneNavigationSnapshot = (snapshot: AppNavigationSnapshot): AppNavigationSnapshot => JSON.parse(JSON.stringify(snapshot)) as AppNavigationSnapshot;
+
+const getNativeAppPlugin = (): NativeAppPlugin | null => {
+  if (typeof window === "undefined") return null;
+  return window.Capacitor?.Plugins?.App ?? null;
+};
+
 function SearchIcon() {
+
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" strokeWidth="1.9" />
@@ -540,20 +720,523 @@ function BellIcon() {
   );
 }
 
-const feedSeed: FeedItem[] = Array.from({ length: 18 }, (_, idx) => ({
-  id: idx + 1,
-  type: idx % 3 === 0 ? "video" : "image",
-  category: idx % 2 === 0 ? "브랜드 피드" : idx % 3 === 0 ? "숏클립" : "안전 가이드",
-  title: `추천 피드 ${idx + 1}`,
-  caption:
-    idx % 3 === 0
-      ? "세로형 짧은 영상으로 위생·보관·브랜드 스토리를 확인하는 홈 피드 예시입니다."
-      : "사진 카드와 짧은 설명을 묶어 홈에서 빠르게 탐색하도록 구성한 예시입니다.",
-  author: idx % 2 === 0 ? "adult official" : "seller studio",
-  likes: 160 + idx * 7,
-  comments: 12 + (idx % 9),
-  accent: ["sunrise", "violet", "teal", "rose"][idx % 4],
+function CartIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M3.5 5h2.4l1.45 8.12a1.8 1.8 0 0 0 1.77 1.48h7.78a1.8 1.8 0 0 0 1.75-1.39l1.36-5.81H7.12" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="10.2" cy="18.2" r="1.35" fill="currentColor"/>
+      <circle cx="17.2" cy="18.2" r="1.35" fill="currentColor"/>
+    </svg>
+  );
+}
+
+function HomeIcon({ filled = false }: { filled?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M4.5 11.2 12 4.8l7.5 6.4V19a1.5 1.5 0 0 1-1.5 1.5h-3.2v-5.6h-5.6v5.6H6A1.5 1.5 0 0 1 4.5 19v-7.8Z" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ShoppingBagIcon({ filled = false }: { filled?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M6.2 8.2h11.6l-.9 10.2a1.7 1.7 0 0 1-1.7 1.5H8.8a1.7 1.7 0 0 1-1.7-1.5L6.2 8.2Z" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M9 9V7.8a3 3 0 0 1 6 0V9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function CommunityIcon({ filled = false }: { filled?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M4.5 6.8A2.3 2.3 0 0 1 6.8 4.5h10.4a2.3 2.3 0 0 1 2.3 2.3v6.8a2.3 2.3 0 0 1-2.3 2.3h-5.1l-4.6 3.2v-3.2H6.8a2.3 2.3 0 0 1-2.3-2.3V6.8Z" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ChatIcon({ filled = false }: { filled?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M5 7.2A2.2 2.2 0 0 1 7.2 5h9.6A2.2 2.2 0 0 1 19 7.2v5.6A2.2 2.2 0 0 1 16.8 15H11l-4 3v-3H7.2A2.2 2.2 0 0 1 5 12.8V7.2Z" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M8.2 9.8h7.6M8.2 12.2h4.8" fill="none" stroke={filled ? "#000" : "currentColor"} strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ProfileIcon({ filled = false }: { filled?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <circle cx="12" cy="8.2" r="3.3" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" />
+      <path d="M5.2 19.3a6.8 6.8 0 0 1 13.6 0" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function BookmarkIcon({ filled = false }: { filled?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M7 4.8h10a1 1 0 0 1 1 1V20l-6-3.6L6 20V5.8a1 1 0 0 1 1-1Z" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function BackArrowIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M15.5 5 8.5 12l7 7" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function MoreDotsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <circle cx="6" cy="12" r="1.8" fill="currentColor" />
+      <circle cx="12" cy="12" r="1.8" fill="currentColor" />
+      <circle cx="18" cy="12" r="1.8" fill="currentColor" />
+    </svg>
+  );
+}
+
+function ThumbUpIcon({ filled = false }: { filled?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M10 10V5.8c0-1.05.83-1.8 1.55-2.52.65-.64 1.27-1.26 1.45-2.22.06-.34.52-.42.72-.13.84 1.21 1.28 2.76 1.28 4.73V10h4.1c1.04 0 1.84.93 1.68 1.95l-1.23 7.9A2 2 0 0 1 17.58 21H9.7A1.7 1.7 0 0 1 8 19.3V10h2Z"
+        fill={filled ? "currentColor" : "none"}
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path d="M4 10h4v11H5.2A1.2 1.2 0 0 1 4 19.8V10Z" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ThumbDownIcon({ filled = false }: { filled?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <g transform="translate(24 24) rotate(180)">
+        <path
+          d="M10 10V5.8c0-1.05.83-1.8 1.55-2.52.65-.64 1.27-1.26 1.45-2.22.06-.34.52-.42.72-.13.84 1.21 1.28 2.76 1.28 4.73V10h4.1c1.04 0 1.84.93 1.68 1.95l-1.23 7.9A2 2 0 0 1 17.58 21H9.7A1.7 1.7 0 0 1 8 19.3V10h2Z"
+          fill={filled ? "currentColor" : "none"}
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinejoin="round"
+        />
+        <path d="M4 10h4v11H5.2A1.2 1.2 0 0 1 4 19.8V10Z" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      </g>
+    </svg>
+  );
+}
+
+function CommentBubbleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M6 6.5h12A2.5 2.5 0 0 1 20.5 9v6A2.5 2.5 0 0 1 18 17.5H11l-4.5 3v-3H6A2.5 2.5 0 0 1 3.5 15V9A2.5 2.5 0 0 1 6 6.5Z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ShareArrowIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M13 5.5 20 12l-7 6.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M19.5 12H10a5.5 5.5 0 0 0-5.5 5.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function HeartIcon({ filled = false }: { filled?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M12 20.2 5.7 13.9a4.6 4.6 0 0 1 6.5-6.5L12 8l-.2-.2a4.6 4.6 0 1 1 6.5 6.5L12 20.2Z" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function QuestionAnswerIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M4.5 7.4A2.4 2.4 0 0 1 6.9 5h7.6A2.4 2.4 0 0 1 16.9 7.4v3.5a2.4 2.4 0 0 1-2.4 2.4H9.8L6.1 16v-2.7H6.9a2.4 2.4 0 0 1-2.4-2.4V7.4Z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M9 8.6a1.4 1.4 0 1 1 2.4 1c-.44.43-.98.77-.98 1.62" fill="none" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="10.4" cy="12.2" r=".8" fill="currentColor" />
+      <path d="M11.9 13.2h5.2l2.8 2v-2a2.2 2.2 0 0 0 2.1-2.2V9.4a2.2 2.2 0 0 0-2.2-2.2h-1.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M15 9.5h4M15 11.7h2.5" fill="none" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+const generatedFeedAuthors = ["adult official", "seller studio", "care lab", "review crew", "brand note", "event pick"] as const;
+const generatedFeedCategories = ["추천", "브랜드", "리뷰", "보관팁", "실사용", "이벤트"] as const;
+const generatedFeedAccents = ["sunrise", "violet", "teal", "rose"] as const;
+
+const infiniteScrollDemoFeedBlueprint = [
+  { category: "보관팁", title: "실리콘 제품 세정 루틴", caption: "세정 → 건조 → 개별 보관 순서를 카드형으로 정리한 테스트 피드입니다." },
+  { category: "실사용", title: "입문자 만족도 체크 메모", caption: "강도, 소음, 사이즈 기준으로 처음 고를 때 보는 포인트를 정리했습니다." },
+  { category: "추천", title: "오늘의 저소음 추천 픽", caption: "늦은 시간대에도 부담이 적은 저소음 라인업을 모아 본 테스트 피드입니다." },
+  { category: "리뷰", title: "후기 많은 스타터 구성", caption: "후기 수가 많은 입문 조합을 한 장으로 정리한 카드형 게시글입니다." },
+  { category: "브랜드", title: "브랜드별 무드보드 모음", caption: "패키지 톤과 제품 포지션을 빠르게 비교할 수 있도록 만든 샘플 게시글입니다." },
+  { category: "이벤트", title: "주말 특가 미리보기", caption: "주말 행사 예정 상품을 미리 훑어보는 용도의 무한스크롤 테스트 게시글입니다." },
+  { category: "보관팁", title: "보관함 냄새 관리 팁", caption: "향이 강한 제품을 분리 보관할 때 체크할 점을 간단한 문장으로 구성했습니다." },
+  { category: "실사용", title: "리얼 사용감 비교 노트", caption: "진동감, 그립감, 세척 편의성 비교 문구를 담은 피드 샘플입니다." },
+  { category: "추천", title: "재구매율 높은 젤 모음", caption: "재구매율 기준으로 정리한 러브젤 추천 게시글 예시입니다." },
+  { category: "리뷰", title: "별점 4.8 이상 제품 모음", caption: "평점 기준으로 큐레이션한 리뷰형 카드라서 피드 흐름 테스트에 적합합니다." },
+  { category: "브랜드", title: "국내 브랜드 집중 소개", caption: "국내 브랜드 라인업을 간단한 요약문과 함께 보여주는 샘플 카드입니다." },
+  { category: "이벤트", title: "신규 입점 셀러 알림", caption: "새로 입점한 셀러의 대표 상품을 소개하는 형태의 테스트 피드입니다." },
+  { category: "보관팁", title: "방수 제품 건조 체크", caption: "방수 제품 사용 후 물기 제거 포인트를 짧게 적은 정보형 게시글입니다." },
+  { category: "실사용", title: "그립감 좋은 제품 메모", caption: "손에 잘 잡히는 디자인 위주로 정리한 실사용형 샘플 피드입니다." },
+  { category: "추천", title: "커플용 인기 구성 안내", caption: "커플용으로 많이 찾는 조합을 짧게 정리한 추천형 피드 예시입니다." },
+  { category: "리뷰", title: "초보자 재구매 후기 요약", caption: "초보자 재구매 후기를 짧은 요약문으로 압축한 테스트 게시글입니다." },
+  { category: "브랜드", title: "프리미엄 라인 요약 카드", caption: "프리미엄 라인의 특징과 포인트를 짧게 보여주는 브랜드형 피드입니다." },
+  { category: "이벤트", title: "타임특가 카운트다운", caption: "짧은 시간 동안 노출되는 행사 카드 느낌으로 구성한 샘플 게시글입니다." },
+  { category: "보관팁", title: "파우치 분리 보관 기준", caption: "재질별로 파우치를 분리하는 이유를 설명하는 정보형 테스트 피드입니다." },
+  { category: "실사용", title: "조용한 사용감 베스트 모음", caption: "저소음 반응이 좋았던 제품을 모아 본 무한스크롤 확인용 마지막 카드입니다." },
+] as const;
+
+const infiniteScrollDemoFeed: FeedItem[] = infiniteScrollDemoFeedBlueprint.map((item, index) => ({
+  id: 18 + index,
+  type: "image",
+  category: item.category,
+  title: item.title,
+  caption: item.caption,
+  author: generatedFeedAuthors[index % generatedFeedAuthors.length],
+  likes: 204 + (index * 7),
+  comments: 8 + (index % 9),
+  accent: generatedFeedAccents[index % generatedFeedAccents.length],
+  views: 1830 + (index * 95),
+  postedAt: `${index + 1}시간 전`,
 }));
+
+const feedSeed: FeedItem[] = [
+  { id: 1, type: "video", category: "브랜드", title: "입문 가이드", caption: "입문용 제품을 안전하게 고르는 기준을 10초 요약 쇼츠로 정리했습니다.", author: "adult official", likes: 428, comments: 31, accent: "sunrise", views: 3200, postedAt: "방금", videoUrl: "/generated/shorts/short_1.mp4" },
+  { id: 2, type: "video", category: "추천", title: "오늘의 인기 케어 키트", caption: "관리 루틴과 함께 보기 좋은 인기 케어 키트를 짧게 소개합니다.", author: "seller studio", likes: 391, comments: 28, accent: "violet", views: 2890, postedAt: "3분 전", videoUrl: "/generated/shorts/short_2.mp4" },
+  { id: 3, type: "video", category: "보관팁", title: "위생 보관 3단계", caption: "보관 파우치, 세정, 건조 순서를 한 화면으로 확인할 수 있습니다.", author: "care lab", likes: 512, comments: 44, accent: "teal", views: 4100, postedAt: "8분 전", videoUrl: "/generated/shorts/short_3.mp4" },
+  { id: 4, type: "video", category: "리뷰", title: "초보자 추천 구성", caption: "리뷰가 많은 스타터 구성과 선택 포인트를 빠르게 보여줍니다.", author: "review crew", likes: 366, comments: 19, accent: "rose", views: 2510, postedAt: "15분 전", videoUrl: "/generated/shorts/short_4.mp4" },
+  { id: 5, type: "video", category: "실사용", title: "조용한 사용감 비교", caption: "저소음 위주로 비교한 추천 라인업을 짧게 살펴봅니다.", author: "seller studio", likes: 448, comments: 36, accent: "sunrise", views: 3670, postedAt: "22분 전", videoUrl: "/generated/shorts/short_5.mp4" },
+  { id: 6, type: "video", category: "이벤트", title: "이번 주 할인 픽", caption: "행사 중인 제품과 리뷰 수가 높은 상품을 함께 보여줍니다.", author: "event pick", likes: 299, comments: 17, accent: "violet", views: 2190, postedAt: "35분 전", videoUrl: "/generated/shorts/short_6.mp4" },
+  { id: 7, type: "video", category: "신상품", title: "신상품 언박싱 컷", caption: "이번 주 새로 올라온 상품의 포장과 구성만 간단히 확인합니다.", author: "adult official", likes: 537, comments: 48, accent: "teal", views: 4620, postedAt: "48분 전", videoUrl: "/generated/shorts/short_7.mp4" },
+  { id: 8, type: "video", category: "브랜드", title: "브랜드 큐레이션", caption: "브랜드별 무드와 포지션을 10초 요약으로 보여주는 소개 영상입니다.", author: "brand note", likes: 324, comments: 20, accent: "rose", views: 2430, postedAt: "1시간 전", videoUrl: "/generated/shorts/short_8.mp4" },
+  { id: 9, type: "video", category: "추천", title: "리뷰 순위 TOP 제품", caption: "리뷰 수와 재구매율 기준으로 정리한 오늘의 추천 제품입니다.", author: "review crew", likes: 605, comments: 52, accent: "sunrise", views: 5080, postedAt: "2시간 전", videoUrl: "/generated/shorts/short_9.mp4" },
+  { id: 10, type: "video", category: "보관팁", title: "세정 루틴 한 컷", caption: "세정 제품과 보관 방법을 아주 짧은 루틴으로 보여줍니다.", author: "care lab", likes: 417, comments: 29, accent: "violet", views: 3010, postedAt: "오늘", videoUrl: "/generated/shorts/short_10.mp4" },
+  { id: 11, type: "image", category: "브랜드", title: "무광 블랙 패키지 모음", caption: "패키지 디자인과 무드 중심으로 큐레이션한 브랜드 피드입니다.", author: "adult official", likes: 182, comments: 11, accent: "teal", views: 1280, postedAt: "방금" },
+  { id: 12, type: "image", category: "리뷰", title: "리뷰 많은 입문 제품", caption: "초보자 선호도가 높은 제품을 후기 중심으로 정리했습니다.", author: "review crew", likes: 173, comments: 13, accent: "rose", views: 1190, postedAt: "11분 전" },
+  { id: 13, type: "image", category: "추천", title: "오늘의 추천 딜도", caption: "형태, 재질, 보관 편의성을 함께 본 추천 카드입니다.", author: "seller studio", likes: 214, comments: 16, accent: "sunrise", views: 1490, postedAt: "18분 전" },
+  { id: 14, type: "image", category: "추천", title: "오늘의 추천 바이브", caption: "입문자용 저소음 바이브레이터 추천 모음입니다.", author: "seller studio", likes: 228, comments: 15, accent: "violet", views: 1560, postedAt: "24분 전" },
+  { id: 15, type: "image", category: "실사용", title: "사용감 비교 메모", caption: "실사용 후기를 짧게 정리해 제품 선택 시간을 줄여줍니다.", author: "review crew", likes: 201, comments: 14, accent: "teal", views: 1455, postedAt: "29분 전" },
+  { id: 16, type: "image", category: "보관팁", title: "보관 파우치 추천", caption: "위생적인 보관을 위한 파우치와 실링 키트를 정리했습니다.", author: "care lab", likes: 194, comments: 9, accent: "rose", views: 1332, postedAt: "38분 전" },
+  { id: 17, type: "image", category: "브랜드", title: "국내 브랜드 집중 소개", caption: "국내 브랜드별 대표 라인업을 한 장으로 묶은 카드입니다.", author: "brand note", likes: 166, comments: 8, accent: "sunrise", views: 1201, postedAt: "43분 전" },
+  ...infiniteScrollDemoFeed,
+  { id: 38, type: "image", category: "브랜드", title: "수입 브랜드 집중 소개", caption: "수입 브랜드 중 반응이 좋은 제품군만 골라 정리했습니다.", author: "brand note", likes: 159, comments: 7, accent: "violet", views: 1172, postedAt: "52분 전" },
+  { id: 39, type: "image", category: "이벤트", title: "이번 주 기획전 소식", caption: "행사 중인 인기 카테고리와 재고 상태를 한눈에 보여줍니다.", author: "event pick", likes: 247, comments: 18, accent: "teal", views: 1880, postedAt: "1시간 전" },
+  { id: 40, type: "image", category: "신상품", title: "신상품 등록 미리보기", caption: "막 등록된 상품 중 반응이 빠른 제품만 먼저 보여줍니다.", author: "seller studio", likes: 177, comments: 9, accent: "rose", views: 1307, postedAt: "1시간 전" },
+  { id: 41, type: "image", category: "실사용", title: "리얼 사용 후기 모음", caption: "자극 강도, 소음, 보관성 중심으로 모은 후기 카드입니다.", author: "review crew", likes: 221, comments: 21, accent: "sunrise", views: 1615, postedAt: "2시간 전" },
+  { id: 42, type: "image", category: "리뷰", title: "리뷰 100+ 추천 제품", caption: "리뷰가 누적된 제품만 별도 묶음으로 보여줍니다.", author: "review crew", likes: 239, comments: 17, accent: "violet", views: 1702, postedAt: "2시간 전" },
+  { id: 43, type: "image", category: "추천", title: "본디지 테이프 큐레이션", caption: "안전하게 시작하기 좋은 본디지 테이프 위주로 정리했습니다.", author: "seller studio", likes: 187, comments: 12, accent: "teal", views: 1424, postedAt: "3시간 전" },
+  { id: 44, type: "image", category: "추천", title: "패들 & 케인 추천", caption: "입문형 패들과 케인을 비교해 보여주는 추천 카드입니다.", author: "seller studio", likes: 175, comments: 10, accent: "rose", views: 1362, postedAt: "3시간 전" },
+  { id: 45, type: "image", category: "보관팁", title: "세정제 고르는 기준", caption: "자극도와 성분 기준으로 세정제를 고르는 방법입니다.", author: "care lab", likes: 164, comments: 8, accent: "sunrise", views: 1234, postedAt: "오늘" },
+  { id: 46, type: "image", category: "보관팁", title: "보관함 정리 루틴", caption: "사용 후 말림, 보관 순서를 카드형으로 정리했습니다.", author: "care lab", likes: 154, comments: 7, accent: "violet", views: 1150, postedAt: "오늘" },
+  { id: 47, type: "image", category: "브랜드", title: "프리미엄 라인 픽", caption: "고급형 라인에서 반응이 좋은 제품만 선별했습니다.", author: "adult official", likes: 208, comments: 11, accent: "teal", views: 1538, postedAt: "어제" },
+  { id: 48, type: "image", category: "추천", title: "러브젤 인기 순위", caption: "후기와 재구매 데이터를 기준으로 러브젤을 정리했습니다.", author: "seller studio", likes: 191, comments: 13, accent: "rose", views: 1468, postedAt: "어제" },
+  { id: 49, type: "image", category: "신상품", title: "이번 주 신규 입점", caption: "이번 주 입점한 셀러와 신규 상품 정보를 모았습니다.", author: "event pick", likes: 169, comments: 9, accent: "sunrise", views: 1260, postedAt: "어제" },
+  { id: 50, type: "image", category: "리뷰", title: "입문자 만족도 상위", caption: "입문자 평점이 높은 구성만 묶은 리뷰 카드입니다.", author: "review crew", likes: 236, comments: 14, accent: "violet", views: 1741, postedAt: "어제" },
+];
+
+
+function parseRelativeMinutes(postedAt?: string) {
+  if (!postedAt) return 240;
+  if (postedAt === "방금") return 1;
+  if (postedAt === "오늘") return 180;
+  if (postedAt === "어제") return 1440;
+  const minuteMatch = postedAt.match(/(\d+)분 전/);
+  if (minuteMatch) return Number(minuteMatch[1]);
+  const hourMatch = postedAt.match(/(\d+)시간 전/);
+  if (hourMatch) return Number(hourMatch[1]) * 60;
+  return 240;
+}
+
+const FEED_ALGO_FALLBACK_KEYWORDS = ["추천", "인기", "리뷰", "케어"] as const;
+
+function formatShortDateLabel(value?: string) {
+  if (!value) return "26.4.18";
+  if (/^\d{2}\.\d{1,2}\.\d{1,2}$/.test(value)) return value;
+  if (/^\d{4}-\d{2}-\d{2}/.test(value)) {
+    const [year, month, day] = value.split("T")[0].split("-");
+    return `${year.slice(2)}.${Number(month)}.${Number(day)}`;
+  }
+  if (value === "어제") return "26.4.18";
+  return value;
+}
+
+function formatFeedPostedAt(postedAt?: string) {
+  const minutes = parseRelativeMinutes(postedAt);
+  if (minutes <= 2) return "방금 업데이트";
+  if (minutes < 60) return `${minutes}분 전`;
+  if (minutes < 1440) return `${Math.floor(minutes / 60)}시간 전`;
+  return formatShortDateLabel(postedAt);
+}
+
+function formatCommunityPostedAt(postedAt?: string) {
+  const minutes = parseRelativeMinutes(postedAt);
+  if (minutes < 60) return "1시간 전";
+  if (minutes < 1440) return `${Math.max(1, Math.floor(minutes / 60))}시간 전`;
+  return formatShortDateLabel(postedAt);
+}
+
+function parseCommunityMeta(meta: string) {
+  const [authorRaw, postedAtRaw] = meta.split("·").map((item) => item.trim());
+  return {
+    author: authorRaw || "운영팀",
+    postedAt: formatCommunityPostedAt(postedAtRaw || "26.4.18"),
+  };
+}
+
+function extractInterestTokens(source: string) {
+  return source
+    .toLowerCase()
+    .split(/[^a-z0-9가-힣]+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 2);
+}
+
+function buildKeywordSignalMap({
+  shopKeywordSignals,
+  shortsKeywordSignals,
+  globalKeyword,
+  followingUserIds,
+  savedFeedIds,
+  feedItems,
+  forumUsers,
+}: {
+  shopKeywordSignals: Record<string, number>;
+  shortsKeywordSignals: Record<string, number>;
+  globalKeyword: string;
+  followingUserIds: number[];
+  savedFeedIds: number[];
+  feedItems: FeedItem[];
+  forumUsers: ForumStarterUser[];
+}) {
+  const signalMap = new Map<string, number>();
+  Object.entries(shopKeywordSignals).forEach(([token, score]) => signalMap.set(token.toLowerCase(), (signalMap.get(token.toLowerCase()) ?? 0) + score * 1.4));
+  Object.entries(shortsKeywordSignals).forEach(([token, score]) => signalMap.set(token.toLowerCase(), (signalMap.get(token.toLowerCase()) ?? 0) + score * 1.8));
+  extractInterestTokens(globalKeyword).forEach((token) => signalMap.set(token, (signalMap.get(token) ?? 0) + 4));
+
+  const followedTopicKeywords = followingUserIds
+    .map((id) => forumUsers.find((user) => user.id === id))
+    .filter((user): user is ForumStarterUser => Boolean(user))
+    .flatMap((user) => extractInterestTokens(`${user.name} ${user.topic} ${user.role}`));
+  followedTopicKeywords.forEach((token) => signalMap.set(token, (signalMap.get(token) ?? 0) + 2.5));
+
+  const savedKeywords = feedItems
+    .filter((item) => savedFeedIds.includes(item.id))
+    .flatMap((item) => extractInterestTokens(`${item.title} ${item.caption} ${item.category} ${item.author}`));
+  savedKeywords.forEach((token) => signalMap.set(token, (signalMap.get(token) ?? 0) + 3.5));
+  return signalMap;
+}
+
+function getTopMatchedKeywords(item: FeedItem, signalMap: Map<string, number>) {
+  const content = `${item.title} ${item.caption} ${item.category} ${item.author}`.toLowerCase();
+  const rankedSignals = Array.from(signalMap.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([token]) => token.toLowerCase())
+    .filter((token, index, array) => token && array.indexOf(token) === index);
+  const directMatches = rankedSignals.filter((token) => content.includes(token));
+  const fallback = rankedSignals.length ? rankedSignals : [...FEED_ALGO_FALLBACK_KEYWORDS];
+  return Array.from(new Set([...(directMatches.length ? directMatches : fallback)])).slice(0, 2);
+}
+
+function deterministicHash(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) % 1000003;
+  }
+  return hash;
+}
+
+function withProductMetrics(product: ProductCard, index: number): ProductCard {
+  const seedText = `${product.id}-${product.name}-${product.category}-${product.badge}`;
+  const reviewCount = product.reviewCount ?? 40 + (deterministicHash(`${seedText}-review`) % 260);
+  const orderCount = product.orderCount ?? 20 + (deterministicHash(`${seedText}-order`) % 320);
+  const repurchaseCount = product.repurchaseCount ?? 5 + (deterministicHash(`${seedText}-re`) % 140);
+  const isPremium = product.isPremium ?? (/프리미엄|premium|고급/.test(`${product.name} ${product.subtitle} ${product.badge}`.toLowerCase()) || (deterministicHash(`${seedText}-premium`) % 100 < 18));
+  const month = (deterministicHash(`${seedText}-month`) % 4) + 1;
+  const day = (deterministicHash(`${seedText}-day`) % 27) + 1;
+  const createdAt = product.createdAt ?? `2026-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  return {
+    ...product,
+    reviewCount,
+    orderCount,
+    repurchaseCount,
+    isPremium,
+    createdAt,
+    stock_qty: product.stock_qty ?? 12 + (index % 9),
+  };
+}
+
+function parseIsoDateScore(value?: string) {
+  if (!value) return 0;
+  const score = Date.parse(value);
+  return Number.isNaN(score) ? 0 : score;
+}
+
+function buildShopHomeRecommendationFeed({
+  items,
+  keywordSignals,
+  visibleCount,
+}: {
+  items: ProductCard[];
+  keywordSignals: Record<string, number>;
+  visibleCount: number;
+}) {
+  const normalizedItems = items.map((item, index) => withProductMetrics(item, index));
+  if (!normalizedItems.length) return [] as Array<ProductCard & { feedIndex: number; recommendationBucket: string }>;
+
+  const rankedTokens = Object.entries(keywordSignals)
+    .sort((a, b) => b[1] - a[1])
+    .map(([token]) => token.toLowerCase())
+    .filter((token) => token.length >= 2)
+    .slice(0, 6);
+
+  const fallbackTokens = normalizedItems
+    .flatMap((item) => [item.category, ...extractInterestTokens(`${item.name} ${item.subtitle}`)])
+    .map((token) => token.toLowerCase())
+    .filter((token, index, arr) => token && arr.indexOf(token) === index)
+    .slice(0, 6);
+
+  const interestTokens = rankedTokens.length ? rankedTokens : fallbackTokens;
+  const matchesInterest = (item: ProductCard) => {
+    const source = `${item.category} ${item.name} ${item.subtitle} ${item.badge}`.toLowerCase();
+    return interestTokens.some((token) => source.includes(token));
+  };
+
+  const interestPoolBase = normalizedItems.filter(matchesInterest);
+  const interestPool = interestPoolBase.length ? interestPoolBase : normalizedItems;
+  const nonInterestPoolBase = normalizedItems.filter((item) => !interestPool.some((picked) => picked.id === item.id));
+  const nonInterestPool = nonInterestPoolBase.length ? nonInterestPoolBase : normalizedItems;
+
+  const interestTarget = Math.max(1, Math.round(visibleCount * 0.8));
+  const nonInterestTarget = Math.max(0, visibleCount - interestTarget);
+  const bucketTargets = {
+    review: Math.round(interestTarget * 0.30),
+    popular: Math.round(interestTarget * 0.20),
+    best: Math.round(interestTarget * 0.20),
+    newest: Math.round(interestTarget * 0.20),
+    premium: 0,
+  };
+  bucketTargets.premium = Math.max(1, interestTarget - bucketTargets.review - bucketTargets.popular - bucketTargets.best - bucketTargets.newest);
+
+  const sortByStable = (itemsToSort: ProductCard[], valueGetter: (item: ProductCard) => number, salt: string) => (
+    [...itemsToSort].sort((a, b) => valueGetter(b) - valueGetter(a) || deterministicHash(`${salt}-${a.id}`) - deterministicHash(`${salt}-${b.id}`))
+  );
+
+  const buckets = {
+    review: sortByStable(interestPool, (item) => item.reviewCount ?? 0, 'review'),
+    popular: sortByStable(interestPool, (item) => item.orderCount ?? 0, 'popular'),
+    best: sortByStable(interestPool, (item) => item.repurchaseCount ?? 0, 'best'),
+    newest: sortByStable(interestPool, (item) => parseIsoDateScore(item.createdAt), 'newest'),
+    premium: sortByStable(interestPool, (item) => (item.isPremium ? 100000 : 0) + (item.reviewCount ?? 0), 'premium'),
+  } as const;
+
+  const makeRepeated = (source: ProductCard[], count: number, bucket: string) => Array.from({ length: Math.max(0, count) }, (_, index) => ({
+    ...source[index % source.length],
+    recommendationBucket: bucket,
+  }));
+
+  const preparedBuckets = {
+    review: makeRepeated(buckets.review.length ? buckets.review : interestPool, bucketTargets.review, '관심·리뷰다수'),
+    popular: makeRepeated(buckets.popular.length ? buckets.popular : interestPool, bucketTargets.popular, '관심·인기'),
+    best: makeRepeated(buckets.best.length ? buckets.best : interestPool, bucketTargets.best, '관심·베스트'),
+    newest: makeRepeated(buckets.newest.length ? buckets.newest : interestPool, bucketTargets.newest, '관심·신규'),
+    premium: makeRepeated(buckets.premium.length ? buckets.premium : interestPool, bucketTargets.premium, '관심·고급화'),
+  };
+
+  const randomPool = [...nonInterestPool].sort((a, b) => deterministicHash(`random-${a.id}`) - deterministicHash(`random-${b.id}`));
+  const randomSelections = makeRepeated(randomPool.length ? randomPool : normalizedItems, nonInterestTarget, '랜덤');
+
+  const interestSequence: Array<ProductCard & { recommendationBucket: string }> = [];
+  const bucketOrder: Array<keyof typeof preparedBuckets> = ['review', 'popular', 'best', 'newest', 'premium'];
+  const cursors = { review: 0, popular: 0, best: 0, newest: 0, premium: 0 };
+  while (interestSequence.length < interestTarget) {
+    let pushed = false;
+    for (const bucketKey of bucketOrder) {
+      const bucket = preparedBuckets[bucketKey];
+      const cursor = cursors[bucketKey];
+      if (cursor < bucket.length) {
+        interestSequence.push(bucket[cursor]);
+        cursors[bucketKey] += 1;
+        pushed = true;
+        if (interestSequence.length >= interestTarget) break;
+      }
+    }
+    if (!pushed) break;
+  }
+
+  const finalItems: Array<ProductCard & { recommendationBucket: string; feedIndex: number }> = [];
+  let interestIndex = 0;
+  let randomIndex = 0;
+  for (let index = 0; index < visibleCount; index += 1) {
+    const shouldUseRandom = ((index + 1) % 5 === 0 && randomSelections[randomIndex]) || !interestSequence[interestIndex];
+    const picked = shouldUseRandom ? randomSelections[randomIndex++] : interestSequence[interestIndex++];
+    if (!picked) break;
+    finalItems.push({ ...picked, feedIndex: index });
+  }
+  while (finalItems.length < visibleCount) {
+    const fallback = interestSequence[interestIndex++] ?? randomSelections[randomIndex++] ?? { ...normalizedItems[finalItems.length % normalizedItems.length], recommendationBucket: '기본' };
+    finalItems.push({ ...fallback, feedIndex: finalItems.length });
+  }
+  return finalItems;
+}
+
+const HOME_FEED_PAGE_SIZE = 8;
+const HOME_FEED_CACHE_KEY = "adultapp_home_feed_cache_v2";
+const HOME_FEED_CACHE_TTL_MS = 1000 * 60 * 10;
+
+type RankedFeedItem = FeedItem & { sortScore?: number };
+
+function rankHomeFeedItems({ items, keywordSignalMap, followedTopicKeywords, savedFeedIds, keyword }: {
+  items: FeedItem[];
+  keywordSignalMap: Map<string, number>;
+  followedTopicKeywords: string[];
+  savedFeedIds: number[];
+  keyword: string;
+}) {
+  const loweredKeyword = keyword.trim().toLowerCase();
+  const filtered = !loweredKeyword
+    ? items
+    : items.filter((item) => `${item.title} ${item.caption} ${item.category} ${item.author}`.toLowerCase().includes(loweredKeyword));
+
+  const ranked = filtered.map((item, idx) => {
+    const content = `${item.title} ${item.caption} ${item.category} ${item.author}`.toLowerCase();
+    const matchedSignalScore = Array.from(keywordSignalMap.entries()).reduce((sum, [token, score]) => sum + (content.includes(token) ? score : 0), 0);
+    const freshnessMinutes = parseRelativeMinutes(item.postedAt);
+    const freshnessScore = Math.max(0, 34 - Math.min(freshnessMinutes / 15, 34));
+    const followScore = followedTopicKeywords.some((token) => content.includes(token)) ? 16 : 0;
+    const savedScore = savedFeedIds.includes(item.id) ? 22 : 0;
+    const popularityScore = Math.min(24, (item.likes / 28) + (item.comments / 8) + ((item.views ?? 0) / 500));
+    const mediaBoost = item.type === "video" ? 6 : 0;
+    const nicheBoost = /딜도|바이브|본디지|패들|케인|젤|세정|보관|입문|리뷰|신상품|브랜드|추천/.test(content) ? 5 : 0;
+    const explorationScore = deterministicHash(`home-${item.id}-${item.title}`) % 100 < 6 ? 8 : 0;
+    const recencyPenalty = freshnessMinutes >= 1440 ? 6 : 0;
+    return { ...item, sortScore: matchedSignalScore + freshnessScore + followScore + savedScore + popularityScore + mediaBoost + nicheBoost + explorationScore - recencyPenalty + (filtered.length - idx) * 0.001 };
+  });
+
+  ranked.sort((a, b) => (b.sortScore ?? 0) - (a.sortScore ?? 0) || (b.views ?? 0) - (a.views ?? 0) || (b.likes - a.likes));
+  return ranked;
+}
+
+function loadCachedHomeFeedPage() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(HOME_FEED_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { expiresAt?: number; items?: RankedFeedItem[]; visibleCount?: number };
+    if (!parsed?.expiresAt || parsed.expiresAt < Date.now() || !Array.isArray(parsed.items)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
 
 const storySeed: StoryItem[] = [
   { id: 1, name: "adult official", role: "브랜드 스토리", accent: "sunrise" },
@@ -579,19 +1262,31 @@ const storyPreviewText: Record<string, string> = {
   "event pick": "진행 중인 이벤트와 공지를 바로 확인해보세요.",
 };
 
-const shopCategories: ShopCategory[] = [
-  { group: "입문/기본", icon: "◎", items: [{ name: "입문 액세서리", count: 18 }, { name: "위생·보관", count: 24 }, { name: "케어/세정", count: 14 }] },
-  { group: "브랜드관", icon: "◇", items: [{ name: "국내 브랜드", count: 12 }, { name: "수입 브랜드", count: 21 }, { name: "안전 기획전", count: 9 }] },
-  { group: "판매자센터", icon: "▣", items: [{ name: "신규 등록 상품", count: 8 }, { name: "승인 대기", count: 5 }, { name: "재고/상태", count: 11 }] },
-];
+const shopCategories: ShopCategory[] = [];
+
+const generatedProductCategories = ["딜도", "바이브레이터", "러브젤", "플러그", "케어 키트", "패들"] as const;
+const generatedProductBadges = ["추천", "베스트", "신규", "인기", "테스트", "리뷰다수"] as const;
 
 const productsSeed: ProductCard[] = [
-  { id: 1, category: "위생·보관", name: "뉴트럴 케어 파우치", subtitle: "익명 포장/보관 가이드 포함", price: "₩18,000", badge: "안전노출" },
-  { id: 2, category: "입문 액세서리", name: "스타터 바디 케어 세트", subtitle: "입문자용 설명 카드 제공", price: "₩29,000", badge: "베스트" },
-  { id: 3, category: "브랜드관", name: "브랜드관 샘플 패키지", subtitle: "카드/계좌 이체 허용 SKU", price: "₩43,000", badge: "PG 친화" },
-  { id: 4, category: "기획전", name: "정기 재구매 추천 팩", subtitle: "재구매/장바구니 연동 예시", price: "₩36,500", badge: "추천" },
-  { id: 5, category: "위생·보관", name: "실링 보관 키트", subtitle: "보관/관리 콘텐츠 연결", price: "₩12,900", badge: "신규" },
-  { id: 6, category: "입문 액세서리", name: "안전 가이드 번들", subtitle: "콘텐츠+상품 동시 노출 예시", price: "₩24,000", badge: "콘텐츠 연동" },
+  { id: 1, category: "딜도", name: "슬림 입문 딜도", subtitle: "초보자용 실리콘 라인", price: "₩18,000", badge: "인기", reviewCount: 184, thumbnailUrl: "/generated/shop/dildo.png" },
+  { id: 2, category: "바이브레이터", name: "저소음 바이브레이터", subtitle: "데일리 사용감 중심", price: "₩29,000", badge: "베스트", reviewCount: 266, thumbnailUrl: "/generated/shop/vibe.png" },
+  { id: 3, category: "본디지 테이프", name: "본디지 테이프 스타터", subtitle: "입문형 패키지", price: "₩14,900", badge: "추천", reviewCount: 113, thumbnailUrl: "/generated/shop/bondage_tape.png" },
+  { id: 4, category: "패들", name: "소프트 패들", subtitle: "초보자 선호 라인", price: "₩24,500", badge: "리뷰다수", reviewCount: 98, thumbnailUrl: "/generated/shop/paddle.png" },
+  { id: 5, category: "케인", name: "플렉시블 케인", subtitle: "가벼운 탄성 타입", price: "₩32,000", badge: "신규", reviewCount: 76, thumbnailUrl: "/generated/shop/cane.png" },
+  { id: 6, category: "러브젤", name: "워터 베이스 러브젤", subtitle: "저자극 케어 라인", price: "₩12,900", badge: "재구매", reviewCount: 241, thumbnailUrl: "/generated/shop/lubricant.png" },
+  { id: 7, category: "플러그", name: "실리콘 플러그", subtitle: "보관이 쉬운 구조", price: "₩21,000", badge: "입문", reviewCount: 134, thumbnailUrl: "/generated/shop/plug.png" },
+  { id: 8, category: "마사지기", name: "프리미엄 마사지기", subtitle: "조용한 모터 라인", price: "₩39,000", badge: "프리미엄", reviewCount: 157, thumbnailUrl: "/generated/shop/massager.png" },
+  { id: 9, category: "케어 키트", name: "세정·보관 케어 키트", subtitle: "위생 루틴 번들", price: "₩17,500", badge: "안전", reviewCount: 203, thumbnailUrl: "/generated/shop/carekit.png" },
+  ...Array.from({ length: 30 }, (_, index) => ({
+    id: 10 + index,
+    category: generatedProductCategories[index % generatedProductCategories.length],
+    name: `랜덤 테스트 상품 ${index + 1}`,
+    subtitle: `${generatedProductCategories[index % generatedProductCategories.length]} 카테고리 무한 스크롤 테스트용 샘플 버튼`,
+    price: `₩${(15900 + index * 1300).toLocaleString()}`,
+    badge: generatedProductBadges[index % generatedProductBadges.length],
+    reviewCount: 60 + (index * 5),
+    thumbnailUrl: null,
+  })),
 ];
 
 const sponsoredFeedProducts = [
@@ -793,23 +1488,29 @@ const communityPrimaryFilters = ["전체", "공식", "회원", "운영"] as cons
 const communitySecondaryFilters = ["전체", "최신순", "공지우선", "인기순"] as const;
 
 const communitySeed: CommunityPost[] = [
-  { id: 1, category: "공지", title: "안전모드 기준 및 커뮤니티 운영 원칙", summary: "앱 공개영역에서 허용되는 표현과 금지되는 표현을 한 번에 정리합니다.", meta: "관리자 · 오늘", audience: "공식", sortScore: 100 },
-  { id: 2, category: "정보", title: "익명포장 SOP와 반품 회수 체크포인트", summary: "판매자/고객 모두 확인할 수 있는 실무형 요약 카드입니다.", meta: "운영팀 · 2시간 전", audience: "운영", sortScore: 92 },
-  { id: 3, category: "후기", title: "사진 피드형 상품 리뷰 구성 예시", summary: "사진·짧은 영상·요약문이 결합된 소통 공간 예시입니다.", meta: "brand_note · 4시간 전", audience: "회원", sortScore: 88 },
-  { id: 4, category: "토론", title: "신규 카테고리 승인 대기 상품 현황", summary: "판매자센터에서 확인 중인 상품들을 카테고리별로 묶어서 보여줍니다.", meta: "seller_studio · 어제", audience: "회원", sortScore: 81 },
-  { id: 5, category: "이벤트", title: "앱 심사 safe UI 점검 이벤트", summary: "모바일 노출 점검과 신고 흐름 확인용 공지입니다.", meta: "프로덕트팀 · 어제", audience: "공식", sortScore: 90 },
-  { id: 6, category: "공지", title: "이용약관 및 개인정보 처리방침 안내", summary: "앱 내 약관, 개인정보 처리방침, 청소년 보호정책, 환불정책은 알림 > 공지사항과 커뮤니티 공지 카테고리에서 확인할 수 있습니다.", meta: "운영공지 · 오늘", audience: "공식", sortScore: 99 },
-  { id: 7, category: "공지", title: "청소년 보호정책 및 제한 웹 포럼 운영 기준", summary: "앱 공개영역에서는 랜덤채팅을 열지 않고, 제한 웹 영역에서만 안전·동의·세척/보관 정보 포럼을 승인제로 운영합니다.", meta: "안전운영팀 · 오늘", audience: "공식", sortScore: 97 },
-  { id: 8, category: "정보", title: "구매자 활성화를 위한 앱 내 소통 기능 10선", summary: "안전수칙 토론, 초보 Q&A, 익명 고민상담, 주간 토크방처럼 법적 리스크가 낮은 소통 구조를 정리했습니다.", meta: "기획팀 · 오늘", audience: "운영", sortScore: 84 },
+  { id: 1, board: "커뮤", category: "공지", title: "안전모드 기준 및 커뮤니티 운영 원칙", summary: "앱 공개영역에서 허용되는 표현과 금지되는 표현을 한 번에 정리합니다.", meta: "관리자 · 1시간 전", audience: "공식", sortScore: 100 },
+  { id: 2, board: "커뮤", category: "정보", title: "익명포장 SOP와 반품 회수 체크포인트", summary: "판매자/고객 모두 확인할 수 있는 실무형 요약 카드입니다.", meta: "운영팀 · 2시간 전", audience: "운영", sortScore: 92 },
+  { id: 3, board: "후기", category: "후기", title: "사진 피드형 상품 리뷰 구성 예시", summary: "사진·짧은 영상·요약문이 결합된 소통 공간 예시입니다.", meta: "brand_note · 4시간 전", audience: "회원", sortScore: 88 },
+  { id: 4, board: "포럼", category: "토론", title: "신규 카테고리 승인 대기 상품 현황", summary: "판매자센터에서 확인 중인 상품들을 카테고리별로 묶어서 보여줍니다.", meta: "seller_studio · 26.4.18", audience: "회원", sortScore: 81 },
+  { id: 5, board: "포럼", category: "이벤트", title: "앱 심사 safe UI 점검 이벤트", summary: "모바일 노출 점검과 신고 흐름 확인용 공지입니다.", meta: "프로덕트팀 · 26.4.18", audience: "공식", sortScore: 90 },
+  { id: 6, board: "커뮤", category: "공지", title: "이용약관 및 개인정보 처리방침 안내", summary: "앱 내 약관, 개인정보 처리방침, 청소년 보호정책, 환불정책은 알림 > 공지사항과 커뮤니티 공지 카테고리에서 확인할 수 있습니다.", meta: "운영공지 · 3시간 전", audience: "공식", sortScore: 99 },
+  { id: 7, board: "포럼", category: "공지", title: "청소년 보호정책 및 제한 웹 포럼 운영 기준", summary: "앱 공개영역에서는 랜덤채팅을 열지 않고, 제한 웹 영역에서만 안전·동의·세척/보관 정보 포럼을 승인제로 운영합니다.", meta: "안전운영팀 · 26.4.18", audience: "공식", sortScore: 97 },
+  { id: 8, board: "커뮤", category: "정보", title: "구매자 활성화를 위한 앱 내 소통 기능 10선", summary: "안전수칙 토론, 초보 Q&A, 익명 고민상담, 주간 토크방처럼 법적 리스크가 낮은 소통 구조를 정리했습니다.", meta: "기획팀 · 14시간 전", audience: "운영", sortScore: 84 },
 ];
 
 const notificationSeed: NotificationItem[] = [
-  { id: 1, section: "공지", title: "앱 공지사항", body: "이용약관, 개인정보 처리방침, 청소년 보호정책, 환불정책을 알림에서 바로 확인할 수 있도록 이동했습니다.", meta: "정책 공지 · 오늘", unread: true, ctaLabel: "정책 확인" },
-  { id: 2, section: "공지", title: "채팅 운영기준 업데이트", body: "성향/관심사 그룹대화는 허용하되, 1:1 대화는 상호 수락 이후에만 열리도록 기준을 정리했습니다.", meta: "앱 업데이트 · 오늘", unread: true, ctaLabel: "기준 보기" },
-  { id: 3, section: "주문", title: "주문한 제품 발송 준비중", body: "주문번호 A-240412-001 상품이 발송 준비 단계로 변경되었습니다.", meta: "쇼핑 주문 · 10분 전", unread: true, ctaLabel: "주문 보기" },
-  { id: 4, section: "주문", title: "배송 상태 변경", body: "익명포장 배송 건이 택배사에 인계되었습니다. 상세 추적은 주문 목록에서 확인하세요.", meta: "배송 알림 · 1시간 전", ctaLabel: "배송 조회" },
-  { id: 5, section: "소통", title: "커뮤니티 댓글 알림", body: "공지 카테고리 게시글에 새 댓글이 등록되었습니다.", meta: "커뮤니티 · 2시간 전", unread: true, ctaLabel: "댓글 보기" },
-  { id: 6, section: "소통", title: "그룹대화/1:1 운영 안내", body: "앱에서는 성향/관심사 기반 그룹대화를 허용하되, 외부 연락처 교환·오프라인 제안·사진/영상 전송은 금지하고 1:1은 상호 수락 후에만 허용합니다.", meta: "채팅 안내 · 오늘", ctaLabel: "운영 기준" },
+  { id: 1, section: "공지", category: "정책", title: "앱 공지사항", body: "앱 정책, 필수 문서, 서비스 업데이트 공지를 알림 목록에서 빠르게 확인할 수 있도록 정리했습니다.", meta: "정책 공지", author: "운영팀", postedAt: "2026-04-19", unread: true, ctaLabel: "상세 보기" },
+  { id: 2, section: "공지", category: "업데이트", title: "채팅 운영기준 업데이트", body: "성향/관심사 그룹대화는 허용하되, 1:1 대화는 상호 수락 이후에만 열리도록 기준을 정리했습니다.", meta: "앱 업데이트", author: "프로덕트팀", postedAt: "2026-04-19", unread: true, ctaLabel: "상세 보기" },
+  { id: 7, section: "공지", category: "운영", title: "홈 검색 구조 개편 안내", body: "상단 검색 버튼을 누르면 탭별 결과 화면으로 바로 전환되는 구조로 개편되었습니다.", meta: "운영 공지", author: "서비스운영", postedAt: "2026-04-18", ctaLabel: "상세 보기" },
+  { id: 10, section: "이벤트", category: "이벤트", title: "이번 주 기획전 오픈", body: "홈과 쇼핑 화면에서 이번 주 기획전 상품과 할인 정보를 바로 확인할 수 있습니다.", meta: "이벤트 소식", author: "이벤트팀", postedAt: "2026-04-19", unread: true, ctaLabel: "상세 보기" },
+  { id: 11, section: "이벤트", category: "쿠폰", title: "앱 전용 쿠폰 지급", body: "앱 전용 할인 쿠폰이 발급되었습니다. 사용 가능 상품은 쇼핑 홈 추천 영역에서 우선 노출됩니다.", meta: "혜택 안내", author: "혜택운영", postedAt: "2026-04-18", ctaLabel: "상세 보기" },
+  { id: 12, section: "이벤트", category: "기획전", title: "브랜드 기획전 종료 임박", body: "관심 키워드와 맞는 브랜드 기획전이 곧 종료됩니다. 마감 전에 상세를 확인하세요.", meta: "기획전 안내", author: "브랜드기획", postedAt: "2026-04-17", ctaLabel: "상세 보기" },
+  { id: 3, section: "주문", category: "주문", title: "주문한 제품 발송 준비중", body: "주문번호 A-240412-001 상품이 발송 준비 단계로 변경되었습니다.", meta: "쇼핑 주문", author: "주문시스템", postedAt: "2026-04-19", unread: true, ctaLabel: "상세 보기" },
+  { id: 4, section: "주문", category: "배송", title: "배송 상태 변경", body: "익명포장 배송 건이 택배사에 인계되었습니다. 상세 추적은 주문 목록에서 확인하세요.", meta: "배송 알림", author: "배송센터", postedAt: "2026-04-18", ctaLabel: "상세 보기" },
+  { id: 8, section: "주문", category: "교환/환불", title: "환불 요청 접수", body: "환불 요청이 정상 접수되었으며 판매자 검수 후 처리 상태가 갱신됩니다.", meta: "주문 처리", author: "정산지원", postedAt: "2026-04-17", ctaLabel: "상세 보기" },
+  { id: 5, section: "소통", category: "댓글", title: "커뮤니티 댓글 알림", body: "공지 카테고리 게시글에 새 댓글이 등록되었습니다.", meta: "커뮤니티", author: "커뮤니티봇", postedAt: "2026-04-19", unread: true, ctaLabel: "상세 보기" },
+  { id: 6, section: "소통", category: "채팅", title: "그룹대화/1:1 운영 안내", body: "앱에서는 성향/관심사 기반 그룹대화를 허용하되, 외부 연락처 교환·오프라인 제안·사진/영상 전송은 금지하고 1:1은 상호 수락 후에만 허용합니다.", meta: "채팅 안내", author: "안전운영팀", postedAt: "2026-04-18", ctaLabel: "상세 보기" },
+  { id: 9, section: "소통", category: "질문", title: "질문 답변 등록 완료", body: "질문 카드에 새로운 답변이 등록되어 프로필 질문 탭에서 바로 확인할 수 있습니다.", meta: "질문 알림", author: "Q&A봇", postedAt: "2026-04-17", ctaLabel: "상세 보기" },
 ];
 
 const threadSeed: ThreadItem[] = [
@@ -895,23 +1596,39 @@ function DualRangeSlider({ min, max, valueMin, valueMax, step = 1, leftLabel, ri
   );
 }
 
-function FeedPoster({ item, onAsk, saved, onToggleSave }: { item: FeedItem; onAsk: (item: FeedItem) => void; saved: boolean; onToggleSave: (feedId: number) => void }) {
+const FeedPoster = memo(function FeedPoster({ item, onAsk, saved, liked, commentsOpen, onOpenComments, onToggleLike, onToggleSave, keywordTags = [], onOpenAuthorProfile, following, onToggleFollow }: { item: FeedItem; onAsk: (item: FeedItem) => void; saved: boolean; liked: boolean; commentsOpen: boolean; onOpenComments: (item: FeedItem) => void; onToggleLike: (feedId: number) => void; onToggleSave: (feedId: number) => void; keywordTags?: string[]; onOpenAuthorProfile: (author: string) => void; following: boolean; onToggleFollow: (author: string) => void }) {
+  const postedLabel = formatFeedPostedAt(item.postedAt);
   return (
     <article className={`feed-card history-feed-card ${item.accent}`}>
       <div className="history-feed-head">
         <div className="history-feed-profile">
           <div className="story-mini-avatar">{item.author.slice(0, 1).toUpperCase()}</div>
-          <div>
-            <strong>{item.author}</strong>
-            <p>{item.category} · 방금 업데이트</p>
+          <div className="history-feed-profile-copy">
+            <button type="button" className="feed-author-link" onClick={() => onOpenAuthorProfile(item.author)}>{item.author}</button>
+            <div className="feed-author-meta-row">
+              <span className="feed-posted-at">{postedLabel}</span>
+              <span>팔로워 2,184</span>
+              <span>팔로잉 318</span>
+            </div>
           </div>
         </div>
-        <button type="button" className="feed-question-btn" onClick={() => onAsk(item)}>질문</button>
+        <div className="history-feed-head-actions">
+          <button type="button" className={`feed-follow-btn ${following ? "active" : ""}`} onClick={() => onToggleFollow(item.author)}>{following ? "팔로잉" : "팔로우"}</button>
+        </div>
       </div>
       <div className="feed-media">
-        <div className="feed-badge">{item.type === "video" ? "VIDEO" : "PHOTO"}</div>
-        <div className="feed-category">{item.category}</div>
-        <div className="feed-visual-copy">{item.title}</div>
+        {item.type === "image" && item.mediaUrl ? (
+          <img src={item.mediaUrl} alt={item.mediaName ?? item.title} className="feed-media-preview" loading="lazy" />
+        ) : item.type === "video" && item.videoUrl ? (
+          <video src={item.videoUrl} className="feed-media-preview" controls playsInline muted preload="metadata" />
+        ) : null}
+        {keywordTags.length ? (
+          <div className="content-keyword-stack content-keyword-stack--feed">
+            {keywordTags.slice(0, 2).map((keyword) => (
+              <span key={`${item.id}-${keyword}`} className="content-keyword-pill">#{keyword}</span>
+            ))}
+          </div>
+        ) : null}
       </div>
       <div className="feed-copy">
         <div>
@@ -919,22 +1636,21 @@ function FeedPoster({ item, onAsk, saved, onToggleSave }: { item: FeedItem; onAs
           <p>{item.caption}</p>
         </div>
         <div className="feed-meta">
-          <span>@{item.author}</span>
           <span>좋아요 {item.likes}</span>
           <span>댓글 {item.comments}</span>
         </div>
       </div>
-      <div className="history-feed-footer">
-        <button type="button">좋아요</button>
-        <button type="button">댓글</button>
-        <button type="button" onClick={() => onAsk(item)}>질문하기</button>
-        <button type="button" className="ghost-btn" onClick={() => onToggleSave(item.id)}>{saved ? "보관해제" : "보관함"}</button>
+      <div className="history-feed-footer history-feed-footer-icons">
+        <button type="button" className={liked ? "active" : ""} aria-label="좋아요" onClick={() => onToggleLike(item.id)}><HeartIcon filled={liked} /></button>
+        <button type="button" className={commentsOpen ? "active" : ""} aria-label="댓글" onClick={() => onOpenComments(item)}><CommentBubbleIcon /></button>
+        <button type="button" aria-label="질문하기" onClick={() => onAsk(item)}><QuestionAnswerIcon /></button>
+        <button type="button" className={saved ? "active" : ""} aria-label="보관함" onClick={() => onToggleSave(item.id)}><BookmarkIcon filled={saved} /></button>
       </div>
     </article>
   );
-}
+});
 
-function SponsoredFeedProductCard({ item, saved, onToggleSave }: { item: { id: number; label: string; title: string; subtitle: string; price: string }; saved: boolean; onToggleSave: (productId: number) => void }) {
+const SponsoredFeedProductCard = memo(function SponsoredFeedProductCard({ item, saved, onToggleSave }: { item: { id: number; label: string; title: string; subtitle: string; price: string }; saved: boolean; onToggleSave: (productId: number) => void }) {
   return (
     <article className="product-card sponsored-feed-product">
       <div className="product-thumb" />
@@ -948,7 +1664,7 @@ function SponsoredFeedProductCard({ item, saved, onToggleSave }: { item: { id: n
       </div>
     </article>
   );
-}
+});
 
 function StoryStrip({ onOpenStory }: { onOpenStory: (story: StoryItem) => void }) {
   return (
@@ -973,53 +1689,281 @@ function StoryStrip({ onOpenStory }: { onOpenStory: (story: StoryItem) => void }
   );
 }
 
-function AskProfileScreen({ profile, onClose }: { profile: AskProfile; onClose: () => void }) {
-  const [questionText, setQuestionText] = useState("");
+function ShortsListCard({ item, onOpenMore, onOpenViewer }: { item: FeedItem; onOpenMore: (item: FeedItem) => void; onOpenViewer: (item: FeedItem) => void }) {
+  return (
+    <article className="shorts-list-card" onClick={() => onOpenViewer(item)}>
+      <button type="button" className={`shorts-video-stage ${item.accent}`} onClick={() => onOpenViewer(item)}>
+        <div className="shorts-video-poster-tag">대표 썸네일 · 10초 · 저용량</div>
+        <div className="shorts-video-center">쇼츠 포스터</div>
+      </button>
+      <div className="shorts-list-copy shorts-list-copy-detailed">
+        <div className="shorts-detail-identity-row">
+          <span className="shorts-profile-avatar" aria-hidden="true">{item.author.slice(0, 1).toUpperCase()}</span>
+          <div className="shorts-detail-copy-block">
+            <div className="shorts-detail-title-bar">
+              <strong>{item.title}</strong>
+              <button
+                type="button"
+                className="shorts-more-btn shorts-more-icon-btn"
+                aria-label={`${item.title} 더보기`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onOpenMore(item);
+                }}
+              >
+                <MoreDotsIcon />
+              </button>
+            </div>
+            <span className="shorts-inline-meta">{item.author} · 조회수 {(item.views ?? 0).toLocaleString()}회 · {item.postedAt ?? "방금"} · 추천수 {item.likes.toLocaleString()}</span>
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function ShortsViewer({
+  items,
+  initialIndex,
+  onClose,
+  onOpenMore,
+  getKeywordTags,
+}: {
+  items: FeedItem[];
+  initialIndex: number;
+  onClose: () => void;
+  onOpenMore: (item: FeedItem) => void;
+  getKeywordTags: (item: FeedItem) => string[];
+}) {
+  const [activeIndex, setActiveIndex] = useState(initialIndex);
+  const [pausedMap, setPausedMap] = useState<Record<number, boolean>>(() => ({ [items[initialIndex]?.id ?? 0]: false }));
+  const [likedIds, setLikedIds] = useState<number[]>([]);
+  const [dislikedIds, setDislikedIds] = useState<number[]>([]);
+  const [subscribedIds, setSubscribedIds] = useState<number[]>([]);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const [descriptionItem, setDescriptionItem] = useState<FeedItem | null>(null);
+  const [overlayVisible, setOverlayVisible] = useState(true);
+  const [commentOpenItemId, setCommentOpenItemId] = useState<number | null>(null);
+  const [commentDraft, setCommentDraft] = useState("");
+  const [commentMap, setCommentMap] = useState<Record<number, string[]>>(() => Object.fromEntries(items.map((item) => [item.id, [`${item.author} 취향 태그 잘 맞아요.`, `${item.title} 관련 추천이 괜찮네요.`]])));
+  const hideTimerRef = useRef<number | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const target = scrollRef.current?.querySelector<HTMLElement>(`[data-short-index="${initialIndex}"]`);
+    target?.scrollIntoView({ block: "start" });
+  }, [initialIndex]);
+
+  const activeItem = items[activeIndex] ?? items[0];
+  const isPaused = !!pausedMap[activeItem?.id ?? 0];
+
+  const restartOverlayTimer = () => {
+    setOverlayVisible(true);
+    if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = window.setTimeout(() => setOverlayVisible(false), 5000);
+  };
+
+  useEffect(() => {
+    restartOverlayTimer();
+    return () => {
+      if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
+    };
+  }, [activeIndex]);
+
+  const togglePause = (itemId: number) => {
+    restartOverlayTimer();
+    setPausedMap((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
+  };
+
+  const handleViewerScroll = (event: UIEvent<HTMLDivElement>) => {
+    restartOverlayTimer();
+    const container = event.currentTarget;
+    const nextIndex = Math.round(container.scrollTop / Math.max(container.clientHeight, 1));
+    if (nextIndex !== activeIndex && items[nextIndex]) {
+      setActiveIndex(nextIndex);
+    }
+  };
+
+  const toggleReaction = (kind: "like" | "dislike", itemId: number) => {
+    restartOverlayTimer();
+    if (kind === "like") {
+      setLikedIds((prev) => prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]);
+      setDislikedIds((prev) => prev.filter((id) => id !== itemId));
+      return;
+    }
+    setDislikedIds((prev) => prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]);
+    setLikedIds((prev) => prev.filter((id) => id !== itemId));
+  };
+
+  const toggleSubscribe = (itemId: number) => {
+    restartOverlayTimer();
+    setSubscribedIds((prev) => prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]);
+  };
+
+  return (
+    <div className="shorts-viewer-overlay">
+      <div className={`shorts-viewer-topbar${overlayVisible ? " visible" : ""}`}>
+        <div className="shorts-viewer-topbar-left">
+          <button type="button" className="shorts-icon-btn shorts-back-btn" onClick={onClose} aria-label="뒤로가기"><BackArrowIcon /></button>
+          <div className="content-keyword-stack content-keyword-stack--viewer">
+            {getKeywordTags(activeItem).slice(0, 2).map((keyword) => (
+              <span key={`viewer-${activeItem?.id ?? 0}-${keyword}`} className="content-keyword-pill">#{keyword}</span>
+            ))}
+          </div>
+        </div>
+        <div className="shorts-viewer-topbar-actions">
+          <button type="button" className="shorts-icon-btn" onClick={() => setSearchOpen((prev) => !prev)} aria-label="쇼츠 검색"><SearchIcon /></button>
+          <button type="button" className="shorts-icon-btn" onClick={() => onOpenMore(activeItem)} aria-label="쇼츠 더보기"><MoreDotsIcon /></button>
+        </div>
+      </div>
+
+      {searchOpen && overlayVisible ? (
+        <div className="shorts-viewer-searchbar">
+          <input value={searchText} onChange={(event) => setSearchText(event.target.value)} placeholder="쇼츠 검색" />
+        </div>
+      ) : null}
+
+      <div className="shorts-viewer-scroll" ref={scrollRef} onScroll={handleViewerScroll}>
+        {items.map((item, idx) => {
+          const paused = !!pausedMap[item.id];
+          const liked = likedIds.includes(item.id);
+          const disliked = dislikedIds.includes(item.id);
+          const subscribed = subscribedIds.includes(item.id);
+          return (
+            <section key={`viewer-${item.id}`} className={`shorts-viewer-page ${item.accent}${commentOpenItemId === item.id ? " comments-open" : ""}`} data-short-index={idx}>
+              <button type="button" className="shorts-viewer-video" onClick={() => togglePause(item.id)} aria-label={paused ? "영상 재생" : "영상 정지"}>
+                <div className="shorts-viewer-video-fill">
+                  {item.videoUrl ? (
+                    <video
+                      key={item.videoUrl}
+                      className="shorts-viewer-video-asset"
+                      src={item.videoUrl}
+                      autoPlay={!paused}
+                      muted
+                      loop
+                      playsInline
+                    />
+                  ) : null}
+                  <div className="shorts-viewer-video-poster">10초 · 저용량 데모 클립</div>
+                </div>
+              </button>
+
+              <div className={`shorts-viewer-side-actions${overlayVisible ? " visible" : ""}`}>
+                <button type="button" className={`shorts-viewer-action-btn${liked ? " active" : ""}`} onClick={() => toggleReaction("like", item.id)}><span><ThumbUpIcon filled={liked} /></span><b>{item.likes.toLocaleString()}</b></button>
+                <button type="button" className={`shorts-viewer-action-btn${disliked ? " active" : ""}`} onClick={() => toggleReaction("dislike", item.id)}><span><ThumbDownIcon filled={disliked} /></span><b>{Math.max(12, Math.round(item.likes / 11)).toLocaleString()}</b></button>
+                <button type="button" className={`shorts-viewer-action-btn${commentOpenItemId === item.id ? " active" : ""}`} onClick={() => { restartOverlayTimer(); setCommentOpenItemId(commentOpenItemId === item.id ? null : item.id); }}><span><CommentBubbleIcon /></span><b>{(commentMap[item.id] ?? []).length.toLocaleString()}</b></button>
+                <button type="button" className="shorts-viewer-action-btn"><span><ShareArrowIcon /></span><b>공유</b></button>
+              </div>
+
+              <div className={`shorts-viewer-bottom${overlayVisible ? " visible" : ""}`}>
+                <div className="shorts-viewer-author-row">
+                  <span className="shorts-profile-avatar shorts-profile-avatar-small" aria-hidden="true">{item.author.slice(0, 1).toUpperCase()}</span>
+                  <button type="button" className="shorts-viewer-author-link" onClick={restartOverlayTimer}>{item.author}</button>
+                  <button type="button" className={`shorts-subscribe-btn${subscribed ? " subscribed" : ""}`} onClick={() => toggleSubscribe(item.id)}>{subscribed ? "구독 중" : "구독"}</button>
+                </div>
+                <button type="button" className="shorts-viewer-full-title" onClick={restartOverlayTimer}>풀영상 {item.title}</button>
+                <button type="button" className="shorts-viewer-description" onClick={() => { restartOverlayTimer(); setDescriptionItem(item); }}>{item.caption}</button>
+              </div>
+              {commentOpenItemId === item.id ? (
+                <div className="shorts-comments-sheet">
+                  <div className="shorts-comments-list">
+                    {(commentMap[item.id] ?? []).map((comment, commentIndex) => (
+                      <div key={`${item.id}-comment-${commentIndex}`} className="shorts-comment-row"><b>user{commentIndex + 1}</b><span>{comment}</span></div>
+                    ))}
+                  </div>
+                  <div className="shorts-comment-input-row">
+                    <input value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} placeholder="댓글을 입력하세요" />
+                    <button type="button" onClick={() => {
+                      if (!commentDraft.trim()) return;
+                      setCommentMap((prev) => ({ ...prev, [item.id]: [...(prev[item.id] ?? []), commentDraft.trim()] }));
+                      setCommentDraft("");
+                    }}>입력</button>
+                  </div>
+                </div>
+              ) : null}
+            </section>
+          );
+        })}
+      </div>
+
+      {descriptionItem ? (
+        <div className="shorts-description-sheet-backdrop" onClick={() => setDescriptionItem(null)}>
+          <div className="shorts-description-sheet" onClick={(event) => event.stopPropagation()}>
+            <div className="shorts-sheet-handle" />
+            <strong>{descriptionItem.title}</strong>
+            <p>{descriptionItem.caption}</p>
+            <button type="button" className="ghost-btn" onClick={() => setDescriptionItem(null)}>닫기</button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function AskProfileScreen({ profile, activeTab, onClose, onNavigate, renderBottomTabIcon, onOpenProfile }: { profile: AskProfile; activeTab: MobileTab; onClose: () => void; onNavigate: (tab: MobileTab) => void; renderBottomTabIcon: (tab: MobileTab, filled: boolean) => JSX.Element; onOpenProfile: (author: string) => void }) {
+  const storageKey = `adultapp_ask_draft_${profile.id}`;
+  const [questionText, setQuestionText] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return window.localStorage.getItem(storageKey) ?? "";
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(storageKey, questionText);
+  }, [questionText, storageKey]);
+
   return (
     <div className="question-overlay">
       <section className="asked-page-head">
         <div className="asked-nav-row">
-          <button type="button" className="header-inline-btn modal-back-btn" onClick={onClose}>←</button>
+          <button type="button" className="header-inline-btn header-icon-btn topbar-search-back" onClick={onClose} aria-label="뒤로가기"><BackArrowIcon /></button>
           <div className="asked-page-title">질문</div>
           <span className="modal-spacer" />
         </div>
       </section>
-      <div className="question-overlay-body">
+      <div className="question-overlay-body question-overlay-body-with-nav">
         <section className="asked-question-profile-header">
-          <div className="asked-question-profile-card">
+          <div className="asked-question-profile-card asked-question-profile-card-inline">
             <div className="asked-question-avatar">{profile.name.slice(0, 1).toUpperCase()}</div>
             <div className="asked-question-copy">
-              <strong>{profile.name}</strong>
-              <span>{profile.headline}</span>
+              <div className="asked-question-copy-head">
+                <div className="asked-question-copy-main">
+                  <button type="button" className="feed-author-link asked-profile-name-btn" onClick={() => onOpenProfile(profile.name)}>{profile.name}</button>
+                  <span>{profile.headline}</span>
+                </div>
+                <div className="asked-question-toolbar asked-question-toolbar-inline">
+                  <button type="button">팔로우</button>
+                  <button type="button" className="ghost-btn">공유</button>
+                </div>
+              </div>
               <p>{profile.intro}</p>
             </div>
-          </div>
-          <div className="asked-question-toolbar">
-            <button type="button">팔로우</button>
-            <button type="button" className="ghost-btn">공유</button>
           </div>
         </section>
 
         <section className="asked-question-form">
-          <div className="question-profile-chip-row">
-            <span className="question-profile-chip">질문 허용</span>
-            <span className="question-profile-chip muted-chip">익명 가능</span>
-          </div>
           <label>질문 내용</label>
           <textarea value={questionText} onChange={(e) => setQuestionText(e.target.value)} placeholder="상대에게 남길 질문을 입력하세요." />
+          <div className="asked-question-draft-note">작성 중인 질문은 임시저장됩니다.</div>
           <div className="asked-question-form-actions">
             <button type="button">익명으로 질문</button>
-            <button type="button" className="ghost-btn">질문 등록</button>
+            <button
+              type="button"
+              className="ghost-btn"
+              onClick={() => {
+                if (typeof window !== "undefined") window.localStorage.removeItem(storageKey);
+                setQuestionText("");
+                window.alert("질문이 등록되었습니다.");
+              }}
+            >
+              질문 등록
+            </button>
           </div>
         </section>
 
-        <div className="ad-banner ad-banner-top">
-          <span>Google AdSense 영역</span>
-          <strong>질문 화면 상단 광고</strong>
-        </div>
-
         <section className="question-list">
-          {questionSeed.map((item, idx) => (
+          {questionSeed.map((item) => (
             <div key={`ask-${item.id}`} className="question-feed-stack">
               <article className="question-feed-card">
                 <div className="question-feed-top">
@@ -1042,25 +1986,529 @@ function AskProfileScreen({ profile, onClose }: { profile: AskProfile; onClose: 
                   <button type="button">공유</button>
                 </div>
               </article>
-              {idx === 0 ? (
-                <div className="ad-banner ad-banner-inline">
-                  <span>Google AdSense 영역</span>
-                  <strong>질문 피드 중간 광고</strong>
-                </div>
-              ) : null}
             </div>
           ))}
         </section>
+      </div>
+      <nav className="bottom-nav question-overlay-bottom-nav">
+        {mobileTabs.map((tab) => {
+          const filled = activeTab === tab;
+          return (
+            <button
+              key={`ask-nav-${tab}`}
+              type="button"
+              className={`bottom-nav-btn ${filled ? "active" : ""}`}
+              onClick={() => onNavigate(tab)}
+            >
+              <span className="bottom-nav-icon">{renderBottomTabIcon(tab, filled)}</span>
+              <span className="bottom-nav-label">{tab}</span>
+            </button>
+          );
+        })}
+      </nav>
+    </div>
+  );
+}
 
-        <section className="asked-question-highlight">
-          <strong>질문 화면 안내</strong>
-          <p>{profile.highlight}</p>
+
+type FeedCommentScreenProps = {
+  item: FeedItem;
+  comments: FeedCommentEntry[];
+  draft: string;
+  attachment: FeedCommentAttachment | null;
+  attachmentBusy: boolean;
+  onChangeDraft: (value: string) => void;
+  onAttachImage: (file: File | null) => void;
+  onClearAttachment: () => void;
+  onSubmit: () => void;
+  onClose: () => void;
+  onGoHome: () => void;
+};
+
+function FeedCommentScreen({ item, comments, draft, attachment, attachmentBusy, onChangeDraft, onAttachImage, onClearAttachment, onSubmit, onClose, onGoHome }: FeedCommentScreenProps) {
+  const postedLabel = formatFeedPostedAt(item.postedAt);
+
+  return (
+    <div className="feed-comment-overlay">
+      <section className="asked-page-head feed-comment-head">
+        <div className="asked-nav-row">
+          <button type="button" className="header-inline-btn header-icon-btn topbar-search-back" onClick={onClose} aria-label="뒤로가기"><BackArrowIcon /></button>
+          <div className="asked-page-title">댓글</div>
+          <div className="feed-comment-head-actions">
+            <button type="button" className="header-inline-btn ghost-btn feed-comment-home-btn" onClick={onGoHome}>홈</button>
+            <button type="button" className="header-inline-btn feed-comment-submit-top" onClick={onSubmit}>등록</button>
+          </div>
+        </div>
+      </section>
+      <div className="feed-comment-overlay-body">
+        <article className={`feed-card history-feed-card feed-comment-focus-card ${item.accent}`}>
+          <div className="history-feed-head">
+            <div className="history-feed-profile">
+              <div className="story-mini-avatar">{item.author.slice(0, 1).toUpperCase()}</div>
+              <div className="history-feed-profile-copy">
+                <strong>{item.author}</strong>
+                <div className="feed-author-meta-row">
+                  <span className="feed-posted-at">{postedLabel}</span>
+                  <span>팔로워 2,184</span>
+                  <span>팔로잉 318</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="feed-copy">
+            <div>
+              <strong>{item.title}</strong>
+              <p>{item.caption}</p>
+            </div>
+            <div className="feed-meta">
+              <span>좋아요 {item.likes}</span>
+              <span>댓글 {(comments.length || item.comments).toLocaleString()}</span>
+            </div>
+          </div>
+
+          <div className="feed-comment-thread-shell">
+            <div className="feed-comment-thread-head">
+              <strong>댓글 {comments.length.toLocaleString()}</strong>
+              <span>다른 사용자가 남긴 대화를 확인해보세요.</span>
+            </div>
+            <section className="feed-comment-thread">
+              {comments.length ? comments.map((comment) => (
+                <article key={comment.id} className="feed-comment-row">
+                  <div className="feed-comment-avatar">{comment.author.slice(0, 1).toUpperCase()}</div>
+                  <div className="feed-comment-copy">
+                    <div className="feed-comment-meta"><strong>{comment.author}</strong><span>{comment.meta}</span></div>
+                    <p>{comment.text}</p>
+                    {comment.imageUrl ? (
+                      <div className="feed-comment-image-wrap">
+                        <img src={comment.imageUrl} alt={comment.imageName ?? "첨부 이미지"} className="feed-comment-image" loading="lazy" />
+                      </div>
+                    ) : null}
+                  </div>
+                </article>
+              )) : <div className="legacy-box compact"><p>첫 댓글을 남겨보세요.</p></div>}
+            </section>
+          </div>
+        </article>
+      </div>
+      <div className="feed-comment-composer">
+        <div className="feed-comment-composer-side">
+          <div className="feed-comment-composer-avatar">나</div>
+          <label className={`feed-comment-attach-btn ${attachmentBusy ? "is-busy" : ""}`}>
+            사진
+            <input
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null;
+                onAttachImage(file);
+                event.currentTarget.value = "";
+              }}
+            />
+          </label>
+        </div>
+        <div className="feed-comment-composer-box">
+          <textarea value={draft} onChange={(event) => onChangeDraft(event.target.value)} placeholder="게시글에 댓글을 남겨보세요." />
+          {attachment ? (
+            <div className="feed-comment-attachment-preview">
+              <img src={attachment.dataUrl} alt={attachment.name} className="feed-comment-attachment-thumb" loading="lazy" />
+              <div className="feed-comment-attachment-copy">
+                <strong>{attachment.name}</strong>
+                <span>{Math.max(1, Math.round(attachment.size / 1024))}KB · 최대 1장</span>
+              </div>
+              <button type="button" className="ghost-btn" onClick={onClearAttachment}>삭제</button>
+            </div>
+          ) : null}
+          <div className="feed-comment-composer-actions">
+            <span>{attachmentBusy ? "이미지 최적화 중" : `${draft.trim().length}/300`}</span>
+            <button type="button" onClick={onSubmit}>댓글 달기</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+type FeedComposeScreenProps = {
+  title: string;
+  caption: string;
+  attachment: FeedComposerAttachment | null;
+  busy: boolean;
+  helperText: string;
+  onChangeTitle: (value: string) => void;
+  onChangeCaption: (value: string) => void;
+  onAttachFile: (file: File | null) => void;
+  onClearAttachment: () => void;
+  onSubmit: () => void;
+  onClose: () => void;
+};
+
+function FeedComposeScreen({ title, caption, attachment, busy, helperText, onChangeTitle, onChangeCaption, onAttachFile, onClearAttachment, onSubmit, onClose }: FeedComposeScreenProps) {
+  const canSubmit = Boolean(caption.trim() || attachment);
+
+  return (
+    <div className="feed-compose-overlay">
+      <section className="asked-page-head feed-compose-head">
+        <div className="asked-nav-row">
+          <button type="button" className="header-inline-btn header-icon-btn topbar-search-back" onClick={onClose} aria-label="뒤로가기"><BackArrowIcon /></button>
+          <div className="asked-page-title">피드 작성</div>
+          <button type="button" className="header-inline-btn feed-comment-submit-top" onClick={onSubmit} disabled={!canSubmit}>등록</button>
+        </div>
+      </section>
+      <div className="feed-compose-overlay-body compact-scroll-list">
+        <section className="feed-compose-card">
+          <div className="feed-compose-profile-row">
+            <div className="feed-comment-composer-avatar">나</div>
+            <div>
+              <strong>내 피드</strong>
+              <span>사진 또는 영상을 첨부하고 설명을 입력해 피드를 등록합니다.</span>
+            </div>
+          </div>
+
+          <div className="feed-compose-field">
+            <span>제목</span>
+            <input
+              value={title}
+              onChange={(event) => onChangeTitle(event.target.value)}
+              placeholder="피드 제목을 입력하세요"
+              maxLength={60}
+            />
+          </div>
+
+          <div className="feed-compose-field">
+            <span>내용</span>
+            <textarea
+              value={caption}
+              onChange={(event) => onChangeCaption(event.target.value)}
+              placeholder="피드 내용을 입력하세요"
+              maxLength={400}
+            />
+          </div>
+
+          <div className="feed-compose-attach-row">
+            <label className={`creator-launch-btn feed-compose-attach-btn${busy ? " is-busy" : ""}`}>
+              {busy ? "첨부 최적화 중" : "사진/영상 첨부"}
+              <input
+                type="file"
+                accept="image/*,video/*"
+                hidden
+                disabled={busy}
+                onChange={(event) => {
+                  onAttachFile(event.target.files?.[0] ?? null);
+                  event.currentTarget.value = "";
+                }}
+              />
+            </label>
+            <span>{helperText}</span>
+          </div>
+
+          {attachment ? (
+            <div className="feed-compose-preview-card">
+              {attachment.type.startsWith("image/") ? (
+                <img src={attachment.previewUrl} alt={attachment.name} className="feed-compose-preview-media" loading="lazy" />
+              ) : (
+                <video src={attachment.previewUrl} className="feed-compose-preview-media" controls playsInline preload="metadata" />
+              )}
+              <div className="feed-compose-preview-copy">
+                <strong>{attachment.name}</strong>
+                <span>{attachment.type.startsWith("video/") ? `영상 첨부${attachment.optimized ? " · 최적화" : ""}${attachment.durationSec ? ` · ${attachment.durationSec.toFixed(1)}초` : ""}` : "사진 첨부"} · {Math.max(1, Math.round(attachment.size / 1024))}KB</span>
+              </div>
+              <button type="button" className="ghost-btn" onClick={onClearAttachment}>삭제</button>
+            </div>
+          ) : (
+            <div className="feed-compose-empty">첨부한 사진/영상이 여기에 미리보기로 표시됩니다.</div>
+          )}
         </section>
       </div>
     </div>
   );
 }
 
+function isCompanyMailRouteActive() {
+  if (typeof window === "undefined") return false;
+  const host = window.location.hostname.toLowerCase();
+  const path = window.location.pathname.toLowerCase();
+  const hash = window.location.hash.toLowerCase();
+  const params = new URLSearchParams(window.location.search);
+  return host.includes("opsmail") || host.includes("corpmail") || host.includes("mailops") || path.startsWith("/__ops/company-mail") || hash === "#corp-mail-admin" || params.get("internal") === "company-mail";
+}
+
+function isCompanyMailHostLocked() {
+  if (typeof window === "undefined") return false;
+  const host = window.location.hostname.toLowerCase();
+  return host.includes("opsmail") || host.includes("corpmail") || host.includes("mailops");
+}
+
+function CompanyMailAdminScreen({
+  isAdmin,
+  onExit,
+  onRequestLogin,
+  hostLabel,
+}: {
+  isAdmin: boolean;
+  onExit?: () => void;
+  onRequestLogin: () => void;
+  hostLabel: string;
+}) {
+  const folderDefs = [
+    { key: "받은편지함", label: "받은편지함" },
+    { key: "공지/정책", label: "공지/정책" },
+    { key: "주문/정산", label: "주문/정산" },
+    { key: "거래처", label: "거래처" },
+    { key: "임시보관", label: "임시보관" },
+  ] as const;
+  type FolderKey = (typeof folderDefs)[number]["key"];
+  type CompanyMailMessage = {
+    id: number;
+    folder: FolderKey;
+    category: string;
+    subject: string;
+    sender: string;
+    receivedAt: string;
+    preview: string;
+    body: string[];
+    unread?: boolean;
+    priority?: "일반" | "중요" | "긴급";
+    tags?: string[];
+  };
+
+  const messages = useMemo<CompanyMailMessage[]>(() => ([
+    {
+      id: 1,
+      folder: "받은편지함",
+      category: "운영",
+      subject: "오늘 오전 관리자 점검 일정 공유",
+      sender: "ops@internal.mail",
+      receivedAt: "2026.04.20 09:10",
+      preview: "운영 점검, 결제 리허설, 공지 반영 상태를 오전 10시에 재확인합니다.",
+      body: [
+        "관리자 전용 점검 화면입니다.",
+        "오늘 오전 10시에 운영 점검, 결제 리허설, 공지 반영 상태를 순서대로 확인합니다.",
+        "앱 내 노출 없이 관리자 계정만 접근 가능하도록 유지합니다.",
+      ],
+      unread: true,
+      priority: "중요",
+      tags: ["운영", "점검"],
+    },
+    {
+      id: 2,
+      folder: "공지/정책",
+      category: "정책",
+      subject: "청소년 보호정책 문구 최종 검수 요청",
+      sender: "policy@internal.mail",
+      receivedAt: "2026.04.19 18:45",
+      preview: "앱 공지/회원가입/상품 상세에 동일 문구가 반영되었는지 확인해주세요.",
+      body: [
+        "청소년 보호정책 최종 검수 요청입니다.",
+        "회원가입, 알림 공지, 상품 상세의 고지 문구가 동일한지 확인 후 승인 처리해주세요.",
+      ],
+      priority: "중요",
+      tags: ["정책", "문구"],
+    },
+    {
+      id: 3,
+      folder: "주문/정산",
+      category: "주문",
+      subject: "주문 환불 처리 로그 점검",
+      sender: "ledger@internal.mail",
+      receivedAt: "2026.04.19 14:20",
+      preview: "환불 상태 변경 이력과 관리자 사유 로그를 오후 배치 전 확인하세요.",
+      body: [
+        "환불 처리 로그 점검 안내입니다.",
+        "주문 상태 변경 이력, 관리자 사유 기록, 환불 금액 반영값을 오후 배치 전에 검토해주세요.",
+      ],
+      priority: "일반",
+      tags: ["주문", "환불"],
+    },
+    {
+      id: 4,
+      folder: "거래처",
+      category: "거래처",
+      subject: "입점사 노출 상품 검수 요청",
+      sender: "sellerdesk@internal.mail",
+      receivedAt: "2026.04.18 16:00",
+      preview: "신규 입점사 공개 예정 상품 12건의 카테고리/문구 검수가 필요합니다.",
+      body: [
+        "입점사 검수 요청 건입니다.",
+        "신규 등록 예정 상품 12건에 대해 카테고리, 상세 문구, 노출 이미지 검수를 진행해주세요.",
+      ],
+      unread: true,
+      priority: "중요",
+      tags: ["판매자", "검수"],
+    },
+    {
+      id: 5,
+      folder: "임시보관",
+      category: "초안",
+      subject: "앰배서더 운영 약정서 보관",
+      sender: "docs@internal.mail",
+      receivedAt: "2026.04.20 11:40",
+      preview: "업로드한 HWP 문서를 DOCX로 변환해 docs/internal/ambassador 폴더에 보관했습니다.",
+      body: [
+        "문서 보관 완료 안내입니다.",
+        "앰배서더 운영 가이드라인 및 참여약정서를 DOCX 형식으로 변환해 프로젝트 내부 문서 폴더에 저장했습니다.",
+      ],
+      priority: "일반",
+      tags: ["문서", "보관"],
+    },
+  ]), []);
+
+  const [folder, setFolder] = useState<FolderKey>("받은편지함");
+  const visibleMessages = useMemo(() => messages.filter((item) => item.folder === folder), [messages, folder]);
+  const [selectedId, setSelectedId] = useState<number>(1);
+  useEffect(() => {
+    if (!visibleMessages.some((item) => item.id === selectedId)) {
+      setSelectedId(visibleMessages[0]?.id ?? 0);
+    }
+  }, [visibleMessages, selectedId]);
+
+  const selectedMessage = visibleMessages.find((item) => item.id === selectedId) ?? visibleMessages[0] ?? null;
+  const folderCounts = useMemo(() => {
+    return folderDefs.reduce<Record<FolderKey, number>>((acc, item) => {
+      acc[item.key] = messages.filter((message) => message.folder === item.key).length;
+      return acc;
+    }, {
+      "받은편지함": 0,
+      "공지/정책": 0,
+      "주문/정산": 0,
+      "거래처": 0,
+      "임시보관": 0,
+    });
+  }, [messages]);
+
+  if (!isAdmin) {
+    return (
+      <div className="company-mail-shell company-mail-shell--blocked">
+        <section className="company-mail-auth-card">
+          <div className="company-mail-auth-head">
+            <strong>회사메일 관리자 화면</strong>
+            <span>{hostLabel}</span>
+          </div>
+          <div className="legacy-box compact">
+            <p>이 화면은 관리자 계정만 접근할 수 있습니다.</p>
+            <p>일반 회원 및 판매자 계정에서는 접근이 차단됩니다.</p>
+          </div>
+          <div className="copy-action-row">
+            <button type="button" onClick={onRequestLogin}>로그인 화면으로 이동</button>
+            {onExit ? <button type="button" className="ghost-btn" onClick={onExit}>닫기</button> : null}
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  return (
+    <div className="company-mail-shell">
+      <header className="company-mail-topbar">
+        <div className="company-mail-topbar-main">
+          {onExit ? (
+            <button type="button" className="header-inline-btn header-icon-btn topbar-search-back" onClick={onExit} aria-label="뒤로가기">
+              <BackArrowIcon />
+            </button>
+          ) : <span className="company-mail-topbar-spacer" aria-hidden="true" />}
+          <div>
+            <strong>회사메일 관리자 화면</strong>
+            <span>{hostLabel}</span>
+          </div>
+        </div>
+        <div className="company-mail-topbar-actions">
+          <button type="button" className="ghost-btn">새 메일</button>
+          <button type="button" className="ghost-btn">보안 로그</button>
+        </div>
+      </header>
+
+      <main className="company-mail-layout">
+        <aside className="company-mail-sidebar">
+          <div className="company-mail-sidebar-head">
+            <strong>숨김 폴더</strong>
+            <span>관리자 전용</span>
+          </div>
+          <div className="company-mail-folder-list">
+            {folderDefs.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                className={`company-mail-folder-btn ${folder === item.key ? "active" : ""}`}
+                onClick={() => setFolder(item.key)}
+              >
+                <span>{item.label}</span>
+                <b>{folderCounts[item.key]}</b>
+              </button>
+            ))}
+          </div>
+          <div className="company-mail-sidebar-note">
+            <strong>보안 주의</strong>
+            <p>숨김 경로·숨김 도메인 연결 후 관리자 계정만 접근하도록 유지합니다.</p>
+          </div>
+        </aside>
+
+        <section className="company-mail-list-pane">
+          <div className="company-mail-pane-head">
+            <div>
+              <strong>{folder}</strong>
+              <span>목록 {visibleMessages.length}건</span>
+            </div>
+            <button type="button" className="ghost-btn ghost-btn-small">새로고침</button>
+          </div>
+          <div className="company-mail-message-list">
+            {visibleMessages.map((message) => (
+              <button
+                key={message.id}
+                type="button"
+                className={`company-mail-message-row ${selectedMessage?.id === message.id ? "active" : ""} ${message.unread ? "unread" : ""}`}
+                onClick={() => setSelectedId(message.id)}
+              >
+                <div className="company-mail-message-row-top">
+                  <span className="company-mail-chip">{message.category}</span>
+                  <strong>{message.subject}</strong>
+                </div>
+                <div className="company-mail-message-row-meta">
+                  <span>{message.sender}</span>
+                  <span>{message.receivedAt}</span>
+                </div>
+                <p>{message.preview}</p>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <article className="company-mail-viewer">
+          {selectedMessage ? (
+            <>
+              <div className="company-mail-viewer-head">
+                <div className="company-mail-viewer-title-row">
+                  <span className="company-mail-chip strong">{selectedMessage.category}</span>
+                  <h2>{selectedMessage.subject}</h2>
+                </div>
+                <div className="company-mail-viewer-meta">
+                  <span><b>보낸사람</b> {selectedMessage.sender}</span>
+                  <span><b>수신일</b> {selectedMessage.receivedAt}</span>
+                  <span><b>우선순위</b> {selectedMessage.priority ?? "일반"}</span>
+                </div>
+                {selectedMessage.tags?.length ? (
+                  <div className="company-mail-tag-row">
+                    {selectedMessage.tags.map((tag) => <span key={tag} className="company-mail-tag">#{tag}</span>)}
+                  </div>
+                ) : null}
+              </div>
+              <div className="company-mail-body">
+                {selectedMessage.body.map((line, index) => <p key={`${selectedMessage.id}-${index}`}>{line}</p>)}
+              </div>
+              <div className="company-mail-viewer-actions">
+                <button type="button">답장</button>
+                <button type="button" className="ghost-btn">전달</button>
+                <button type="button" className="ghost-btn">보관</button>
+              </div>
+            </>
+          ) : (
+            <div className="legacy-box compact"><p>표시할 메일이 없습니다.</p></div>
+          )}
+        </article>
+      </main>
+    </div>
+  );
+}
 
 function LegacyPanel({ section, projectStatus, deployGuide }: { section: LegacyTab; projectStatus: ProjectStatus | null; deployGuide: DeployGuide | null }) {
   if (section === "운영현황") {
@@ -1458,16 +2906,50 @@ export default function App() {
   const [inspectedElement, setInspectedElement] = useState<HtmlInspectorInfo | null>(null);
   const inspectedTargetRef = useRef<HTMLElement | null>(null);
   const [globalKeyword, setGlobalKeyword] = useState("");
+  const deferredGlobalKeyword = useDeferredValue(globalKeyword);
   const [searchFilter, setSearchFilter] = useState("전체");
+  const [searchSection, setSearchSection] = useState("피드결과");
+  const [notificationView, setNotificationView] = useState<{ view: "list" | "section" | "detail"; section: NotificationSectionKey | null; item: NotificationItem | null }>({ view: "list", section: null, item: null });
+  const [notificationSectionPage, setNotificationSectionPage] = useState(1);
+  const [notificationSectionPageSize, setNotificationSectionPageSize] = useState(8);
+  const [notificationItems, setNotificationItems] = useState<NotificationItem[]>(() => {
+    if (typeof window === "undefined") return notificationSeed;
+    try {
+      const stored = JSON.parse(window.localStorage.getItem("adultapp_notification_items") ?? "null");
+      return Array.isArray(stored) && stored.length ? stored : notificationSeed;
+    } catch {
+      return notificationSeed;
+    }
+  });
   const [homeTab, setHomeTab] = useState<HomeTab>("피드");
-  const [shoppingTab, setShoppingTab] = useState<ShoppingTab>("목록");
+  const [shoppingTab, setShoppingTab] = useState<ShoppingTab>("홈");
   const [communityTab, setCommunityTab] = useState<CommunityTab>("커뮤");
   const [chatTab, setChatTab] = useState<ChatTab>("채팅");
+  const [chatQuestionDraft, setChatQuestionDraft] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return window.localStorage.getItem("adultapp_chat_question_draft") ?? "";
+  });
   const [chatCategory, setChatCategory] = useState<ChatCategory>("전체");
   const [profileTab, setProfileTab] = useState<ProfileTab>("내정보");
   const [settingsCategory, setSettingsCategory] = useState<SettingsCategory>("일반");
   const [adminModeTab, setAdminModeTab] = useState<AdminModeTab>("DB관리");
   const [selectedShopCategory, setSelectedShopCategory] = useState("전체");
+  const [shopKeywordSignals, setShopKeywordSignals] = useState<Record<string, number>>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      return JSON.parse(window.localStorage.getItem("adultapp_shop_keyword_signals") ?? "{}");
+    } catch {
+      return {};
+    }
+  });
+  const [shortsKeywordSignals, setShortsKeywordSignals] = useState<Record<string, number>>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      return JSON.parse(window.localStorage.getItem("adultapp_shorts_keyword_signals") ?? "{}");
+    } catch {
+      return {};
+    }
+  });
   const [selectedCommunityCategory, setSelectedCommunityCategory] = useState<string>("전체");
   const [communityPrimaryFilter, setCommunityPrimaryFilter] = useState<string>("전체");
   const [communitySecondaryFilter, setCommunitySecondaryFilter] = useState<string>("전체");
@@ -1489,13 +2971,30 @@ export default function App() {
   const [randomMatchNote, setRandomMatchNote] = useState("앱 공개영역에서는 직접 매칭을 제공하지 않습니다. 민감한 정보교류는 성인인증·승인제 제한 웹 포럼으로만 분리합니다.");
   const randomRoomLifetimeMinutes = 20;
   const [shopKeyword, setShopKeyword] = useState("");
+  const [shopHomeBannerIndex, setShopHomeBannerIndex] = useState(0);
+  const [shopHomeBannerDragOffset, setShopHomeBannerDragOffset] = useState(0);
+  const shopHomeBannerPointerStartXRef = useRef<number | null>(null);
+  const shopHomeBannerPointerActiveRef = useRef(false);
+  const shopHomeGridScrollRef = useRef<HTMLDivElement | null>(null);
+  const shopHomeGridDragStartYRef = useRef<number | null>(null);
+  const shopHomeGridDragStartScrollTopRef = useRef(0);
+  const shopHomeGridDraggingRef = useRef(false);
+  const shopHomeGridHasDraggedRef = useRef(false);
+  const shopHomeGridSuppressClickUntilRef = useRef(0);
+  const [shopHomeGridDragging, setShopHomeGridDragging] = useState(false);
+  const [shopHomeVisibleCount, setShopHomeVisibleCount] = useState(9);
   const [communityKeyword, setCommunityKeyword] = useState("");
+  const [communityPage, setCommunityPage] = useState(1);
   const [projectStatus, setProjectStatus] = useState<ProjectStatus | null>(null);
   const [deployGuide, setDeployGuide] = useState<DeployGuide | null>(null);
   const [legalDocuments, setLegalDocuments] = useState<LegalDocumentsResponse | null>(null);
   const [businessInfo, setBusinessInfo] = useState<BusinessInfoResponse | null>(null);
   const [releaseReadiness, setReleaseReadiness] = useState<ReleaseReadinessResponse | null>(null);
   const [paymentProviderStatus, setPaymentProviderStatus] = useState<PaymentProviderStatusResponse | null>(null);
+  const [productDetail, setProductDetail] = useState<ProductDetailResponse | null>(null);
+  const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
+  const [adultGateStatus, setAdultGateStatus] = useState<AdultGateStatusResponse | null>(null);
+  const [adultBirthdate, setAdultBirthdate] = useState("1990-01-01");
   const [minorPurgePreview, setMinorPurgePreview] = useState<MinorPurgePreview | null>(null);
   const [uiCategoryGroups, setUiCategoryGroups] = useState<Array<{ group: string; items: string[] }>>([]);
   const [skuPolicy, setSkuPolicy] = useState<SkuPolicyResponse | null>(null);
@@ -1513,7 +3012,6 @@ export default function App() {
     return (window.localStorage.getItem("adultapp_demo_role") ?? "GUEST").toUpperCase();
   });
   const [selectedAskProfile, setSelectedAskProfile] = useState<AskProfile | null>(null);
-  const [selectedStory, setSelectedStory] = useState<StoryItem | null>(null);
   const [demoLoginProvider, setDemoLoginProvider] = useState<DemoLoginProvider>(() => {
     if (typeof window === "undefined") return "카카오";
     return (window.localStorage.getItem("adultapp_demo_login_provider") as DemoLoginProvider | null) ?? "카카오";
@@ -1542,6 +3040,7 @@ export default function App() {
   const [adultPromptOpen, setAdultPromptOpen] = useState(false);
   const [signupStep, setSignupStep] = useState<SignupStep>("consent");
   const [signupLegalOpen, setSignupLegalOpen] = useState<string | null>(null);
+  const [signupConsentModal, setSignupConsentModal] = useState<keyof SignupConsentState | null>(null);
   const [identityMethod, setIdentityMethod] = useState<"PASS" | "휴대폰" | "미완료">(() => {
     if (typeof window === "undefined") return "미완료";
     return (window.localStorage.getItem("adultapp_identity_method") as "PASS" | "휴대폰" | "미완료" | null) ?? "미완료";
@@ -1580,6 +3079,8 @@ export default function App() {
   const [productApprovalQueue, setProductApprovalQueue] = useState<ProductApprovalItem[]>([]);
   const [sellerProducts, setSellerProducts] = useState<SellerProductItem[]>([]);
   const [settlementPreview, setSettlementPreview] = useState<SettlementPreviewResponse | null>(null);
+  const [paymentReviewReady, setPaymentReviewReady] = useState<PaymentReviewReadyResponse | null>(null);
+  const [ledgerOverview, setLedgerOverview] = useState<LedgerOverviewResponse | null>(null);
   const [threadItems, setThreadItems] = useState<ThreadItem[]>(threadSeed);
   const [forumTopic, setForumTopic] = useState<(typeof forumStarterTopics)[number]>("제품 이야기");
   const [followingUserIds, setFollowingUserIds] = useState<number[]>([301, 303, 304]);
@@ -1611,11 +3112,70 @@ export default function App() {
     if (typeof window === "undefined") return [];
     try { return JSON.parse(window.localStorage.getItem("adultapp_saved_feed_ids") ?? "[]"); } catch { return []; }
   });
+  const [likedFeedIds, setLikedFeedIds] = useState<number[]>(() => {
+    if (typeof window === "undefined") return [];
+    try { return JSON.parse(window.localStorage.getItem("adultapp_liked_feed_ids") ?? "[]"); } catch { return []; }
+  });
+  const [feedCommentMap, setFeedCommentMap] = useState<Record<number, FeedCommentEntry[]>>(() => {
+    const fallback = Object.fromEntries(feedSeed.map((item) => [item.id, [
+      { id: item.id * 100 + 1, author: "trend_user", text: `${item.title} 분위기 괜찮네요.`, meta: "방금" },
+      { id: item.id * 100 + 2, author: "care_note", text: `${item.category} 기준으로 더 보고 싶어요.`, meta: "3분 전" },
+    ]]));
+    if (typeof window === "undefined") return fallback;
+    try {
+      const stored = window.localStorage.getItem("adultapp_feed_comment_map");
+      return stored ? JSON.parse(stored) : fallback;
+    } catch {
+      return fallback;
+    }
+  });
+  const [openFeedCommentItem, setOpenFeedCommentItem] = useState<FeedItem | null>(null);
+  const [customFeedItems, setCustomFeedItems] = useState<FeedItem[]>([]);
+  const [feedComposeOpen, setFeedComposeOpen] = useState(false);
+  const [feedComposeTitle, setFeedComposeTitle] = useState("");
+  const [feedComposeCaption, setFeedComposeCaption] = useState("");
+  const [feedComposeAttachment, setFeedComposeAttachment] = useState<FeedComposerAttachment | null>(null);
+  const [feedComposeBusy, setFeedComposeBusy] = useState(false);
+  const [feedComposeHelperText, setFeedComposeHelperText] = useState("최대 1개 첨부 · 영상은 최대 20초 / 30MB · 권장 MP4(H.264) 또는 WEBM");
+  const [feedCommentDrafts, setFeedCommentDrafts] = useState<Record<number, string>>(() => {
+    if (typeof window === "undefined") return {};
+    try { return JSON.parse(window.localStorage.getItem("adultapp_feed_comment_drafts") ?? "{}"); } catch { return {}; }
+  });
+  const [feedCommentAttachments, setFeedCommentAttachments] = useState<Record<number, FeedCommentAttachment | null>>(() => {
+    if (typeof window === "undefined") return {};
+    try { return JSON.parse(window.localStorage.getItem("adultapp_feed_comment_attachments") ?? "{}"); } catch { return {}; }
+  });
+  const [feedCommentAttachmentBusyId, setFeedCommentAttachmentBusyId] = useState<number | null>(null);
+  const [viewedProfileAuthor, setViewedProfileAuthor] = useState<string | null>(null);
+  const [profileSection, setProfileSection] = useState<ProfileSection>("게시물");
+  const [followedFeedAuthors, setFollowedFeedAuthors] = useState<string[]>(() => {
+    if (typeof window === "undefined") return ["adult official", "seller studio"];
+    try { return JSON.parse(window.localStorage.getItem("adultapp_followed_feed_authors") ?? '["adult official","seller studio"]'); } catch { return ["adult official", "seller studio"]; }
+  });
+  const cachedHomeFeed = typeof window !== "undefined" ? loadCachedHomeFeedPage() : null;
   const [savedProductIds, setSavedProductIds] = useState<number[]>(() => {
     if (typeof window === "undefined") return [];
     try { return JSON.parse(window.localStorage.getItem("adultapp_saved_product_ids") ?? "[]"); } catch { return []; }
   });
-  const [savedTab, setSavedTab] = useState<"피드" | "상품">("피드");
+  const [savedTab, setSavedTab] = useState<"피드" | "쇼츠">("피드");
+  const [shortsVisibleCount, setShortsVisibleCount] = useState(10);
+  const [homeFeedVisibleCount, setHomeFeedVisibleCount] = useState<number>(() => Math.max(HOME_FEED_PAGE_SIZE, cachedHomeFeed?.visibleCount ?? HOME_FEED_PAGE_SIZE));
+  const [homeFeedBootItems, setHomeFeedBootItems] = useState<RankedFeedItem[]>(() => cachedHomeFeed?.items ?? []);
+  const allFeedItems = useMemo(() => [...customFeedItems, ...feedSeed], [customFeedItems]);
+  const [homeFeedIsLoadingMore, setHomeFeedIsLoadingMore] = useState(false);
+  const homeFeedSentinelRef = useRef<HTMLDivElement | null>(null);
+  const mobileMainRef = useRef<HTMLElement | null>(null);
+  const homeFeedLoadMoreTimerRef = useRef<number | null>(null);
+  const [shortsMoreItem, setShortsMoreItem] = useState<FeedItem | null>(null);
+  const [shortsViewerItemId, setShortsViewerItemId] = useState<number | null>(null);
+  const [savedShortsViewerItemId, setSavedShortsViewerItemId] = useState<number | null>(null);
+  const [shortsHeaderHidden, setShortsHeaderHidden] = useState(false);
+  const [shortsCategoryVisible, setShortsCategoryVisible] = useState(true);
+  const [selectedShortsCategory, setSelectedShortsCategory] = useState("전체");
+  const lastShortsScrollTopRef = useRef(0);
+  const shortsScrollRafRef = useRef<number | null>(null);
+  const shortsHideThresholdRef = useRef(0);
+  const shortsShowThresholdRef = useRef(0);
   const [authStandaloneScreen, setAuthStandaloneScreen] = useState<AuthStandaloneScreen | null>(null);
   const [homeShopConsentGuideSeen, setHomeShopConsentGuideSeen] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -1624,6 +3184,7 @@ export default function App() {
   const [authEmail, setAuthEmail] = useState("customer@example.com");
   const [authPassword, setAuthPassword] = useState("customer1234");
   const [authMessage, setAuthMessage] = useState("");
+  const [authGatePopupOpen, setAuthGatePopupOpen] = useState(false);
   const [apiProducts, setApiProducts] = useState<ApiProduct[]>([]);
   const [cartItems, setCartItems] = useState<Array<{ productId: number; qty: number }>>([]);
   const [orders, setOrders] = useState<ApiOrder[]>([]);
@@ -1631,8 +3192,237 @@ export default function App() {
   const [orderDetail, setOrderDetail] = useState<ApiOrderDetail | null>(null);
   const [orderMessage, setOrderMessage] = useState("");
   const [orderActionAmount, setOrderActionAmount] = useState("5500");
+  const [checkoutStage, setCheckoutStage] = useState<CheckoutStage>("cart");
+  const [checkoutDraft, setCheckoutDraft] = useState({
+    recipientName: "성인회원",
+    phone: "010-0000-0000",
+    email: "aksqhqkqh153@gmail.com",
+    address: "배송지 입력 필요",
+    requestNote: "익명 포장 요청",
+  });
 
   const isAdmin = ["ADMIN", "1", "GRADE_1"].includes(currentUserRole);
+  const companyMailHostLocked = useMemo(() => isCompanyMailHostLocked(), []);
+  const [companyMailPreviewOpen, setCompanyMailPreviewOpen] = useState(() => isCompanyMailRouteActive());
+  const companyMailMode = companyMailHostLocked || companyMailPreviewOpen;
+  const companyMailHostLabel = useMemo(() => {
+    if (typeof window === "undefined") return "숨김 경로 미리보기";
+    const host = window.location.host;
+    const path = window.location.pathname;
+    return `${host}${path === "/" ? "" : path}`;
+  }, [companyMailMode]);
+  const navigationHistoryRef = useRef<AppNavigationSnapshot[]>([]);
+  const navigationSnapshotRef = useRef<AppNavigationSnapshot | null>(null);
+  const navigationRestoreRef = useRef(false);
+  const backMinimizeTimerRef = useRef<number | null>(null);
+  const lastBackPressAtRef = useRef(0);
+  const [backMinimizeHintVisible, setBackMinimizeHintVisible] = useState(false);
+  const effectiveProductDetail = productDetail ?? null;
+  const effectiveSelectedProductId = effectiveProductDetail ? selectedProductId : null;
+  const currentNavigationSnapshot = useMemo<AppNavigationSnapshot>(() => ({
+    activeTab,
+    homeTab,
+    shoppingTab,
+    communityTab,
+    chatTab,
+    profileTab,
+    settingsCategory,
+    overlayMode,
+    notificationView,
+    activeRandomRoomId,
+    randomEntryTab,
+    roomModalOpen,
+    selectedAskProfile,
+    productDetail: effectiveProductDetail,
+    selectedProductId: effectiveSelectedProductId,
+    openFeedCommentItem,
+    feedComposeOpen,
+    viewedProfileAuthor,
+    profileSection,
+    authStandaloneScreen,
+    adultPromptOpen,
+    checkoutStage,
+    companyMailPreviewOpen,
+    randomSettingsOpen,
+    shortsMoreItem,
+    shortsViewerItemId,
+    savedShortsViewerItemId,
+    savedTab,
+  }), [
+    activeTab,
+    homeTab,
+    shoppingTab,
+    communityTab,
+    chatTab,
+    profileTab,
+    settingsCategory,
+    overlayMode,
+    notificationView,
+    activeRandomRoomId,
+    randomEntryTab,
+    roomModalOpen,
+    selectedAskProfile,
+    effectiveProductDetail,
+    effectiveSelectedProductId,
+    openFeedCommentItem,
+    feedComposeOpen,
+    viewedProfileAuthor,
+    profileSection,
+    authStandaloneScreen,
+    adultPromptOpen,
+    checkoutStage,
+    companyMailPreviewOpen,
+    randomSettingsOpen,
+    shortsMoreItem,
+    shortsViewerItemId,
+    savedShortsViewerItemId,
+    savedTab,
+  ]);
+  const hideBackMinimizeHint = useCallback(() => {
+    if (typeof window !== "undefined" && backMinimizeTimerRef.current !== null) {
+      window.clearTimeout(backMinimizeTimerRef.current);
+      backMinimizeTimerRef.current = null;
+    }
+    setBackMinimizeHintVisible(false);
+  }, []);
+  const isHomeNavigationSnapshot = useCallback((snapshot: AppNavigationSnapshot) => (
+    snapshot.activeTab === "홈"
+    && snapshot.homeTab === "피드"
+    && snapshot.overlayMode === null
+    && snapshot.notificationView.view === "list"
+    && snapshot.notificationView.section === null
+    && snapshot.notificationView.item === null
+    && !snapshot.roomModalOpen
+    && !snapshot.selectedAskProfile
+    && !snapshot.productDetail
+    && snapshot.selectedProductId === null
+    && !snapshot.openFeedCommentItem
+    && !snapshot.feedComposeOpen
+    && snapshot.authStandaloneScreen === null
+    && !snapshot.adultPromptOpen
+    && snapshot.checkoutStage === "cart"
+    && !snapshot.companyMailPreviewOpen
+    && !snapshot.randomSettingsOpen
+    && !snapshot.shortsMoreItem
+    && snapshot.shortsViewerItemId === null
+    && snapshot.savedShortsViewerItemId === null
+  ), []);
+  const homeNavigationSnapshot = useMemo<AppNavigationSnapshot>(() => ({
+    activeTab: "홈",
+    homeTab: "피드",
+    shoppingTab: "홈",
+    communityTab: "커뮤",
+    chatTab: "채팅",
+    profileTab: "내정보",
+    settingsCategory: "일반",
+    overlayMode: null,
+    notificationView: { view: "list", section: null, item: null },
+    activeRandomRoomId: null,
+    randomEntryTab: "시작",
+    roomModalOpen: false,
+    selectedAskProfile: null,
+    productDetail: null,
+    selectedProductId: null,
+    openFeedCommentItem: null,
+    feedComposeOpen: false,
+    viewedProfileAuthor: null,
+    profileSection: "게시물",
+    authStandaloneScreen: null,
+    adultPromptOpen: false,
+    checkoutStage: "cart",
+    companyMailPreviewOpen: false,
+    randomSettingsOpen: false,
+    shortsMoreItem: null,
+    shortsViewerItemId: null,
+    savedShortsViewerItemId: null,
+    savedTab: "피드",
+  }), []);
+  const isAtHomeScreen = useMemo(() => isHomeNavigationSnapshot(currentNavigationSnapshot), [currentNavigationSnapshot, isHomeNavigationSnapshot]);
+  const restoreNavigationSnapshot = useCallback((snapshot: AppNavigationSnapshot) => {
+    navigationRestoreRef.current = true;
+    hideBackMinimizeHint();
+    lastBackPressAtRef.current = 0;
+    setActiveTab(snapshot.activeTab);
+    setHomeTab(snapshot.homeTab);
+    setShoppingTab(snapshot.shoppingTab);
+    setCommunityTab(snapshot.communityTab);
+    setChatTab(snapshot.chatTab);
+    setProfileTab(snapshot.profileTab);
+    setSettingsCategory(snapshot.settingsCategory);
+    setOverlayMode(snapshot.overlayMode);
+    setNotificationView(JSON.parse(JSON.stringify(snapshot.notificationView)) as AppNavigationSnapshot["notificationView"]);
+    setActiveRandomRoomId(snapshot.activeRandomRoomId);
+    setRandomEntryTab(snapshot.randomEntryTab);
+    setRoomModalOpen(snapshot.roomModalOpen);
+    setSelectedAskProfile(snapshot.selectedAskProfile);
+    setProductDetail(snapshot.productDetail);
+    setSelectedProductId(snapshot.selectedProductId);
+    setOpenFeedCommentItem(snapshot.openFeedCommentItem);
+    setFeedComposeOpen(snapshot.feedComposeOpen);
+    setViewedProfileAuthor(snapshot.viewedProfileAuthor);
+    setProfileSection(snapshot.profileSection);
+    setAuthStandaloneScreen(snapshot.authStandaloneScreen);
+    setAdultPromptOpen(snapshot.adultPromptOpen);
+    setCheckoutStage(snapshot.checkoutStage);
+    setCompanyMailPreviewOpen(snapshot.companyMailPreviewOpen);
+    setRandomSettingsOpen(snapshot.randomSettingsOpen);
+    setShortsMoreItem(snapshot.shortsMoreItem);
+    setShortsViewerItemId(snapshot.shortsViewerItemId);
+    setSavedShortsViewerItemId(snapshot.savedShortsViewerItemId);
+    setSavedTab(snapshot.savedTab);
+    if (typeof window !== "undefined") {
+      if (snapshot.companyMailPreviewOpen && window.location.hash.toLowerCase() !== "#corp-mail-admin") {
+        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#corp-mail-admin`);
+      }
+      if (!snapshot.companyMailPreviewOpen && window.location.hash.toLowerCase() === "#corp-mail-admin") {
+        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+      }
+    }
+  }, [hideBackMinimizeHint]);
+  const handleAppBackNavigation = useCallback(async () => {
+    if (!authBootstrapDone) return;
+    const previousSnapshot = navigationHistoryRef.current.pop();
+    if (previousSnapshot) {
+      restoreNavigationSnapshot(previousSnapshot);
+      return;
+    }
+    if (!isAtHomeScreen) {
+      restoreNavigationSnapshot(homeNavigationSnapshot);
+      return;
+    }
+    const now = Date.now();
+    if (now - lastBackPressAtRef.current <= APP_BACK_MINIMIZE_WINDOW_MS) {
+      hideBackMinimizeHint();
+      lastBackPressAtRef.current = 0;
+      try {
+        await getNativeAppPlugin()?.minimizeApp?.();
+      } catch {}
+      return;
+    }
+    lastBackPressAtRef.current = now;
+    setBackMinimizeHintVisible(true);
+    if (typeof window !== "undefined") {
+      if (backMinimizeTimerRef.current !== null) {
+        window.clearTimeout(backMinimizeTimerRef.current);
+      }
+      backMinimizeTimerRef.current = window.setTimeout(() => {
+        setBackMinimizeHintVisible(false);
+        backMinimizeTimerRef.current = null;
+      }, APP_BACK_MINIMIZE_WINDOW_MS);
+    }
+  }, [authBootstrapDone, hideBackMinimizeHint, homeNavigationSnapshot, isAtHomeScreen, restoreNavigationSnapshot]);
+  const canToggleAccountMode = !isAdmin && currentUserRole !== "GUEST";
+  const isBusinessAccountMode = currentUserRole === "SELLER";
+  const accountModeToggleLabel = isBusinessAccountMode ? "일반회원 계정전환" : "사업자 계정전환";
+  const handleAccountModeToggle = () => {
+    if (!canToggleAccountMode) return;
+    const nextRole = isBusinessAccountMode ? "MEMBER" : "SELLER";
+    setCurrentUserRole(nextRole);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("adultapp_demo_role", nextRole);
+    }
+  };
+
   const productCategoryOptions = useMemo(() => {
     const backendCategories = uiCategoryGroups.flatMap((group) => group.items).filter((item) => !["상품등록", "사진/영상 첨부", "SKU 관리", "재고/상태 변경"].includes(item));
     const fallbackCategories = shopCategories.flatMap((group) => group.items.map((item) => item.name));
@@ -1644,6 +3434,23 @@ export default function App() {
   const toggleFollowUser = (userId: number) => {
     setFollowingUserIds((prev) => prev.includes(userId) ? prev.filter((item) => item !== userId) : [...prev, userId]);
   };
+  const boostShortsSignalsFromText = (source: string, weight = 1) => {
+    const tokens = extractInterestTokens(source);
+    if (!tokens.length) return;
+    setShortsKeywordSignals((prev) => {
+      const next = { ...prev };
+      tokens.forEach((token) => {
+        next[token] = (next[token] ?? 0) + weight;
+      });
+      return next;
+    });
+  };
+
+  const openShortsViewer = (item: FeedItem) => {
+    boostShortsSignalsFromText(`${item.title} ${item.caption} ${item.category} ${item.author}`, 2);
+    setShortsViewerItemId(item.id);
+  };
+
 
   const openDmRequest = (user: ForumStarterUser) => {
     if (!adultVerified) {
@@ -1689,6 +3496,7 @@ export default function App() {
     getJson<ProjectStatus>("/project-status").then(setProjectStatus).catch(() => null);
     getJson<DeployGuide>("/deploy/cloudflare-pages-manual").then(setDeployGuide).catch(() => null);
     getJson<LegalDocumentsResponse>("/legal/documents").then(setLegalDocuments).catch(() => null);
+    getJson<BusinessInfoResponse>("/legal/business-info").then(setBusinessInfo).catch(() => null);
     getJson<PaymentProviderStatusResponse>("/payments/provider-status").then(setPaymentProviderStatus).catch(() => null);
     getJson<UiCategoryGroupResponse>("/ui/category-groups").then((res) => setUiCategoryGroups(res.items ?? [])).catch(() => null);
     getJson<SkuPolicyResponse>("/sku-policy").then(setSkuPolicy).catch(() => null);
@@ -1720,8 +3528,9 @@ export default function App() {
           getJson<{ items: SellerApprovalItem[] }>("/admin/seller-approvals").then((res) => setSellerApprovalQueue(res.items ?? [])).catch(() => null);
           getJson<{ items: ProductApprovalItem[] }>("/admin/product-approvals").then((res) => setProductApprovalQueue(res.items ?? [])).catch(() => null);
           getJson<SettlementPreviewResponse>("/settlements/preview").then(setSettlementPreview).catch(() => null);
+          getJson<PaymentReviewReadyResponse>("/payments/review-ready").then(setPaymentReviewReady).catch(() => null);
+          getJson<LedgerOverviewResponse>("/ledger/overview").then(setLedgerOverview).catch(() => null);
         } else {
-          setBusinessInfo(null);
           setReleaseReadiness(null);
         }
       } catch {
@@ -1819,6 +3628,73 @@ export default function App() {
     if (typeof window === "undefined") return;
     window.localStorage.setItem("adultapp_home_shop_consent_guide_seen", homeShopConsentGuideSeen ? "1" : "0");
   }, [homeShopConsentGuideSeen]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_shop_keyword_signals", JSON.stringify(shopKeywordSignals));
+  }, [shopKeywordSignals]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_shorts_keyword_signals", JSON.stringify(shortsKeywordSignals));
+  }, [shortsKeywordSignals]);
+
+  const lastTrackedShopSearchRef = useRef("");
+  useEffect(() => {
+    if (activeTab !== "쇼핑") return;
+    const raw = `${shopKeyword} ${globalKeyword}`.trim();
+    if (!raw) return;
+    const normalized = raw
+      .split(/[,#\s/]+/)
+      .map((token) => token.trim())
+      .filter((token) => token.length >= 2)
+      .join("|")
+      .toLowerCase();
+    if (!normalized || lastTrackedShopSearchRef.current === normalized) return;
+    lastTrackedShopSearchRef.current = normalized;
+    setShopKeywordSignals((prev) => {
+      const next = { ...prev };
+      normalized.split("|").forEach((token) => {
+        next[token] = (next[token] ?? 0) + 1;
+      });
+      return next;
+    });
+  }, [activeTab, shopKeyword, globalKeyword]);
+
+  const lastTrackedShortsSearchRef = useRef("");
+  useEffect(() => {
+    if (activeTab !== "홈" || homeTab !== "쇼츠") return;
+    const normalized = globalKeyword
+      .split(/[,#\s/]+/)
+      .map((token) => token.trim())
+      .filter((token) => token.length >= 2)
+      .join("|")
+      .toLowerCase();
+    if (!normalized || lastTrackedShortsSearchRef.current === normalized) return;
+    lastTrackedShortsSearchRef.current = normalized;
+    setShortsKeywordSignals((prev) => {
+      const next = { ...prev };
+      normalized.split("|").forEach((token) => {
+        next[token] = (next[token] ?? 0) + 3;
+      });
+      return next;
+    });
+  }, [activeTab, homeTab, globalKeyword]);
+
+  useEffect(() => {
+    if (!savedFeedIds.length) return;
+    const savedShorts = allFeedItems.filter((item) => savedFeedIds.includes(item.id));
+    if (!savedShorts.length) return;
+    setShortsKeywordSignals((prev) => {
+      const next = { ...prev };
+      savedShorts.forEach((item) => {
+        extractInterestTokens(`${item.title} ${item.caption} ${item.category} ${item.author}`).forEach((token) => {
+          next[token] = Math.max(next[token] ?? 0, 2);
+        });
+      });
+      return next;
+    });
+  }, [savedFeedIds]);
   useEffect(() => {
     if (!selectedOrderNo) return;
     getJson<ApiOrderDetail>(`/orders/${selectedOrderNo}`).then(setOrderDetail).catch(() => setOrderDetail(null));
@@ -1834,6 +3710,42 @@ export default function App() {
     if (typeof window === "undefined") return;
     window.localStorage.setItem("adultapp_saved_feed_ids", JSON.stringify(savedFeedIds));
   }, [savedFeedIds]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_liked_feed_ids", JSON.stringify(likedFeedIds));
+  }, [likedFeedIds]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_feed_comment_map", JSON.stringify(feedCommentMap));
+  }, [feedCommentMap]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_feed_comment_drafts", JSON.stringify(feedCommentDrafts));
+  }, [feedCommentDrafts]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_feed_comment_attachments", JSON.stringify(feedCommentAttachments));
+  }, [feedCommentAttachments]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_notification_items", JSON.stringify(notificationItems));
+  }, [notificationItems]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const updateNotificationPageSize = () => {
+      const estimatedRows = Math.floor((window.innerHeight - 220) / 42);
+      setNotificationSectionPageSize(Math.max(6, Math.min(12, estimatedRows || 8)));
+    };
+    updateNotificationPageSize();
+    window.addEventListener("resize", updateNotificationPageSize);
+    return () => window.removeEventListener("resize", updateNotificationPageSize);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1883,11 +3795,377 @@ export default function App() {
     setSavedFeedIds((prev) => prev.includes(feedId) ? prev.filter((item) => item !== feedId) : [feedId, ...prev]);
   };
 
+  const toggleLikedFeed = (feedId: number) => {
+    setLikedFeedIds((prev) => prev.includes(feedId) ? prev.filter((item) => item !== feedId) : [feedId, ...prev]);
+  };
+
+  const openFeedComments = (item: FeedItem) => {
+    setOpenFeedCommentItem(item);
+  };
+
+  const closeFeedComments = () => {
+    setOpenFeedCommentItem(null);
+  };
+
+  const fileToDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("이미지 변환에 실패했습니다."));
+    reader.onerror = () => reject(reader.error ?? new Error("이미지 변환에 실패했습니다."));
+    reader.readAsDataURL(file);
+  });
+
+  const loadImageElement = (src: string) => new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("이미지를 불러오지 못했습니다."));
+    image.src = src;
+  });
+
+  const optimizeFeedCommentImage = async (file: File): Promise<FeedCommentAttachment> => {
+    const maxBytes = 10 * 1024 * 1024;
+    if (file.size <= maxBytes) {
+      return { name: file.name, dataUrl: await fileToDataUrl(file), size: file.size, type: file.type || "image/jpeg" };
+    }
+    const sourceUrl = await fileToDataUrl(file);
+    const image = await loadImageElement(sourceUrl);
+    const canvas = document.createElement("canvas");
+    canvas.width = image.naturalWidth || image.width;
+    canvas.height = image.naturalHeight || image.height;
+    const context = canvas.getContext("2d");
+    if (!context) return { name: file.name, dataUrl: sourceUrl, size: file.size, type: file.type || "image/jpeg" };
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const targetTypes = ["image/webp", "image/jpeg"];
+    for (const targetType of targetTypes) {
+      for (const quality of [0.96, 0.92, 0.88, 0.84, 0.8, 0.76, 0.72]) {
+        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, targetType, quality));
+        if (!blob) continue;
+        if (blob.size <= maxBytes) {
+          const optimizedFile = new File([blob], file.name.replace(/\.[^.]+$/, targetType === "image/webp" ? ".webp" : ".jpg"), { type: targetType });
+          return { name: optimizedFile.name, dataUrl: await fileToDataUrl(optimizedFile), size: blob.size, type: targetType };
+        }
+      }
+    }
+    return { name: file.name, dataUrl: sourceUrl, size: file.size, type: file.type || "image/jpeg" };
+  };
+
+  const attachFeedCommentImage = async (feedId: number, file: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      window.alert("이미지 파일만 첨부할 수 있습니다.");
+      return;
+    }
+    setFeedCommentAttachmentBusyId(feedId);
+    try {
+      const optimized = await optimizeFeedCommentImage(file);
+      setFeedCommentAttachments((prev) => ({ ...prev, [feedId]: optimized }));
+    } catch {
+      window.alert("이미지를 처리하지 못했습니다. 다시 시도해 주세요.");
+    } finally {
+      setFeedCommentAttachmentBusyId((current) => current === feedId ? null : current);
+    }
+  };
+
+  const getVideoMetadata = (file: File) => new Promise<{ durationSec: number; width: number; height: number }>((resolve, reject) => {
+    const video = document.createElement("video");
+    const objectUrl = URL.createObjectURL(file);
+    video.preload = "metadata";
+    video.playsInline = true;
+    video.muted = true;
+    video.onloadedmetadata = () => {
+      const durationSec = Number.isFinite(video.duration) ? video.duration : 0;
+      const width = video.videoWidth || 0;
+      const height = video.videoHeight || 0;
+      URL.revokeObjectURL(objectUrl);
+      resolve({ durationSec, width, height });
+    };
+    video.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("비디오 메타데이터를 불러오지 못했습니다."));
+    };
+    video.src = objectUrl;
+  });
+
+  const optimizeFeedComposeImage = async (file: File): Promise<FeedComposerAttachment> => {
+    const maxBytes = 10 * 1024 * 1024;
+    if (file.size <= maxBytes) {
+      return {
+        name: file.name,
+        previewUrl: URL.createObjectURL(file),
+        size: file.size,
+        type: file.type || "image/jpeg",
+        optimized: false,
+      };
+    }
+    const sourceUrl = await fileToDataUrl(file);
+    const image = await loadImageElement(sourceUrl);
+    const canvas = document.createElement("canvas");
+    canvas.width = image.naturalWidth || image.width;
+    canvas.height = image.naturalHeight || image.height;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      return { name: file.name, previewUrl: URL.createObjectURL(file), size: file.size, type: file.type || "image/jpeg", optimized: false };
+    }
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const targetTypes = ["image/webp", "image/jpeg"];
+    for (const targetType of targetTypes) {
+      for (const quality of [0.96, 0.92, 0.88, 0.84, 0.8, 0.76, 0.72]) {
+        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, targetType, quality));
+        if (!blob) continue;
+        if (blob.size <= maxBytes) {
+          const optimizedFile = new File([blob], file.name.replace(/\.[^.]+$/, targetType === "image/webp" ? ".webp" : ".jpg"), { type: targetType });
+          return {
+            name: optimizedFile.name,
+            previewUrl: URL.createObjectURL(optimizedFile),
+            size: optimizedFile.size,
+            type: optimizedFile.type,
+            optimized: true,
+          };
+        }
+      }
+    }
+    return { name: file.name, previewUrl: URL.createObjectURL(file), size: file.size, type: file.type || "image/jpeg", optimized: false };
+  };
+
+  const optimizeFeedComposeVideo = async (file: File): Promise<FeedComposerAttachment> => {
+    const maxBytes = 30 * 1024 * 1024;
+    const meta = await getVideoMetadata(file);
+    if (meta.durationSec > 20.05) {
+      throw new Error("영상은 최대 20초까지만 첨부할 수 있습니다.");
+    }
+    if (file.size <= maxBytes) {
+      return {
+        name: file.name,
+        previewUrl: URL.createObjectURL(file),
+        size: file.size,
+        type: file.type || "video/mp4",
+        durationSec: meta.durationSec,
+        optimized: false,
+      };
+    }
+
+    const RecorderCtor = typeof window !== "undefined" ? window.MediaRecorder : undefined;
+    if (!RecorderCtor) {
+      throw new Error("현재 브라우저는 영상 최적화를 지원하지 않습니다. 30MB 이하 MP4(H.264) 또는 WEBM 파일을 사용해 주세요.");
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    const video = document.createElement("video");
+    video.src = previewUrl;
+    video.crossOrigin = "anonymous";
+    video.playsInline = true;
+    video.muted = true;
+    video.preload = "auto";
+    await new Promise<void>((resolve, reject) => {
+      video.onloadedmetadata = () => resolve();
+      video.onerror = () => reject(new Error("영상을 열지 못했습니다."));
+    });
+
+    const captureTarget = video as HTMLVideoElement & { captureStream?: () => MediaStream; mozCaptureStream?: () => MediaStream };
+    const stream = captureTarget.captureStream?.() ?? captureTarget.mozCaptureStream?.();
+    if (!stream) {
+      URL.revokeObjectURL(previewUrl);
+      throw new Error("현재 브라우저는 영상 재인코딩을 지원하지 않습니다. 30MB 이하 MP4(H.264) 또는 WEBM 파일을 사용해 주세요.");
+    }
+
+    const mimeCandidates = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
+    const selectedMime = mimeCandidates.find((mime) => RecorderCtor.isTypeSupported?.(mime)) ?? "video/webm";
+    const maxEdge = 1280;
+    const bitrate = Math.min(2_800_000, Math.max(1_600_000, Math.round((maxBytes * 8) / Math.max(meta.durationSec, 1))));
+    const chunks: BlobPart[] = [];
+    const recorder = new RecorderCtor(stream, { mimeType: selectedMime, videoBitsPerSecond: bitrate });
+    recorder.ondataavailable = (event) => {
+      if (event.data && event.data.size > 0) chunks.push(event.data);
+    };
+    const stopPromise = new Promise<Blob>((resolve, reject) => {
+      recorder.onerror = () => reject(new Error("영상 최적화 중 오류가 발생했습니다."));
+      recorder.onstop = () => resolve(new Blob(chunks, { type: selectedMime.split(";")[0] }));
+    });
+
+    const needsResize = Math.max(meta.width, meta.height) > maxEdge;
+    if (needsResize) {
+      const canvas = document.createElement("canvas");
+      const scale = maxEdge / Math.max(meta.width, meta.height);
+      canvas.width = Math.round(meta.width * scale);
+      canvas.height = Math.round(meta.height * scale);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        URL.revokeObjectURL(previewUrl);
+        throw new Error("영상 최적화를 시작하지 못했습니다.");
+      }
+      const canvasStream = canvas.captureStream(30);
+      const canvasRecorder = new RecorderCtor(canvasStream, { mimeType: selectedMime, videoBitsPerSecond: bitrate });
+      const canvasChunks: BlobPart[] = [];
+      canvasRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) canvasChunks.push(event.data);
+      };
+      const canvasStopPromise = new Promise<Blob>((resolve, reject) => {
+        canvasRecorder.onerror = () => reject(new Error("영상 최적화 중 오류가 발생했습니다."));
+        canvasRecorder.onstop = () => resolve(new Blob(canvasChunks, { type: selectedMime.split(";")[0] }));
+      });
+      await video.play();
+      canvasRecorder.start(250);
+      const drawFrame = () => {
+        if (video.paused || video.ended) return;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        requestAnimationFrame(drawFrame);
+      };
+      requestAnimationFrame(drawFrame);
+      await new Promise<void>((resolve) => {
+        video.onended = () => resolve();
+      });
+      if (canvasRecorder.state !== "inactive") canvasRecorder.stop();
+      const optimizedBlob = await canvasStopPromise;
+      URL.revokeObjectURL(previewUrl);
+      if (optimizedBlob.size > maxBytes) {
+        throw new Error("영상 최적화 후에도 30MB를 초과합니다. 길이를 더 짧게 하거나 원본 해상도를 줄여 주세요.");
+      }
+      const optimizedFile = new File([optimizedBlob], file.name.replace(/\.[^.]+$/, ".webm"), { type: optimizedBlob.type || "video/webm" });
+      return {
+        name: optimizedFile.name,
+        previewUrl: URL.createObjectURL(optimizedFile),
+        size: optimizedFile.size,
+        type: optimizedFile.type,
+        durationSec: meta.durationSec,
+        optimized: true,
+      };
+    }
+
+    await video.play();
+    recorder.start(250);
+    await new Promise<void>((resolve) => {
+      video.onended = () => resolve();
+    });
+    if (recorder.state !== "inactive") recorder.stop();
+    const optimizedBlob = await stopPromise;
+    URL.revokeObjectURL(previewUrl);
+    if (optimizedBlob.size > maxBytes) {
+      throw new Error("영상 최적화 후에도 30MB를 초과합니다. 길이를 더 짧게 하거나 원본 해상도를 줄여 주세요.");
+    }
+    const optimizedFile = new File([optimizedBlob], file.name.replace(/\.[^.]+$/, ".webm"), { type: optimizedBlob.type || "video/webm" });
+    return {
+      name: optimizedFile.name,
+      previewUrl: URL.createObjectURL(optimizedFile),
+      size: optimizedFile.size,
+      type: optimizedFile.type,
+      durationSec: meta.durationSec,
+      optimized: true,
+    };
+  };
+
+  const handleFeedComposeAttach = async (file: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
+      window.alert("사진 또는 영상 파일만 첨부할 수 있습니다.");
+      return;
+    }
+    setFeedComposeBusy(true);
+    setFeedComposeHelperText(file.type.startsWith("video/") ? "영상 길이/용량을 확인하고 최적화 중입니다." : "이미지를 확인하고 최적화 중입니다.");
+    try {
+      const nextAttachment = file.type.startsWith("video/")
+        ? await optimizeFeedComposeVideo(file)
+        : await optimizeFeedComposeImage(file);
+      setFeedComposeAttachment((prev) => {
+        if (prev?.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(prev.previewUrl);
+        return nextAttachment;
+      });
+      setFeedComposeHelperText(
+        nextAttachment.type.startsWith("video/")
+          ? `최대 1개 첨부 · 영상 ${nextAttachment.durationSec ? nextAttachment.durationSec.toFixed(1) : "0.0"}초 · ${Math.max(1, Math.round(nextAttachment.size / 1024 / 1024))}MB · ${nextAttachment.optimized ? "WEBM 최적화" : "원본 유지"}`
+          : `최대 1개 첨부 · 이미지 ${Math.max(1, Math.round(nextAttachment.size / 1024))}KB${nextAttachment.optimized ? " · 최적화 완료" : ""}`
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "첨부 파일을 처리하지 못했습니다.";
+      window.alert(message);
+      setFeedComposeHelperText("최대 1개 첨부 · 영상은 최대 20초 / 30MB · 권장 MP4(H.264) 또는 WEBM");
+    } finally {
+      setFeedComposeBusy(false);
+    }
+  };
+
+  const clearFeedComposeAttachment = () => {
+    setFeedComposeAttachment((prev) => {
+      if (prev?.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(prev.previewUrl);
+      return null;
+    });
+    setFeedComposeHelperText("최대 1개 첨부 · 영상은 최대 20초 / 30MB · 권장 MP4(H.264) 또는 WEBM");
+  };
+
+  const closeFeedCompose = () => {
+    setFeedComposeOpen(false);
+    setFeedComposeBusy(false);
+  };
+
+  const submitFeedCompose = () => {
+    if (!feedComposeCaption.trim() && !feedComposeAttachment) {
+      window.alert("피드 내용 또는 사진/영상을 입력해 주세요.");
+      return;
+    }
+    const nextId = Math.max(...allFeedItems.map((item) => item.id), 0) + 1;
+    const type = feedComposeAttachment?.type.startsWith("video/") ? "video" : "image";
+    const trimmedTitle = feedComposeTitle.trim();
+    const caption = feedComposeCaption.trim();
+    const nextItem: FeedItem = {
+      id: nextId,
+      type,
+      category: type === "video" ? "쇼츠" : "실사용",
+      title: trimmedTitle || caption.slice(0, 28) || "새 피드",
+      caption,
+      author: viewedProfileAuthor ?? currentProfileMeta.name ?? "adult official",
+      likes: 0,
+      comments: 0,
+      accent: "rose",
+      views: type === "video" ? 0 : undefined,
+      postedAt: "방금",
+      videoUrl: type === "video" ? feedComposeAttachment?.previewUrl : undefined,
+      mediaUrl: type === "image" ? feedComposeAttachment?.previewUrl : undefined,
+      mediaName: feedComposeAttachment?.name,
+    };
+    setCustomFeedItems((prev) => [nextItem, ...prev]);
+    setFeedCommentMap((prev) => ({ ...prev, [nextId]: [] }));
+    setFeedComposeTitle("");
+    setFeedComposeCaption("");
+    setFeedComposeAttachment(null);
+    setFeedComposeBusy(false);
+    setFeedComposeHelperText("최대 1개 첨부 · 영상은 최대 20초 / 30MB · 권장 MP4(H.264) 또는 WEBM");
+    setFeedComposeOpen(false);
+    setActiveTab("홈");
+    setHomeTab("피드");
+    setHomeFeedBootItems([]);
+    setHomeFeedVisibleCount((prev) => Math.max(prev, HOME_FEED_PAGE_SIZE));
+  };
+
+  const clearFeedCommentAttachment = (feedId: number) => {
+    setFeedCommentAttachments((prev) => ({ ...prev, [feedId]: null }));
+  };
+
+  const updateFeedCommentDraft = (feedId: number, value: string) => {
+    setFeedCommentDrafts((prev) => ({ ...prev, [feedId]: value }));
+  };
+
+  const submitFeedComment = (feedId: number) => {
+    const draft = (feedCommentDrafts[feedId] ?? "").trim();
+    const attachment = feedCommentAttachments[feedId] ?? null;
+    if (!draft && !attachment) return;
+    setFeedCommentMap((prev) => ({
+      ...prev,
+      [feedId]: [
+        ...(prev[feedId] ?? []),
+        { id: Date.now(), author: "my_account", text: draft || "사진을 첨부했습니다.", meta: "방금", imageUrl: attachment?.dataUrl, imageName: attachment?.name },
+      ],
+    }));
+    setFeedCommentDrafts((prev) => ({ ...prev, [feedId]: "" }));
+    setFeedCommentAttachments((prev) => ({ ...prev, [feedId]: null }));
+  };
+
+  const toggleFollowedFeedAuthor = (author: string) => {
+    setFollowedFeedAuthors((prev) => prev.includes(author) ? prev.filter((item) => item !== author) : [...prev, author]);
+  };
+
   const toggleSavedProduct = (productId: number) => {
     setSavedProductIds((prev) => prev.includes(productId) ? prev.filter((item) => item !== productId) : [productId, ...prev]);
   };
 
-  const savedFeedItems = useMemo(() => feedSeed.filter((item) => savedFeedIds.includes(item.id)), [savedFeedIds]);
+  const savedFeedItems = useMemo(() => allFeedItems.filter((item) => item.type !== "video" && savedFeedIds.includes(item.id)), [savedFeedIds]);
 
   const openMenuOverlay = () => setOverlayMode("menu");
 
@@ -1957,30 +4235,235 @@ export default function App() {
 
   };
 
+  const handleShortsScroll = (event: UIEvent<HTMLDivElement>) => {
+    const target = event.currentTarget;
+    const currentTop = target.scrollTop;
+    const remain = target.scrollHeight - currentTop - target.clientHeight;
+    if (remain < 240) {
+      setShortsVisibleCount((prev) => Math.min(prev + 10, shortsFeedItems.length));
+    }
+
+    if (shortsScrollRafRef.current !== null) {
+      window.cancelAnimationFrame(shortsScrollRafRef.current);
+    }
+
+    shortsScrollRafRef.current = window.requestAnimationFrame(() => {
+      const prevTop = lastShortsScrollTopRef.current;
+      const delta = currentTop - prevTop;
+      lastShortsScrollTopRef.current = currentTop;
+
+      if (currentTop <= 8) {
+        shortsHideThresholdRef.current = 0;
+        shortsShowThresholdRef.current = 0;
+        setShortsHeaderHidden(false);
+        setShortsCategoryVisible(true);
+        return;
+      }
+
+      if (delta > 2) {
+        shortsHideThresholdRef.current += delta;
+        shortsShowThresholdRef.current = 0;
+      } else if (delta < -2) {
+        shortsShowThresholdRef.current += Math.abs(delta);
+        shortsHideThresholdRef.current = 0;
+      }
+
+      if (!shortsHeaderHidden && shortsHideThresholdRef.current >= 28 && currentTop > 32) {
+        shortsHideThresholdRef.current = 0;
+        setShortsHeaderHidden(true);
+        setShortsCategoryVisible(false);
+      } else if (shortsHeaderHidden && shortsShowThresholdRef.current >= 18) {
+        shortsShowThresholdRef.current = 0;
+        setShortsHeaderHidden(false);
+        setShortsCategoryVisible(true);
+      }
+    });
+  };
+
   const homeMenuItems = [
     { label: "피드", onClick: () => { setHomeTab("피드"); setOverlayMode(null); } },
-    { label: "상품", onClick: () => { setHomeTab("상품"); setOverlayMode(null); } },
+    { label: "쇼츠", onClick: () => { setHomeTab("쇼츠"); setOverlayMode(null); setShortsHeaderHidden(false); setShortsCategoryVisible(true); setSelectedShortsCategory("전체"); lastShortsScrollTopRef.current = 0; shortsHideThresholdRef.current = 0; shortsShowThresholdRef.current = 0; } },
     { label: "보관함", onClick: goToSavedBox },
   ];
 
 
-  const visibleFeed = useMemo(() => {
-    const keyword = globalKeyword.trim().toLowerCase();
-    return !keyword ? feedSeed : feedSeed.filter((item) => `${item.title} ${item.caption} ${item.category} ${item.author}`.toLowerCase().includes(keyword));
-  }, [globalKeyword]);
+  const shortsCategories = useMemo(() => {
+    const fixed = ["전체", "추천", "최신"];
+    const dynamic = Array.from(new Set(allFeedItems.filter((item) => item.type === "video").map((item) => item.category))).filter((category) => !fixed.includes(category));
+    return [...fixed, ...dynamic];
+  }, []);
 
-  const allShopItems = useMemo(() => {
+  const keywordSignalMap = useMemo(() => buildKeywordSignalMap({
+    shopKeywordSignals,
+    shortsKeywordSignals,
+    globalKeyword,
+    followingUserIds,
+    savedFeedIds,
+    feedItems: allFeedItems,
+    forumUsers: forumStarterUsers,
+  }), [shopKeywordSignals, shortsKeywordSignals, globalKeyword, followingUserIds, savedFeedIds]);
+
+  const followedTopicKeywords = useMemo(() => followingUserIds
+    .map((id) => forumStarterUsers.find((user) => user.id === id))
+    .filter((user): user is ForumStarterUser => Boolean(user))
+    .flatMap((user) => extractInterestTokens(`${user.name} ${user.topic} ${user.role}`)), [followingUserIds]);
+
+  const recommendedHomeFeed = useMemo(() => rankHomeFeedItems({
+    items: allFeedItems,
+    keywordSignalMap,
+    followedTopicKeywords,
+    savedFeedIds,
+    keyword: deferredGlobalKeyword,
+  }), [keywordSignalMap, followedTopicKeywords, savedFeedIds, deferredGlobalKeyword]);
+
+  useEffect(() => {
+    if (!homeFeedBootItems.length) return;
+    const cachedIds = homeFeedBootItems.map((item) => item.id).join(",");
+    const nextIds = recommendedHomeFeed.slice(0, homeFeedBootItems.length).map((item) => item.id).join(",");
+    if (cachedIds === nextIds) return;
+    setHomeFeedBootItems([]);
+  }, [recommendedHomeFeed, homeFeedBootItems]);
+
+  const homeFeedSource = homeFeedBootItems.length ? homeFeedBootItems : recommendedHomeFeed;
+  const visibleFeed = useMemo(() => homeFeedSource.slice(0, homeFeedVisibleCount), [homeFeedSource, homeFeedVisibleCount]);
+  const hasMoreHomeFeed = homeFeedVisibleCount < homeFeedSource.length;
+
+  const queueHomeFeedLoadMore = useCallback(() => {
+    if (typeof window === "undefined" || !hasMoreHomeFeed || homeFeedIsLoadingMore) return;
+    if (homeFeedLoadMoreTimerRef.current !== null) return;
+    setHomeFeedIsLoadingMore(true);
+    homeFeedLoadMoreTimerRef.current = window.setTimeout(() => {
+      setHomeFeedVisibleCount((prev) => Math.min(prev + HOME_FEED_PAGE_SIZE, homeFeedSource.length));
+      setHomeFeedIsLoadingMore(false);
+      homeFeedLoadMoreTimerRef.current = null;
+    }, 180);
+  }, [hasMoreHomeFeed, homeFeedIsLoadingMore, homeFeedSource.length]);
+
+
+  useEffect(() => {
+    setHomeFeedVisibleCount(HOME_FEED_PAGE_SIZE);
+  }, [deferredGlobalKeyword]);
+  useEffect(() => () => {
+    if (feedComposeAttachment?.previewUrl?.startsWith("blob:")) {
+      URL.revokeObjectURL(feedComposeAttachment.previewUrl);
+    }
+  }, [feedComposeAttachment]);
+
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !homeFeedSource.length) return;
+    window.localStorage.setItem(HOME_FEED_CACHE_KEY, JSON.stringify({
+      expiresAt: Date.now() + HOME_FEED_CACHE_TTL_MS,
+      visibleCount: homeFeedVisibleCount,
+      items: homeFeedSource.slice(0, Math.max(homeFeedVisibleCount, HOME_FEED_PAGE_SIZE * 2)),
+    }));
+  }, [homeFeedSource, homeFeedVisibleCount]);
+
+  useEffect(() => () => {
+    if (homeFeedLoadMoreTimerRef.current !== null) {
+      window.clearTimeout(homeFeedLoadMoreTimerRef.current);
+      homeFeedLoadMoreTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    const sentinel = homeFeedSentinelRef.current;
+    const root = mobileMainRef.current;
+    if (!sentinel || !root || !hasMoreHomeFeed) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      const entry = entries[0];
+      if (!entry?.isIntersecting) return;
+      queueHomeFeedLoadMore();
+    }, { root, rootMargin: "0px 0px 420px 0px", threshold: 0.01 });
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMoreHomeFeed, queueHomeFeedLoadMore, visibleFeed.length]);
+
+
+  const getContentKeywordTags = (item: FeedItem) => getTopMatchedKeywords(item, keywordSignalMap);
+
+  const recommendedShorts = useMemo(() => {
+    const base = allFeedItems.filter((item) => item.type === "video" || item.category.includes("숏"));
+    const ranked = base.map((item, idx) => {
+      const content = `${item.title} ${item.caption} ${item.category} ${item.author}`.toLowerCase();
+      const matchedSignalScore = Array.from(keywordSignalMap.entries()).reduce((sum, [token, score]) => sum + (content.includes(token) ? score : 0), 0);
+      const freshnessMinutes = parseRelativeMinutes(item.postedAt);
+      const freshnessScore = Math.max(0, 36 - Math.min(freshnessMinutes / 12, 36));
+      const followScore = followedTopicKeywords.some((token) => content.includes(token)) ? 18 : 0;
+      const savedScore = savedFeedIds.includes(item.id) ? 28 : 0;
+      const popularityScore = Math.min(22, (item.likes / 40) + (item.comments / 12) + ((item.views ?? 0) / 600));
+      const nicheBoost = /딜도|바이브|본디지|패들|케인|젤|세정|보관|입문|리뷰/.test(content) ? 6 : 0;
+      const explorationScore = deterministicHash(`${item.id}-${item.title}`) % 100 < 2 ? 12 : 0;
+      const vintagePopularBoost = freshnessMinutes >= 120 && popularityScore >= 16 && matchedSignalScore > 0 ? 10 : 0;
+      const recencyPenalty = freshnessMinutes >= 1440 ? 6 : 0;
+      const totalScore = matchedSignalScore + freshnessScore + followScore + savedScore + popularityScore + nicheBoost + explorationScore + vintagePopularBoost - recencyPenalty;
+      return {
+        ...item,
+        id: 1000 + idx,
+        views: (item.views ?? 1000) + idx * 91,
+        postedAt: item.postedAt ?? ["방금", "9분 전", "26분 전", "1시간 전", "3시간 전", "어제"][idx % 6],
+        sortScore: totalScore,
+      };
+    });
+
+    ranked.sort((a, b) => (b.sortScore ?? 0) - (a.sortScore ?? 0) || (b.likes - a.likes));
+    return ranked;
+  }, [keywordSignalMap, followedTopicKeywords, savedFeedIds]);
+  const savedShortItems = useMemo(() => {
+    const source = recommendedShorts.filter((item) => savedFeedIds.includes(item.id));
+    return source.sort((a, b) => savedFeedIds.indexOf(a.id) - savedFeedIds.indexOf(b.id));
+  }, [recommendedShorts, savedFeedIds]);
+
+  const visibleShorts = useMemo(() => {
+    const keyword = globalKeyword.trim().toLowerCase();
+    const baseSource = selectedShortsCategory === "최신"
+      ? [...recommendedShorts].sort((a, b) => parseRelativeMinutes(a.postedAt) - parseRelativeMinutes(b.postedAt) || (b.views ?? 0) - (a.views ?? 0))
+      : recommendedShorts;
+
+    return baseSource.filter((item) => {
+      const categoryMatch = ["전체", "추천", "최신"].includes(selectedShortsCategory) || item.category === selectedShortsCategory;
+      const keywordMatch = !keyword || `${item.title} ${item.caption} ${item.category} ${item.author}`.toLowerCase().includes(keyword);
+      return categoryMatch && keywordMatch;
+    });
+  }, [recommendedShorts, selectedShortsCategory, globalKeyword]);
+
+  const shortsFeedItems = useMemo(() => visibleShorts.length ? visibleShorts : recommendedShorts, [visibleShorts, recommendedShorts]);
+
+  const pagedShorts = useMemo(() => shortsFeedItems.slice(0, shortsVisibleCount), [shortsFeedItems, shortsVisibleCount]);
+  const shortsViewerInitialIndex = useMemo(() => shortsViewerItemId === null ? 0 : Math.max(0, shortsFeedItems.findIndex((item) => item.id === shortsViewerItemId)), [shortsFeedItems, shortsViewerItemId]);
+  const savedShortsViewerInitialIndex = useMemo(() => savedShortsViewerItemId === null ? 0 : Math.max(0, savedShortItems.findIndex((item) => item.id === savedShortsViewerItemId)), [savedShortItems, savedShortsViewerItemId]);
+
+  useEffect(() => {
+    setShortsVisibleCount(10);
+  }, [globalKeyword, selectedShortsCategory]);
+
+  useEffect(() => () => {
+    if (shortsScrollRafRef.current !== null) {
+      window.cancelAnimationFrame(shortsScrollRafRef.current);
+    }
+  }, []);
+
+
+  const allShopItems = useMemo<ProductCard[]>(() => {
     const keyword = `${shopKeyword} ${globalKeyword}`.trim().toLowerCase();
     const source = apiProducts.length
-      ? apiProducts.filter((item) => (item.status ?? "published") === "published").map((item) => ({
-          id: item.id,
-          category: item.category,
-          name: item.name,
-          subtitle: item.description ?? "",
-          price: `₩${Number(item.price || 0).toLocaleString()}`,
-          badge: item.stock_qty && item.stock_qty > 0 ? "판매중" : "재고확인",
-        }))
-      : productsSeed;
+      ? apiProducts
+          .filter((item) => (item.status ?? "published") === "published")
+          .map((item, index) => withProductMetrics({
+            id: item.id,
+            category: item.category ?? "기타",
+            name: item.name,
+            subtitle: item.description ?? "",
+            price: `₩${Number(item.price || 0).toLocaleString()}`,
+            badge: item.stock_qty && item.stock_qty > 0 ? "판매중" : "재고확인",
+            reviewCount: Number((item as { review_count?: number }).review_count ?? 0) || undefined,
+            stock_qty: item.stock_qty,
+            thumbnailUrl: null,
+            isPremium: /프리미엄|premium|고급/.test(`${item.name} ${item.description ?? ""}`.toLowerCase()),
+          }, index))
+      : productsSeed.map((item, index) => withProductMetrics(item, index));
     return source.filter((product) => {
       const matchCategory = selectedShopCategory === "전체" || product.category === selectedShopCategory;
       const matchKeyword = !keyword || `${product.name} ${product.subtitle} ${product.category}`.toLowerCase().includes(keyword);
@@ -1988,13 +4471,200 @@ export default function App() {
     });
   }, [selectedShopCategory, shopKeyword, globalKeyword, apiProducts]);
 
+  const shoppingHomeKeywords = useMemo(() => {
+    const roleSeedMap: Record<string, string[]> = {
+      ADMIN: ["판매자", "신상품", "베스트", "위생", "보관", "케어", "세정", "입문", "브랜드", "기획전"],
+      SELLER: ["신상품", "입문", "브랜드", "베스트", "위생", "보관", "케어", "세정", "기획전", "인기"],
+      GUEST: ["입문", "위생", "보관", "케어", "세정", "베스트", "브랜드", "기획전", "추천", "인기"],
+      MEMBER: ["입문", "위생", "보관", "케어", "세정", "베스트", "브랜드", "기획전", "추천", "인기"],
+    };
+    const roleSeeds = roleSeedMap[currentUserRole] ?? roleSeedMap.MEMBER;
+    const pool = [
+      ...Object.entries(shopKeywordSignals)
+        .sort((a, b) => b[1] - a[1])
+        .map(([token]) => token),
+      ...roleSeeds,
+      ...allShopItems.flatMap((item) => [item.category, item.name]),
+      ...productsSeed.flatMap((item) => [item.category, item.name]),
+    ];
+
+    const normalized = pool
+      .flatMap((entry) => String(entry).split(/[·,/]/))
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length >= 2)
+      .filter((entry) => !/^(전체|상품|판매중|재고확인)$/.test(entry));
+
+    const unique: string[] = [];
+    for (const item of normalized) {
+      if (!unique.includes(item)) unique.push(item);
+      if (unique.length >= 32) break;
+    }
+    while (unique.length < 32) {
+      unique.push(`추천 ${unique.length + 1}`);
+    }
+    return unique.slice(0, 32);
+  }, [shopKeywordSignals, currentUserRole, allShopItems]);
+
+  const shopHomeRecommendedItems = useMemo(() => buildShopHomeRecommendationFeed({
+    items: allShopItems.length ? allShopItems : productsSeed,
+    keywordSignals: shopKeywordSignals,
+    visibleCount: shopHomeVisibleCount,
+  }), [allShopItems, shopKeywordSignals, shopHomeVisibleCount]);
+
+  const shopHomeHeroSlides = useMemo(() => {
+    const base = shopHomeRecommendedItems.slice(0, 3);
+    return base.length ? base : buildShopHomeRecommendationFeed({ items: productsSeed, keywordSignals: shopKeywordSignals, visibleCount: 3 });
+  }, [shopHomeRecommendedItems, shopKeywordSignals]);
+
+  const shopHomeFeedItems = useMemo(() => {
+    if (shopHomeRecommendedItems.length) return shopHomeRecommendedItems;
+    return buildShopHomeRecommendationFeed({ items: productsSeed, keywordSignals: shopKeywordSignals, visibleCount: shopHomeVisibleCount });
+  }, [shopHomeRecommendedItems, shopKeywordSignals, shopHomeVisibleCount]);
+
+  const currentProfileAuthor = viewedProfileAuthor ?? "adult official";
+  const currentProfileMeta = useMemo(() => {
+    const askProfile = askProfiles.find((item) => item.name === currentProfileAuthor);
+    const authorFeeds = allFeedItems.filter((item) => item.author === currentProfileAuthor);
+    const firstFeed = authorFeeds[0];
+    const hash = deterministicHash(currentProfileAuthor);
+    const followerCount = 1200 + (hash % 4200);
+    const followingCount = 120 + (hash % 430);
+    const postCount = Math.max(9, authorFeeds.length * 4 || 12);
+    return {
+      name: currentProfileAuthor,
+      avatar: currentProfileAuthor.slice(0, 1).toUpperCase(),
+      headline: askProfile?.headline ?? firstFeed?.category ?? "프로필",
+      bio: askProfile?.intro ?? firstFeed?.caption ?? "피드와 질문, 쇼핑 정보를 함께 운영하는 계정입니다.",
+      hashtags: getContentKeywordTags(firstFeed ?? allFeedItems[0] ?? feedSeed[0]),
+      postCount,
+      followerCount,
+      followingCount,
+      isOwner: viewedProfileAuthor === null,
+    };
+  }, [currentProfileAuthor, viewedProfileAuthor]);
+
+  const currentProfileProducts = useMemo(() => {
+    const pool = (allShopItems.length ? allShopItems : productsSeed.map((item, index) => withProductMetrics(item, index))).map((item, index) => withProductMetrics(item, index));
+    const ownerIndex = Math.abs(deterministicHash(currentProfileAuthor)) % 5;
+    const picked = pool.filter((item) => Math.abs(deterministicHash(`${currentProfileAuthor}-${item.id}-${item.name}`)) % 5 === ownerIndex);
+    const source = picked.length >= 6 ? picked : pool.slice(ownerIndex * 6, ownerIndex * 6 + 9);
+    return [...source].sort((a, b) => ((b.orderCount ?? 0) - (a.orderCount ?? 0)) || ((b.reviewCount ?? 0) - (a.reviewCount ?? 0)) || a.name.localeCompare(b.name));
+  }, [allShopItems, currentProfileAuthor]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_chat_question_draft", chatQuestionDraft);
+  }, [chatQuestionDraft]);
+
+  useEffect(() => {
+    if (activeTab !== "쇼핑" || shoppingTab !== "홈") return;
+    setShopHomeVisibleCount(30);
+    setShopHomeBannerIndex(0);
+    setShopHomeBannerDragOffset(0);
+  }, [activeTab, shoppingTab, shopKeyword, globalKeyword, selectedShopCategory]);
+
+  useEffect(() => {
+    if (activeTab !== "쇼핑" || shoppingTab !== "홈" || shopHomeHeroSlides.length <= 1 || shopHomeBannerPointerActiveRef.current) return;
+    const timer = window.setInterval(() => {
+      setShopHomeBannerIndex((prev) => (prev + 1) % shopHomeHeroSlides.length);
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [activeTab, shoppingTab, shopHomeHeroSlides.length, shopHomeBannerIndex]);
+
+  const goPrevShopHomeBanner = () => {
+    setShopHomeBannerIndex((prev) => (prev - 1 + shopHomeHeroSlides.length) % shopHomeHeroSlides.length);
+  };
+
+  const goNextShopHomeBanner = () => {
+    setShopHomeBannerIndex((prev) => (prev + 1) % shopHomeHeroSlides.length);
+  };
+
+  const handleShopHomeBannerPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (shopHomeHeroSlides.length <= 1) return;
+    shopHomeBannerPointerActiveRef.current = true;
+    shopHomeBannerPointerStartXRef.current = event.clientX;
+    setShopHomeBannerDragOffset(0);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleShopHomeBannerPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!shopHomeBannerPointerActiveRef.current || shopHomeBannerPointerStartXRef.current === null) return;
+    setShopHomeBannerDragOffset(event.clientX - shopHomeBannerPointerStartXRef.current);
+  };
+
+  const finishShopHomeBannerDrag = (event?: React.PointerEvent<HTMLDivElement>) => {
+    if (event && event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    if (!shopHomeBannerPointerActiveRef.current) return;
+    const dragThreshold = 42;
+    if (shopHomeBannerDragOffset <= -dragThreshold) {
+      goNextShopHomeBanner();
+    } else if (shopHomeBannerDragOffset >= dragThreshold) {
+      goPrevShopHomeBanner();
+    }
+    shopHomeBannerPointerActiveRef.current = false;
+    shopHomeBannerPointerStartXRef.current = null;
+    setShopHomeBannerDragOffset(0);
+  };
+
+  const handleShopHomeScroll = (event: UIEvent<HTMLDivElement>) => {
+    const node = event.currentTarget;
+    if (node.scrollTop + node.clientHeight < node.scrollHeight - 120) return;
+    setShopHomeVisibleCount((prev) => prev + 9);
+  };
+
+  const handleShopHomeGridPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    shopHomeGridHasDraggedRef.current = false;
+    shopHomeGridDraggingRef.current = true;
+    setShopHomeGridDragging(true);
+    shopHomeGridDragStartYRef.current = event.clientY;
+    shopHomeGridDragStartScrollTopRef.current = event.currentTarget.scrollTop;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
+  const handleShopHomeGridPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    if (!shopHomeGridDraggingRef.current || shopHomeGridDragStartYRef.current === null) return;
+    const deltaY = event.clientY - shopHomeGridDragStartYRef.current;
+    if (Math.abs(deltaY) > 4) {
+      shopHomeGridHasDraggedRef.current = true;
+      shopHomeGridSuppressClickUntilRef.current = Date.now() + 260;
+    }
+    event.currentTarget.scrollTop = shopHomeGridDragStartScrollTopRef.current - deltaY;
+    event.preventDefault();
+  };
+
+  const finishShopHomeGridTouchDrag = () => {
+    shopHomeGridDraggingRef.current = false;
+    setShopHomeGridDragging(false);
+    shopHomeGridDragStartYRef.current = null;
+  };
+
+  const finishShopHomeGridPointerDrag = (event?: PointerEvent<HTMLDivElement>) => {
+    if (event) {
+      try {
+        event.currentTarget.releasePointerCapture?.(event.pointerId);
+      } catch {}
+    }
+    shopHomeGridDraggingRef.current = false;
+    setShopHomeGridDragging(false);
+    shopHomeGridDragStartYRef.current = null;
+  };
+
+  const handleShopHomeProductCardClick = (productId: number) => {
+    if (Date.now() < shopHomeGridSuppressClickUntilRef.current) return;
+    openProductDetail(productId);
+  };
+
   const filteredCommunity = useMemo(() => {
     const keyword = `${communityKeyword} ${globalKeyword}`.trim().toLowerCase();
     const visiblePosts = communitySeed.filter((post) => {
+      const boardMatch = communityTab === "이벤트" ? post.board === "이벤트" : communityTab === "커뮤" ? (post.board === "커뮤" || !post.board) : post.board === communityTab;
       const categoryMatch = selectedCommunityCategory === "전체" || post.category === selectedCommunityCategory;
       const primaryMatch = communityPrimaryFilter === "전체" || post.audience === communityPrimaryFilter;
       const keywordMatch = !keyword || `${post.title} ${post.summary} ${post.category}`.toLowerCase().includes(keyword);
-      return categoryMatch && primaryMatch && keywordMatch;
+      return boardMatch && categoryMatch && primaryMatch && keywordMatch;
     });
 
     if (communitySecondaryFilter === "최신순" || communitySecondaryFilter === "전체") {
@@ -2011,7 +4681,22 @@ export default function App() {
       return [...visiblePosts].sort((a, b) => (b.sortScore ?? 0) - (a.sortScore ?? 0));
     }
     return visiblePosts;
-  }, [selectedCommunityCategory, communityKeyword, globalKeyword, communityPrimaryFilter, communitySecondaryFilter]);
+  }, [communityTab, selectedCommunityCategory, communityKeyword, globalKeyword, communityPrimaryFilter, communitySecondaryFilter]);
+
+  useEffect(() => {
+    setCommunityPage(1);
+  }, [communityTab, selectedCommunityCategory, communityPrimaryFilter, communitySecondaryFilter, communityKeyword, globalKeyword]);
+
+  const COMMUNITY_PAGE_SIZE = 8;
+  const communityPageCount = Math.max(1, Math.ceil(filteredCommunity.length / COMMUNITY_PAGE_SIZE));
+  const pagedCommunity = useMemo(() => {
+    const start = (communityPage - 1) * COMMUNITY_PAGE_SIZE;
+    return filteredCommunity.slice(start, start + COMMUNITY_PAGE_SIZE);
+  }, [filteredCommunity, communityPage]);
+
+  const communityDisplayRows = useMemo(() => (
+    Array.from({ length: COMMUNITY_PAGE_SIZE }, (_, index) => pagedCommunity[index] ?? null)
+  ), [pagedCommunity]);
 
   const filteredThreads = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
@@ -2047,7 +4732,7 @@ export default function App() {
   const homeSearchResults = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
     if (!keyword) return [];
-    return feedSeed.filter((item) => {
+    return allFeedItems.filter((item) => {
       const source = `${item.title} ${item.caption} ${item.author} ${item.category}`.toLowerCase();
       if (searchFilter === "피드") return `${item.title} ${item.caption}`.toLowerCase().includes(keyword);
       if (searchFilter === "작성자") return item.author.toLowerCase().includes(keyword);
@@ -2088,11 +4773,245 @@ export default function App() {
     });
   }, [globalKeyword, searchFilter]);
 
+  const openProfileFromAuthor = (author: string) => {
+    setViewedProfileAuthor(author);
+    setActiveTab("프로필");
+    setProfileTab("내정보");
+    setProfileSection("게시물");
+    setOverlayMode(null);
+    setSelectedAskProfile(null);
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const syncCompanyMailRoute = () => {
+      setCompanyMailPreviewOpen(isCompanyMailRouteActive());
+    };
+    window.addEventListener("hashchange", syncCompanyMailRoute);
+    window.addEventListener("popstate", syncCompanyMailRoute);
+    return () => {
+      window.removeEventListener("hashchange", syncCompanyMailRoute);
+      window.removeEventListener("popstate", syncCompanyMailRoute);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!authBootstrapDone) return;
+    if (navigationRestoreRef.current) {
+      navigationSnapshotRef.current = cloneNavigationSnapshot(currentNavigationSnapshot);
+      navigationRestoreRef.current = false;
+      return;
+    }
+    const previousSnapshot = navigationSnapshotRef.current;
+    if (!previousSnapshot) {
+      navigationSnapshotRef.current = cloneNavigationSnapshot(currentNavigationSnapshot);
+      return;
+    }
+    const previousSnapshotKey = JSON.stringify(previousSnapshot);
+    const currentSnapshotKey = JSON.stringify(currentNavigationSnapshot);
+    if (previousSnapshotKey === currentSnapshotKey) return;
+    navigationHistoryRef.current.push(cloneNavigationSnapshot(previousSnapshot));
+    if (navigationHistoryRef.current.length > APP_NAVIGATION_HISTORY_LIMIT) {
+      navigationHistoryRef.current = navigationHistoryRef.current.slice(-APP_NAVIGATION_HISTORY_LIMIT);
+    }
+    navigationSnapshotRef.current = cloneNavigationSnapshot(currentNavigationSnapshot);
+    if (!isHomeNavigationSnapshot(currentNavigationSnapshot)) {
+      hideBackMinimizeHint();
+      lastBackPressAtRef.current = 0;
+    }
+  }, [authBootstrapDone, currentNavigationSnapshot, hideBackMinimizeHint, isHomeNavigationSnapshot]);
+
+  useEffect(() => {
+    if (!authBootstrapDone) return;
+    if (typeof window === "undefined" || !window.Capacitor?.isNativePlatform?.()) return;
+    const appPlugin = getNativeAppPlugin();
+    if (!appPlugin?.addListener) return;
+    let cancelled = false;
+    let listenerHandle: NativeAppListenerHandle | null = null;
+    void Promise.resolve(appPlugin.addListener("backButton", () => {
+      void handleAppBackNavigation();
+    })).then((handle) => {
+      if (cancelled) {
+        try {
+          void handle?.remove?.();
+        } catch {}
+        return;
+      }
+      listenerHandle = handle ?? null;
+    }).catch(() => {});
+    return () => {
+      cancelled = true;
+      try {
+        void listenerHandle?.remove?.();
+      } catch {}
+    };
+  }, [authBootstrapDone, handleAppBackNavigation]);
+
+  useEffect(() => () => {
+    if (typeof window !== "undefined" && backMinimizeTimerRef.current !== null) {
+      window.clearTimeout(backMinimizeTimerRef.current);
+    }
+  }, []);
+
+  const openCompanyMailPreview = useCallback(() => {
+    setOverlayMode(null);
+    setCompanyMailPreviewOpen(true);
+    if (typeof window !== "undefined" && window.location.hash.toLowerCase() !== "#corp-mail-admin") {
+      const next = `${window.location.pathname}${window.location.search}#corp-mail-admin`;
+      window.history.replaceState(null, "", next);
+    }
+  }, []);
+
+  const closeCompanyMailPreview = useCallback(() => {
+    if (companyMailHostLocked) return;
+    setCompanyMailPreviewOpen(false);
+    if (typeof window !== "undefined" && window.location.hash.toLowerCase() === "#corp-mail-admin") {
+      const next = `${window.location.pathname}${window.location.search}`;
+      window.history.replaceState(null, "", next);
+    }
+  }, [companyMailHostLocked]);
+
+  const requestCompanyMailLogin = useCallback(() => {
+    if (!companyMailHostLocked) closeCompanyMailPreview();
+    setAuthStandaloneScreen("login");
+    setAuthMessage("회사메일은 관리자 계정으로만 접근할 수 있습니다.");
+  }, [closeCompanyMailPreview, companyMailHostLocked]);
+
+  const renderBottomTabIcon = (tab: MobileTab, filled: boolean) => ({
+    홈: <HomeIcon filled={filled} />,
+    쇼핑: <ShoppingBagIcon filled={filled} />,
+    소통: <CommunityIcon filled={filled} />,
+    채팅: <ChatIcon filled={filled} />,
+    프로필: <ProfileIcon filled={filled} />,
+  }[tab]);
+
+  const bottomNavIconMap = {
+    홈: renderBottomTabIcon("홈", overlayMode === null && activeTab === "홈"),
+    쇼핑: renderBottomTabIcon("쇼핑", overlayMode === null && activeTab === "쇼핑"),
+    소통: renderBottomTabIcon("소통", overlayMode === null && activeTab === "소통"),
+    채팅: renderBottomTabIcon("채팅", overlayMode === null && activeTab === "채팅"),
+    프로필: renderBottomTabIcon("프로필", overlayMode === null && activeTab === "프로필"),
+  } satisfies Record<typeof mobileTabs[number], JSX.Element>;
+
+  const legalQuickLinks = [
+    { key: "terms_of_service", label: "이용약관", href: `${getApiBase()}/legal/terms-of-service` },
+    { key: "privacy_policy", label: "개인정보 처리방침", href: `${getApiBase()}/legal/privacy-policy` },
+    { key: "refund_policy", label: "환불정책", href: `${getApiBase()}/legal/refund-policy` },
+    { key: "age_verification_policy", label: "연령 정책", href: `${getApiBase()}/legal/age-verification-policy` },
+  ] as const;
+
+  const disclosedBusinessInfo = useMemo(() => ({
+    operatorName: String(businessInfo?.business_info?.operator_legal_name || businessInfo?.business_info?.operator_brand_name || "사업자 정보 등록 필요"),
+    representative: String(businessInfo?.business_info?.representative_name || "대표자 정보 등록 필요"),
+    registrationNo: String(businessInfo?.business_info?.business_registration_no || "사업자번호 등록 필요"),
+    phone: String(businessInfo?.business_info?.support_phone || "연락처 등록 필요"),
+    address: String(businessInfo?.business_info?.business_address || "주소 등록 필요"),
+    email: "aksqhqkqh153@gmail.com",
+    privacyEmail: String(businessInfo?.business_info?.privacy_contact_email || "aksqhqkqh153@gmail.com"),
+  }), [businessInfo]);
+
+  const checkoutStepMeta: Array<{ key: CheckoutStage; label: string }> = [
+    { key: "cart", label: "장바구니" },
+    { key: "order_form", label: "주문서 작성" },
+    { key: "payment_request", label: "결제 요청" },
+    { key: "payment_complete", label: "결제 완료" },
+    { key: "order_confirm", label: "주문 확인" },
+  ];
+
+  const checkoutStageIndex = checkoutStepMeta.findIndex((item) => item.key === checkoutStage);
+  const checkoutSelectedOrder = useMemo(() => {
+    if (!orders.length) return null;
+    return (selectedOrderNo ? orders.find((item) => item.order_no === selectedOrderNo) : null) ?? [...orders].reverse()[0] ?? null;
+  }, [orders, selectedOrderNo]);
+
   const showBaseTabContent = overlayMode === null;
   const blockedByIdentity = !isAdmin && !identityVerified;
   const requiresAdultGate = !isAdmin && !adultVerified && ["홈", "쇼핑"].includes(activeTab);
   const showAppTabContent = showBaseTabContent && !blockedByIdentity && !requiresAdultGate;
+  const shouldForceAuthStandalone = authBootstrapDone && blockedByIdentity;
+
+  useEffect(() => {
+    if (!shouldForceAuthStandalone) return;
+    setAuthStandaloneScreen("login");
+    setAuthGatePopupOpen(true);
+    setAuthMessage("로그인이 필요합니다. 청소년은 이용할 수 없습니다.");
+  }, [shouldForceAuthStandalone]);
   const adultCooldownRemainMinutes = adultCooldownUntil > Date.now() ? Math.ceil((adultCooldownUntil - Date.now()) / 60000) : 0;
+  const signupConsentMeta: Record<keyof SignupConsentState, {
+    title: string;
+    summary: string;
+    body: string[];
+    href?: string;
+  }> = {
+    terms: {
+      title: "[필수] 이용약관 확인",
+      summary: "서비스 이용 조건, 회원 의무, 금지 행위, 게시물 운영원칙, 주문/환불 기본 정책을 확인합니다.",
+      body: [
+        "회원은 성인 전용 서비스 정책과 커뮤니티 운영 원칙을 준수해야 합니다.",
+        "불법 행위, 타인 권리 침해, 청소년 관련 위반, 결제 악용, 운영 방해 행위는 제한 대상입니다.",
+        "주문·환불·제재·계정 제한과 관련된 기본 기준은 이용약관 및 운영정책에 따릅니다.",
+      ],
+      href: `${getApiBase()}/legal/terms-of-service`,
+    },
+    privacy: {
+      title: "[필수] 개인정보 처리방침 확인",
+      summary: "수집 항목, 이용 목적, 보관 기간, 제3자 제공 및 처리위탁 기준을 확인합니다.",
+      body: [
+        "회원 식별, 로그인 유지, 본인확인, 성인인증, 고객지원 및 법령상 의무 이행을 위해 필요한 정보를 처리합니다.",
+        "법령상 보존이 필요한 정보는 해당 기간 동안 안전하게 보관될 수 있습니다.",
+        "처리방침은 변경 시 공지되며, 필수 항목 변경 시 재동의가 요구될 수 있습니다.",
+      ],
+      href: `${getApiBase()}/legal/privacy-policy`,
+    },
+    adultNotice: {
+      title: "[필수] 만 19세 이상 및 성인 서비스 이용 고지 확인",
+      summary: "본 서비스는 만 19세 이상 성인만 이용할 수 있으며, 청소년은 이용할 수 없습니다.",
+      body: [
+        "회원가입 및 로그인은 만 19세 이상 본인확인 가능자만 진행할 수 있습니다.",
+        "청소년 또는 비정상 인증으로 확인되는 경우 서비스 접근이 제한되거나 계정이 차단될 수 있습니다.",
+        "성인 전용 영역은 별도 인증 절차 후에만 접근할 수 있습니다.",
+      ],
+    },
+    identityNotice: {
+      title: "[필수] 본인확인/성인인증 결과 처리 안내 확인",
+      summary: "본인확인 및 성인인증 결과는 계정 생성, 접근 권한 판단, 법적 의무 이행을 위해 처리됩니다.",
+      body: [
+        "인증 결과값은 회원 상태 판정, 청소년 차단, 성인 영역 접근 제어, 부정 이용 방지에 사용됩니다.",
+        "인증 실패, 미완료, 불일치 상태에서는 회원가입 또는 일부 기능 이용이 제한될 수 있습니다.",
+        "관련 법령과 내부 보안 기준에 따라 필요한 범위 내에서만 저장·처리됩니다.",
+      ],
+    },
+    marketing: {
+      title: "[선택] 마케팅 정보 수신 동의",
+      summary: "이벤트, 혜택, 프로모션, 신규 기능 안내를 수신할지 선택합니다.",
+      body: [
+        "선택 동의이며, 동의하지 않아도 기본 서비스 이용에는 영향이 없습니다.",
+        "수신 채널과 항목은 운영정책에 따라 조정될 수 있습니다.",
+        "언제든지 설정에서 수신 동의를 변경할 수 있습니다.",
+      ],
+    },
+    profileOptional: {
+      title: "[선택] 맞춤 추천을 위한 프로필 정보 수집 동의",
+      summary: "성별, 연령대, 지역, 관심 카테고리 등 선택 입력 정보를 추천 품질 향상에 활용할 수 있습니다.",
+      body: [
+        "선택 동의이며, 동의하지 않아도 기본 서비스 이용에는 영향이 없습니다.",
+        "입력한 선택 정보는 맞춤 추천, 제한 영역 심사 참고, 운영 안전성 보조 정보로 사용될 수 있습니다.",
+        "언제든지 프로필 또는 설정에서 변경할 수 있습니다.",
+      ],
+    },
+  };
+
+  const openSignupConsentModal = (key: keyof SignupConsentState) => {
+    setSignupConsentModal(key);
+  };
+
+  const toggleSignupConsent = (key: keyof SignupConsentState, checked: boolean) => {
+    setSignupConsents((prev) => ({ ...prev, [key]: checked }));
+    if (checked) {
+      openSignupConsentModal(key);
+    }
+  };
+
   const requiredConsentAccepted = requiredConsentKeys.every((key) => signupConsents[key]);
   const reconsentRequired = Boolean(authSummary?.reconsent_required || authSummary?.consent_status?.reconsent_required);
   const reconsentMode = (authSummary?.reconsent_enforcement_mode as string | undefined) ?? "limited_access";
@@ -2153,7 +5072,10 @@ export default function App() {
 
   const advanceSignupStep = () => {
     if (signupStep === "consent") {
-      if (!requiredConsentAccepted) return;
+      if (!requiredConsentAccepted) {
+        window.alert("필수 체크 항목을 체크 후 다음을 눌러주세요");
+        return;
+      }
       setSignupStep("account");
       return;
     }
@@ -2372,13 +5294,76 @@ export default function App() {
     }
   };
 
+  const openProductDetail = async (productId: number) => {
+    setSelectedProductId(productId);
+    setShoppingTab("상품");
+    try {
+      const detail = await getJson<ProductDetailResponse>(`/products/${productId}`);
+      setProductDetail(detail);
+      setOrderMessage("");
+    } catch (error) {
+      setProductDetail(null);
+      setOrderMessage(error instanceof Error ? error.message : "상품 상세 조회 실패");
+    }
+  };
+
+  const verifyAdultSelf = async () => {
+    try {
+      const result = await postJson<{ adult_verified?: boolean }>("/auth/adult/self-check", { birthdate: adultBirthdate, provider: "self_cert" });
+      setAdultVerified(Boolean(result.adult_verified));
+      const next = await getJson<AdultGateStatusResponse>("/auth/adult/gate-status");
+      setAdultGateStatus(next);
+      setOrderMessage("성인 인증이 완료되었습니다. 쇼핑과 결제를 진행할 수 있습니다.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "성인 인증 실패";
+      setOrderMessage(message);
+      getJson<AdultGateStatusResponse>("/auth/adult/gate-status").then(setAdultGateStatus).catch(() => null);
+    }
+  };
+
+  const launchVerotelCheckout = async (orderNo?: string) => {
+    const targetOrderNo = orderNo || selectedOrderNo || orderDetail?.order?.order_no;
+    if (!targetOrderNo) {
+      setOrderMessage("먼저 주문을 생성하세요.");
+      return;
+    }
+    try {
+      const response = await postJson<VerotelStartResponse>("/payments/verotel/start", { order_no: targetOrderNo, currency: "EUR" });
+      const form = document.createElement("form");
+      form.method = response.method || "POST";
+      form.action = response.action_url || "";
+      Object.entries(response.form_fields || {}).forEach(([key, value]) => {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = key;
+        input.value = String(value);
+        form.appendChild(input);
+      });
+      document.body.appendChild(form);
+      setOrderMessage(`중립 결제 페이지 이동 준비 완료: ${targetOrderNo}`);
+      form.submit();
+    } catch (error) {
+      setOrderMessage(error instanceof Error ? error.message : "결제창 시작 실패");
+    }
+  };
+
   const addToCart = (productId: number) => {
     setCartItems((prev) => {
       const found = prev.find((item) => item.productId === productId);
       if (found) return prev.map((item) => item.productId === productId ? { ...item, qty: item.qty + 1 } : item);
       return [...prev, { productId, qty: 1 }];
     });
+    setCheckoutStage("cart");
     setShoppingTab("바구니");
+  };
+
+  const toggleProductCartFavorite = (productId: number) => {
+    setCartItems((prev) => {
+      const exists = prev.some((item) => item.productId === productId);
+      if (exists) return prev.filter((item) => item.productId !== productId);
+      return [...prev, { productId, qty: 1 }];
+    });
+    setCheckoutStage("cart");
   };
 
   const cartDetailedItems = useMemo(() => cartItems.map((item) => {
@@ -2415,10 +5400,34 @@ export default function App() {
     try {
       const detail = await getJson<ApiOrderDetail>(`/orders/${orderNo}`);
       setOrderDetail(detail);
+      setCheckoutStage("order_confirm");
       setOrderMessage(`테스트 대상 주문 선택: ${orderNo}`);
     } catch (error) {
       setOrderDetail(null);
       setOrderMessage(error instanceof Error ? error.message : "주문 상세 조회 실패");
+    }
+  };
+
+  const createOrderForSelectedProduct = async () => {
+    const target = productDetail?.product;
+    if (!target) {
+      setOrderMessage("선택된 상품이 없습니다.");
+      return;
+    }
+    try {
+      const created = await postJson<{ order_no: string; total_amount: number; payment_init: { mode?: string; webhook_path?: string } }>("/orders", {
+        product_id: target.id,
+        qty: 1,
+        payment_method: "card",
+        payment_pg: "verotel",
+      });
+      setSelectedOrderNo(created.order_no);
+      setCheckoutStage("payment_request");
+      setOrderMessage(`상품 주문 생성 완료: ${created.order_no} · ${created.total_amount.toLocaleString()}원`);
+      await refreshOrders(created.order_no);
+      setShoppingTab("주문");
+    } catch (error) {
+      setOrderMessage(error instanceof Error ? error.message : "상품 주문 생성 실패");
     }
   };
 
@@ -2435,6 +5444,7 @@ export default function App() {
         payment_method: "card",
         payment_pg: "demo-pg",
       });
+      setCheckoutStage("payment_request");
       setOrderMessage(`주문 생성 완료: ${created.order_no} · ${created.total_amount.toLocaleString()}원 · mode ${created.payment_init?.mode ?? "-"}`);
       await refreshOrders(created.order_no);
       setShoppingTab("주문");
@@ -2458,6 +5468,7 @@ export default function App() {
         provider: "tosspayments",
         method: "card",
       });
+      setCheckoutStage("payment_complete");
       setOrderMessage(`결제 승인 완료: ${target.order_no} → ${result.status}`);
       await refreshOrders(target.order_no);
     } catch (error) {
@@ -2587,10 +5598,10 @@ export default function App() {
 
   const currentScreenTitle = overlayMode === "search"
     ? `${activeTab}검색`
-     : overlayMode === "settings"
-      ? "설정"
+    : overlayMode === "settings"
+      ? `${activeTab}설정`
       : overlayMode === "notifications"
-        ? "알림"
+        ? `${activeTab}알림`
         : activeTab;
 
   const openOverlay = (mode: Exclude<OverlayMode, null>) => {
@@ -2598,6 +5609,19 @@ export default function App() {
     setRoomModalOpen(false);
     if (mode === "search") setSearchFilter("전체");
   };
+
+  useEffect(() => {
+    setSearchSection(searchSectionsByTab[activeTab][0]);
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (overlayMode === "search") {
+      setSearchSection(searchSectionsByTab[activeTab][0]);
+    }
+    if (overlayMode === "notifications") {
+      setNotificationView({ view: "list", section: null, item: null });
+    }
+  }, [overlayMode, activeTab]);
 
   useEffect(() => {
     if (!htmlInspectorEnabled) return undefined;
@@ -2748,21 +5772,11 @@ export default function App() {
       return homeTabs.map((tab) => ({ label: tab, active: homeTab === tab, onClick: () => setHomeTab(tab) }));
     }
     if (activeTab === "쇼핑") {
-      return shoppingTabs.map((tab) => ({
-        label: tab,
-        active: shoppingTab === tab,
-        onClick: () => {
-          if (tab === "상품등록") {
-            openProductRegistrationTab();
-            return;
-          }
-          if (tab === "사업자인증") {
-            openBusinessVerificationTab();
-            return;
-          }
-          setShoppingTab(tab);
-        },
-      }));
+      return [
+        { label: "홈", active: shoppingTab === "홈", onClick: () => setShoppingTab("홈") },
+        { label: "주문", active: shoppingTab === "주문", onClick: () => setShoppingTab("주문") },
+        { label: "바구니", active: shoppingTab === "바구니", onClick: () => setShoppingTab("바구니") },
+      ];
     }
     if (activeTab === "소통") {
       return communityTabs.map((tab) => ({ label: tab, active: communityTab === tab, onClick: () => setCommunityTab(tab) }));
@@ -2802,34 +5816,118 @@ export default function App() {
     setHeaderFavorites((prev) => ({ ...prev, [activeTab]: defaultHeaderFavorites[activeTab] }));
   };
 
+  const openNotificationDetail = useCallback((sectionKey: NotificationSectionKey, item: NotificationItem) => {
+    setNotificationItems((prev) => prev.map((entry) => entry.id === item.id ? { ...entry, unread: false } : entry));
+    setNotificationView({ view: "detail", section: sectionKey, item: { ...item, unread: false } });
+  }, []);
+  const openNotificationSection = useCallback((sectionKey: NotificationSectionKey) => {
+    setNotificationSectionPage(1);
+    setNotificationView({ view: "section", section: sectionKey, item: null });
+  }, []);
+
   const settingsNavItems = useMemo<SettingsCategory[]>(() => settingsCategories.filter((item) => (["운영", "관리자모드", "DB관리", "신고", "채팅", "기타"].includes(item) ? isAdmin : true)), [isAdmin]);
   const visibleHeaderNavItems = overlayMode === null ? headerNavItems : [];
   const currentMenuItems = (activeTab === "홈" ? homeMenuItems : currentTabMenuItems.map((item) => ({ label: item.label, onClick: item.onClick }))).map((item) => ({ label: item.label, onClick: () => { item.onClick?.(); setOverlayMode(null); } }));
 
   const notificationSections = useMemo(() => ({
-    notices: notificationSeed.filter((item) => item.section === "공지"),
-    orders: notificationSeed.filter((item) => item.section === "주문"),
-    community: notificationSeed.filter((item) => item.section === "소통"),
-  }), []);
-  const unreadNotificationCount = useMemo(() => notificationSeed.filter((item) => item.unread).length, []);
+    notices: notificationItems.filter((item) => item.section === "공지"),
+    orders: notificationItems.filter((item) => item.section === "주문"),
+    community: notificationItems.filter((item) => item.section === "소통"),
+    events: notificationItems.filter((item) => item.section === "이벤트"),
+  }), [notificationItems]);
+  const notificationSectionMeta: Record<NotificationSectionKey, { title: string; shortTitle: string }> = {
+    notices: { title: "앱 공지사항", shortTitle: "공지" },
+    events: { title: "이벤트", shortTitle: "이벤트" },
+    orders: { title: "쇼핑주문·배송 알림", shortTitle: "쇼핑" },
+    community: { title: "소통·채팅·질문·기타 알림", shortTitle: "기타" },
+  };
+  const notificationSectionOrder: NotificationSectionKey[] = ["notices", "orders", "community", "events"];
+  const unreadNotificationCount = useMemo(() => notificationItems.filter((item) => item.unread).length, [notificationItems]);
+  const activeNotificationSectionItems = useMemo(() => {
+    if (!notificationView.section) return [] as NotificationItem[];
+    return notificationSections[notificationView.section];
+  }, [notificationSections, notificationView.section]);
+  const notificationSectionTotalPages = useMemo(() => {
+    if (!notificationView.section) return 1;
+    return Math.max(1, Math.ceil(activeNotificationSectionItems.length / notificationSectionPageSize));
+  }, [activeNotificationSectionItems.length, notificationSectionPageSize, notificationView.section]);
+  const visibleNotificationSectionItems = useMemo(() => {
+    if (!notificationView.section) return [] as NotificationItem[];
+    const start = (notificationSectionPage - 1) * notificationSectionPageSize;
+    return activeNotificationSectionItems.slice(start, start + notificationSectionPageSize);
+  }, [activeNotificationSectionItems, notificationSectionPage, notificationSectionPageSize, notificationView.section]);
+  useEffect(() => {
+    setNotificationSectionPage((prev) => Math.min(prev, notificationSectionTotalPages));
+  }, [notificationSectionTotalPages]);
+  const searchSectionsByTab: Record<MobileTab, string[]> = {
+    홈: ["피드결과", "쇼츠결과", "보관함결과"],
+    쇼핑: ["홈"],
+    소통: ["커뮤", "포럼", "후기"],
+    채팅: ["채팅", "질문"],
+    프로필: ["내정보"],
+  };
+  const currentSearchSections = searchSectionsByTab[activeTab];
+  const getNotificationChipTone = (sectionKey: NotificationSectionKey | null) => (sectionKey === "orders" ? "order" : sectionKey === "community" ? "community" : sectionKey === "events" ? "event" : "");
+  const notificationDetailAuthor = notificationView.item?.author || notificationView.item?.meta || "운영팀";
+  const homeShortSearchResults = useMemo(() => {
+    const keyword = globalKeyword.trim().toLowerCase();
+    if (!keyword) return [];
+    return recommendedShorts.filter((item) => `${item.title} ${item.caption} ${item.author} ${item.category}`.toLowerCase().includes(keyword));
+  }, [globalKeyword, recommendedShorts]);
+  const homeSavedSearchResults = useMemo(() => {
+    const keyword = globalKeyword.trim().toLowerCase();
+    if (!keyword) return [] as Array<{ id: string; title: string; summary: string; meta: string }>;
+    const savedFeed = savedFeedItems
+      .filter((item) => `${item.title} ${item.caption} ${item.author} ${item.category}`.toLowerCase().includes(keyword))
+      .map((item) => ({ id: `feed-${item.id}`, title: item.title, summary: item.caption, meta: `피드 · ${item.author}` }));
+    const savedShorts = savedShortItems
+      .filter((item) => `${item.title} ${item.caption} ${item.author} ${item.category}`.toLowerCase().includes(keyword))
+      .map((item) => ({ id: `short-${item.id}`, title: item.title, summary: item.caption, meta: `쇼츠 · ${item.author}` }));
+    return [...savedFeed, ...savedShorts];
+  }, [globalKeyword, savedFeedItems, savedShortItems]);
+  const communicationOverlayResults = useMemo(() => {
+    const keyword = globalKeyword.trim().toLowerCase();
+    if (!keyword) return [] as CommunityPost[];
+    return communitySeed.filter((item) => {
+      const boardMatch = searchSection === "커뮤" ? (item.board === "커뮤" || !item.board) : item.board === searchSection;
+      const primaryMatch = communityPrimaryFilter === "전체" || item.audience === communityPrimaryFilter;
+      const keywordMatch = `${item.title} ${item.summary} ${item.category}`.toLowerCase().includes(keyword);
+      return boardMatch && primaryMatch && keywordMatch;
+    });
+  }, [globalKeyword, searchSection, communityPrimaryFilter]);
+  const questionSearchResults = useMemo(() => {
+    const keyword = globalKeyword.trim().toLowerCase();
+    if (!keyword) return [];
+    return questionSeed.filter((item) => `${item.author} ${item.question} ${item.answer}`.toLowerCase().includes(keyword));
+  }, [globalKeyword]);
 
   const selectBottomTab = (tab: MobileTab) => {
+    if (tab === activeTab && overlayMode === null && !roomModalOpen && !selectedAskProfile && !openFeedCommentItem && !feedComposeOpen) {
+      if (tab === "쇼핑" && shoppingTab !== "홈") {
+        setProductDetail(null);
+        setSelectedProductId(null);
+        setShoppingTab("홈");
+      }
+      return;
+    }
+    setSelectedAskProfile(null);
+    setOpenFeedCommentItem(null);
+    setFeedComposeOpen(false);
     setActiveTab(tab);
-    setOverlayMode(null);
-    setRoomModalOpen(false);
-    if (tab !== "홈") setHomeTab("피드");
-    if (tab !== "쇼핑") setShoppingTab("목록");
-    if (tab !== "소통") setCommunityTab("커뮤");
-    if (tab !== "채팅") {
-      setChatTab("채팅");
-      setChatCategory("전체");
+    if (tab === "홈") setHomeTab((prev) => prev || "피드");
+    if (tab === "프로필") {
+      setViewedProfileAuthor(null);
+      setProfileSection("게시물");
+    }
+    if (overlayMode !== null) setOverlayMode(null);
+    if (roomModalOpen) setRoomModalOpen(false);
+    if (activeTab === "채팅" && tab !== "채팅") {
       setRandomSettingsOpen(false);
       setMatchingRandom(false);
       setMatchedRandomUser(null);
       setRandomMatchPhase("idle");
       setRandomMatchNote("카테고리를 고른 뒤 익명 정보교류용 텍스트 채팅을 시작할 수 있습니다. 외부연락, 사람 찾기, 만남유도, 사진/영상 교환은 금지됩니다.");
     }
-    if (tab !== "프로필") setProfileTab("내정보");
   };
 
   const searchFilterOptions = activeTab === "홈"
@@ -2845,7 +5943,7 @@ export default function App() {
   const profileSearchResults = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
     if (!keyword) return [];
-    return feedSeed.filter((item) => {
+    return allFeedItems.filter((item) => {
       if (searchFilter === "아이디") return item.author.toLowerCase().includes(keyword);
       if (searchFilter === "피드") return `${item.title} ${item.caption}`.toLowerCase().includes(keyword);
       return `${item.author} ${item.title} ${item.caption}`.toLowerCase().includes(keyword);
@@ -2872,12 +5970,48 @@ export default function App() {
   if (authStandaloneScreen) {
     return (
       <div className="auth-standalone-shell">
+        {authGatePopupOpen ? (
+          <div className="modal-backdrop">
+            <div className="modal-card adult-auth-modal">
+              <div className="modal-header-row">
+                <strong>로그인 필요</strong>
+                <button className="ghost-btn" onClick={() => setAuthGatePopupOpen(false)}>닫기</button>
+              </div>
+              <div className="stack-gap">
+                <div className="legacy-box compact">
+                  <p>로그인 후 이용할 수 있습니다.</p>
+                  <p>청소년은 회원가입 및 로그인할 수 없습니다.</p>
+                  <p>본인확인 결과에 따라 서비스 접속이 제한될 수 있습니다.</p>
+                </div>
+                <div className="copy-action-row">
+                  <button type="button" onClick={() => setAuthGatePopupOpen(false)}>확인</button>
+                  <button type="button" className="ghost-btn" onClick={() => { setAuthGatePopupOpen(false); setSignupStep("consent"); setAuthStandaloneScreen("signup"); }}>회원가입</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
         <main className="auth-standalone-main">
           <section className="auth-standalone-card">
-            <div className="auth-standalone-head">
-              <div>
-                <h1>{authStandaloneScreen === "login" ? "로그인" : "회원가입"}</h1>
-              </div>
+            <div className={`auth-standalone-head ${authStandaloneScreen === "signup" ? "auth-standalone-head--signup" : ""}`}>
+              {authStandaloneScreen === "signup" ? (
+                <div className="auth-standalone-headbar">
+                  <button
+                    type="button"
+                    className="header-inline-btn header-icon-btn auth-back-icon-btn"
+                    onClick={() => setAuthStandaloneScreen("login")}
+                    aria-label="뒤로가기"
+                  >
+                    <BackArrowIcon />
+                  </button>
+                  <h1>회원가입</h1>
+                  <span className="auth-standalone-headbar-spacer" aria-hidden="true" />
+                </div>
+              ) : (
+                <div>
+                  <h1>로그인</h1>
+                </div>
+              )}
             </div>
             {authStandaloneScreen === "login" ? (
               <div className="auth-standalone-body stack-gap">
@@ -2901,8 +6035,8 @@ export default function App() {
                 </div>
               </div>
             ) : (
-              <div className="auth-standalone-body stack-gap">
-                <div className="signup-step-strip">
+              <div className="auth-standalone-body stack-gap signup-screen-body">
+                <div className="signup-step-strip signup-step-strip-mobile">
                   {[
                     ["consent", "1단계 법정 문서 확인"],
                     ["account", "2단계 가입 입력"],
@@ -2916,45 +6050,86 @@ export default function App() {
                   ))}
                 </div>
                 {signupStep === "consent" ? (
-                  <div className="stack-gap">
-                    <div className="legacy-box compact signup-legal-copy">
-                      <h3>약관 및 필수 안내</h3>
-                      <p>회원가입 전에 필수 문서 제목만 확인하고 체크할 수 있도록 정리했습니다. 자세한 내용은 아래 문서를 눌러 펼쳐서 읽을 수 있습니다.</p>
-                      <div className="consent-record-list">
-                        <details className="legacy-box compact" open={signupLegalOpen === "terms"} onToggle={(e) => setSignupLegalOpen((e.currentTarget as HTMLDetailsElement).open ? "terms" : signupLegalOpen === "terms" ? null : signupLegalOpen)}>
-                          <summary><strong>이용약관 자세히 보기</strong></summary>
-                          <p>서비스 이용 조건, 회원 의무, 금지 행위, 게시물 운영원칙, 주문/환불 기본 정책을 안내합니다.</p>
-                          <a className="ghost-link-btn" href={`${getApiBase()}/legal/terms-of-service`} target="_blank" rel="noreferrer">전체 약관 문서 열기</a>
-                        </details>
-                        <details className="legacy-box compact" open={signupLegalOpen === "privacy"} onToggle={(e) => setSignupLegalOpen((e.currentTarget as HTMLDetailsElement).open ? "privacy" : signupLegalOpen === "privacy" ? null : signupLegalOpen)}>
-                          <summary><strong>개인정보 처리방침 자세히 보기</strong></summary>
-                          <p>수집 항목은 이메일, 비밀번호, 이름, 본인확인 결과값이며 회원 식별, 로그인, 고객지원, 성인인증 처리에 사용됩니다. 법령상 보존기간 동안 보관할 수 있습니다.</p>
-                          <a className="ghost-link-btn" href={`${getApiBase()}/legal/privacy-policy`} target="_blank" rel="noreferrer">전체 처리방침 문서 열기</a>
-                        </details>
-                        <details className="legacy-box compact" open={signupLegalOpen === "youth"} onToggle={(e) => setSignupLegalOpen((e.currentTarget as HTMLDetailsElement).open ? "youth" : signupLegalOpen === "youth" ? null : signupLegalOpen)}>
-                          <summary><strong>청소년 보호정책 자세히 보기</strong></summary>
-                          <p>만 19세 미만은 이용이 제한되며, 성인 서비스 접근 전 본인확인과 성인인증이 필요합니다. 정책 위반 시 서비스 제한이 적용될 수 있습니다.</p>
-                          <a className="ghost-link-btn" href={`${getApiBase()}/legal/youth-policy`} target="_blank" rel="noreferrer">전체 청소년 보호정책 문서 열기</a>
-                        </details>
+                  <div className="stack-gap signup-step-panel signup-step-panel-consent">
+                    {signupConsentModal ? (
+                      <div className="modal-backdrop">
+                        <div className="modal-card signup-consent-modal">
+                          <div className="modal-header-row">
+                            <strong>{signupConsentMeta[signupConsentModal].title}</strong>
+                            <button type="button" className="ghost-btn" onClick={() => setSignupConsentModal(null)}>닫기</button>
+                          </div>
+                          <div className="stack-gap">
+                            <div className="legacy-box compact signup-consent-modal-copy">
+                              <p>{signupConsentMeta[signupConsentModal].summary}</p>
+                              {signupConsentMeta[signupConsentModal].body.map((item) => (
+                                <p key={item}>{item}</p>
+                              ))}
+                            </div>
+                            {signupConsentMeta[signupConsentModal].href ? (
+                              <div className="legacy-box compact signup-consent-modal-frame">
+                                <iframe
+                                  title={signupConsentMeta[signupConsentModal].title}
+                                  src={signupConsentMeta[signupConsentModal].href}
+                                  className="signup-consent-iframe"
+                                />
+                              </div>
+                            ) : null}
+                            <div className="copy-action-row signup-consent-modal-actions">
+                              <button type="button" onClick={() => setSignupConsentModal(null)}>확인</button>
+                            </div>
+                          </div>
+                        </div>
                       </div>
+                    ) : null}
+                    <div className="legacy-box compact signup-legal-copy signup-panel">
+                      <h3>약관 안내</h3>
                     </div>
-                    <div className="consent-checklist">
-                      <label className={`consent-row ${signupConsents.terms ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.terms} onChange={(e) => setSignupConsents((prev) => ({ ...prev, terms: e.target.checked }))} /><span>[필수] 이용약관 확인</span></label>
-                      <label className={`consent-row ${signupConsents.privacy ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.privacy} onChange={(e) => setSignupConsents((prev) => ({ ...prev, privacy: e.target.checked }))} /><span>[필수] 개인정보 처리방침 확인</span></label>
-                      <label className={`consent-row ${signupConsents.adultNotice ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.adultNotice} onChange={(e) => setSignupConsents((prev) => ({ ...prev, adultNotice: e.target.checked }))} /><span>[필수] 만 19세 이상 및 성인 서비스 이용 고지 확인</span></label>
-                      <label className={`consent-row ${signupConsents.identityNotice ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.identityNotice} onChange={(e) => setSignupConsents((prev) => ({ ...prev, identityNotice: e.target.checked }))} /><span>[필수] 본인확인/성인인증 결과 처리 안내 확인</span></label>
-                      <label className={`consent-row ${signupConsents.marketing ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.marketing} onChange={(e) => setSignupConsents((prev) => ({ ...prev, marketing: e.target.checked }))} /><span>[선택] 마케팅 정보 수신 동의</span></label>
-                      <label className={`consent-row ${signupConsents.profileOptional ? "checked" : ""}`}><input type="checkbox" checked={signupConsents.profileOptional} onChange={(e) => setSignupConsents((prev) => ({ ...prev, profileOptional: e.target.checked }))} /><span>[선택] 맞춤 추천을 위한 프로필 정보 수집 동의</span></label>
+                    <div className="consent-checklist signup-consent-checklist">
+                      <label className={`consent-row ${signupConsents.terms ? "checked" : ""}`}>
+                        <input type="checkbox" checked={signupConsents.terms} onChange={(e) => toggleSignupConsent("terms", e.target.checked)} />
+                        <span role="button" tabIndex={0} onClick={() => openSignupConsentModal("terms")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSignupConsentModal("terms"); } }}>[필수] 이용약관 확인</span>
+                      </label>
+                      <label className={`consent-row ${signupConsents.privacy ? "checked" : ""}`}>
+                        <input type="checkbox" checked={signupConsents.privacy} onChange={(e) => toggleSignupConsent("privacy", e.target.checked)} />
+                        <span role="button" tabIndex={0} onClick={() => openSignupConsentModal("privacy")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSignupConsentModal("privacy"); } }}>[필수] 개인정보 처리방침 확인</span>
+                      </label>
+                      <label className={`consent-row ${signupConsents.adultNotice ? "checked" : ""}`}>
+                        <input type="checkbox" checked={signupConsents.adultNotice} onChange={(e) => toggleSignupConsent("adultNotice", e.target.checked)} />
+                        <span role="button" tabIndex={0} onClick={() => openSignupConsentModal("adultNotice")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSignupConsentModal("adultNotice"); } }}>[필수] 만 19세 이상 및 성인 서비스 이용 고지 확인</span>
+                      </label>
+                      <label className={`consent-row ${signupConsents.identityNotice ? "checked" : ""}`}>
+                        <input type="checkbox" checked={signupConsents.identityNotice} onChange={(e) => toggleSignupConsent("identityNotice", e.target.checked)} />
+                        <span role="button" tabIndex={0} onClick={() => openSignupConsentModal("identityNotice")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSignupConsentModal("identityNotice"); } }}>[필수] 본인확인/성인인증 결과 처리 안내 확인</span>
+                      </label>
+                      <label className={`consent-row ${signupConsents.marketing ? "checked" : ""}`}>
+                        <input type="checkbox" checked={signupConsents.marketing} onChange={(e) => toggleSignupConsent("marketing", e.target.checked)} />
+                        <span role="button" tabIndex={0} onClick={() => openSignupConsentModal("marketing")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSignupConsentModal("marketing"); } }}>[선택] 마케팅 정보 수신 동의</span>
+                      </label>
+                      <label className={`consent-row ${signupConsents.profileOptional ? "checked" : ""}`}>
+                        <input type="checkbox" checked={signupConsents.profileOptional} onChange={(e) => toggleSignupConsent("profileOptional", e.target.checked)} />
+                        <span role="button" tabIndex={0} onClick={() => openSignupConsentModal("profileOptional")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSignupConsentModal("profileOptional"); } }}>[선택] 맞춤 추천을 위한 프로필 정보 수집 동의</span>
+                      </label>
                     </div>
-                    <div className="copy-action-row">
-                      <button type="button" onClick={advanceSignupStep} disabled={!requiredConsentAccepted}>다음</button>
-                      <button type="button" className="ghost-btn" onClick={() => setAuthStandaloneScreen("login")}>로그인 화면으로</button>
+                    <div className="copy-action-row signup-action-row signup-action-row--single">
+                      <button type="button" onClick={advanceSignupStep}>다음</button>
+                    </div>
+                    <div className="legal-disclosure-card compact">
+                      <strong>사업자 정보 및 고객센터</strong>
+                      <span>문의 이메일: {disclosedBusinessInfo.email}</span>
+                      <span>상호명: {disclosedBusinessInfo.operatorName}</span>
+                      <span>대표자: {disclosedBusinessInfo.representative}</span>
+                      <span>사업자번호: {disclosedBusinessInfo.registrationNo}</span>
+                      <span>연락처: {disclosedBusinessInfo.phone}</span>
+                      <span>주소: {disclosedBusinessInfo.address}</span>
+                      <div className="notification-policy-links legal-link-row">
+                        {legalQuickLinks.map((item) => <a key={item.key} className="ghost-link-btn" href={item.href} target="_blank" rel="noreferrer">{item.label}</a>)}
+                      </div>
                     </div>
                   </div>
                 ) : null}
-                {signupStep === "account" ? (
-                  <div className="stack-gap">
-                    <div className="signup-form-grid">
+{signupStep === "account" ? (
+                  <div className="stack-gap signup-step-panel signup-step-panel-account">
+                    <div className="signup-form-grid signup-form-grid--account">
                       <label><span>로그인 수단</span><select value={signupForm.loginMethod} onChange={(e) => setSignupForm((prev) => ({ ...prev, loginMethod: e.target.value as LoginMethod }))}><option value="이메일">이메일</option><option value="카카오">카카오</option></select></label>
                       <label><span>이메일</span><input value={signupForm.email} onChange={(e) => setSignupForm((prev) => ({ ...prev, email: e.target.value }))} placeholder="you@example.com" /></label>
                       <label><span>비밀번호</span><input type="password" value={signupForm.password} onChange={(e) => setSignupForm((prev) => ({ ...prev, password: e.target.value }))} placeholder="비밀번호 입력" /></label>
@@ -2962,26 +6137,26 @@ export default function App() {
                       <label className="wide"><span>휴대폰 본인확인 결과 토큰</span><input value={identityVerificationToken} readOnly placeholder="PASS/휴대폰 본인확인 완료 시 서버 토큰이 자동 입력됩니다" /></label>
                       <label><span>성인인증 상태</span><input value={adultVerified ? "완료" : "가입 후 홈/쇼핑 진입 시 1회 추가 인증"} readOnly /></label>
                     </div>
-                    <div className="legacy-grid three auth-option-grid">
+                    <div className="legacy-grid three auth-option-grid signup-auth-option-grid">
                       <div className="legacy-box compact"><h3>PASS 인증</h3><p>PASS 기반 본인확인 흐름을 테스트합니다.</p><button type="button" onClick={() => startIdentitySignup("PASS")}>PASS 인증 완료 처리</button></div>
                       <div className="legacy-box compact"><h3>휴대폰 인증</h3><p>휴대폰 인증 흐름을 테스트합니다.</p><button type="button" onClick={() => startIdentitySignup("휴대폰")}>휴대폰 인증 완료 처리</button></div>
                       <div className="legacy-box compact"><h3>카카오 로그인</h3><p>카카오는 로그인 편의 수단으로만 사용합니다.</p><button type="button" className="ghost-btn" onClick={() => setDemoLoginProvider("카카오")}>카카오 로그인 방식 선택</button></div>
                     </div>
-                    <div className="copy-action-row">
+                    <div className="copy-action-row signup-action-row">
                       <button type="button" className="ghost-btn" onClick={() => setSignupStep("consent")}>이전</button>
                       <button type="button" onClick={advanceSignupStep} disabled={!signupAccountValid}>다음</button>
                     </div>
                   </div>
                 ) : null}
                 {signupStep === "profile" ? (
-                  <div className="stack-gap">
-                    <div className="signup-form-grid profile-edit-grid">
+                  <div className="stack-gap signup-step-panel signup-step-panel-profile">
+                    <div className="signup-form-grid profile-edit-grid signup-form-grid--profile">
                       <label><span>성별</span><select value={demoProfile.gender} onChange={(e) => setDemoProfile((prev) => ({ ...prev, gender: e.target.value }))}>{profileGenderOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
                       <label><span>연령대</span><select value={demoProfile.ageBand} onChange={(e) => setDemoProfile((prev) => ({ ...prev, ageBand: e.target.value }))}>{profileAgeBandOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
                       <label><span>지역</span><select value={demoProfile.regionCode} onChange={(e) => setDemoProfile((prev) => ({ ...prev, regionCode: e.target.value }))}>{profileRegionOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
                       <label className="wide"><span>관심 카테고리</span><div className="chip-checklist">{interestCategoryOptions.map((item) => <button key={item} type="button" className={`chip-check ${demoProfile.interests.includes(item) ? "active" : ""}`} onClick={() => toggleInterestCategory(item)}>{item}</button>)}</div></label>
                     </div>
-                    <div className="copy-action-row">
+                    <div className="copy-action-row signup-action-row signup-action-row--triple">
                       <button type="button" className="ghost-btn" onClick={() => setSignupStep("account")}>이전</button>
                       <button type="button" className="ghost-btn" onClick={() => completeSignupFlow(true)}>선택 정보 없이 가입 완료</button>
                       <button type="button" onClick={() => completeSignupFlow(false)}>회원가입 완료</button>
@@ -2996,41 +6171,81 @@ export default function App() {
     );
   }
 
+  if (companyMailMode) {
+    return (
+      <CompanyMailAdminScreen
+        isAdmin={isAdmin}
+        onExit={companyMailHostLocked ? undefined : closeCompanyMailPreview}
+        onRequestLogin={requestCompanyMailLogin}
+        hostLabel={companyMailHostLocked ? `숨김 도메인 접속 · ${companyMailHostLabel}` : `미리보기 경로 · ${companyMailHostLabel}#corp-mail-admin`}
+      />
+    );
+  }
+
   return (
     <div className="mobile-app-shell">
-      <header className="top-header">
-        <div className="topbar-row">
-          <div className="topbar-side topbar-left">
-            <div className="topbar-inline-actions topbar-inline-actions-left">
-              <button className={`header-inline-btn header-icon-btn ${overlayMode === "menu" ? "active" : ""}`} onClick={openMenuOverlay} aria-label="메뉴">
-                <MenuIcon />
-              </button>
-              {visibleHeaderNavItems.map((item) => (
-                <button key={item.label} type="button" className={`header-inline-btn ${item.active ? "active" : ""}`} onClick={item.onClick} disabled={!item.onClick}>
-                  {item.label}
-                </button>
-              ))}
+      <header className={`top-header${activeTab === "홈" && homeTab === "쇼츠" && shortsHeaderHidden ? " shorts-top-header-hidden" : ""}`}>
+        {overlayMode === "search" ? (
+          <div className="topbar-search-row">
+            <button
+              type="button"
+              className="header-inline-btn header-icon-btn topbar-search-back"
+              onClick={() => setOverlayMode(null)}
+              aria-label="뒤로가기"
+              title="뒤로가기"
+            >
+              <BackArrowIcon />
+            </button>
+            <div className="topbar-search-input-wrap">
+              <input
+                value={globalKeyword}
+                onChange={(e) => setGlobalKeyword(e.target.value)}
+                placeholder={`${activeTab} 검색어 입력`}
+                className="topbar-search-input"
+                autoFocus
+              />
             </div>
-          </div>
-          <div className="topbar-side topbar-right">
-            <div className="topbar-inline-actions topbar-inline-actions-right">
+            <div className="topbar-search-trailing">
               <div className="topbar-title-inline" aria-live="polite">{currentScreenTitle}</div>
-              <button className={`header-inline-btn header-icon-btn ${overlayMode === "search" ? "active" : ""}`} onClick={() => openOverlay("search")} aria-label="검색">
-                <SearchIcon />
-              </button>
-              <button className={`header-inline-btn header-icon-btn header-notification-btn ${overlayMode === "notifications" ? "active" : ""}`} onClick={() => openOverlay("notifications")} aria-label="알림">
-                <BellIcon />
-                {unreadNotificationCount > 0 ? <span className="header-badge">{unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}</span> : null}
-              </button>
-              <button className={`header-inline-btn header-icon-btn ${overlayMode === "settings" ? "active" : ""}`} onClick={() => openOverlay("settings")} aria-label="설정">
-                <SettingsIcon />
-              </button>
+              <button className="header-inline-btn header-icon-btn header-toolbar-btn active" onClick={() => openOverlay("search")} aria-label={`${activeTab}검색`} title={`${activeTab}검색`}><SearchIcon /></button>
+              <button className="header-inline-btn header-icon-btn header-notification-btn header-toolbar-btn" onClick={() => openOverlay("notifications")} aria-label={`${activeTab}알림`} title={`${activeTab}알림`}><BellIcon />{unreadNotificationCount > 0 ? <span className="header-badge">{unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}</span> : null}</button>
+              <button className="header-inline-btn header-icon-btn header-toolbar-btn" onClick={() => openOverlay("settings")} aria-label={`${activeTab}설정`} title={`${activeTab}설정`}><SettingsIcon /></button>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="topbar-row">
+            <div className="topbar-side topbar-left">
+              <div className="topbar-inline-actions topbar-inline-actions-left">
+                <button className={`header-inline-btn header-icon-btn ${overlayMode === "menu" ? "active" : ""}`} onClick={openMenuOverlay} aria-label="메뉴">
+                  <MenuIcon />
+                </button>
+                {visibleHeaderNavItems.map((item) => (
+                  <button key={item.label} type="button" className={`header-inline-btn ${item.active ? "active" : ""} ${item.label === "바구니" ? "header-inline-btn-icon-label" : ""}`} onClick={item.onClick} disabled={!item.onClick} aria-label={item.label}>
+                    {item.label === "바구니" ? <CartIcon /> : item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="topbar-side topbar-right">
+              <div className="topbar-inline-actions topbar-inline-actions-right">
+                <div className="topbar-title-inline" aria-live="polite">{currentScreenTitle}</div>
+                <button className="header-inline-btn header-icon-btn header-toolbar-btn" onClick={() => openOverlay("search")} aria-label={`${activeTab}검색`} title={`${activeTab}검색`}><SearchIcon /></button>
+                <button className={`header-inline-btn header-icon-btn header-notification-btn header-toolbar-btn ${overlayMode === "notifications" ? "active" : ""}`} onClick={() => openOverlay("notifications")} aria-label={`${activeTab}알림`} title={`${activeTab}알림`}><BellIcon />{unreadNotificationCount > 0 ? <span className="header-badge">{unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}</span> : null}</button>
+                <button className={`header-inline-btn header-icon-btn header-toolbar-btn ${overlayMode === "settings" ? "active" : ""}`} onClick={() => openOverlay("settings")} aria-label={`${activeTab}설정`} title={`${activeTab}설정`}><SettingsIcon /></button>
+              </div>
+            </div>
+          </div>
+        )}
       </header>
+      {showBaseTabContent && activeTab === "홈" && homeTab === "쇼츠" ? (
+        <div className={`shorts-category-strip${shortsCategoryVisible ? " visible" : ""}`}>
+          {shortsCategories.map((category) => (
+            <button key={category} type="button" className={`shorts-category-chip${selectedShortsCategory === category ? " active" : ""}`} onClick={() => { setSelectedShortsCategory(category); setShortsHeaderHidden(false); setShortsCategoryVisible(true); lastShortsScrollTopRef.current = 0; shortsHideThresholdRef.current = 0; shortsShowThresholdRef.current = 0; }}>{category}</button>
+          ))}
+        </div>
+      ) : null}
 
-      <main className="mobile-main">
+      <main className="mobile-main" ref={mobileMainRef}>
         {showBaseTabContent && reconsentRequired ? (
           <section className="reconsent-banner" role="button" tabIndex={0} onClick={() => { setHomeShopConsentGuideSeen(true); setOverlayMode("reconsent_info"); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setHomeShopConsentGuideSeen(true); setOverlayMode("reconsent_info"); } }}>
             <strong>필수 문서 재동의 필요</strong>
@@ -3051,59 +6266,94 @@ export default function App() {
           </section>
         ) : null}
         {overlayMode ? (
-          <section className="overlay-card">
-            <div className="overlay-head">
-              <strong>{overlayMode === "search" ? "통합 검색" : overlayMode === "notifications" ? "알림" : overlayMode === "menu" ? `${activeTab} 메뉴` : overlayMode === "reconsent_info" ? "필수 문서 재동의 안내" : "설정 카테고리"}</strong>
-              <button className="ghost-btn" onClick={() => setOverlayMode(null)}>닫기</button>
-            </div>
+          <section className={overlayMode === "notifications" ? "stack-gap notification-overlay-body compact-scroll-list notification-overlay-root" : `overlay-card ${overlayMode === "search" ? "overlay-card-search" : ""}`}>
+            {overlayMode !== "search" && overlayMode !== "notifications" ? (
+              <div className="overlay-head">
+                <strong>{overlayMode === "menu" ? `${activeTab} 메뉴` : overlayMode === "reconsent_info" ? "필수 문서 재동의 안내" : "설정 카테고리"}</strong>
+                <button className="ghost-btn" onClick={() => setOverlayMode(null)}>닫기</button>
+              </div>
+            ) : null}
 
             {overlayMode === "search" ? (
-              <div className="overlay-body stack-gap contextual-search-pane">
-                <div className="search-toolbar-grid">
-                  <input value={globalKeyword} onChange={(e) => setGlobalKeyword(e.target.value)} placeholder={`${activeTab} 검색어 입력`} />
-                  <select value={searchFilter} onChange={(e) => setSearchFilter(e.target.value)}>
-                    {searchFilterOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-                  </select>
+              <div className="overlay-body stack-gap contextual-search-pane search-overlay-pane">
+                <div className="search-scope-row">
+                  {currentSearchSections.map((item) => (
+                    <button
+                      key={`search-section-${item}`}
+                      type="button"
+                      className={`search-scope-btn ${searchSection === item ? "active" : ""}`}
+                      onClick={() => setSearchSection(item)}
+                    >
+                      {item}
+                    </button>
+                  ))}
                 </div>
                 <div className="search-toolbar-actions">
                   <button className="ghost-btn" onClick={() => setGlobalKeyword("")}>검색어 초기화</button>
                 </div>
-                <div className="context-search-results compact-scroll-list">
-                  {activeTab === "홈" ? homeSearchResults.map((item) => (
-                    <article key={item.id} className="legacy-box compact search-result-card">
+                <div className="context-search-results compact-scroll-list search-results-list">
+                  {!globalKeyword.trim() ? <div className="legacy-box compact"><p>검색어를 입력하면 결과가 표시됩니다.</p></div> : null}
+
+                  {activeTab === "홈" && searchSection === "피드결과" ? homeSearchResults.map((item) => (
+                    <article key={`home-feed-${item.id}`} className="legacy-box compact search-result-card search-result-list-card">
                       <div className="split-row"><strong>{item.title}</strong><span>{item.author}</span></div>
                       <p>{item.caption}</p>
                       <span className="community-meta">{item.category}</span>
                     </article>
                   )) : null}
+                  {activeTab === "홈" && searchSection === "쇼츠결과" ? homeShortSearchResults.map((item) => (
+                    <article key={`home-short-${item.id}`} className="legacy-box compact search-result-card search-result-list-card">
+                      <div className="split-row"><strong>{item.title}</strong><span>{item.author}</span></div>
+                      <p>{item.caption}</p>
+                      <span className="community-meta">쇼츠 · {(item.views ?? 0).toLocaleString()}회</span>
+                    </article>
+                  )) : null}
+                  {activeTab === "홈" && searchSection === "보관함결과" ? homeSavedSearchResults.map((item) => (
+                    <article key={item.id} className="legacy-box compact search-result-card search-result-list-card">
+                      <div className="split-row"><strong>{item.title}</strong><span>{item.meta}</span></div>
+                      <p>{item.summary}</p>
+                    </article>
+                  )) : null}
+
                   {activeTab === "쇼핑" ? shopSearchResults.map((item) => (
-                    <article key={item.id} className="legacy-box compact search-result-card">
+                    <article key={`shop-${item.id}`} className="legacy-box compact search-result-card search-result-list-card">
                       <div className="split-row"><strong>{item.name}</strong><span>{item.price}</span></div>
                       <p>{item.subtitle}</p>
                       <span className="community-meta">{item.category} · {item.badge}</span>
                     </article>
                   )) : null}
-                  {activeTab === "소통" ? communitySearchResults.map((item) => (
-                    <article key={item.id} className="legacy-box compact search-result-card">
+
+                  {activeTab === "소통" ? communicationOverlayResults.map((item) => (
+                    <article key={`community-${item.id}`} className="legacy-box compact search-result-card search-result-list-card">
                       <div className="split-row"><strong>{item.title}</strong><span>{item.category}</span></div>
                       <p>{item.summary}</p>
                       <span className="community-meta">{item.meta}</span>
                     </article>
                   )) : null}
-                  {activeTab === "채팅" ? chatSearchResults.map((item) => (
-                    <article key={item.id} className="legacy-box compact search-result-card">
+
+                  {activeTab === "채팅" && searchSection === "채팅" ? chatSearchResults.map((item) => (
+                    <article key={`chat-${item.id}`} className="legacy-box compact search-result-card search-result-list-card">
                       <div className="split-row"><strong>{item.name}</strong><span>{item.kind}</span></div>
                       <p>{item.preview}</p>
                       <span className="community-meta">{item.purpose} · {item.time}</span>
                     </article>
                   )) : null}
+                  {activeTab === "채팅" && searchSection === "질문" ? questionSearchResults.map((item) => (
+                    <article key={`question-${item.id}`} className="legacy-box compact search-result-card search-result-list-card">
+                      <div className="split-row"><strong>{item.author}</strong><span>{item.meta}</span></div>
+                      <p>Q. {item.question}</p>
+                      <span className="community-meta">답변 {item.answer}</span>
+                    </article>
+                  )) : null}
+
                   {activeTab === "프로필" ? profileSearchResults.map((item) => (
-                    <article key={item.id} className="legacy-box compact search-result-card">
+                    <article key={`profile-${item.id}`} className="legacy-box compact search-result-card search-result-list-card">
                       <div className="split-row"><strong>{item.author}</strong><span>{item.category}</span></div>
                       <p>{item.title} · {item.caption}</p>
                     </article>
                   )) : null}
-                  {globalKeyword.trim() && ((activeTab === "홈" && homeSearchResults.length === 0) || (activeTab === "쇼핑" && shopSearchResults.length === 0) || (activeTab === "소통" && communitySearchResults.length === 0) || (activeTab === "채팅" && chatSearchResults.length === 0) || (activeTab === "프로필" && profileSearchResults.length === 0)) ? (
+
+                  {globalKeyword.trim() && ((activeTab === "홈" && ((searchSection === "피드결과" && homeSearchResults.length === 0) || (searchSection === "쇼츠결과" && homeShortSearchResults.length === 0) || (searchSection === "보관함결과" && homeSavedSearchResults.length === 0))) || (activeTab === "쇼핑" && shopSearchResults.length === 0) || (activeTab === "소통" && communicationOverlayResults.length === 0) || (activeTab === "채팅" && ((searchSection === "채팅" && chatSearchResults.length === 0) || (searchSection === "질문" && questionSearchResults.length === 0))) || (activeTab === "프로필" && profileSearchResults.length === 0)) ? (
                     <div className="legacy-box compact"><p>연관 검색 결과가 없습니다.</p></div>
                   ) : null}
                 </div>
@@ -3111,65 +6361,74 @@ export default function App() {
             ) : null}
 
             {overlayMode === "notifications" ? (
-              <div className="stack-gap notification-overlay-body compact-scroll-list">
-                <section className="notification-section-card">
-                  <div className="notification-section-head">
-                    <div><strong>앱 공지사항</strong><p>약관/정책/업데이트 공지를 알림에서 확인합니다.</p></div>
-                  </div>
-                  <div className="notification-list">
-                    {notificationSections.notices.map((item) => (
-                      <article key={item.id} className={`notification-item ${item.unread ? "unread" : ""}`}>
-                        <div className="notification-item-copy">
-                          <div className="notification-item-topline"><span className="notification-chip">공지</span><span>{item.meta}</span></div>
-                          <strong>{item.title}</strong>
-                          <p>{item.body}</p>
+              <>
+                {notificationView.view === "list" ? (
+                  notificationSectionOrder.map((sectionKey) => {
+                    const items = notificationSections[sectionKey];
+                    return (
+                      <section key={sectionKey} className="notification-section-card notification-summary-card">
+                        <div className="notification-section-head notification-summary-head">
+                          <strong>{notificationSectionMeta[sectionKey].title}</strong>
+                          <button type="button" className="ghost-btn notification-more-btn" onClick={() => openNotificationSection(sectionKey)}>더보기</button>
                         </div>
-                        {item.ctaLabel ? <button type="button" className="ghost-btn">{item.ctaLabel}</button> : null}
-                      </article>
-                    ))}
-                    <div className="notification-policy-links">
-                      <a className="ghost-link-btn" href={`${getApiBase()}/legal/terms-of-service`} target="_blank" rel="noreferrer">이용약관</a>
-                      <a className="ghost-link-btn" href={`${getApiBase()}/legal/privacy-policy`} target="_blank" rel="noreferrer">개인정보 처리방침</a>
-                      <a className="ghost-link-btn" href={`${getApiBase()}/legal/youth-policy`} target="_blank" rel="noreferrer">청소년 보호정책</a>
-                      <a className="ghost-link-btn" href={`${getApiBase()}/legal/refund-policy`} target="_blank" rel="noreferrer">환불정책</a>
+                        <div className="notification-summary-list">
+                          {items.slice(0, 3).map((item) => (
+                            <button key={item.id} type="button" className={`notification-summary-row ${item.unread ? "unread" : ""}`} onClick={() => openNotificationDetail(sectionKey, item)}>
+                              <span className={`notification-chip ${getNotificationChipTone(sectionKey)}`}>{item.category}</span>
+                              <strong>{item.title}</strong>
+                              <span>{item.postedAt}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </section>
+                    );
+                  })
+                ) : null}
+
+                {overlayMode === "notifications" && notificationView.view === "section" && notificationView.section ? (
+                  <section className="notification-section-card notification-detail-shell notification-section-shell">
+                    <div className="notification-detail-head">
+                      <button type="button" className="header-inline-btn header-icon-btn topbar-search-back" onClick={() => setNotificationView({ view: "list", section: null, item: null })} aria-label="뒤로가기"><BackArrowIcon /></button>
+                      <strong>{notificationSectionMeta[notificationView.section].title}</strong>
                     </div>
-                  </div>
-                </section>
-                <section className="notification-section-card">
-                  <div className="notification-section-head">
-                    <div><strong>쇼핑 주문 · 배송 관련 알림</strong><p>주문한 제품 발송 진행 여부와 배송 상태를 분리해 표시합니다.</p></div>
-                  </div>
-                  <div className="notification-list">
-                    {notificationSections.orders.map((item) => (
-                      <article key={item.id} className={`notification-item ${item.unread ? "unread" : ""}`}>
-                        <div className="notification-item-copy">
-                          <div className="notification-item-topline"><span className="notification-chip order">주문</span><span>{item.meta}</span></div>
+                    <div className="notification-summary-list notification-summary-list-all notification-section-list-pane">
+                      {visibleNotificationSectionItems.map((item) => (
+                        <button key={item.id} type="button" className={`notification-summary-row ${item.unread ? "unread" : ""}`} onClick={() => openNotificationDetail(notificationView.section!, item)}>
+                          <span className={`notification-chip ${getNotificationChipTone(notificationView.section)}`}>{item.category}</span>
                           <strong>{item.title}</strong>
-                          <p>{item.body}</p>
-                        </div>
-                        {item.ctaLabel ? <button type="button" className="ghost-btn">{item.ctaLabel}</button> : null}
-                      </article>
-                    ))}
-                  </div>
-                </section>
-                <section className="notification-section-card">
-                  <div className="notification-section-head">
-                    <div><strong>커뮤니티 · 댓글 · 채팅 · 기타</strong><p>댓글, 채팅, 운영기준 공지 등 기타 알림을 하단에 배치합니다.</p></div>
-                  </div>
-                  <div className="notification-list">
-                    {notificationSections.community.map((item) => (
-                      <article key={item.id} className={`notification-item ${item.unread ? "unread" : ""}`}>
-                        <div className="notification-item-copy">
-                          <div className="notification-item-topline"><span className="notification-chip community">소통</span><span>{item.meta}</span></div>
-                          <strong>{item.title}</strong>
-                          <p>{item.body}</p>
-                        </div>
-                        {item.ctaLabel ? <button type="button" className="ghost-btn">{item.ctaLabel}</button> : null}
-                      </article>
-                    ))}
-                  </div>
-                </section>
-              </div>
+                          <span>{item.postedAt}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="community-simple-pagination notification-section-pagination">
+                      <button type="button" className="ghost-btn" onClick={() => setNotificationSectionPage((prev) => Math.max(1, prev - 1))} disabled={notificationSectionPage <= 1}>이전</button>
+                      <span>{notificationSectionPage} / {notificationSectionTotalPages}</span>
+                      <button type="button" className="ghost-btn" onClick={() => setNotificationSectionPage((prev) => Math.min(notificationSectionTotalPages, prev + 1))} disabled={notificationSectionPage >= notificationSectionTotalPages}>다음</button>
+                    </div>
+                  </section>
+                ) : null}
+
+                {overlayMode === "notifications" && notificationView.view === "detail" && notificationView.item ? (
+                  <section className="notification-section-card notification-detail-shell notification-article-shell">
+                    <div className="notification-detail-head notification-detail-head-article">
+                      <button type="button" className="header-inline-btn header-icon-btn topbar-search-back" onClick={() => setNotificationView({ view: notificationView.section ? "section" : "list", section: notificationView.section, item: null })} aria-label="뒤로가기"><BackArrowIcon /></button>
+                    </div>
+                    <div className="notification-article-meta-row">
+                      <div className="notification-article-title-wrap">
+                        <span className={`notification-chip ${getNotificationChipTone(notificationView.section)}`}>{notificationView.item.category}</span>
+                        <strong>{notificationView.item.title}</strong>
+                      </div>
+                      <div className="notification-article-side-meta">
+                        <span>{notificationDetailAuthor}</span>
+                        <span>{notificationView.item.postedAt}</span>
+                      </div>
+                    </div>
+                    <div className="legacy-box compact notification-detail-card notification-article-content">
+                      <p>{notificationView.item.body}</p>
+                    </div>
+                  </section>
+                ) : null}
+              </>
             ) : null}
 
             {overlayMode === "menu" ? (
@@ -3265,6 +6524,11 @@ export default function App() {
             {overlayMode === "settings" ? (
               <div className="stack-gap">
                 <div className="settings-category-nav">
+                  {canToggleAccountMode ? (
+                    <button type="button" className="settings-category-btn settings-account-toggle-btn" onClick={handleAccountModeToggle}>
+                      <span>{accountModeToggleLabel}</span>
+                    </button>
+                  ) : null}
                   <button type="button" className="settings-category-btn settings-logout-btn" onClick={handleLogout}>
                     <span>로그아웃</span>
                   </button>
@@ -3312,42 +6576,20 @@ export default function App() {
                   accountPrivate={accountPrivate}
                   setAccountPrivate={setAccountPrivate}
                 />
+                {isAdmin ? (
+                  <div className="legacy-box compact company-mail-admin-shortcut">
+                    <div className="split-row">
+                      <div>
+                        <h3>회사메일 숨김 화면</h3>
+                        <p>관리자 계정만 열 수 있는 내부 메일 화면 미리보기입니다.</p>
+                      </div>
+                      <button type="button" onClick={openCompanyMailPreview}>열기</button>
+                    </div>
+                    <p className="muted-mini">미리보기 경로: <code>#corp-mail-admin</code> · 실제 숨김 도메인은 추후 별도 연결</p>
+                  </div>
+                ) : null}
               </div>
             ) : null}
-          </section>
-        ) : null}
-
-        {showBaseTabContent && blockedByIdentity ? (
-          <section className="tab-pane fill-pane auth-gate-pane">
-            <div className="auth-gate-card stack-gap compact-scroll-list auth-entry-pane">
-              <div className="section-head compact-head">
-                <div><h2>로그인 / 회원가입</h2><p>로그인과 회원가입은 상단바·하단바가 없는 별도 화면으로 분리했습니다. 아래 버튼으로 독립 화면으로 이동해 진행할 수 있습니다.</p></div>
-              </div>
-              <div className="legacy-grid two auth-entry-grid">
-                <div className="legacy-box compact auth-entry-card">
-                  <h3>로그인 화면</h3>
-                  <p>테스트 계정 입력, 일반 로그인, 관리자 로그인 확인을 독립 화면에서 진행합니다.</p>
-                  <div className="copy-action-row">
-                    <button type="button" onClick={() => setAuthStandaloneScreen("login")}>로그인 화면 열기</button>
-                  </div>
-                </div>
-                <div className="legacy-box compact auth-entry-card">
-                  <h3>회원가입 화면</h3>
-                  <p>필수 동의 → 가입정보 입력 → 선택 프로필 입력 순서의 별도 회원가입 화면으로 이동합니다.</p>
-                  <div className="copy-action-row">
-                    <button type="button" className="ghost-btn" onClick={() => { setSignupStep("consent"); setAuthStandaloneScreen("signup"); }}>회원가입 화면 열기</button>
-                  </div>
-                </div>
-              </div>
-              <div className="legacy-box compact auth-summary-box">
-                <h3>테스트 계정 바로 입력</h3>
-                <div className="chip-checklist auth-account-chiplist">
-                  <button type="button" className="chip-check" onClick={() => { fillTestAccount("customer@example.com", "customer1234"); setAuthStandaloneScreen("login"); }}>회원 계정</button>
-                  <button type="button" className="chip-check" onClick={() => { fillTestAccount("admin@example.com", "admin1234"); setAuthStandaloneScreen("login"); }}>관리자 계정</button>
-                  <button type="button" className="chip-check" onClick={() => { fillTestAccount("seller@example.com", "seller1234"); setAuthStandaloneScreen("login"); }}>판매자 계정</button>
-                </div>
-              </div>
-            </div>
           </section>
         ) : null}
 
@@ -3357,7 +6599,7 @@ export default function App() {
               <div className="section-head compact-head">
                 <div><h2>성인 인증 필요</h2><p>{activeTab} 화면은 최초 1회 성인 인증 완료 후 지속 이용 가능하도록 설계했습니다. 홈 또는 쇼핑 중 하나에서 인증이 완료되면 두 화면 모두 접근 가능합니다.</p></div>
               </div>
-              <div className="legacy-grid three auth-option-grid">
+              <div className="legacy-grid three auth-option-grid signup-auth-option-grid">
                 <div className="legacy-box compact"><h3>성인 인증 안내</h3><p>회원가입 시 PASS/휴대폰 본인확인 완료 후 계정을 생성하고, 성인 회원은 홈 또는 쇼핑 최초 접근 시 1회 추가 성인인증을 진행합니다. 카카오는 로그인 편의 수단으로만 사용합니다.</p><button type="button" className="ghost-btn" onClick={() => setAdultPromptOpen(true)}>성인인증 필요 모달 보기</button></div>
                 <div className="legacy-box compact"><h3>PASS/휴대폰 본인확인 시작</h3><p>실서비스에서는 외부 본인인증 SDK를 호출하고, 현재 데모에서는 흐름만 검증합니다.</p><div className="copy-action-row"><button type="button" onClick={() => attemptAdultVerification("success")}>PASS/휴대폰 인증 성공</button><button type="button" className="ghost-btn" onClick={() => attemptAdultVerification("fail")}>인증 실패</button></div></div>
                 <div className="legacy-box compact"><h3>차단 / 재시도 상태</h3><p>실패 {adultFailCount}회 · {adultCooldownRemainMinutes > 0 ? `${adultCooldownRemainMinutes}분 후 재시도 가능` : "현재 재시도 가능"}</p><button type="button" className="ghost-btn" onClick={() => attemptAdultVerification("minor")}>미성년 차단 화면 확인</button></div>
@@ -3374,63 +6616,91 @@ export default function App() {
         ) : null}
 
         {showAppTabContent && activeTab === "홈" ? (
-          <section className="tab-pane fill-pane home-feed-pane">
+          <section className={`tab-pane fill-pane home-feed-pane${homeTab === "쇼츠" ? " home-feed-pane-shorts" : ""}`}>
             {homeTab === "피드" ? (
               <>
-                <StoryStrip onOpenStory={setSelectedStory} />
-                {selectedStory ? (
-                  <section className="legacy-box story-preview-card">
-                    <div className="split-row"><strong>{selectedStory.name}</strong><button type="button" className="ghost-btn" onClick={() => setSelectedStory(null)}>닫기</button></div>
-                    <p>{storyPreviewText[selectedStory.name] ?? "선택한 스토리의 요약입니다."}</p>
-                  </section>
-                ) : null}
-                <div className="feed-post-list compact-scroll-list">{visibleFeed.map((item, idx) => (<><FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} saved={savedFeedIds.includes(item.id)} onToggleSave={toggleSavedFeed} />{(idx + 1) % 4 === 0 ? <SponsoredFeedProductCard key={`sponsored-${item.id}`} item={sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length]} saved={savedProductIds.includes(sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length].id)} onToggleSave={toggleSavedProduct} /> : null}</>))}</div>
-              </>
-            ) : homeTab === "상품" ? (
-              <>
-                <div className="section-head compact-head"><div><h2>추천 상품</h2><p>홈에서 바로 진입하는 추천 상품 카드 모음입니다.</p></div></div>
-                <div className="content-grid product-grid compact-scroll-list">
-                  {homeProducts.map((product) => (
-                    <article key={product.id} className="product-card">
-                      <div className="product-thumb" />
-                      <span className="product-badge">{product.badge}</span>
-                      <strong>{product.name}</strong>
-                      <p>{product.subtitle}</p>
-                      <div className="product-meta"><span>{product.category}</span><b>{product.price}</b></div>
-                      <div className="product-card-actions">
-                        <button type="button" className="ghost-btn" onClick={() => toggleSavedProduct(product.id)}>{savedProductIds.includes(product.id) ? "보관해제" : "보관함"}</button>
-                      </div>
-                    </article>
-                  ))}
+                <div className="chat-toolbar kakao-toolbar compact-only-toolbar feed-compose-launch-toolbar">
+                  <div className="chat-category-scroll">
+                    <button type="button" className="category-chip active feed-compose-launch-chip" onClick={() => setFeedComposeOpen(true)}>
+                      피드 작성
+                    </button>
+                  </div>
+                </div>
+                <div className="feed-post-list compact-scroll-list">
+                  <div className="feed-scroll-status feed-scroll-status-inline" aria-live="polite">
+                    <strong>무한 스크롤 테스트</strong>
+                    <span>테스트 피드 20개 포함 · 초기 {HOME_FEED_PAGE_SIZE}개 노출 후 하단 감지 시 {HOME_FEED_PAGE_SIZE}개씩 추가 로딩 · 현재 {visibleFeed.length}/{homeFeedSource.length}개 표시</span>
+                  </div>
+                  {visibleFeed.map((item, idx) => (<div key={`feed-wrap-${item.id}`}><FeedPoster item={item} onAsk={openAskFromFeed} saved={savedFeedIds.includes(item.id)} liked={likedFeedIds.includes(item.id)} commentsOpen={openFeedCommentItem?.id === item.id} onOpenComments={openFeedComments} onToggleLike={toggleLikedFeed} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} following={followedFeedAuthors.includes(item.author)} onToggleFollow={toggleFollowedFeedAuthor} />{(idx + 1) % 4 === 0 ? <SponsoredFeedProductCard item={sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length]} saved={savedProductIds.includes(sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length].id)} onToggleSave={toggleSavedProduct} /> : null}</div>))}
+                  {hasMoreHomeFeed ? <div ref={homeFeedSentinelRef} className="feed-loading-row">추천 피드 추가 로딩 중 · {visibleFeed.length}/{homeFeedSource.length}</div> : <div className="feed-loading-row feed-loading-row-end">추천 피드를 모두 확인했습니다 · 총 {homeFeedSource.length}개</div>}
                 </div>
               </>
+            ) : homeTab === "쇼츠" ? (
+              <>
+                <div className="creator-launch-strip creator-launch-strip-shorts">
+                  <div>
+                    <strong>쇼츠 업로드</strong>
+                    <span>즐겨찾기 영역 위에서 바로 쇼츠 영상을 선택할 수 있습니다.</span>
+                  </div>
+                  <label className="creator-launch-btn">
+                    쇼츠 올리기
+                    <input type="file" accept="video/*" hidden onChange={(event) => { const fileName = event.target.files?.[0]?.name; if (fileName) window.alert(`쇼츠 업로드 준비: ${fileName}`); event.currentTarget.value = ""; }} />
+                  </label>
+                </div>
+                <div className="shorts-list-wrap compact-scroll-list" onScroll={handleShortsScroll}>
+                  {pagedShorts.length ? pagedShorts.map((item) => (
+                    <ShortsListCard
+                      key={`short-${item.id}`}
+                      item={item}
+                      onOpenMore={setShortsMoreItem}
+                      onOpenViewer={openShortsViewer}
+                    />
+                  )) : <div className="legacy-box compact"><p>표시할 쇼츠가 없습니다.</p></div>}
+                  {pagedShorts.length < shortsFeedItems.length ? <div className="shorts-loading-row">쇼츠 10개 단위로 추가 로딩 중</div> : null}
+                </div>
+                {shortsViewerItemId !== null ? (
+                  <ShortsViewer
+                    items={shortsFeedItems}
+                    initialIndex={shortsViewerInitialIndex}
+                    onClose={() => setShortsViewerItemId(null)}
+                    onOpenMore={setShortsMoreItem}
+                    getKeywordTags={getContentKeywordTags}
+                  />
+                ) : null}
+              </>
             ) : (
-              <div className="stack-gap compact-scroll-list">
-                <div className="section-head compact-head"><div><h2>보관함</h2><p>피드와 상품에서 보관함 버튼을 눌러 저장한 항목을 구분해서 확인합니다.</p></div></div>
+              <div className="stack-gap compact-scroll-list saved-home-pane">
                 <div className="legacy-nav inline">
-                  {["피드", "상품"].map((tab) => (
-                    <button key={tab} type="button" className={`legacy-nav-btn ${savedTab === tab ? "active" : ""}`} onClick={() => setSavedTab(tab as "피드" | "상품")}>{tab}</button>
+                  {["피드", "쇼츠"].map((tab) => (
+                    <button key={tab} type="button" className={`legacy-nav-btn ${savedTab === tab ? "active" : ""}`} onClick={() => setSavedTab(tab as "피드" | "쇼츠")}>{tab}</button>
                   ))}
                 </div>
                 {savedTab === "피드" ? (
                   <div className="feed-post-list compact-scroll-list">
-                    {savedFeedItems.length ? savedFeedItems.map((item) => <FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} saved={true} onToggleSave={toggleSavedFeed} />) : <div className="legacy-box compact"><p>보관한 피드가 없습니다.</p></div>}
+                    {savedFeedItems.length ? savedFeedItems.map((item) => <FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} saved={true} liked={likedFeedIds.includes(item.id)} commentsOpen={openFeedCommentItem?.id === item.id} onOpenComments={openFeedComments} onToggleLike={toggleLikedFeed} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} following={followedFeedAuthors.includes(item.author)} onToggleFollow={toggleFollowedFeedAuthor} />) : <div className="legacy-box compact"><p>보관한 피드가 없습니다.</p></div>}
                   </div>
                 ) : (
-                  <div className="content-grid product-grid compact-scroll-list">
-                    {savedProductItems.length ? savedProductItems.map((product) => (
-                      <article key={product.id} className="product-card">
-                        <div className="product-thumb" />
-                        <span className="product-badge">{product.badge}</span>
-                        <strong>{product.name}</strong>
-                        <p>{product.subtitle}</p>
-                        <div className="product-meta"><span>{product.category}</span><b>{product.price}</b></div>
-                        <div className="product-card-actions">
-                          <button type="button" className="ghost-btn" onClick={() => toggleSavedProduct(product.id)}>보관해제</button>
-                        </div>
-                      </article>
-                    )) : <div className="legacy-box compact"><p>보관한 상품이 없습니다.</p></div>}
-                  </div>
+                  <>
+                    <div className="shorts-list-wrap compact-scroll-list" onScroll={handleShortsScroll}>
+                      {savedShortItems.length ? savedShortItems.map((item) => (
+                        <ShortsListCard
+                          key={`saved-short-${item.id}`}
+                          item={item}
+                          onOpenMore={setShortsMoreItem}
+                          onOpenViewer={(target) => setSavedShortsViewerItemId(target.id)}
+                        />
+                      )) : <div className="legacy-box compact"><p>보관한 쇼츠가 없습니다.</p></div>}
+                    </div>
+                    {savedShortsViewerItemId !== null ? (
+                      <ShortsViewer
+                        items={savedShortItems}
+                        initialIndex={savedShortsViewerInitialIndex}
+                        onClose={() => setSavedShortsViewerItemId(null)}
+                        onOpenMore={setShortsMoreItem}
+                        getKeywordTags={getContentKeywordTags}
+                      />
+                    ) : null}
+                  </>
                 )}
               </div>
             )}
@@ -3438,63 +6708,225 @@ export default function App() {
         ) : null}
 
         {showAppTabContent && activeTab === "쇼핑" ? (
-          <section className="tab-pane fill-pane">
+          <section className={shoppingTab === "홈" ? "compact-scroll-list shop-home-feed-pane shop-home-pane-root" : "tab-pane fill-pane"}>
+            {shoppingTab === "홈" ? (
+              <>
+                <div
+                  className="shop-home-hero-carousel"
+                  aria-label="쇼핑 홈 배너"
+                  onPointerDown={handleShopHomeBannerPointerDown}
+                  onPointerMove={handleShopHomeBannerPointerMove}
+                  onPointerUp={finishShopHomeBannerDrag}
+                  onPointerCancel={finishShopHomeBannerDrag}
+                  onPointerLeave={finishShopHomeBannerDrag}
+                >
+                  <div className="shop-home-hero-track" style={{ transform: `translateX(calc(-${shopHomeBannerIndex * 100}% + ${shopHomeBannerDragOffset}px))`, transition: shopHomeBannerPointerActiveRef.current ? "none" : undefined }}>
+                    {shopHomeHeroSlides.map((item, index) => (
+                      <button
+                        key={`hero-${item.id}-${index}`}
+                        type="button"
+                        className="shop-home-hero-slide"
+                        onClick={() => {
+                          setShopKeyword(item.name);
+                          setSelectedShopCategory("전체");
+                          setShoppingTab("목록");
+                        }}
+                      >
+                        {item.thumbnailUrl ? <img src={item.thumbnailUrl} alt={item.name} className="shop-home-hero-image" /> : null}
+                        <div className={`shop-home-hero-placeholder hero-tone-${(index % 3) + 1}`} />
+                        <div className="shop-home-hero-copy">
+                          <span>{item.category}</span>
+                          <strong>{item.name}</strong>
+                          <p>{item.subtitle || item.badge}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="shop-home-hero-dots">
+                    {shopHomeHeroSlides.map((item, index) => (
+                      <button
+                        key={`dot-${item.id}-${index}`}
+                        type="button"
+                        className={`shop-home-hero-dot ${index === shopHomeBannerIndex ? "active" : ""}`}
+                        onClick={() => setShopHomeBannerIndex(index)}
+                        aria-label={`${index + 1}번 배너 보기`}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div ref={shopHomeGridScrollRef} className={`shop-home-product-grid-scroll compact-scroll-list ${shopHomeGridDragging ? "dragging" : ""}`} onScroll={handleShopHomeScroll} onPointerDown={handleShopHomeGridPointerDown} onPointerMove={handleShopHomeGridPointerMove} onPointerUp={finishShopHomeGridPointerDrag} onPointerCancel={finishShopHomeGridPointerDrag} onPointerLeave={finishShopHomeGridPointerDrag}>
+                  <div className="shop-home-product-grid">
+                    {shopHomeFeedItems.map((product) => (
+                      <button
+                        key={`shop-feed-${product.id}-${product.feedIndex}`}
+                        type="button"
+                        className="shop-home-product-card"
+                        onClick={() => handleShopHomeProductCardClick(product.id)}
+                      >
+                        <div className="shop-home-product-thumb">
+                          {product.thumbnailUrl ? <img src={product.thumbnailUrl} alt={product.name} className="shop-home-product-thumb-image" /> : null}
+                          <div className={`shop-home-product-thumb-placeholder hero-tone-${(product.feedIndex % 3) + 1}`} />
+                          <span className="shop-home-product-badge">{product.badge}</span>
+                          <button
+                            type="button"
+                            className={`shop-home-product-heart ${cartItems.some((item) => item.productId === product.id) ? "active" : ""}`}
+                            aria-label="장바구니 담기"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              toggleProductCartFavorite(product.id);
+                            }}
+                          >
+                            <HeartIcon filled={cartItems.some((item) => item.productId === product.id)} />
+                          </button>
+                        </div>
+                        <div className="shop-home-product-meta">
+                          <strong>{product.name}</strong>
+                          <span>리뷰 {product.reviewCount ?? 0}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="feed-loading-row">상품을 계속 불러오는 중</div>
+                </div>
+              </>
+            ) : null}
+
             {shoppingTab === "목록" ? (
               <>
-                <div className="section-head compact-head">
-                  <div><h2>상품 목록</h2><p>카테고리와 검색을 조합해 한 화면 안에서 탐색합니다.</p></div>
+                <div className="section-head compact-head shop-list-head">
                   <div className="section-tools slim-tools">
-                    <input value={shopKeyword} onChange={(e) => setShopKeyword(e.target.value)} placeholder="상품명/설명 검색" />
-                    <button type="button" className="ghost-btn" onClick={openProductRegistrationTab}>상품등록</button>
-                    <button type="button" className="ghost-btn" onClick={openBusinessVerificationTab}>사업자인증</button>
+                    <input value={shopKeyword} onChange={(e) => setShopKeyword(e.target.value)} placeholder="검색" />
                   </div>
                 </div>
                 {reconsentWriteRestricted ? <div className="legacy-box compact"><p>유예기간 없이 최신 필수 문서 재동의가 필요합니다. 먼저 필수 문서 안내 화면에서 재동의 정보를 확인한 뒤 주문·문의·상품등록 같은 쓰기 기능을 진행하세요.</p><div className="copy-action-row"><button type="button" className="ghost-btn" onClick={() => { setHomeShopConsentGuideSeen(true); setOverlayMode("reconsent_info"); }}>필수 문서 안내 열기</button></div></div> : null}
-                <div className="legacy-grid three">
-                  <div className="legacy-box compact"><h3>추천노출 수익화</h3><p>브랜드관/기획전 대신 홈 피드와 질문 피드 사이에 자연스럽게 제품이 노출되는 추천 슬롯만 운영합니다.</p><p>운영 검수 후 문구·이미지·노출 위치를 통제하는 방식으로 설계합니다.</p></div>
-                  <div className="legacy-box compact"><h3>프리미엄 배송 멤버십</h3><p>구매자 회원제 기준으로 익명포장, 빠른 출고, 보호포장, 프리미엄 CS를 묶어 제공합니다.</p><ul className="compact-bullet-list">{premiumMemberBenefits.map((item) => <li key={item}>{item}</li>)}</ul></div>
-                  <div className="legacy-box compact"><h3>앱 내 안전 소통 구조</h3><p>사람을 직접 찾게 하기보다 정보교류와 질문 흐름을 강화해 구매자 유입을 만듭니다.</p><ul className="compact-bullet-list">{safeCommunityIdeas.slice(0, 4).map((item) => <li key={item}>{item}</li>)}</ul></div>
-                </div>
-                <div className="split-layout mobile-split">
-                  <aside className="left-menu always-open">
-                    <button className={`left-link ${selectedShopCategory === "전체" ? "active" : ""}`} onClick={() => setSelectedShopCategory("전체")}>전체 보기</button>
-                    {shopCategories.map((group) => (
-                      <div key={group.group} className="menu-group">
-                        <div className="menu-group-title">{group.icon} {group.group}</div>
-                        {group.items.map((item) => (
-                          <button key={item.name} className={`left-link ${selectedShopCategory === item.name ? "active" : ""}`} onClick={() => setSelectedShopCategory(item.name)}>
-                            <span>{item.name}</span>
-                            <b>{item.count}</b>
-                          </button>
-                        ))}
+                <div className="content-grid product-grid compact-scroll-list shop-list-grid-only">
+                  {allShopItems.map((product) => (
+                    <article key={product.id} className="product-card">
+                      <div className="product-thumb" />
+                      <span className="product-badge">{product.badge}</span>
+                      <strong>{product.name}</strong>
+                      <p>{product.subtitle}</p>
+                      <div className="product-meta"><span>{product.category}</span><b>{product.price}</b></div>
+                      <div className="product-submeta"><span>배송비 ₩3,000</span><span>재고 {product.stock_qty ?? 12}개</span></div>
+                      <div className="product-card-actions">
+                        <button type="button" onClick={() => addToCart(product.id)}>장바구니 담기</button>
+                        <button type="button" className="ghost-btn" onClick={() => openProductDetail(product.id)}>상세보기</button>
+                        <button type="button" className="ghost-btn" onClick={() => toggleSavedProduct(product.id)}>{savedProductIds.includes(product.id) ? "보관해제" : "보관함"}</button>
                       </div>
-                    ))}
-                  </aside>
-                  <div className="content-grid product-grid compact-scroll-list">
-                    {allShopItems.map((product) => (
-                      <article key={product.id} className="product-card">
-                        <div className="product-thumb" />
-                        <span className="product-badge">{product.badge}</span>
-                        <strong>{product.name}</strong>
-                        <p>{product.subtitle}</p>
-                        <div className="product-meta"><span>{product.category}</span><b>{product.price}</b></div>
-                        <div className="product-card-actions">
-                          <button type="button" onClick={() => addToCart(product.id)}>장바구니 담기</button>
-                          <button type="button" className="ghost-btn" onClick={() => toggleSavedProduct(product.id)}>{savedProductIds.includes(product.id) ? "보관해제" : "보관함"}</button>
-                        </div>
-                      </article>
-                    ))}
-                  </div>
+                    </article>
+                  ))}
                 </div>
               </>
+            ) : null}
+
+            {shoppingTab === "상품" ? (
+              <div className="stack-gap compact-scroll-list">
+                {productDetail ? (
+                  <>
+                    <div className="shop-product-detail-topbar">
+                      <button type="button" className="header-inline-btn header-icon-btn topbar-search-back" onClick={() => { setProductDetail(null); setSelectedProductId(null); setShoppingTab("홈"); }} aria-label="뒤로가기"><BackArrowIcon /></button>
+                      <div className="shop-product-detail-topbar-title">상품 상세</div>
+                    </div>
+                    <div className="legacy-grid two-col compact-grid">
+                      <div className="legacy-box">
+                        <h3>{productDetail.product.name}</h3>
+                        <p><strong>성인용품</strong> · {productDetail.product.category}</p>
+                        <p>{productDetail.product.description || "상품 설명 준비중"}</p>
+                        <p>판매가: <strong>{`₩${Number(productDetail.product.price || 0).toLocaleString()}`}</strong></p>
+                        <p>배송비: <strong>{`₩${Number(productDetail.product.shipping_fee || 3000).toLocaleString()}`}</strong></p>
+                        <p>재고 상태: {Number(productDetail.product.stock_qty || 0) > 0 ? `${Number(productDetail.product.stock_qty || 0)}개 보유` : '품절'}</p>
+                        <p>판매자 정보: {productDetail.seller_contact?.business_name || productDetail.seller_contact?.name || disclosedBusinessInfo.operatorName}</p>
+                        <div className="profile-form-grid">
+                          <label><span>생년월일</span><input type="date" value={adultBirthdate} onChange={(e) => setAdultBirthdate(e.target.value)} /></label>
+                          <label><span>접근 상태</span><input readOnly value={adultGateStatus?.allowed_to_shop ? "쇼핑 가능" : adultGateStatus?.member_status || "미확인"} /></label>
+                        </div>
+                        <div className="product-card-actions">
+                          <button type="button" onClick={() => addToCart(productDetail.product.id)}>장바구니 담기</button>
+                          <button type="button" className="ghost-btn" onClick={verifyAdultSelf}>성인인증 진행</button>
+                        </div>
+                      </div>
+                      <div className="legacy-box">
+                        <h3>결제 테스트 버튼 UI</h3>
+                        <p>장바구니 → 주문 생성 → 중립 결제창 이동 → 완료 확인 흐름을 점검합니다.</p>
+                        <div className="product-card-actions">
+                          <button type="button" onClick={createOrderForSelectedProduct}>주문 생성</button>
+                          <button type="button" className="ghost-btn" onClick={() => launchVerotelCheckout()}>중립 결제 테스트</button>
+                          <button type="button" className="ghost-btn" onClick={() => setShoppingTab("주문")}>주문 탭 열기</button>
+                        </div>
+                        <p className="muted-mini">미성년자는 쇼핑과 결제가 차단됩니다. PASS 실연동 전에는 자체 성인 확인으로 QA 가능합니다.</p>
+                      </div>
+                    </div>
+                    <div className="legacy-grid two-col compact-grid">
+                      <div className="legacy-box compact">
+                        <h3>사이트 상태 준비</h3>
+                        <div className="consent-record-list">
+                          <div className="simple-list-row"><b>상품 표시</b><span>{productDetail.site_ready?.adult_only_label || "성인용품"} 명시</span></div>
+                          <div className="simple-list-row"><b>가격 표시</b><span>{productDetail.site_ready?.price_visible ? "표시 중" : "미표시"}</span></div>
+                          <div className="simple-list-row"><b>결제 버튼</b><span>{productDetail.site_ready?.purchase_button_visible ? "노출 중" : "미노출"}</span></div>
+                          <div className="simple-list-row"><b>불법 상품 차단</b><span>{productDetail.site_ready?.illegal_goods_blocked ? "차단 정책 적용" : "점검 필요"}</span></div>
+                          <div className="simple-list-row"><b>환불정책</b><span>최소 {productDetail.site_ready?.minimum_refund_window_days || 7}일</span></div>
+                        </div>
+                      </div>
+                      <div className="legacy-box compact">
+                        <h3>고객센터 정보</h3>
+                        <div className="consent-record-list">
+                          <div className="simple-list-row"><b>상호명</b><span>{productDetail.seller_contact?.business_name || productDetail.seller_contact?.name || disclosedBusinessInfo.operatorName}</span></div>
+                          <div className="simple-list-row"><b>사업자번호</b><span>{productDetail.seller_contact?.business_registration_no || disclosedBusinessInfo.registrationNo}</span></div>
+                          <div className="simple-list-row"><b>CS 연락처</b><span>{productDetail.seller_contact?.cs_contact || disclosedBusinessInfo.phone}</span></div>
+                          <div className="simple-list-row multi-line"><div><b>주소</b><span>{productDetail.seller_contact?.business_address || disclosedBusinessInfo.address}</span></div></div>
+                          <div className="simple-list-row multi-line"><div><b>반품 주소</b><span>{productDetail.seller_contact?.return_address || disclosedBusinessInfo.address}</span></div></div>
+                          <div className="simple-list-row"><b>문의 이메일</b><span>{productDetail.seller_contact?.support_email || disclosedBusinessInfo.email}</span></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="legacy-grid two-col compact-grid">
+                      <div className="legacy-box compact">
+                        <h3>PG 심사 대응 결제 구조</h3>
+                        <div className="consent-record-list">
+                          <div className="simple-list-row multi-line"><div><b>결제 모델</b><span>{paymentReviewReady?.mode?.model ?? "platform_single_checkout_seller_payout"}</span></div></div>
+                          <div className="simple-list-row multi-line"><div><b>체크아웃 표현</b><span>{paymentReviewReady?.mode?.checkout_mode ?? "neutral_without_product_images"}</span></div></div>
+                          <div className="simple-list-row multi-line"><div><b>정산 원칙</b><span>{paymentReviewReady?.mode?.settlement_clause ?? "플랫폼이 결제 수취 후 판매자에게 재정산"}</span></div></div>
+                          <div className="simple-list-row multi-line"><div><b>판매자 지급</b><span>{paymentReviewReady?.mode?.payout_method ?? "seller_bank_transfer"}</span></div></div>
+                        </div>
+                      </div>
+                      <div className="legacy-box compact">
+                        <h3>리스크 완화 규칙</h3>
+                        <div className="copy-action-row wrap-row">
+                          {(paymentReviewReady?.mode?.risk_controls ?? ["고위험 카테고리 제한", "주문 금액/빈도 룰", "의심거래 플래그", "차지백 증빙 저장"]).map((item) => <span key={item} className="question-profile-chip">{item}</span>)}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="legacy-box compact">
+                      <h3>필수 정책 문서</h3>
+                      <div className="notification-policy-links">
+                        <a className="ghost-link-btn" href={`${getApiBase()}/legal/terms-of-service`} target="_blank" rel="noreferrer">이용약관</a>
+                        <a className="ghost-link-btn" href={`${getApiBase()}/legal/privacy-policy`} target="_blank" rel="noreferrer">개인정보 처리방침</a>
+                        <a className="ghost-link-btn" href={`${getApiBase()}/legal/refund-policy`} target="_blank" rel="noreferrer">환불정책</a>
+                        <a className="ghost-link-btn" href={`${getApiBase()}/legal/age-verification-policy`} target="_blank" rel="noreferrer">성인 인증 정책</a>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="legacy-box compact">
+                    <p>상품 목록에서 상세보기를 누르면 상품 상세, 결제 테스트, 정책 링크, 고객센터 정보를 확인할 수 있습니다.</p>
+                  </div>
+                )}
+              </div>
             ) : null}
 
             {shoppingTab === "주문" ? (
               <div className="stack-gap compact-scroll-list">
                 <div className="legacy-grid three">
-                  <div className="legacy-box"><h3>주문 진행</h3><p>주문 {orders.length}건 · 결제대기 {orders.filter((item) => item.status === "payment_pending").length}건 · 결제완료 {orders.filter((item) => item.status === "paid").length}건</p></div>
+                  <div className="legacy-box"><h3>주문 진행</h3><p>주문 {orders.length}건 · 결제대기 {orders.filter((item) => item.status === "payment_pending").length}건 · 결제완료 {orders.filter((item) => item.status === "paid").length}건</p><p>흐름: 장바구니 → 주문서 작성 → 결제 요청 → 결제 완료 → 주문 확인</p></div>
                   <div className="legacy-box"><h3>취소/환불 검증</h3><p>부분 처리 금액 입력값: ₩{Number(orderActionAmount || "0").toLocaleString()}</p></div>
                   <div className="legacy-box"><h3>webhook 점검</h3><p>서명 점검 API와 주문 상태머신을 한 화면에서 검증합니다.</p></div>
+                </div>
+                <div className="legacy-grid three">
+                  <div className="legacy-box compact"><h3>레저 요약</h3><p>주문 {ledgerOverview?.orders?.count ?? 0}건 · 총 거래액 ₩{Number(ledgerOverview?.orders?.gross ?? 0).toLocaleString()}</p><p>거래 {ledgerOverview?.transactions?.count ?? 0}건 · 결제 ₩{Number(ledgerOverview?.transactions?.paid ?? 0).toLocaleString()}</p></div>
+                  <div className="legacy-box compact"><h3>판매자 정산</h3><p>정산 {ledgerOverview?.settlements?.count ?? 0}건 · 지급예정 ₩{Number(ledgerOverview?.settlements?.net ?? 0).toLocaleString()}</p><p>수수료 합계 ₩{Number(ledgerOverview?.settlements?.fee ?? 0).toLocaleString()}</p></div>
+                  <div className="legacy-box compact"><h3>심사용 webhook</h3><p>{ledgerOverview?.webhook?.path ?? "/api/webhook/payment"}</p><p>{ledgerOverview?.webhook?.signature ?? "HMAC-SHA256"} · idem {String(Boolean(ledgerOverview?.webhook?.idempotent ?? true))}</p></div>
                 </div>
                 <div className="legacy-box">
                   <h3>결제 테스트 센터</h3>
@@ -3504,6 +6936,7 @@ export default function App() {
                   </div>
                   <div className="product-card-actions">
                     <button type="button" onClick={confirmSelectedOrder}>선택 주문 결제승인</button>
+                    <button type="button" className="ghost-btn" onClick={() => launchVerotelCheckout()}>중립 결제창 열기</button>
                     <button type="button" className="ghost-btn" onClick={() => cancelSelectedOrder(false)}>선택 주문 전체취소</button>
                     <button type="button" className="ghost-btn" onClick={() => cancelSelectedOrder(true)}>선택 주문 부분취소</button>
                     <button type="button" className="ghost-btn" onClick={() => refundSelectedOrder(false)}>선택 주문 전체환불</button>
@@ -3525,6 +6958,21 @@ export default function App() {
                     </div>
                   ) : <p>선택한 주문의 상세 정보가 여기에 표시됩니다.</p>}
                 </div>
+                {checkoutSelectedOrder ? (
+                  <div className="legacy-box compact legal-disclosure-card">
+                    <h3>5. 주문 확인</h3>
+                    <span>주문번호: {checkoutSelectedOrder.order_no}</span>
+                    <span>결제금액: ₩{Number(checkoutSelectedOrder.total_amount || 0).toLocaleString()}</span>
+                    <span>상품 목록: {orderDetail?.items?.length ? orderDetail.items.map((item) => `${item.sku_code || item.product_id} x${item.qty}`).join(' · ') : `${checkoutSelectedOrder.item_count}건`}</span>
+                    <span>결제상태: {checkoutSelectedOrder.status}</span>
+                    <span>정산방식: 플랫폼 수취 후 판매자 재정산</span>
+                    <div className="product-card-actions">
+                      <button type="button" onClick={() => setCheckoutStage('order_confirm')}>주문 확인 보기</button>
+                      <button type="button" className="ghost-btn" onClick={() => setShoppingTab('바구니')}>장바구니로</button>
+                    </div>
+                  </div>
+                ) : null}
+
                 <div className="legacy-box">
                   <h3>최근 주문</h3>
                   <div className="chat-list">
@@ -3535,16 +6983,47 @@ export default function App() {
             ) : null}
 
             {shoppingTab === "바구니" ? (
-              <div className="cart-box compact-scroll-list">
-                {cartDetailedItems.length ? cartDetailedItems.map((item) => (
-                  <div key={item.productId} className="cart-row"><div><strong>{item.product.name}</strong><span>{item.product.category} · 수량 {item.qty}</span></div><b>₩{(Number(item.product.price || 0) * item.qty).toLocaleString()}</b></div>
-                )) : cartSeed.map((item) => (
-                  <div key={item.id} className="cart-row"><div><strong>{item.name}</strong><span>{item.option} · 수량 {item.qty}</span></div><b>{item.price}</b></div>
-                ))}
-                <div className="cart-summary"><span>총 결제 예정</span><strong>{cartDetailedItems.length ? `₩${cartTotalAmount.toLocaleString()}` : '₩112,500'}</strong></div>
-                <div className="product-card-actions">
-                  <button type="button" onClick={createOrderFromCart}>주문 생성</button>
-                  <button type="button" className="ghost-btn" onClick={() => setShoppingTab('주문')}>주문 탭 보기</button>
+              <div className="cart-box compact-scroll-list stack-gap">
+                <div className="checkout-stepper">
+                  {checkoutStepMeta.map((item, index) => <div key={item.key} className={`checkout-step-chip ${index <= checkoutStageIndex ? 'active' : ''}`}>{index + 1}. {item.label}</div>)}
+                </div>
+                <div className="legacy-box compact legal-disclosure-card">
+                  <strong>성인 전용 접근 안내</strong>
+                  <span>본 서비스는 만 19세 이상만 이용 가능합니다.</span>
+                  <span>인증 방식: PASS / NICE / Danal 등 본인확인 결과 연동 예정</span>
+                  <span>인증 미완료 시 상품/결제/채팅/커뮤니티 접근이 차단됩니다.</span>
+                </div>
+                <div className="legacy-box compact legal-disclosure-card">
+                  <strong>플랫폼 결제 및 재정산 안내</strong>
+                  <span>결제는 플랫폼이 중립 명칭의 체크아웃 화면에서 수취합니다.</span>
+                  <span>판매자 정산은 주문 확정 후 레저 기준으로 계산되어 계좌이체로 분배됩니다.</span>
+                  <span>환불 요청 시 플랫폼 PG 환불 후 판매자 정산 금액에서 차감될 수 있습니다.</span>
+                </div>
+                <div className="legacy-box compact">
+                  <h3>1. 장바구니</h3>
+                  {cartDetailedItems.length ? cartDetailedItems.map((item) => (
+                    <div key={item.productId} className="cart-row"><div><strong>{item.product.name}</strong><span>{item.product.category} · 수량 {item.qty}</span></div><b>₩{(Number(item.product.price || 0) * item.qty).toLocaleString()}</b></div>
+                  )) : cartSeed.map((item) => (
+                    <div key={item.id} className="cart-row"><div><strong>{item.name}</strong><span>{item.option} · 수량 {item.qty}</span></div><b>{item.price}</b></div>
+                  ))}
+                  <div className="cart-summary"><span>총 결제 예정</span><strong>{cartDetailedItems.length ? `₩${cartTotalAmount.toLocaleString()}` : '₩112,500'}</strong></div>
+                  <div className="product-card-actions">
+                    <button type="button" onClick={() => setCheckoutStage('order_form')}>주문서 작성</button>
+                    <button type="button" className="ghost-btn" onClick={() => { setCheckoutStage('payment_request'); createOrderFromCart(); }}>주문하기</button>
+                  </div>
+                </div>
+                <div className="legacy-box compact">
+                  <h3>2. 주문서 작성</h3>
+                  <div className="profile-form-grid">
+                    <label><span>수령인</span><input value={checkoutDraft.recipientName} onChange={(e) => setCheckoutDraft((prev) => ({ ...prev, recipientName: e.target.value }))} /></label>
+                    <label><span>연락처</span><input value={checkoutDraft.phone} onChange={(e) => setCheckoutDraft((prev) => ({ ...prev, phone: e.target.value }))} /></label>
+                    <label className="wide"><span>이메일</span><input value={checkoutDraft.email} onChange={(e) => setCheckoutDraft((prev) => ({ ...prev, email: e.target.value }))} /></label>
+                    <label className="wide"><span>주소</span><input value={checkoutDraft.address} onChange={(e) => setCheckoutDraft((prev) => ({ ...prev, address: e.target.value }))} /></label>
+                    <label className="wide"><span>배송 요청사항</span><input value={checkoutDraft.requestNote} onChange={(e) => setCheckoutDraft((prev) => ({ ...prev, requestNote: e.target.value }))} /></label>
+                  </div>
+                  <div className="notification-policy-links legal-link-row">
+                    {legalQuickLinks.map((item) => <a key={item.key} className="ghost-link-btn" href={item.href} target="_blank" rel="noreferrer">{item.label}</a>)}
+                  </div>
                 </div>
                 {orderMessage ? <p className="muted-mini">{orderMessage}</p> : null}
               </div>
@@ -3753,40 +7232,55 @@ export default function App() {
               </div>
             ) : (
               <>
-                <div className="section-head compact-head community-board-head">
-                  <div><h2>소통</h2></div>
-                  <div className="section-tools slim-tools community-search-toolbar">
-                    <select value={communityPrimaryFilter} onChange={(e) => setCommunityPrimaryFilter(e.target.value)}>
-                      {communityPrimaryFilters.map((filter) => <option key={filter} value={filter}>{filter === "전체" ? "1차필터" : filter}</option>)}
-                    </select>
-                    <select value={communitySecondaryFilter} onChange={(e) => setCommunitySecondaryFilter(e.target.value)}>
-                      {communitySecondaryFilters.map((filter) => <option key={filter} value={filter}>{filter === "전체" ? "2차필터" : filter}</option>)}
-                    </select>
-                    <input value={communityKeyword} onChange={(e) => setCommunityKeyword(e.target.value)} placeholder="게시글 검색" />
-                  </div>
-                </div>
-                <div className="split-layout mobile-split community-board-layout">
-                  <aside className="left-menu always-open slim-left-menu community-category-panel">
-                    <button className={`left-link ${selectedCommunityCategory === "전체" ? "active" : ""}`} onClick={() => setSelectedCommunityCategory("전체")}>전체</button>
+                <div className="community-simple-board compact-scroll-list">
+                  <div className="community-simple-category-row">
+                    <button className={`community-simple-chip ${selectedCommunityCategory === "전체" ? "active" : ""}`} onClick={() => setSelectedCommunityCategory("전체")}>전체</button>
                     {communityCategories.map((category) => (
-                      <button key={category} className={`left-link ${selectedCommunityCategory === category ? "active" : ""}`} onClick={() => setSelectedCommunityCategory(category)}>{category}</button>
+                      <button key={category} className={`community-simple-chip ${selectedCommunityCategory === category ? "active" : ""}`} onClick={() => setSelectedCommunityCategory(category)}>{category}</button>
                     ))}
-                  </aside>
-                  <div className="community-list compact-scroll-list community-post-panel">
-                    {filteredCommunity.map((post) => (
-                      <article key={post.id} className="community-card">
-                        <div className="community-card-topline">
-                          <span className="community-chip">{post.category}</span>
-                          <span className="community-chip muted-chip">{post.audience ?? "전체"}</span>
-                        </div>
-                        <strong>{post.title}</strong>
-                        <p>{post.summary}</p>
-                        <div className="community-meta">{post.meta}</div>
-                      </article>
-                    ))}
-                    {filteredCommunity.length === 0 ? (
-                      <div className="legacy-box compact"><p>조건에 맞는 게시글이 없습니다.</p></div>
-                    ) : null}
+                  </div>
+                  <div className="community-simple-list">
+                    {communityDisplayRows.map((post, index) => {
+                      if (!post) {
+                        return (
+                          <article key={`community-empty-${communityPage}-${index}`} className="community-simple-item community-simple-item-empty" aria-hidden="true">
+                            <div className="community-simple-head-row">
+                              <div className="community-simple-title-wrap">
+                                <span className="community-chip community-chip-placeholder">빈 칸</span>
+                                <strong>&nbsp;</strong>
+                              </div>
+                              <div className="community-simple-meta-row">
+                                <span>&nbsp;</span>
+                                <span>&nbsp;</span>
+                              </div>
+                            </div>
+                            <p>&nbsp;</p>
+                          </article>
+                        );
+                      }
+
+                      const parsedMeta = parseCommunityMeta(post.meta);
+                      return (
+                        <article key={post.id} className="community-simple-item">
+                          <div className="community-simple-head-row">
+                            <div className="community-simple-title-wrap">
+                              <span className="community-chip">{post.category}</span>
+                              <strong title={post.title}>{post.title}</strong>
+                            </div>
+                            <div className="community-simple-meta-row">
+                              <span>{parsedMeta.author}</span>
+                              <span>{parsedMeta.postedAt}</span>
+                            </div>
+                          </div>
+                          <p>{post.summary}</p>
+                        </article>
+                      );
+                    })}
+                  </div>
+                  <div className="community-simple-pagination">
+                    <button type="button" className="ghost-btn" onClick={() => setCommunityPage((prev) => Math.max(1, prev - 1))} disabled={communityPage <= 1}>이전</button>
+                    <span>{communityPage} / {communityPageCount}</span>
+                    <button type="button" className="ghost-btn" onClick={() => setCommunityPage((prev) => Math.min(communityPageCount, prev + 1))} disabled={communityPage >= communityPageCount}>다음</button>
                   </div>
                 </div>
               </>
@@ -3795,64 +7289,67 @@ export default function App() {
         ) : null}
 
         {showAppTabContent && activeTab === "채팅" ? (
-          <section className="tab-pane fill-pane">
+          <section className="tab-pane fill-pane chat-tab-pane">
             {chatTab === "질문" ? (
               <div className="question-board compact-scroll-list">
-                <div className="section-head compact-head"><div><h2>질문</h2><p>historyprofile 질문 화면 흐름을 참고한 카드형 질문/답변 화면입니다.</p></div></div>
-                <div className="question-profile-hero">
-                  <div className="question-profile-copy">
-                    <span className="question-profile-chip">질문 허용</span>
-                    <strong>adult official · 질문 프로필</strong>
-                    <p>질문을 받고 답변을 공개 카드로 정리하는 화면 예시입니다. 상단/중간 광고 영역도 함께 배치했습니다.</p>
+                <section className="asked-question-profile-header">
+                  <div className="asked-question-profile-card asked-question-profile-card-inline">
+                    <div className="asked-question-avatar">{currentProfileMeta.name.slice(0, 1).toUpperCase()}</div>
+                    <div className="asked-question-copy">
+                      <div className="asked-question-copy-head">
+                        <div className="asked-question-copy-main">
+                          <button type="button" className="feed-author-link asked-profile-name-btn" onClick={() => openProfileFromAuthor(currentProfileMeta.name)}>{currentProfileMeta.name}</button>
+                          <span>{currentProfileMeta.headline}</span>
+                        </div>
+                        <div className="asked-question-toolbar asked-question-toolbar-inline">
+                          <button type="button" onClick={() => toggleFollowedFeedAuthor(currentProfileMeta.name)}>{followedFeedAuthors.includes(currentProfileMeta.name) ? "팔로잉" : "팔로우"}</button>
+                          <button type="button" className="ghost-btn">공유</button>
+                        </div>
+                      </div>
+                      <p>{currentProfileMeta.bio}</p>
+                    </div>
                   </div>
-                  <div className="question-profile-actions">
-                    <button>질문하기</button>
-                    <button className="ghost-btn">공유</button>
+                </section>
+
+                <section className="asked-question-form">
+                  <label>질문 내용</label>
+                  <textarea value={chatQuestionDraft} onChange={(e) => setChatQuestionDraft(e.target.value)} placeholder="상대에게 남길 질문을 입력하세요." />
+                  <div className="asked-question-draft-note">작성 중인 질문은 임시저장됩니다.</div>
+                  <div className="asked-question-form-actions">
+                    <button type="button">익명으로 질문</button>
+                    <button type="button" className="ghost-btn" onClick={() => { setChatQuestionDraft(""); if (typeof window !== "undefined") window.localStorage.removeItem("adultapp_chat_question_draft"); window.alert("질문이 등록되었습니다."); }}>질문 등록</button>
                   </div>
-                </div>
-                <div className="ad-banner ad-banner-top">
-                  <span>Google AdSense 영역</span>
-                  <strong>질문 화면 상단 광고</strong>
-                </div>
-                <div className="question-list">
-                  {filteredQuestions.map((item, idx) => (
-                    <>
-                      <article key={item.id} className="question-feed-card">
-                        <div className="question-feed-top">
-                          <div>
-                            <div className="question-user-line">
-                              <span className="community-chip">질문</span>
-                              <strong>{item.author}</strong>
-                              <span className="community-meta">{item.meta}</span>
-                            </div>
-                            <div className="question-body">Q. {item.question}</div>
+                </section>
+
+                <section className="question-list">
+                  {filteredQuestions.map((item) => (
+                    <article key={item.id} className="question-feed-card">
+                      <div className="question-feed-top">
+                        <div>
+                          <div className="question-user-line">
+                            <span className="community-chip">질문</span>
+                            <strong>{item.author}</strong>
+                            <span className="community-meta">{item.meta}</span>
                           </div>
+                          <div className="question-body">Q. {item.question}</div>
                         </div>
-                        <div className="question-answer-box">
-                          <span className="product-badge">답변</span>
-                          <div className="question-body">{item.answer}</div>
-                        </div>
-                        <div className="question-footer-actions">
-                          <button>좋아요 {item.likes}</button>
-                          <button>댓글 {item.comments}</button>
-                          <button>공유</button>
-                          <button>저장</button>
-                        </div>
-                      </article>
-                      {idx === 0 ? (
-                        <div className="ad-banner ad-banner-inline" key={`ad-${item.id}`}>
-                          <span>Google AdSense 영역</span>
-                          <strong>질문 피드 중간 광고</strong>
-                        </div>
-                      ) : null}
-                    </>
+                      </div>
+                      <div className="question-answer-box">
+                        <span className="product-badge">답변</span>
+                        <div className="question-body">{item.answer}</div>
+                      </div>
+                      <div className="question-footer-actions">
+                        <button>좋아요 {item.likes}</button>
+                        <button>댓글 {item.comments}</button>
+                        <button>공유</button>
+                      </div>
+                    </article>
                   ))}
-                </div>
+                </section>
               </div>
             ) : (
               <>
-                <div className="section-head compact-head"><div><h2>채팅</h2></div></div>
-                <div className="chat-toolbar kakao-toolbar">
+                <div className="chat-toolbar kakao-toolbar compact-only-toolbar">
                   <div className="chat-category-scroll">
                     {chatCategories.map((category) => (
                       <button
@@ -3870,7 +7367,7 @@ export default function App() {
                   <div className="legacy-box compact"><p>단체 톡방은 소통 {">"} 포럼으로 이동되었습니다. 상단 메뉴에서 포럼을 열어 주세요.</p></div>
                 ) : null}
                 <div className="chat-list compact-scroll-list kakao-chat-list">
-                  {filteredThreads.map((thread) => (
+                  {filteredThreads.slice(0, 8).map((thread) => (
                     <article key={thread.id} className="chat-row kakao-chat-row">
                       <div className="avatar-circle kakao-avatar">{thread.avatar}</div>
                       <div className="chat-copy kakao-chat-copy">
@@ -3896,55 +7393,132 @@ export default function App() {
         ) : null}
 
                 {showAppTabContent && activeTab === "프로필" ? (
-          <section className="tab-pane fill-pane">
-            <div className="profile-shell compact-scroll-list profile-shell-single">
-              <div className="profile-card">
-                <div className="profile-avatar">A</div>
-                <strong>adult official</strong>
-                <span>운영/브랜드/판매자 통합 프로필 예시</span>
-                <div className="profile-stats">
-                  {profileStats.map((stat) => (
-                    <div key={stat.label}><b>{stat.value}</b><span>{stat.label}</span></div>
+          <section className="tab-pane fill-pane profile-pane-instagram">
+            <div className="profile-ig-shell compact-scroll-list">
+              <div className="profile-ig-header">
+                <div className="profile-ig-avatar-wrap">
+                  <div className="profile-ig-avatar">{currentProfileMeta.avatar}</div>
+                </div>
+                <div className="profile-ig-main">
+                  <div className="profile-ig-topline">
+                    <strong className="profile-ig-username">{currentProfileMeta.name}</strong>
+                    {currentProfileMeta.isOwner ? (
+                      <button type="button" className="ghost-btn profile-ig-mini-btn" onClick={() => setAuthStandaloneScreen("login")}>프로필 편집</button>
+                    ) : (
+                      <div className="asked-question-toolbar asked-question-toolbar-inline profile-inline-actions">
+                        <button type="button" onClick={() => toggleFollowedFeedAuthor(currentProfileMeta.name)}>{followedFeedAuthors.includes(currentProfileMeta.name) ? "팔로잉" : "팔로우"}</button>
+                        <button type="button" className="ghost-btn">공유</button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="profile-ig-stats">
+                    <div><b>{currentProfileMeta.postCount}</b><span>게시물</span></div>
+                    <div><b>{currentProfileMeta.followerCount.toLocaleString()}</b><span>팔로워</span></div>
+                    <div><b>{currentProfileMeta.followingCount.toLocaleString()}</b><span>팔로잉</span></div>
+                  </div>
+                  <div className="profile-ig-bio">
+                    <strong>{currentProfileMeta.name}</strong>
+                    <p>{currentProfileMeta.bio}</p>
+                    <span>{currentProfileMeta.hashtags.map((tag) => `#${tag}`).join(" ")}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="profile-ig-tabbar profile-ig-action-grid" aria-label="프로필 바로가기">
+                <button type="button" className={profileSection === "게시물" ? "active" : ""} onClick={() => setProfileSection("게시물")}>게시물</button>
+                <button type="button" className={profileSection === "질문" ? "active" : ""} onClick={() => setProfileSection("질문")}>질문</button>
+                <button type="button" className={profileSection === "릴스" ? "active" : ""} onClick={() => setProfileSection("릴스")}>릴스</button>
+                <button type="button" className={profileSection === "태그됨" ? "active" : ""} onClick={() => setProfileSection("태그됨")}>태그됨</button>
+                <button type="button" className={profileSection === "상품보기" ? "active" : ""} onClick={() => setProfileSection("상품보기")}>상품 보기</button>
+                <button type="button" onClick={() => setActiveTab("채팅")}>문의하기</button>
+              </div>
+
+              {profileSection === "게시물" ? (
+                <div className="profile-ig-grid">
+                  {allFeedItems.filter((item) => item.type === "image" && item.author === currentProfileMeta.name).slice(0, 12).map((item) => (
+                    <article key={item.id} className={`profile-ig-tile ${item.accent}`}>
+                      <div className="profile-ig-tile-media">
+                        <span>{item.category}</span>
+                      </div>
+                      <div className="profile-ig-tile-meta">
+                        <strong>{item.title}</strong>
+                        <span>♥ {item.likes} · 💬 {item.comments}</span>
+                      </div>
+                    </article>
                   ))}
                 </div>
-              </div>
-              <div className="profile-card auth-status-card">
-                <strong>회원가입 / 인증 상태</strong>
-                <span>로그인 수단: {demoLoginProvider} · 가입 전 본인확인: {identityVerified ? `${identityMethod} 완료` : "미완료"} · 성인인증: {adultVerified ? "완료" : "미완료"}</span>
-                <div className="profile-stats">
-                  <div><b>{adultFailCount}</b><span>실패횟수</span></div>
-                  <div><b>{adultCooldownRemainMinutes > 0 ? `${adultCooldownRemainMinutes}분` : "없음"}</b><span>쿨타임</span></div>
-                  <div><b>{randomProfileReady ? "완료" : "보완필요"}</b><span>포럼 심사 참고값</span></div>
-                </div>
-                <div className="copy-action-row">
-                  <button type="button" onClick={() => setAuthStandaloneScreen("login")}>로그인 화면</button>
-                  <button type="button" className="ghost-btn" onClick={() => { setSignupStep("consent"); setAuthStandaloneScreen("signup"); }}>회원가입 화면</button>
-                  <button type="button" className="ghost-btn" onClick={() => startIdentitySignup("PASS")}>PASS 인증</button>
-                  <button type="button" className="ghost-btn" onClick={() => setDemoLoginProvider("카카오")}>카카오 로그인</button>
-                  <button type="button" onClick={() => attemptAdultVerification("success")}>성인인증 성공</button>
-                  <button type="button" className="ghost-btn" onClick={resetAdultFlow}>상태 초기화</button>
-                </div>
-              </div>
-              <div className="profile-card auth-status-card">
-                <strong>선택 프로필 / 제한 포럼 심사용 참고값</strong>
-                <span>성별, 연령대, 지역은 일반 가입 단계에서는 선택 입력이며, 제한 웹 포럼 운영 시에는 내부 심사/안전 운영 참고 정보로만 사용합니다.</span>
-                <div className="signup-form-grid profile-edit-grid">
-                  <label><span>성별</span><select value={demoProfile.gender} onChange={(e) => setDemoProfile((prev) => ({ ...prev, gender: e.target.value }))}>{profileGenderOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
-                  <label><span>연령대</span><select value={demoProfile.ageBand} onChange={(e) => setDemoProfile((prev) => ({ ...prev, ageBand: e.target.value }))}>{profileAgeBandOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
-                  <label><span>지역</span><select value={demoProfile.regionCode} onChange={(e) => setDemoProfile((prev) => ({ ...prev, regionCode: e.target.value }))}>{profileRegionOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
-                  <label className="wide"><span>관심 카테고리</span><div className="chip-checklist">{interestCategoryOptions.map((item) => <button key={item} type="button" className={`chip-check ${demoProfile.interests.includes(item) ? "active" : ""}`} onClick={() => toggleInterestCategory(item)}>{item}</button>)}</div></label>
-                </div>
-                {!randomProfileReady ? <p>미입력 항목: {randomProfileMissing.join(", ")} · 미입력 시에도 앱 공개영역 이용은 가능하지만, 제한 웹 포럼 승인 심사 시 보완 요청이 발생할 수 있습니다.</p> : <p>제한 웹 포럼 심사용 선택 프로필 입력이 완료되었습니다.</p>}
-              </div>
-              <div className="profile-card auth-status-card">
-                <strong>동의 이력 저장 예시</strong>
-                <span>필수·선택 동의를 분리 저장하고, 약관/처리방침 버전을 함께 기록하는 구조를 권장합니다.</span>
-                <div className="consent-record-list">
-                  {consentRecordsPreview.map((item) => (
-                    <div key={item.consent_type} className="simple-list-row"><b>{item.consent_type}</b><span>{item.agreed ? "동의" : "미동의"} · {item.required ? "필수" : "선택"} · {item.version}</span></div>
+              ) : null}
+
+              {profileSection === "질문" ? (
+                <div className="question-list profile-question-list">
+                  {questionSeed.map((item) => (
+                    <article key={`profile-question-${item.id}`} className="question-feed-card">
+                      <div className="question-feed-top">
+                        <div>
+                          <div className="question-user-line">
+                            <span className="community-chip">질문</span>
+                            <button type="button" className="feed-author-link" onClick={() => openProfileFromAuthor(currentProfileMeta.name)}>{currentProfileMeta.name}</button>
+                            <span className="community-meta">{item.meta}</span>
+                          </div>
+                          <div className="question-body">Q. {item.question}</div>
+                        </div>
+                      </div>
+                      <div className="question-answer-box">
+                        <span className="product-badge">답변</span>
+                        <div className="question-body">{item.answer}</div>
+                      </div>
+                    </article>
                   ))}
                 </div>
-              </div>
+              ) : null}
+
+              {profileSection === "릴스" ? (
+                <div className="profile-ig-grid">
+                  {allFeedItems.filter((item) => item.type === "video" && item.author === currentProfileMeta.name).slice(0, 9).map((item) => (
+                    <article key={`reel-${item.id}`} className={`profile-ig-tile ${item.accent}`}>
+                      <div className="profile-ig-tile-media profile-ig-tile-media-reel">
+                        <span>릴스</span>
+                      </div>
+                      <div className="profile-ig-tile-meta">
+                        <strong>{item.title}</strong>
+                        <span>▶ {(item.views ?? 0).toLocaleString()} · ♥ {item.likes}</span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : null}
+
+              {profileSection === "태그됨" ? (
+                <div className="profile-ig-grid">
+                  {allFeedItems.filter((item) => item.type === "image").slice(12, 21).map((item) => (
+                    <article key={`tagged-${item.id}`} className={`profile-ig-tile ${item.accent}`}>
+                      <div className="profile-ig-tile-media">
+                        <span>태그됨</span>
+                      </div>
+                      <div className="profile-ig-tile-meta">
+                        <strong>{item.title}</strong>
+                        <span>@{currentProfileMeta.name} · {item.postedAt ?? "오늘"}</span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : null}
+
+              {profileSection === "상품보기" ? (
+                <div className="profile-ig-grid">
+                  {currentProfileProducts.map((product, index) => (
+                    <article key={`profile-product-${product.id}-${index}`} className={`profile-ig-tile profile-product-tile ${(index % 4 === 0) ? "sunrise" : (index % 4 === 1) ? "violet" : (index % 4 === 2) ? "teal" : "rose"}`}>
+                      <div className="profile-ig-tile-media profile-product-tile-media">
+                        <span>{product.badge}</span>
+                      </div>
+                      <div className="profile-ig-tile-meta">
+                        <strong>{product.name}</strong>
+                        <span>판매 {(product.orderCount ?? 0).toLocaleString()} · 리뷰 {(product.reviewCount ?? 0).toLocaleString()}</span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </section>
         ) : null}
@@ -3982,7 +7556,34 @@ export default function App() {
         </section>
       ) : null}
 
-      {adultPromptOpen ? (
+              {shortsMoreItem ? (
+          <div className="shorts-sheet-backdrop" onClick={() => setShortsMoreItem(null)}>
+            <div className="shorts-sheet" onClick={(event) => event.stopPropagation()}>
+              <div className="shorts-sheet-handle" />
+              <div className="shorts-sheet-header">
+                <strong>{shortsMoreItem.title}</strong>
+                <span>{shortsMoreItem.author}</span>
+              </div>
+              <div className="shorts-sheet-actions">
+                {(["공유", "보관함저장", "관심없음", "채널 추천 안함", "신고"] as ShortOption[]).map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    className="shorts-sheet-btn"
+                    onClick={() => {
+                      if (option === "보관함저장") toggleSavedFeed(shortsMoreItem.id);
+                      setShortsMoreItem(null);
+                    }}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+{adultPromptOpen ? (
         <div className="modal-backdrop">
           <div className="modal-card adult-auth-modal">
             <div className="modal-header-row">
@@ -4004,14 +7605,51 @@ export default function App() {
         </div>
       ) : null}
 
-      <nav className="bottom-nav">        {mobileTabs.map((tab) => (
-          <button key={tab} className={`bottom-nav-btn ${overlayMode === null && activeTab === tab ? "active" : ""}`} onClick={() => selectBottomTab(tab)}>
-            <span>{tab}</span>
-          </button>
-        ))}
-      </nav>
 
-      {selectedAskProfile ? <AskProfileScreen profile={selectedAskProfile} onClose={() => setSelectedAskProfile(null)} /> : null}
+      {backMinimizeHintVisible ? (
+        <div className="app-back-hint-toast" role="status" aria-live="polite">뒤로가기 버튼을 한 번 더 누르면 앱이 최소화됩니다.</div>
+      ) : null}
+
+      <nav className="bottom-nav">{mobileTabs.map((tab) => (
+          <button key={tab} className={`bottom-nav-btn ${overlayMode === null && activeTab === tab ? "active" : ""}`} onClick={() => selectBottomTab(tab)}>
+            <span className="bottom-nav-icon">{bottomNavIconMap[tab]}</span>
+            <span className="bottom-nav-label">{tab}</span>
+          </button>
+        ))}</nav>
+
+      {selectedAskProfile ? <AskProfileScreen profile={selectedAskProfile} activeTab={activeTab} onClose={() => setSelectedAskProfile(null)} onNavigate={selectBottomTab} renderBottomTabIcon={renderBottomTabIcon} onOpenProfile={openProfileFromAuthor} /> : null}
+
+      {feedComposeOpen ? (
+        <FeedComposeScreen
+          title={feedComposeTitle}
+          caption={feedComposeCaption}
+          attachment={feedComposeAttachment}
+          busy={feedComposeBusy}
+          helperText={feedComposeHelperText}
+          onChangeTitle={setFeedComposeTitle}
+          onChangeCaption={setFeedComposeCaption}
+          onAttachFile={handleFeedComposeAttach}
+          onClearAttachment={clearFeedComposeAttachment}
+          onSubmit={submitFeedCompose}
+          onClose={closeFeedCompose}
+        />
+      ) : null}
+
+      {openFeedCommentItem ? (
+        <FeedCommentScreen
+          item={openFeedCommentItem}
+          comments={feedCommentMap[openFeedCommentItem.id] ?? []}
+          draft={feedCommentDrafts[openFeedCommentItem.id] ?? ""}
+          attachment={feedCommentAttachments[openFeedCommentItem.id] ?? null}
+          attachmentBusy={feedCommentAttachmentBusyId === openFeedCommentItem.id}
+          onChangeDraft={(value) => updateFeedCommentDraft(openFeedCommentItem.id, value)}
+          onAttachImage={(file) => attachFeedCommentImage(openFeedCommentItem.id, file)}
+          onClearAttachment={() => clearFeedCommentAttachment(openFeedCommentItem.id)}
+          onSubmit={() => submitFeedComment(openFeedCommentItem.id)}
+          onClose={closeFeedComments}
+          onGoHome={() => { closeFeedComments(); setActiveTab("홈"); setHomeTab("피드"); }}
+        />
+      ) : null}
 
       {pendingDmUser ? (
         <div className="modal-backdrop">
@@ -4025,7 +7663,7 @@ export default function App() {
                 <p><b>{pendingDmUser.name}</b> 님에게 <b>{pendingDmUser.topic}</b> 주제로 1:1 대화를 요청합니다.</p>
                 <p>요청 전에 아래 대화 규칙 동의가 필요합니다.</p>
               </div>
-              <div className="consent-checklist">
+              <div className="consent-checklist signup-consent-checklist">
                 {dmRuleNoticeItems.map((item) => (
                   <label key={item} className="consent-row">
                     <input type="checkbox" checked={!!dmRuleChecks[item]} onChange={(e) => setDmRuleChecks((prev) => ({ ...prev, [item]: e.target.checked }))} />

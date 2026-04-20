@@ -1,4 +1,4 @@
-import { CSSProperties, PointerEvent, UIEvent, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, PointerEvent, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { clearTokens, ensureAuthSession, getApiBase, getJson, getRefreshToken, hasAuthToken, postJson, setAuthToken, setRefreshToken } from "./lib/api";
 
 type FeedItem = {
@@ -3164,7 +3164,6 @@ export default function App() {
   const allFeedItems = useMemo(() => [...customFeedItems, ...feedSeed], [customFeedItems]);
   const [homeFeedIsLoadingMore, setHomeFeedIsLoadingMore] = useState(false);
   const homeFeedSentinelRef = useRef<HTMLDivElement | null>(null);
-  const homeFeedScrollRef = useRef<HTMLDivElement | null>(null);
   const mobileMainRef = useRef<HTMLElement | null>(null);
   const homeFeedLoadMoreTimerRef = useRef<number | null>(null);
   const [shortsMoreItem, setShortsMoreItem] = useState<FeedItem | null>(null);
@@ -4340,20 +4339,6 @@ export default function App() {
     }, 180);
   }, [hasMoreHomeFeed, homeFeedIsLoadingMore, homeFeedSource.length]);
 
-  const checkHomeFeedScrollThreshold = useCallback((container?: HTMLElement | null) => {
-    const scrollTarget = container ?? mobileMainRef.current;
-    if (!scrollTarget || !hasMoreHomeFeed || homeFeedIsLoadingMore) return;
-    const remaining = scrollTarget.scrollHeight - scrollTarget.scrollTop - scrollTarget.clientHeight;
-    if (remaining <= 420) {
-      queueHomeFeedLoadMore();
-    }
-  }, [hasMoreHomeFeed, homeFeedIsLoadingMore, queueHomeFeedLoadMore]);
-
-  const handleMobileMainScroll = useCallback((event: UIEvent<HTMLElement>) => {
-    if (activeTab === "홈" && homeTab === "피드" && overlayMode === null) {
-      checkHomeFeedScrollThreshold(event.currentTarget);
-    }
-  }, [activeTab, homeTab, overlayMode, checkHomeFeedScrollThreshold]);
 
   useEffect(() => {
     setHomeFeedVisibleCount(HOME_FEED_PAGE_SIZE);
@@ -4396,12 +4381,6 @@ export default function App() {
     return () => observer.disconnect();
   }, [hasMoreHomeFeed, queueHomeFeedLoadMore, visibleFeed.length]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (activeTab !== "홈" || homeTab !== "피드" || overlayMode !== null) return;
-    const rafId = window.requestAnimationFrame(() => checkHomeFeedScrollThreshold());
-    return () => window.cancelAnimationFrame(rafId);
-  }, [activeTab, homeTab, overlayMode, visibleFeed.length, checkHomeFeedScrollThreshold]);
 
   const getContentKeywordTags = (item: FeedItem) => getTopMatchedKeywords(item, keywordSignalMap);
 
@@ -6266,7 +6245,7 @@ export default function App() {
         </div>
       ) : null}
 
-      <main className="mobile-main" ref={mobileMainRef} onScroll={handleMobileMainScroll}>
+      <main className="mobile-main" ref={mobileMainRef}>
         {showBaseTabContent && reconsentRequired ? (
           <section className="reconsent-banner" role="button" tabIndex={0} onClick={() => { setHomeShopConsentGuideSeen(true); setOverlayMode("reconsent_info"); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setHomeShopConsentGuideSeen(true); setOverlayMode("reconsent_info"); } }}>
             <strong>필수 문서 재동의 필요</strong>
@@ -6647,11 +6626,14 @@ export default function App() {
                     </button>
                   </div>
                 </div>
-                <div className="feed-scroll-status" aria-live="polite">
-                  <strong>무한 스크롤 테스트</strong>
-                  <span>테스트 피드 20개 포함 · 초기 {HOME_FEED_PAGE_SIZE}개 노출 후 하단 감지 시 {HOME_FEED_PAGE_SIZE}개씩 추가 로딩 · 현재 {visibleFeed.length}/{homeFeedSource.length}개 표시</span>
+                <div className="feed-post-list compact-scroll-list">
+                  <div className="feed-scroll-status feed-scroll-status-inline" aria-live="polite">
+                    <strong>무한 스크롤 테스트</strong>
+                    <span>테스트 피드 20개 포함 · 초기 {HOME_FEED_PAGE_SIZE}개 노출 후 하단 감지 시 {HOME_FEED_PAGE_SIZE}개씩 추가 로딩 · 현재 {visibleFeed.length}/{homeFeedSource.length}개 표시</span>
+                  </div>
+                  {visibleFeed.map((item, idx) => (<div key={`feed-wrap-${item.id}`}><FeedPoster item={item} onAsk={openAskFromFeed} saved={savedFeedIds.includes(item.id)} liked={likedFeedIds.includes(item.id)} commentsOpen={openFeedCommentItem?.id === item.id} onOpenComments={openFeedComments} onToggleLike={toggleLikedFeed} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} following={followedFeedAuthors.includes(item.author)} onToggleFollow={toggleFollowedFeedAuthor} />{(idx + 1) % 4 === 0 ? <SponsoredFeedProductCard item={sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length]} saved={savedProductIds.includes(sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length].id)} onToggleSave={toggleSavedProduct} /> : null}</div>))}
+                  {hasMoreHomeFeed ? <div ref={homeFeedSentinelRef} className="feed-loading-row">추천 피드 추가 로딩 중 · {visibleFeed.length}/{homeFeedSource.length}</div> : <div className="feed-loading-row feed-loading-row-end">추천 피드를 모두 확인했습니다 · 총 {homeFeedSource.length}개</div>}
                 </div>
-                <div className="feed-post-list compact-scroll-list" ref={homeFeedScrollRef}>{visibleFeed.map((item, idx) => (<div key={`feed-wrap-${item.id}`}><FeedPoster item={item} onAsk={openAskFromFeed} saved={savedFeedIds.includes(item.id)} liked={likedFeedIds.includes(item.id)} commentsOpen={openFeedCommentItem?.id === item.id} onOpenComments={openFeedComments} onToggleLike={toggleLikedFeed} onToggleSave={toggleSavedFeed} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} following={followedFeedAuthors.includes(item.author)} onToggleFollow={toggleFollowedFeedAuthor} />{(idx + 1) % 4 === 0 ? <SponsoredFeedProductCard item={sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length]} saved={savedProductIds.includes(sponsoredFeedProducts[Math.floor(idx / 4) % sponsoredFeedProducts.length].id)} onToggleSave={toggleSavedProduct} /> : null}</div>))}{hasMoreHomeFeed ? <div ref={homeFeedSentinelRef} className="feed-loading-row">추천 피드 추가 로딩 중 · {visibleFeed.length}/{homeFeedSource.length}</div> : <div className="feed-loading-row feed-loading-row-end">추천 피드를 모두 확인했습니다 · 총 {homeFeedSource.length}개</div>}</div>
               </>
             ) : homeTab === "쇼츠" ? (
               <>
