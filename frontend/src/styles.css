@@ -7531,3 +7531,37 @@ body {
 .feed-caption-toggle-expanded {
   justify-self: end;
 }
+
+
+/* === 2026-04-20 request: tighten home feed spacing === */
+.feed-post-list-stream,
+.feed-post-list.feed-post-list-stream {
+  gap: 0 !important;
+}
+
+.feed-post-list-stream .feed-stream-item {
+  margin: 0 !important;
+}
+
+.history-feed-head {
+  padding-top: 4px !important;
+}
+
+.history-feed-card .feed-copy {
+  padding: 2px !important;
+}
+
+@media (max-width: 640px) {
+  .feed-post-list-stream,
+  .feed-post-list.feed-post-list-stream {
+    gap: 0 !important;
+  }
+
+  .history-feed-head {
+    padding-top: 4px !important;
+  }
+
+  .history-feed-card .feed-copy {
+    padding: 2px !important;
+  }
+}
