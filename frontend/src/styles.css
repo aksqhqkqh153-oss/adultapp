@@ -8683,3 +8683,132 @@ body {
     grid-template-rows: 50px minmax(0, 1fr) !important;
   }
 }
+
+
+/* === 2026-04-21 request: black panels + fixed feed tabs + text-only shorts chips + exact header colors === */
+.feed-card.history-feed-card.violet,
+.feed-card.history-feed-card.violet .history-feed-head,
+.feed-card.history-feed-card.violet .feed-copy,
+.feed-card.history-feed-card.violet .history-feed-footer,
+.community-simple-board.compact-scroll-list,
+.community-simple-board.compact-scroll-list .community-simple-list,
+.community-simple-board.compact-scroll-list .community-simple-pagination,
+.tab-pane.fill-pane.chat-tab-pane,
+.tab-pane.fill-pane.chat-tab-pane .chat-toolbar.kakao-toolbar.compact-only-toolbar,
+.tab-pane.fill-pane.chat-tab-pane .kakao-chat-list,
+.profile-ig-shell.compact-scroll-list {
+  background: #000 !important;
+}
+
+.feed-card.history-feed-card.violet {
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.feed-card.history-feed-card.violet .feed-media {
+  background: #000 !important;
+}
+
+.feed-compose-launch-toolbar {
+  margin: 0 !important;
+}
+
+.home-feed-pane-feed-scroll {
+  grid-template-rows: auto minmax(0, 1fr) !important;
+}
+
+.home-feed-pane-feed-scroll .feed-compose-launch-toolbar,
+.home-feed-pane-feed-scroll .feed-compose-launch-toolbar.feed-compose-launch-toolbar-hidden {
+  position: sticky !important;
+  top: 0 !important;
+  min-height: 50px !important;
+  max-height: 50px !important;
+  height: 50px !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  overflow: visible !important;
+  transform: none !important;
+  transition: none !important;
+  background: #000 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.feed-post-list-stream,
+.feed-post-list-stream.feed-post-list-stream-collapsed {
+  padding-top: 12px !important;
+}
+
+.feed-filter-tabs {
+  gap: 0 !important;
+}
+
+.feed-filter-tab,
+.feed-filter-tab:hover,
+.feed-filter-tab:focus-visible,
+.feed-filter-tab.active {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  transform: none !important;
+  transition: none !important;
+}
+
+.feed-filter-tab {
+  color: #ffffff !important;
+}
+
+.feed-filter-tab.active {
+  color: var(--pink-2) !important;
+}
+
+.shorts-category-strip,
+.shorts-category-strip.visible {
+  background: #000 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.shorts-category-chip,
+.shorts-category-chip:hover,
+.shorts-category-chip:focus-visible,
+.shorts-category-chip.active {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+  border-radius: 0 !important;
+  text-shadow: none !important;
+}
+
+.shorts-category-chip {
+  color: #ffffff !important;
+}
+
+.shorts-category-chip.active {
+  color: var(--pink-2) !important;
+}
+
+.top-header .header-inline-btn:not(.header-icon-btn) {
+  color: #ffffff !important;
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+.top-header .header-inline-btn.active:not(.header-icon-btn),
+.top-header .header-inline-btn.active:not(.header-icon-btn):not(.header-inline-btn-icon-label),
+.top-header .header-inline-btn.active.header-inline-btn-icon-label {
+  color: var(--pink-2) !important;
+  background: transparent !important;
+  background-image: none !important;
+  -webkit-background-clip: border-box !important;
+  background-clip: border-box !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+.top-header .header-inline-btn.active.header-inline-btn-icon-label svg {
+  color: var(--pink-2) !important;
+  filter: none !important;
+}

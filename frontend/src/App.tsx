@@ -6522,7 +6522,7 @@ export default function App() {
 
   return (
     <div className="mobile-app-shell">
-      <header className={`top-header${activeTab === "홈" && (((homeTab === "쇼츠" && shortsHeaderHidden) || (homeTab === "피드" && homeFeedHeaderHidden)) || isAnyShortsViewerOpen) ? " shorts-top-header-hidden" : ""}`}>
+      <header className={`top-header${activeTab === "홈" && (((homeTab === "쇼츠" && shortsHeaderHidden)) || isAnyShortsViewerOpen) ? " shorts-top-header-hidden" : ""}`}>
         {overlayMode === "search" ? (
           <div className="topbar-search-row">
             <button
@@ -6954,10 +6954,10 @@ export default function App() {
         ) : null}
 
         {showAppTabContent && activeTab === "홈" ? (
-          <section className={`tab-pane fill-pane home-feed-pane${homeTab === "쇼츠" ? " home-feed-pane-shorts" : ""}${homeTab === "피드" ? " home-feed-pane-feed-scroll" : ""}${homeTab === "피드" && homeFeedHeaderHidden ? " home-feed-pane-feed-scroll-collapsed" : ""}`}>
+          <section className={`tab-pane fill-pane home-feed-pane${homeTab === "쇼츠" ? " home-feed-pane-shorts" : ""}${homeTab === "피드" ? " home-feed-pane-feed-scroll" : ""}`}>
             {homeTab === "피드" ? (
               <>
-                <div className={`chat-toolbar kakao-toolbar compact-only-toolbar feed-compose-launch-toolbar${homeFeedHeaderHidden ? " feed-compose-launch-toolbar-hidden" : ""}`}>
+                <div className="chat-toolbar kakao-toolbar compact-only-toolbar feed-compose-launch-toolbar">
                   <div className="feed-filter-tabs" role="tablist" aria-label="피드 보기 필터">
                     {(["일반", "추천", "팔로잉"] as const).map((filter) => (
                       <button
@@ -6973,7 +6973,7 @@ export default function App() {
                     ))}
                   </div>
                 </div>
-                <div ref={homeFeedScrollRef} className={`feed-post-list compact-scroll-list feed-post-list-stream${homeFeedHeaderHidden ? " feed-post-list-stream-collapsed" : ""}`} onScroll={handleHomeFeedScroll}>
+                <div ref={homeFeedScrollRef} className="feed-post-list compact-scroll-list feed-post-list-stream" onScroll={handleHomeFeedScroll}>
                   {homeFeedSource.map((item) => (
                     <div key={`feed-wrap-${item.id}`} className="feed-stream-item">
                       <FeedPoster
