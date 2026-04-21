@@ -174,6 +174,7 @@ type ThreadItem = {
   time: string;
   unread: number;
   avatar: string;
+  avatarUrl?: string;
   kind: "개인" | "단체";
   favorite?: boolean;
   status?: string;
@@ -1667,34 +1668,77 @@ const notificationSeed: NotificationItem[] = [
 ];
 
 const threadSeed: ThreadItem[] = [
-  { id: 101, name: "운영 문의", purpose: "상품/운영 문의", preview: "결제 허용 SKU 범위를 다시 확인 부탁드립니다.", time: "오전 9:41", unread: 2, avatar: "운", kind: "개인", favorite: true, status: "고정" },
-  { id: 102, name: "role_talk_guide", purpose: "상호수락 1:1", preview: "그룹대화 참여 후 상호 수락이 완료되어 1:1 대화가 열렸습니다.", time: "오전 8:12", unread: 0, avatar: "R", kind: "개인", favorite: true, status: "수락완료" },
-  { id: 103, name: "boundary_note", purpose: "관계/소통 대화", preview: "경계설정 체크리스트를 먼저 맞춰보고 이야기해보면 좋겠습니다.", time: "어제", unread: 1, avatar: "B", kind: "개인" },
-  { id: 104, name: "customer demo", purpose: "구매자 지원", preview: "장바구니와 프로필 연동 상태를 확인하고 싶어요.", time: "어제", unread: 0, avatar: "C", kind: "개인" },
-  { id: 105, name: "정산 지원", purpose: "정산/환불", preview: "환불 검수 상태를 오늘 안으로 공유드릴게요.", time: "4월 8일", unread: 3, avatar: "정", kind: "개인", favorite: true },
-  { id: 106, name: "notice bot", purpose: "시스템 안내", preview: "새로운 공지와 이벤트가 등록되었습니다.", time: "4월 7일", unread: 0, avatar: "N", kind: "단체", status: "알림" },
+  { id: 101, name: "match_onyu", purpose: "상호수락 1:1", preview: "오늘 저녁에 이어서 이야기 나눠도 괜찮을까요?", time: "오전 9:41", unread: 2, avatar: "온", kind: "개인", favorite: true, status: "수락완료" },
+  { id: 102, name: "soft_wave", purpose: "상호수락 1:1", preview: "서로 편한 시간대부터 맞춰보고 천천히 대화해요.", time: "오전 8:12", unread: 1, avatar: "소", kind: "개인", favorite: true, status: "활성" },
+  { id: 103, name: "운영 문의", purpose: "상품/운영 문의", preview: "판매 가능 상품군 검수 기준을 다시 확인 부탁드립니다.", time: "어제", unread: 2, avatar: "운", kind: "개인", favorite: true, status: "고정" },
+  { id: 104, name: "구매자 지원", purpose: "구매자 지원", preview: "장바구니에 담긴 옵션 변경이 가능한지 문의드립니다.", time: "어제", unread: 0, avatar: "구", kind: "개인" },
+  { id: 105, name: "정산 지원", purpose: "정산/환불", preview: "이번 주 환불 건 정산 반영 일정을 공유드립니다.", time: "4월 8일", unread: 3, avatar: "정", kind: "개인", favorite: true },
+  { id: 106, name: "주문센터", purpose: "쇼핑 주문", preview: "주문번호 A-240412-001 건이 오늘 출고 예정입니다.", time: "4월 7일", unread: 0, avatar: "주", kind: "개인" },
+  { id: 107, name: "자유대화 라운지", purpose: "단체", preview: "오늘은 각자 루틴 정리 팁을 한 가지씩 공유해 주세요.", time: "4월 6일", unread: 4, avatar: "자", kind: "단체", favorite: true },
+  { id: 108, name: "일상/취미 톡", purpose: "단체", preview: "주말에 본 영화나 콘텐츠 추천을 이어서 적어봐요.", time: "4월 5일", unread: 0, avatar: "일", kind: "단체" },
 ];
 
 const archivedThreadSeed: ThreadItem[] = [
-  { id: 107, name: "배송 알림", purpose: "쇼핑 주문", preview: "주문한 상품이 집하 처리되어 익명포장으로 이동 중입니다.", time: "4월 6일", unread: 0, avatar: "배", kind: "개인" },
-  { id: 108, name: "care_lab", purpose: "단체", preview: "세척 루틴 체크리스트를 방 상단 공지에 정리해두었습니다.", time: "4월 5일", unread: 0, avatar: "C", kind: "단체" },
-  { id: 109, name: "review crew", purpose: "단체", preview: "이번 주 실사용 후기 묶음을 공유합니다.", time: "4월 4일", unread: 0, avatar: "R", kind: "단체" },
-  { id: 110, name: "안전운영팀", purpose: "시스템 안내", preview: "외부 연락처 교환 금지 관련 운영 기준이 업데이트되었습니다.", time: "4월 3일", unread: 0, avatar: "안", kind: "개인" },
-  { id: 111, name: "seller studio", purpose: "구매자 지원", preview: "옵션 구성 변경 여부를 안내드립니다.", time: "4월 2일", unread: 0, avatar: "S", kind: "개인" },
-  { id: 112, name: "브랜드 문의", purpose: "상품/운영 문의", preview: "기획전 배너 노출 일정이 확정되었습니다.", time: "4월 1일", unread: 0, avatar: "문", kind: "개인" },
-  { id: 113, name: "주문 확인", purpose: "쇼핑 주문", preview: "주문번호 A-240401-002 결제 상태가 완료로 바뀌었습니다.", time: "3월 31일", unread: 0, avatar: "주", kind: "개인" },
-  { id: 114, name: "refund check", purpose: "정산/환불", preview: "부분 환불 요청 내역을 다시 확인해 주세요.", time: "3월 29일", unread: 0, avatar: "환", kind: "개인" },
-  { id: 115, name: "community note", purpose: "단체", preview: "커뮤니티 포럼 오픈 공지가 상단에 고정되었습니다.", time: "3월 28일", unread: 0, avatar: "포", kind: "단체" },
-  { id: 116, name: "daily talk", purpose: "단체", preview: "오늘의 일상/취미 대화방 새 주제가 올라왔습니다.", time: "3월 27일", unread: 0, avatar: "일", kind: "단체" },
-  { id: 117, name: "consent guide", purpose: "상호수락 1:1", preview: "동의/합의 기본 문장을 먼저 맞춰보는 대화입니다.", time: "3월 26일", unread: 0, avatar: "동", kind: "개인" },
-  { id: 118, name: "forum helper", purpose: "단체", preview: "포럼방 안내문은 입장 직후 시스템 메시지로 노출됩니다.", time: "3월 25일", unread: 0, avatar: "F", kind: "단체" },
-  { id: 119, name: "주문센터", purpose: "쇼핑 주문", preview: "배송 완료 후 리뷰 작성 링크를 받을 수 있습니다.", time: "3월 24일", unread: 0, avatar: "주", kind: "개인" },
-  { id: 120, name: "habit room", purpose: "단체", preview: "취미/일상 주제 대화방은 최근 대화부터 순서대로 보여집니다.", time: "3월 22일", unread: 0, avatar: "H", kind: "단체" },
-  { id: 121, name: "faq bot", purpose: "시스템 안내", preview: "자주 묻는 질문 카드가 새로 등록되었습니다.", time: "3월 20일", unread: 0, avatar: "Q", kind: "개인" },
-  { id: 122, name: "구매자 케어", purpose: "구매자 지원", preview: "문의 남겨주신 옵션 재입고 일정을 공유드립니다.", time: "3월 18일", unread: 0, avatar: "케", kind: "개인" },
-  { id: 123, name: "archive room", purpose: "단체", preview: "과거 공지 대화가 보관되었습니다.", time: "3월 16일", unread: 0, avatar: "A", kind: "단체" },
-  { id: 124, name: "order sync", purpose: "쇼핑 주문", preview: "주문/환불 동기화 기록이 마무리되었습니다.", time: "3월 14일", unread: 0, avatar: "O", kind: "개인" },
+  { id: 109, name: "브랜드 문의", purpose: "상품/운영 문의", preview: "기획전 배너 노출 일정과 적용 범위를 확인해 주세요.", time: "4월 4일", unread: 0, avatar: "브", kind: "개인" },
+  { id: 110, name: "배송 알림", purpose: "쇼핑 주문", preview: "주문한 상품이 집하 처리되어 익명포장으로 이동 중입니다.", time: "4월 3일", unread: 0, avatar: "배", kind: "개인" },
+  { id: 111, name: "refund check", purpose: "정산/환불", preview: "부분 환불 요청 내역을 다시 확인해 주세요.", time: "4월 2일", unread: 0, avatar: "환", kind: "개인" },
+  { id: 112, name: "seller studio", purpose: "구매자 지원", preview: "옵션 구성 변경 여부를 안내드립니다.", time: "4월 1일", unread: 0, avatar: "셀", kind: "개인" },
+  { id: 113, name: "daily talk", purpose: "단체", preview: "오늘의 일상/취미 대화방 새 주제가 올라왔습니다.", time: "3월 31일", unread: 0, avatar: "일", kind: "단체" },
+  { id: 114, name: "care_lab", purpose: "단체", preview: "세척 루틴 체크리스트를 방 상단 공지에 정리해두었습니다.", time: "3월 30일", unread: 0, avatar: "케", kind: "단체" },
+  { id: 115, name: "review crew", purpose: "단체", preview: "이번 주 실사용 후기 묶음을 공유합니다.", time: "3월 29일", unread: 0, avatar: "리", kind: "단체" },
+  { id: 116, name: "consent guide", purpose: "상호수락 1:1", preview: "동의/합의 기본 문장을 먼저 맞춰보는 대화입니다.", time: "3월 28일", unread: 0, avatar: "동", kind: "개인" },
+  { id: 117, name: "quiet_bridge", purpose: "상호수락 1:1", preview: "대화 속도는 천천히 맞추면서 이어가도 괜찮습니다.", time: "3월 27일", unread: 0, avatar: "브", kind: "개인" },
+  { id: 118, name: "포럼 소식", purpose: "단체", preview: "포럼 인기 방 순위가 갱신되었습니다.", time: "3월 26일", unread: 0, avatar: "포", kind: "단체" },
+  { id: 119, name: "habit room", purpose: "단체", preview: "취미/일상 주제 대화방은 최근 대화부터 순서대로 보여집니다.", time: "3월 25일", unread: 0, avatar: "취", kind: "단체" },
+  { id: 120, name: "archive room", purpose: "단체", preview: "과거 공지 대화가 보관되었습니다.", time: "3월 24일", unread: 0, avatar: "보", kind: "단체" },
+  { id: 121, name: "purchase care", purpose: "구매자 지원", preview: "문의 남겨주신 옵션 재입고 일정을 공유드립니다.", time: "3월 23일", unread: 0, avatar: "구", kind: "개인" },
+  { id: 122, name: "order sync", purpose: "쇼핑 주문", preview: "주문/환불 동기화 기록이 마무리되었습니다.", time: "3월 22일", unread: 0, avatar: "오", kind: "개인" },
+  { id: 123, name: "shop ops", purpose: "상품/운영 문의", preview: "상품 승인 기준 변경안이 적용되었습니다.", time: "3월 21일", unread: 0, avatar: "상", kind: "개인" },
+  { id: 124, name: "settlement desk", purpose: "정산/환불", preview: "이번 달 정산 리포트 초안이 등록되었습니다.", time: "3월 20일", unread: 0, avatar: "정", kind: "개인" },
+  { id: 125, name: "cozy_loop", purpose: "상호수락 1:1", preview: "대화 규칙을 먼저 확인하고 천천히 이어갈게요.", time: "3월 19일", unread: 0, avatar: "코", kind: "개인" },
+  { id: 126, name: "late_sunset", purpose: "상호수락 1:1", preview: "답장 속도는 느려도 괜찮으니 편할 때 이야기 주세요.", time: "3월 18일", unread: 0, avatar: "선", kind: "개인" },
+  { id: 127, name: "안전수칙 체크", purpose: "단체", preview: "오늘은 신고 대응 체크리스트를 공유합니다.", time: "3월 17일", unread: 0, avatar: "안", kind: "단체" },
+  { id: 128, name: "자유수다 보관", purpose: "단체", preview: "지난주 자유대화 하이라이트를 정리해 두었습니다.", time: "3월 16일", unread: 0, avatar: "자", kind: "단체" },
+  { id: 129, name: "구매자 케어", purpose: "구매자 지원", preview: "구매 전 문의 응답시간이 평균 10분대로 단축되었습니다.", time: "3월 15일", unread: 0, avatar: "케", kind: "개인" },
+  { id: 130, name: "주문 확인", purpose: "쇼핑 주문", preview: "주문번호 A-240401-002 결제 상태가 완료로 바뀌었습니다.", time: "3월 14일", unread: 0, avatar: "주", kind: "개인" },
+  { id: 131, name: "brand concierge", purpose: "상품/운영 문의", preview: "브랜드 페이지 노출 순서를 조정할 예정입니다.", time: "3월 13일", unread: 0, avatar: "브", kind: "개인" },
+  { id: 132, name: "refund queue", purpose: "정산/환불", preview: "이번 주 검수 완료 건이 순차적으로 처리됩니다.", time: "3월 12일", unread: 0, avatar: "환", kind: "개인" },
+  { id: 133, name: "soft_note", purpose: "상호수락 1:1", preview: "자기소개를 짧게 남겨두었으니 편할 때 읽어주세요.", time: "3월 11일", unread: 0, avatar: "노", kind: "개인" },
+  { id: 134, name: "forum helper", purpose: "단체", preview: "포럼방 안내문은 입장 직후 시스템 메시지로 노출됩니다.", time: "3월 10일", unread: 0, avatar: "도", kind: "단체" },
+  { id: 135, name: "weekend room", purpose: "단체", preview: "주말 자유대화방의 최근 메시지를 불러왔습니다.", time: "3월 9일", unread: 0, avatar: "주", kind: "단체" },
+  { id: 136, name: "member support", purpose: "구매자 지원", preview: "회원 문의에 대한 답변 초안이 저장되었습니다.", time: "3월 8일", unread: 0, avatar: "멤", kind: "개인" },
+  { id: 137, name: "warehouse note", purpose: "쇼핑 주문", preview: "재고 동기화 이후 주문 가능 수량이 갱신되었습니다.", time: "3월 7일", unread: 0, avatar: "창", kind: "개인" },
+  { id: 138, name: "mutual_check", purpose: "상호수락 1:1", preview: "서로 불편한 주제는 미리 제외하고 이야기해 봐요.", time: "3월 6일", unread: 0, avatar: "체", kind: "개인" },
+  { id: 139, name: "role board", purpose: "단체", preview: "관계/역할 포럼의 이번 주 공통 질문이 올라왔습니다.", time: "3월 5일", unread: 0, avatar: "역", kind: "단체" },
+  { id: 140, name: "safety digest", purpose: "단체", preview: "안전수칙 요약본이 새로운 버전으로 교체되었습니다.", time: "3월 4일", unread: 0, avatar: "수", kind: "단체" },
 ];
+
+const chatAvatarPalette = [
+  ["#2b1120", "#ff5ea9"],
+  ["#13253f", "#63b3ff"],
+  ["#143028", "#5eead4"],
+  ["#32180f", "#fbbf24"],
+  ["#2c173d", "#c084fc"],
+] as const;
+
+const buildChatAvatarDataUri = (seed: string) => {
+  const hash = [...seed].reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const [from, to] = chatAvatarPalette[Math.abs(hash) % chatAvatarPalette.length];
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="avatar">
+      <defs>
+        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="${from}" />
+          <stop offset="100%" stop-color="${to}" />
+        </linearGradient>
+      </defs>
+      <rect width="64" height="64" rx="32" fill="url(#g)" />
+      <circle cx="32" cy="24" r="12" fill="rgba(255,255,255,0.96)" />
+      <path d="M14 54c2.5-10 10.5-17 18-17s15.5 7 18 17" fill="rgba(255,255,255,0.96)" />
+    </svg>
+  `.replace(/\s+/g, ' ').trim();
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+};
 
 const forumRoomNoticeText = `<포럼방 안내사항>
  - 정보교류와 고민상담용이며, 만남/주선은 허용하지 않습니다.
@@ -3268,7 +3312,7 @@ export default function App() {
     return window.localStorage.getItem("adultapp_chat_question_draft") ?? "";
   });
   const [chatCategory, setChatCategory] = useState<ChatCategory>("전체");
-  const [chatVisibleCount, setChatVisibleCount] = useState(10);
+  const [chatVisibleCount, setChatVisibleCount] = useState(30);
   const [selectedForumCategory, setSelectedForumCategory] = useState<ForumBoardCategory>("자유대화");
   const [activeForumRoomId, setActiveForumRoomId] = useState<number | null>(null);
   const [forumRoomMessages, setForumRoomMessages] = useState<Record<number, ForumRoomMessage[]>>({});
@@ -5214,18 +5258,20 @@ export default function App() {
   const filteredThreads = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
     return threadItems.filter((thread) => {
+      const isOneToOne = thread.purpose.includes("상호수락 1:1");
+      const isShoppingThread = ["상품/운영 문의", "정산/환불", "쇼핑 주문", "구매자 지원"].includes(thread.purpose);
       const categoryMatch = chatCategory === "전체"
         || (chatCategory === "즐겨찾기" && !!thread.favorite)
-        || (chatCategory === "개인" && thread.kind === "개인")
+        || (chatCategory === "개인" && isOneToOne)
         || (chatCategory === "단체" && thread.kind === "단체")
-        || (chatCategory === "쇼핑" && /상품|판매자|구매자|주문|운영 문의/.test(`${thread.name} ${thread.purpose}`));
+        || (chatCategory === "쇼핑" && isShoppingThread);
       const keywordMatch = !keyword || `${thread.name} ${thread.preview} ${thread.purpose}`.toLowerCase().includes(keyword);
       return categoryMatch && keywordMatch;
     });
   }, [globalKeyword, chatCategory, threadItems]);
 
   useEffect(() => {
-    setChatVisibleCount(10);
+    setChatVisibleCount(30);
   }, [chatCategory, globalKeyword]);
 
   const pagedThreads = useMemo(() => filteredThreads.slice(0, chatVisibleCount), [filteredThreads, chatVisibleCount]);
@@ -7907,9 +7953,9 @@ export default function App() {
         ) : null}
 
         {showAppTabContent && activeTab === "채팅" ? (
-          <section className="tab-pane fill-pane chat-tab-pane">
+          <section className={`tab-pane fill-pane chat-tab-pane ${chatTab === "질문" ? "chat-question-pane" : ""}`}>
             {chatTab === "질문" ? (
-              <div className="question-board compact-scroll-list">
+              <div className="chat-question-pane-body">
                 <section className="asked-question-profile-header">
                   <div className="asked-question-profile-card asked-question-profile-card-inline">
                     <div className="asked-question-avatar">{currentProfileMeta.name.slice(0, 1).toUpperCase()}</div>
@@ -7981,13 +8027,10 @@ export default function App() {
                     ))}
                   </div>
                 </div>
-                {chatCategory === "단체" ? (
-                  <div className="legacy-box compact"><p>단체 톡방은 소통 {">"} 포럼으로 이동되었습니다. 상단 메뉴에서 포럼을 열어 주세요.</p></div>
-                ) : null}
                 <div className="chat-list compact-scroll-list kakao-chat-list" onScroll={handleChatListScroll}>
                   {pagedThreads.map((thread) => (
                     <article key={thread.id} className="chat-row kakao-chat-row">
-                      <div className="avatar-circle kakao-avatar">{thread.avatar}</div>
+                      <div className="avatar-circle kakao-avatar"><img src={thread.avatarUrl ?? buildChatAvatarDataUri(thread.name)} alt="" loading="lazy" /></div>
                       <div className="chat-copy kakao-chat-copy">
                         <div className="kakao-chat-head">
                           <strong>{thread.name}</strong>
