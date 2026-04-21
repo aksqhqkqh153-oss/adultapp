@@ -9384,3 +9384,63 @@ body {
   width: 20px !important;
   height: 20px !important;
 }
+
+
+/* ===== 2026-04-21 unified feed poster management ===== */
+.feed-card-unified {
+  background: var(--feed-card-bg, #000) !important;
+  color: var(--feed-card-fg, #fff) !important;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.feed-card-unified .history-feed-head,
+.feed-card-unified .feed-media,
+.feed-card-unified .feed-copy,
+.feed-card-unified .history-feed-footer,
+.feed-card-unified .history-feed-footer.history-feed-footer-icons,
+.feed-card-unified.feed-stream-item {
+  background: var(--feed-card-bg, #000) !important;
+}
+.feed-card-unified .feed-author-link,
+.feed-card-unified .feed-caption-text,
+.feed-card-unified .feed-caption-text-content,
+.feed-card-unified .feed-action-btn,
+.feed-card-unified .feed-action-count,
+.feed-card-unified .history-feed-profile strong,
+.feed-card-unified .feed-question-btn,
+.feed-card-unified .feed-follow-btn {
+  color: var(--feed-card-fg, #fff) !important;
+}
+.feed-card-unified .feed-posted-at,
+.feed-card-unified .feed-author-meta-row span,
+.feed-card-unified .history-feed-profile p,
+.feed-card-unified .feed-caption-inline-less {
+  color: var(--feed-card-muted, #d1d5db) !important;
+}
+.feed-card-unified .feed-media {
+  border-radius: 16px;
+}
+.feed-card-unified .feed-media-preview {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  background: #000;
+}
+.feed-card-unified .feed-caption-more-inline,
+.feed-card-unified .feed-caption-inline-less:hover,
+.feed-card-unified .feed-caption-inline-less:focus-visible,
+.feed-card-unified .feed-follow-btn.active,
+.feed-card-unified .history-feed-footer-icons button.active,
+.feed-card-unified .history-feed-footer-icons button.active .feed-action-count {
+  color: var(--feed-card-accent, var(--pink-2)) !important;
+}
+.feed-card-unified .history-feed-footer-icons button {
+  background: transparent !important;
+  border-color: transparent !important;
+}
+.feed-card-unified .history-feed-footer-icons button:focus-visible,
+.feed-card-unified .feed-follow-btn:focus-visible,
+.feed-card-unified .feed-author-link:focus-visible {
+  outline: 1px solid rgba(255,255,255,0.2);
+  outline-offset: 2px;
+}

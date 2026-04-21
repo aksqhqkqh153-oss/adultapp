@@ -959,6 +959,58 @@ const generatedFeedAuthors = ["adult official", "seller studio", "care lab", "re
 const generatedFeedCategories = ["추천", "브랜드", "리뷰", "보관팁", "실사용", "이벤트"] as const;
 const generatedFeedAccents = ["sunrise", "violet", "teal", "rose"] as const;
 
+const FEED_CARD_PRESENTATION = {
+  backgroundColor: "#000000",
+  textColor: "#ffffff",
+  mutedTextColor: "#d1d5db",
+  accentColor: "var(--pink-2)",
+} as const;
+
+const FEED_LANDSCAPE_LIBRARY = [
+  { id: 10, name: "고요한 호수 풍경" },
+  { id: 11, name: "숲길 풍경" },
+  { id: 12, name: "산등성이 풍경" },
+  { id: 13, name: "계곡 풍경" },
+  { id: 14, name: "초원 풍경" },
+  { id: 15, name: "노을 호수 풍경" },
+  { id: 16, name: "안개 숲 풍경" },
+  { id: 17, name: "강변 풍경" },
+  { id: 18, name: "절벽 해안 풍경" },
+  { id: 19, name: "아침 산맥 풍경" },
+  { id: 20, name: "평원 풍경" },
+  { id: 21, name: "구릉지 풍경" },
+  { id: 22, name: "수목원 풍경" },
+  { id: 23, name: "호숫가 오솔길 풍경" },
+  { id: 24, name: "들판 풍경" },
+  { id: 25, name: "석양 해변 풍경" },
+  { id: 26, name: "산책로 풍경" },
+  { id: 27, name: "강가 풍경" },
+  { id: 28, name: "고원 풍경" },
+  { id: 29, name: "자작나무 숲 풍경" },
+  { id: 30, name: "푸른 숲 풍경" },
+  { id: 31, name: "잔잔한 강 풍경" },
+  { id: 32, name: "해안 절경 풍경" },
+  { id: 33, name: "수평선 노을 풍경" },
+] as const;
+
+function getFeedLandscapeMedia(itemId: number) {
+  const landscape = FEED_LANDSCAPE_LIBRARY[itemId % FEED_LANDSCAPE_LIBRARY.length];
+  return {
+    mediaUrl: `https://picsum.photos/id/${landscape.id}/1200/900`,
+    mediaName: landscape.name,
+  };
+}
+
+function normalizeFeedItemPresentation(item: FeedItem): FeedItem {
+  if (item.type !== "image" || item.mediaUrl) return item;
+  const landscapeMedia = getFeedLandscapeMedia(item.id);
+  return {
+    ...item,
+    mediaUrl: landscapeMedia.mediaUrl,
+    mediaName: landscapeMedia.mediaName,
+  };
+}
+
 const feedSeed: FeedItem[] = [
   { id: 1, type: "video", category: "브랜드", title: "입문 가이드", caption: "입문용 제품을 안전하게 고르는 기준을 10초 요약 쇼츠로 정리했습니다.", author: "adult official", likes: 428, comments: 31, accent: "sunrise", views: 3200, postedAt: "방금", videoUrl: "/generated/shorts/short_1.mp4" },
   { id: 2, type: "video", category: "추천", title: "오늘의 인기 케어 키트", caption: "관리 루틴과 함께 보기 좋은 인기 케어 키트를 짧게 소개합니다.", author: "seller studio", likes: 391, comments: 28, accent: "violet", views: 2890, postedAt: "3분 전", videoUrl: "/generated/shorts/short_2.mp4" },
@@ -1713,7 +1765,15 @@ const FeedPoster = memo(function FeedPoster({ item, onAsk, saved, liked, reposte
   const repostCount = (item.reposts ?? Math.max(0, Math.round((item.likes + item.comments) / 7))) + (reposted ? 1 : 0);
   const viewCount = item.views ?? 0;
   return (
-    <article className={`feed-card history-feed-card ${item.accent}`}>
+    <article
+      className={`feed-card history-feed-card feed-card-unified ${item.accent}`}
+      style={{
+        "--feed-card-bg": FEED_CARD_PRESENTATION.backgroundColor,
+        "--feed-card-fg": FEED_CARD_PRESENTATION.textColor,
+        "--feed-card-muted": FEED_CARD_PRESENTATION.mutedTextColor,
+        "--feed-card-accent": FEED_CARD_PRESENTATION.accentColor,
+      } as CSSProperties}
+    >
       <div className="history-feed-head">
         <div className="history-feed-profile">
           <button type="button" className="story-mini-avatar-button" onClick={handlePreviewAuthorAvatar} aria-label={`${item.author} 프로필 사진 크게 보기`}>
@@ -3363,7 +3423,7 @@ export default function App() {
   const homeFeedScrollRafRef = useRef<number | null>(null);
   const homeFeedHideThresholdRef = useRef(0);
   const homeFeedShowThresholdRef = useRef(0);
-  const allFeedItems = useMemo(() => [...customFeedItems, ...feedSeed], [customFeedItems]);
+  const allFeedItems = useMemo(() => [...customFeedItems, ...feedSeed].map((item) => normalizeFeedItemPresentation(item)), [customFeedItems]);
   const [shortsMoreItem, setShortsMoreItem] = useState<FeedItem | null>(null);
   const [shortsViewerItemId, setShortsViewerItemId] = useState<number | null>(null);
   const [savedShortsViewerItemId, setSavedShortsViewerItemId] = useState<number | null>(null);
