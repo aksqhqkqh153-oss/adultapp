@@ -1225,18 +1225,33 @@ function buildShopHomeRecommendationFeed({
   }
 
   const finalItems: Array<ProductCard & { recommendationBucket: string; feedIndex: number }> = [];
+  const usedIds = new Set<number>();
   let interestIndex = 0;
   let randomIndex = 0;
   for (let index = 0; index < visibleCount; index += 1) {
     const shouldUseRandom = ((index + 1) % 5 === 0 && randomSelections[randomIndex]) || !interestSequence[interestIndex];
-    const picked = shouldUseRandom ? randomSelections[randomIndex++] : interestSequence[interestIndex++];
+    let picked = shouldUseRandom ? randomSelections[randomIndex++] : interestSequence[interestIndex++];
+    while (picked && usedIds.has(picked.id)) {
+      picked = shouldUseRandom ? randomSelections[randomIndex++] : interestSequence[interestIndex++];
+    }
     if (!picked) break;
-    finalItems.push({ ...picked, feedIndex: index });
+    usedIds.add(picked.id);
+    finalItems.push({ ...picked, feedIndex: finalItems.length });
   }
-  while (finalItems.length < visibleCount) {
-    const fallback = interestSequence[interestIndex++] ?? randomSelections[randomIndex++] ?? { ...normalizedItems[finalItems.length % normalizedItems.length], recommendationBucket: '기본' };
+
+  const uniqueFallbackPool = [
+    ...interestSequence,
+    ...randomSelections,
+    ...normalizedItems.map((item) => ({ ...item, recommendationBucket: '기본' })),
+  ];
+
+  for (const fallback of uniqueFallbackPool) {
+    if (finalItems.length >= visibleCount) break;
+    if (usedIds.has(fallback.id)) continue;
+    usedIds.add(fallback.id);
     finalItems.push({ ...fallback, feedIndex: finalItems.length });
   }
+
   return finalItems;
 }
 
@@ -7200,7 +7215,10 @@ export default function App() {
                         </div>
                         <div className="shop-home-product-meta">
                           <strong>{product.name}</strong>
-                          <span>리뷰 {product.reviewCount ?? 0}</span>
+                          <div className="shop-home-product-stats">
+                            <span>리뷰 {product.reviewCount ?? 0}</span>
+                            <span>구매 {product.orderCount ?? 0}</span>
+                          </div>
                         </div>
                       </button>
                     ))}

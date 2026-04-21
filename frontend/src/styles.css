@@ -9297,3 +9297,90 @@ body {
     margin-left: -41px;
   }
 }
+
+/* === 2026-04-21 request: sunrise feed black bg + shop home dedupe/card layout/heart cleanup === */
+.feed-card.history-feed-card.sunrise,
+.feed-card.history-feed-card.sunrise .history-feed-head,
+.feed-card.history-feed-card.sunrise .feed-media,
+.feed-card.history-feed-card.sunrise .history-feed-footer.history-feed-footer-icons,
+.feed-card.history-feed-card.sunrise .feed-copy,
+.feed-stream-item,
+.feed-media,
+.history-feed-footer.history-feed-footer-icons,
+.history-feed-footer-icons {
+  background: #000 !important;
+}
+
+.feed-card.history-feed-card.sunrise .feed-media,
+.feed-post-list-stream .feed-stream-item .feed-media {
+  border-color: rgba(255,255,255,0.08) !important;
+}
+
+.shop-home-product-grid {
+  align-items: start !important;
+}
+
+.shop-home-product-card {
+  gap: 10px !important;
+}
+
+.shop-home-product-meta {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  gap: 6px !important;
+  text-align: center !important;
+}
+
+.shop-home-product-meta strong {
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  text-align: center !important;
+}
+
+.shop-home-product-stats {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.shop-home-product-stats span {
+  flex: 0 0 auto;
+  color: rgba(255,255,255,0.74) !important;
+  font-size: clamp(0.66rem, 2.2vw, 0.82rem) !important;
+  white-space: nowrap;
+}
+
+.shop-home-product-heart {
+  width: 36px !important;
+  height: 36px !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  color: rgba(255,255,255,0.92) !important;
+}
+
+.shop-home-product-heart:hover,
+.shop-home-product-heart:focus,
+.shop-home-product-heart:active {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.shop-home-product-heart.active {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  color: var(--pink-2) !important;
+}
+
+.shop-home-product-heart svg {
+  width: 20px !important;
+  height: 20px !important;
+}
