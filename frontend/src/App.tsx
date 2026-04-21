@@ -3359,11 +3359,13 @@ export default function App() {
   const [savedShortsViewerItemId, setSavedShortsViewerItemId] = useState<number | null>(null);
   const [shortsHeaderHidden, setShortsHeaderHidden] = useState(false);
   const [shortsCategoryVisible, setShortsCategoryVisible] = useState(true);
+  const [listEndToast, setListEndToast] = useState<string | null>(null);
   const [selectedShortsCategory, setSelectedShortsCategory] = useState("전체");
   const lastShortsScrollTopRef = useRef(0);
   const shortsScrollRafRef = useRef<number | null>(null);
   const shortsHideThresholdRef = useRef(0);
   const shortsShowThresholdRef = useRef(0);
+  const listEndToastTimerRef = useRef<number | null>(null);
   const [authStandaloneScreen, setAuthStandaloneScreen] = useState<AuthStandaloneScreen | null>(null);
   const [homeShopConsentGuideSeen, setHomeShopConsentGuideSeen] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -4496,6 +4498,10 @@ export default function App() {
       setShortsVisibleCount((prev) => Math.min(prev + 10, shortsFeedItems.length));
     }
 
+    if (showAppTabContent && activeTab === "홈" && homeTab === "쇼츠" && shortsFeedItems.length > 0 && remain <= 48 && shortsVisibleCount >= shortsFeedItems.length) {
+      showListEndToast("모든 쇼츠를 확인하였습니다");
+    }
+
     if (shortsScrollRafRef.current !== null) {
       window.cancelAnimationFrame(shortsScrollRafRef.current);
     }
@@ -4532,6 +4538,23 @@ export default function App() {
       }
     });
   };
+
+  const showListEndToast = useCallback((message: string) => {
+    if (listEndToastTimerRef.current !== null) {
+      window.clearTimeout(listEndToastTimerRef.current);
+    }
+    setListEndToast(message);
+    listEndToastTimerRef.current = window.setTimeout(() => {
+      setListEndToast(null);
+      listEndToastTimerRef.current = null;
+    }, 1800);
+  }, []);
+
+  useEffect(() => () => {
+    if (listEndToastTimerRef.current !== null) {
+      window.clearTimeout(listEndToastTimerRef.current);
+    }
+  }, []);
 
   const homeMenuItems = [
     { label: "피드", onClick: () => { setHomeTab("피드"); setOverlayMode(null); setHomeFeedHeaderHidden(false); lastHomeFeedScrollTopRef.current = 0; homeFeedHideThresholdRef.current = 0; homeFeedShowThresholdRef.current = 0; } },
@@ -4877,6 +4900,7 @@ export default function App() {
   const handleHomeFeedScroll = useCallback((event: ReactUIEvent<HTMLDivElement>) => {
     const node = event.currentTarget;
     const currentTop = node.scrollTop;
+    const remain = node.scrollHeight - currentTop - node.clientHeight;
     persistHomeFeedState({ scrollTop: currentTop });
 
     if (node.scrollTop + node.clientHeight >= node.scrollHeight - 160) {
@@ -4889,19 +4913,45 @@ export default function App() {
       });
     }
 
+    if (activeHomeFeedItems.length > 0 && remain <= 48 && homeFeedVisibleCount >= activeHomeFeedItems.length) {
+      showListEndToast("모든 피드를 확인하였습니다");
+    }
+
     if (homeFeedScrollRafRef.current !== null) {
       window.cancelAnimationFrame(homeFeedScrollRafRef.current);
     }
 
     homeFeedScrollRafRef.current = window.requestAnimationFrame(() => {
+      const prevTop = lastHomeFeedScrollTopRef.current;
+      const delta = currentTop - prevTop;
       lastHomeFeedScrollTopRef.current = currentTop;
-      homeFeedHideThresholdRef.current = 0;
-      homeFeedShowThresholdRef.current = 0;
-      if (homeFeedHeaderHidden) {
+
+      if (currentTop <= 8) {
+        homeFeedHideThresholdRef.current = 0;
+        homeFeedShowThresholdRef.current = 0;
+        if (homeFeedHeaderHidden) {
+          setHomeFeedHeaderHidden(false);
+        }
+        return;
+      }
+
+      if (delta > 2) {
+        homeFeedHideThresholdRef.current += delta;
+        homeFeedShowThresholdRef.current = 0;
+      } else if (delta < -2) {
+        homeFeedShowThresholdRef.current += Math.abs(delta);
+        homeFeedHideThresholdRef.current = 0;
+      }
+
+      if (!homeFeedHeaderHidden && homeFeedHideThresholdRef.current >= 28 && currentTop > 32) {
+        homeFeedHideThresholdRef.current = 0;
+        setHomeFeedHeaderHidden(true);
+      } else if (homeFeedHeaderHidden && homeFeedShowThresholdRef.current >= 18) {
+        homeFeedShowThresholdRef.current = 0;
         setHomeFeedHeaderHidden(false);
       }
     });
-  }, [activeHomeFeedItems.length, homeFeedHeaderHidden, persistHomeFeedState]);
+  }, [activeHomeFeedItems.length, homeFeedHeaderHidden, homeFeedVisibleCount, persistHomeFeedState, showListEndToast]);
 
   const handleShopHomeScroll = (event: ReactUIEvent<HTMLDivElement>) => {
     const node = event.currentTarget;
@@ -6522,7 +6572,7 @@ export default function App() {
 
   return (
     <div className="mobile-app-shell">
-      <header className={`top-header${activeTab === "홈" && (((homeTab === "쇼츠" && shortsHeaderHidden)) || isAnyShortsViewerOpen) ? " shorts-top-header-hidden" : ""}`}>
+      <header className={`top-header${activeTab === "홈" && (((homeTab === "쇼츠" && shortsHeaderHidden) || (homeTab === "피드" && homeFeedHeaderHidden)) || isAnyShortsViewerOpen) ? " shorts-top-header-hidden" : ""}`}>
         {overlayMode === "search" ? (
           <div className="topbar-search-row">
             <button
@@ -6954,10 +7004,10 @@ export default function App() {
         ) : null}
 
         {showAppTabContent && activeTab === "홈" ? (
-          <section className={`tab-pane fill-pane home-feed-pane${homeTab === "쇼츠" ? " home-feed-pane-shorts" : ""}${homeTab === "피드" ? " home-feed-pane-feed-scroll" : ""}`}>
+          <section className={`tab-pane fill-pane home-feed-pane${homeTab === "쇼츠" ? " home-feed-pane-shorts" : ""}${homeTab === "피드" ? " home-feed-pane-feed-scroll" : ""}${homeTab === "피드" && homeFeedHeaderHidden ? " home-feed-pane-feed-scroll-collapsed" : ""}`}>
             {homeTab === "피드" ? (
               <>
-                <div className="chat-toolbar kakao-toolbar compact-only-toolbar feed-compose-launch-toolbar">
+                <div className={`chat-toolbar kakao-toolbar compact-only-toolbar feed-compose-launch-toolbar${homeFeedHeaderHidden ? " feed-compose-launch-toolbar-hidden" : ""}`}>
                   <div className="feed-filter-tabs" role="tablist" aria-label="피드 보기 필터">
                     {(["일반", "추천", "팔로잉"] as const).map((filter) => (
                       <button
@@ -6973,7 +7023,7 @@ export default function App() {
                     ))}
                   </div>
                 </div>
-                <div ref={homeFeedScrollRef} className="feed-post-list compact-scroll-list feed-post-list-stream" onScroll={handleHomeFeedScroll}>
+                <div ref={homeFeedScrollRef} className={`feed-post-list compact-scroll-list feed-post-list-stream${homeFeedHeaderHidden ? " feed-post-list-stream-collapsed" : ""}`} onScroll={handleHomeFeedScroll}>
                   {homeFeedSource.map((item) => (
                     <div key={`feed-wrap-${item.id}`} className="feed-stream-item">
                       <FeedPoster
@@ -7980,6 +8030,10 @@ export default function App() {
 
       {backMinimizeHintVisible ? (
         <div className="app-back-hint-toast" role="status" aria-live="polite">뒤로가기 버튼을 한 번 더 누르면 앱이 최소화됩니다.</div>
+      ) : null}
+
+      {listEndToast ? (
+        <div className="app-back-hint-toast app-list-end-toast" role="status" aria-live="polite">{listEndToast}</div>
       ) : null}
 
       {showAppTabContent && activeTab === "홈" && homeTab === "피드" && !feedComposeOpen && !openFeedCommentItem && !selectedAskProfile ? (

@@ -8812,3 +8812,176 @@ body {
   color: var(--pink-2) !important;
   filter: none !important;
 }
+
+/* === 2026-04-21 request: feed/chat/profile/home final UI refinement === */
+.feed-compose-launch-toolbar,
+.home-feed-pane-feed-scroll .feed-compose-launch-toolbar,
+.home-feed-pane-feed-scroll .feed-compose-launch-toolbar.feed-compose-launch-toolbar-hidden {
+  margin-bottom: 0 !important;
+}
+
+.feed-post-list.feed-post-list-stream,
+.feed-post-list-stream,
+.feed-post-list-stream.feed-post-list-stream-collapsed {
+  padding-top: 0 !important;
+}
+
+.home-feed-pane-feed-scroll {
+  gap: 0 !important;
+}
+
+.home-feed-pane-feed-scroll.home-feed-pane-feed-scroll-collapsed {
+  grid-template-rows: 0 minmax(0, 1fr) !important;
+}
+
+.home-feed-pane-feed-scroll .feed-compose-launch-toolbar.feed-compose-launch-toolbar-hidden {
+  min-height: 0 !important;
+  max-height: 0 !important;
+  height: 0 !important;
+  border-bottom-width: 0 !important;
+  opacity: 0 !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+}
+
+.feed-post-list-stream .feed-stream-item:first-child {
+  margin-top: 0 !important;
+}
+
+.history-feed-footer.history-feed-footer-icons {
+  padding-top: 2px !important;
+  padding-bottom: 0 !important;
+}
+
+.history-feed-footer-icons .feed-action-btn {
+  gap: 2px !important;
+  min-height: 38px !important;
+  padding: 2px 0 !important;
+}
+
+.history-feed-footer-icons .feed-action-icon {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+.history-feed-footer-icons .feed-action-count {
+  min-height: 9px !important;
+  font-size: 9px !important;
+}
+
+.tab-pane.fill-pane.chat-tab-pane,
+.tab-pane.fill-pane.chat-tab-pane .kakao-chat-list,
+.tab-pane.fill-pane.chat-tab-pane .chat-list.compact-scroll-list.kakao-chat-list,
+.tab-pane.fill-pane.chat-tab-pane .chat-list.compact-scroll-list.kakao-chat-list .kakao-chat-row,
+.tab-pane.fill-pane.chat-tab-pane .chat-list.compact-scroll-list.kakao-chat-list .chat-meta,
+.tab-pane.fill-pane.chat-tab-pane .chat-list.compact-scroll-list.kakao-chat-list .chat-meta b,
+.tab-pane.fill-pane.chat-tab-pane .chat-list.compact-scroll-list.kakao-chat-list .chat-meta span,
+.tab-pane.fill-pane.chat-tab-pane .chat-list.compact-scroll-list.kakao-chat-list .kakao-avatar {
+  background: #000 !important;
+}
+
+.profile-pane-instagram .profile-ig-grid {
+  grid-template-columns: 1fr !important;
+  gap: 12px !important;
+}
+
+.profile-pane-instagram .profile-ig-tile {
+  grid-template-columns: 96px minmax(0, 1fr) !important;
+  align-items: stretch !important;
+  min-height: 116px !important;
+  border-radius: 18px !important;
+}
+
+.profile-pane-instagram .profile-ig-tile-media,
+.profile-pane-instagram .profile-ig-tile-media.profile-ig-tile-media-reel,
+.profile-pane-instagram .profile-product-tile-media {
+  aspect-ratio: auto !important;
+  min-height: 116px !important;
+  height: 100% !important;
+  padding: 10px !important;
+}
+
+.profile-pane-instagram .profile-ig-tile-meta {
+  align-content: center !important;
+  padding: 12px !important;
+}
+
+.profile-pane-instagram .profile-ig-tile-meta strong {
+  font-size: 13px !important;
+}
+
+.profile-pane-instagram .profile-ig-tile-meta span {
+  font-size: 11px !important;
+}
+
+.saved-home-pane .legacy-nav.inline {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0 !important;
+  padding: 0 !important;
+  margin: 0 0 4px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: #000 !important;
+}
+
+.saved-home-pane .legacy-nav-btn,
+.saved-home-pane .legacy-nav-btn:hover,
+.saved-home-pane .legacy-nav-btn:focus-visible,
+.saved-home-pane .legacy-nav-btn.active {
+  min-height: 50px !important;
+  padding: 0 14px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.saved-home-pane .legacy-nav-btn {
+  color: #fff !important;
+}
+
+.saved-home-pane .legacy-nav-btn.active {
+  color: var(--pink-2) !important;
+}
+
+.top-header .header-inline-btn:not(.header-icon-btn),
+.top-header .header-inline-btn.header-inline-btn-icon-label {
+  color: #fff !important;
+  font-size: 13px !important;
+  line-height: 1.2 !important;
+}
+
+.top-header .header-inline-btn.active:not(.header-icon-btn),
+.top-header .header-inline-btn.active.header-inline-btn-icon-label {
+  color: var(--pink-2) !important;
+}
+
+.feed-filter-tab,
+.saved-home-pane .legacy-nav-btn,
+.shorts-category-chip,
+.top-header .header-inline-btn:not(.header-icon-btn) {
+  font-weight: 700 !important;
+}
+
+.app-list-end-toast {
+  bottom: calc(var(--mobile-nav-height) + 64px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+@media (max-width: 640px) {
+  .profile-pane-instagram .profile-ig-tile {
+    grid-template-columns: 88px minmax(0, 1fr) !important;
+    min-height: 108px !important;
+  }
+
+  .profile-pane-instagram .profile-ig-tile-media,
+  .profile-pane-instagram .profile-ig-tile-media.profile-ig-tile-media-reel,
+  .profile-pane-instagram .profile-product-tile-media {
+    min-height: 108px !important;
+  }
+
+  .top-header .header-inline-btn:not(.header-icon-btn),
+  .top-header .header-inline-btn.header-inline-btn-icon-label {
+    font-size: 13px !important;
+  }
+}
