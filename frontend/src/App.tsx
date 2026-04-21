@@ -47,6 +47,7 @@ type FeedComposerAttachment = {
 
 type FeedComposeMode = "피드게시" | "사진피드" | "쇼츠게시";
 type HomeFeedFilter = "일반" | "추천" | "팔로잉";
+type ShopHomeSort = "신규" | "인기" | "판매량" | "추천" | "리뷰";
 
 const HOME_FEED_BATCH_SIZE = 5;
 const HOME_FEED_PULL_MAX = 78;
@@ -1248,6 +1249,36 @@ function parseIsoDateScore(value?: string) {
   if (!value) return 0;
   const score = Date.parse(value);
   return Number.isNaN(score) ? 0 : score;
+}
+
+const SHOP_SEARCH_COLOR_OPTIONS = ["전체", "블랙", "핑크", "퍼플", "실버"] as const;
+const SHOP_SEARCH_PURPOSE_OPTIONS = ["전체", "입문", "자극", "케어", "윤활", "보관"] as const;
+const SHOP_HOME_SORT_TABS: ShopHomeSort[] = ["신규", "인기", "판매량", "추천", "리뷰"];
+
+function getProductNumericPrice(product: ProductCard) {
+  const numeric = Number(String(product.price).replace(/[^\d]/g, ""));
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function getProductColorTag(product: ProductCard) {
+  const source = `${product.name} ${product.subtitle} ${product.category}`.toLowerCase();
+  if (/블랙|black|흑/.test(source)) return "블랙";
+  if (/핑크|pink/.test(source)) return "핑크";
+  if (/퍼플|purple|보라/.test(source)) return "퍼플";
+  if (/실버|silver|메탈|금속/.test(source)) return "실버";
+  const fallbackColors = SHOP_SEARCH_COLOR_OPTIONS.slice(1);
+  return fallbackColors[deterministicHash(source || String(product.id)) % fallbackColors.length];
+}
+
+function getProductPurposeTag(product: ProductCard) {
+  const source = `${product.name} ${product.subtitle} ${product.category}`.toLowerCase();
+  if (/젤|윤활|수분|보습/.test(source)) return "윤활";
+  if (/케어|세정|세척|클리너|위생/.test(source)) return "케어";
+  if (/보관|파우치|케이스/.test(source)) return "보관";
+  if (/입문|초보|소형|슬림/.test(source)) return "입문";
+  if (/바이브|딜도|플러그|자극|프리미엄/.test(source)) return "자극";
+  const fallbackPurposes = SHOP_SEARCH_PURPOSE_OPTIONS.slice(1);
+  return fallbackPurposes[deterministicHash(source || String(product.id)) % fallbackPurposes.length];
 }
 
 function buildShopHomeRecommendationFeed({
@@ -3589,6 +3620,12 @@ export default function App() {
   const randomRoomLifetimeMinutes = 20;
   const [shopKeyword, setShopKeyword] = useState("");
   const [shopSearchVisibleCount, setShopSearchVisibleCount] = useState(12);
+  const [shopSearchFilterPanelOpen, setShopSearchFilterPanelOpen] = useState(false);
+  const [shopSearchPriceMin, setShopSearchPriceMin] = useState("");
+  const [shopSearchPriceMax, setShopSearchPriceMax] = useState("");
+  const [shopSearchColor, setShopSearchColor] = useState<(typeof SHOP_SEARCH_COLOR_OPTIONS)[number]>("전체");
+  const [shopSearchPurpose, setShopSearchPurpose] = useState<(typeof SHOP_SEARCH_PURPOSE_OPTIONS)[number]>("전체");
+  const [shopHomeSort, setShopHomeSort] = useState<ShopHomeSort>("추천");
   const [shopHomeBannerIndex, setShopHomeBannerIndex] = useState(0);
   const [shopHomeBannerDragOffset, setShopHomeBannerDragOffset] = useState(0);
   const shopHomeBannerPointerStartXRef = useRef<number | null>(null);
@@ -5211,8 +5248,7 @@ export default function App() {
   }, []);
 
 
-  const allShopItems = useMemo<ProductCard[]>(() => {
-    const keyword = `${shopKeyword} ${globalKeyword}`.trim().toLowerCase();
+  const shopCatalogItems = useMemo<ProductCard[]>(() => {
     const source = apiProducts.length
       ? apiProducts
           .filter((item) => (item.status ?? "published") === "published")
@@ -5229,12 +5265,13 @@ export default function App() {
             isPremium: /프리미엄|premium|고급/.test(`${item.name} ${item.description ?? ""}`.toLowerCase()),
           }, index))
       : productsSeed.map((item, index) => withProductMetrics(item, index));
-    return source.filter((product) => {
-      const matchCategory = selectedShopCategory === "전체" || product.category === selectedShopCategory;
-      const matchKeyword = !keyword || `${product.name} ${product.subtitle} ${product.category}`.toLowerCase().includes(keyword);
-      return matchCategory && matchKeyword;
-    });
-  }, [selectedShopCategory, shopKeyword, globalKeyword, apiProducts]);
+    return source.filter((product) => selectedShopCategory === "전체" || product.category === selectedShopCategory);
+  }, [selectedShopCategory, apiProducts]);
+
+  const allShopItems = useMemo<ProductCard[]>(() => {
+    const keyword = shopKeyword.trim().toLowerCase();
+    return shopCatalogItems.filter((product) => !keyword || `${product.name} ${product.subtitle} ${product.category}`.toLowerCase().includes(keyword));
+  }, [shopCatalogItems, shopKeyword]);
 
   const shoppingHomeKeywords = useMemo(() => {
     const roleSeedMap: Record<string, string[]> = {
@@ -5249,7 +5286,7 @@ export default function App() {
         .sort((a, b) => b[1] - a[1])
         .map(([token]) => token),
       ...roleSeeds,
-      ...allShopItems.flatMap((item) => [item.category, item.name]),
+      ...shopCatalogItems.flatMap((item) => [item.category, item.name]),
       ...productsSeed.flatMap((item) => [item.category, item.name]),
     ];
 
@@ -5268,28 +5305,46 @@ export default function App() {
       unique.push(`추천 ${unique.length + 1}`);
     }
     return unique.slice(0, 32);
-  }, [shopKeywordSignals, currentUserRole, allShopItems]);
+  }, [shopKeywordSignals, currentUserRole, shopCatalogItems]);
 
   const shopHomeRecommendedItems = useMemo(() => buildShopHomeRecommendationFeed({
-    items: allShopItems.length ? allShopItems : productsSeed,
+    items: shopCatalogItems.length ? shopCatalogItems : productsSeed,
     keywordSignals: shopKeywordSignals,
     visibleCount: shopHomeVisibleCount,
-  }), [allShopItems, shopKeywordSignals, shopHomeVisibleCount]);
+  }), [shopCatalogItems, shopKeywordSignals, shopHomeVisibleCount]);
+
+  const shopHomeSortedBaseItems = useMemo(() => {
+    const normalized = (shopCatalogItems.length ? shopCatalogItems : productsSeed.map((item, index) => withProductMetrics(item, index))).map((item, index) => withProductMetrics(item, index));
+    if (shopHomeSort === "추천") {
+      return buildShopHomeRecommendationFeed({ items: normalized, keywordSignals: shopKeywordSignals, visibleCount: shopHomeVisibleCount });
+    }
+    const sorted = [...normalized].sort((a, b) => {
+      if (shopHomeSort === "신규") return parseIsoDateScore(b.createdAt) - parseIsoDateScore(a.createdAt) || b.id - a.id;
+      if (shopHomeSort === "판매량") return (b.orderCount ?? 0) - (a.orderCount ?? 0) || (b.reviewCount ?? 0) - (a.reviewCount ?? 0);
+      if (shopHomeSort === "리뷰") return (b.reviewCount ?? 0) - (a.reviewCount ?? 0) || (b.orderCount ?? 0) - (a.orderCount ?? 0);
+      return ((b.orderCount ?? 0) + (b.reviewCount ?? 0) * 2 + (b.repurchaseCount ?? 0) * 3) - ((a.orderCount ?? 0) + (a.reviewCount ?? 0) * 2 + (a.repurchaseCount ?? 0) * 3);
+    });
+    return sorted.slice(0, shopHomeVisibleCount).map((item, index) => ({ ...item, feedIndex: index, recommendationBucket: shopHomeSort }));
+  }, [shopCatalogItems, shopHomeSort, shopKeywordSignals, shopHomeVisibleCount]);
 
   const shopHomeHeroSlides = useMemo(() => {
-    const base = shopHomeRecommendedItems.slice(0, 3);
+    const source = shopHomeSort === "추천" ? shopHomeRecommendedItems : shopHomeSortedBaseItems;
+    const base = source.slice(0, 3);
     return base.length ? base : buildShopHomeRecommendationFeed({ items: productsSeed, keywordSignals: shopKeywordSignals, visibleCount: 3 });
-  }, [shopHomeRecommendedItems, shopKeywordSignals]);
+  }, [shopHomeSort, shopHomeRecommendedItems, shopHomeSortedBaseItems, shopKeywordSignals]);
 
   const shopHomeFeedItems = useMemo(() => {
-    if (shopHomeRecommendedItems.length) return shopHomeRecommendedItems;
-    return buildShopHomeRecommendationFeed({ items: productsSeed, keywordSignals: shopKeywordSignals, visibleCount: shopHomeVisibleCount });
-  }, [shopHomeRecommendedItems, shopKeywordSignals, shopHomeVisibleCount]);
+    if (shopHomeSort === "추천") {
+      if (shopHomeRecommendedItems.length) return shopHomeRecommendedItems;
+      return buildShopHomeRecommendationFeed({ items: productsSeed, keywordSignals: shopKeywordSignals, visibleCount: shopHomeVisibleCount });
+    }
+    return shopHomeSortedBaseItems;
+  }, [shopHomeSort, shopHomeRecommendedItems, shopHomeSortedBaseItems, shopKeywordSignals, shopHomeVisibleCount]);
 
   const productDetailDisplayItem = useMemo<ProductCard | null>(() => {
     if (!productDetail?.product) return null;
     const targetId = productDetail.product.id;
-    const fallback = allShopItems.find((item) => item.id === targetId) ?? productsSeed.find((item) => item.id === targetId) ?? null;
+    const fallback = shopCatalogItems.find((item) => item.id === targetId) ?? productsSeed.find((item) => item.id === targetId) ?? null;
     return {
       id: targetId,
       category: productDetail.product.category ?? fallback?.category ?? "기타",
@@ -5305,7 +5360,7 @@ export default function App() {
       isPremium: fallback?.isPremium,
       createdAt: fallback?.createdAt,
     };
-  }, [productDetail, allShopItems]);
+  }, [productDetail, shopCatalogItems]);
 
   const productDetailImageUrls = useMemo(() => {
     const urls = [
@@ -5367,12 +5422,12 @@ export default function App() {
   }, [currentProfileAuthor, viewedProfileAuthor]);
 
   const currentProfileProducts = useMemo(() => {
-    const pool = (allShopItems.length ? allShopItems : productsSeed.map((item, index) => withProductMetrics(item, index))).map((item, index) => withProductMetrics(item, index));
+    const pool = (shopCatalogItems.length ? shopCatalogItems : productsSeed.map((item, index) => withProductMetrics(item, index))).map((item, index) => withProductMetrics(item, index));
     const ownerIndex = Math.abs(deterministicHash(currentProfileAuthor)) % 5;
     const picked = pool.filter((item) => Math.abs(deterministicHash(`${currentProfileAuthor}-${item.id}-${item.name}`)) % 5 === ownerIndex);
     const source = picked.length >= 6 ? picked : pool.slice(ownerIndex * 6, ownerIndex * 6 + 9);
     return [...source].sort((a, b) => ((b.orderCount ?? 0) - (a.orderCount ?? 0)) || ((b.reviewCount ?? 0) - (a.reviewCount ?? 0)) || a.name.localeCompare(b.name));
-  }, [allShopItems, currentProfileAuthor]);
+  }, [shopCatalogItems, currentProfileAuthor]);
 
   const profileShortItems = useMemo(() => {
     const authored = shortsFeedItems.filter((item) => item.type === "video" && item.author === currentProfileAuthor);
@@ -5397,7 +5452,7 @@ export default function App() {
     setShopHomeVisibleCount(30);
     setShopHomeBannerIndex(0);
     setShopHomeBannerDragOffset(0);
-  }, [activeTab, shoppingTab, shopKeyword, globalKeyword, selectedShopCategory]);
+  }, [activeTab, shoppingTab, selectedShopCategory, shopHomeSort]);
 
   useEffect(() => {
     if (activeTab !== "쇼핑" || shoppingTab !== "홈" || shopHomeHeroSlides.length <= 1 || shopHomeBannerPointerActiveRef.current) return;
@@ -5784,7 +5839,7 @@ export default function App() {
   }, [globalKeyword, randomRoomCategory, randomRooms]);
 
   const homeProducts = useMemo(() => productsSeed.slice(0, 4), []);
-  const savedProductItems = useMemo(() => [...productsSeed, ...homeProducts.map((item) => ({ ...item, subtitle: item.subtitle ?? "", badge: item.badge ?? "" }))].filter((item, index, arr) => arr.findIndex((row) => row.id === item.id) === index && savedProductIds.includes(item.id)), [savedProductIds, homeProducts]);
+  const savedProductItems = useMemo(() => [...productsSeed, ...shopCatalogItems, ...homeProducts.map((item) => ({ ...item, subtitle: item.subtitle ?? "", badge: item.badge ?? "" }))].filter((item, index, arr) => arr.findIndex((row) => row.id === item.id) === index && savedProductIds.includes(item.id)), [savedProductIds, homeProducts, shopCatalogItems]);
   const homeSearchResults = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
     if (!keyword) return [];
@@ -5798,14 +5853,28 @@ export default function App() {
 
   const shopSearchResults = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
+    const minPrice = Number(shopSearchPriceMin.replace(/[^\d]/g, "")) || 0;
+    const maxPrice = Number(shopSearchPriceMax.replace(/[^\d]/g, "")) || 0;
     if (!keyword) return [] as ProductCard[];
-    return allShopItems.filter((item) => {
-      if (searchFilter === "상품명") return item.name.toLowerCase().includes(keyword);
-      if (searchFilter === "내용") return item.subtitle.toLowerCase().includes(keyword);
-      if (searchFilter === "카테고리") return item.category.toLowerCase().includes(keyword);
-      return `${item.name} ${item.subtitle} ${item.category}`.toLowerCase().includes(keyword);
+    return shopCatalogItems.filter((item) => {
+      const source = `${item.name} ${item.subtitle} ${item.category}`.toLowerCase();
+      const colorTag = getProductColorTag(item);
+      const purposeTag = getProductPurposeTag(item);
+      const priceValue = getProductNumericPrice(item);
+      const matchKeyword = searchFilter === "상품명"
+        ? item.name.toLowerCase().includes(keyword)
+        : searchFilter === "내용"
+          ? item.subtitle.toLowerCase().includes(keyword)
+          : searchFilter === "카테고리"
+            ? item.category.toLowerCase().includes(keyword)
+            : source.includes(keyword);
+      const matchMin = !minPrice || priceValue >= minPrice;
+      const matchMax = !maxPrice || priceValue <= maxPrice;
+      const matchColor = shopSearchColor === "전체" || colorTag === shopSearchColor;
+      const matchPurpose = shopSearchPurpose === "전체" || purposeTag === shopSearchPurpose;
+      return matchKeyword && matchMin && matchMax && matchColor && matchPurpose;
     });
-  }, [allShopItems, globalKeyword, searchFilter]);
+  }, [globalKeyword, searchFilter, shopCatalogItems, shopSearchPriceMin, shopSearchPriceMax, shopSearchColor, shopSearchPurpose]);
   const visibleShopSearchResults = useMemo(() => shopSearchResults.slice(0, shopSearchVisibleCount), [shopSearchResults, shopSearchVisibleCount]);
 
   const communitySearchResults = useMemo(() => {
@@ -6479,6 +6548,16 @@ export default function App() {
     setCheckoutStage("cart");
   };
 
+  const addProductToCartFromSearch = (productId: number) => {
+    setCartItems((prev) => {
+      const found = prev.find((item) => item.productId === productId);
+      if (found) return prev.map((item) => item.productId === productId ? { ...item, qty: item.qty + 1 } : item);
+      return [...prev, { productId, qty: 1 }];
+    });
+    setCheckoutStage("cart");
+    showListEndToast("장바구니에 담았습니다.");
+  };
+
   const cartDetailedItems = useMemo(() => cartItems.map((item) => {
     const product = apiProducts.find((row) => row.id === item.productId);
     return product ? { ...item, product } : null;
@@ -7084,7 +7163,12 @@ export default function App() {
   useEffect(() => {
     if (activeTab !== "쇼핑" || overlayMode !== "search") return;
     setShopSearchVisibleCount(12);
-  }, [activeTab, overlayMode, globalKeyword, searchFilter]);
+  }, [activeTab, overlayMode, globalKeyword, searchFilter, shopSearchPriceMin, shopSearchPriceMax, shopSearchColor, shopSearchPurpose]);
+
+  useEffect(() => {
+    if (overlayMode === "search" && activeTab === "쇼핑") return;
+    setShopSearchFilterPanelOpen(false);
+  }, [overlayMode, activeTab]);
 
   const handleShopSearchResultsScroll = (event: ReactUIEvent<HTMLDivElement>) => {
     if (activeTab !== "쇼핑") return;
@@ -7094,12 +7178,17 @@ export default function App() {
     }
   };
 
-  const cycleShopSearchFilter = () => {
+  const openShopSearchFilterPanel = () => {
     if (activeTab !== "쇼핑") return;
-    const filters = searchFilterOptions;
-    const currentIndex = Math.max(0, filters.indexOf(searchFilter));
-    const nextFilter = filters[(currentIndex + 1) % filters.length];
-    setSearchFilter(nextFilter);
+    setShopSearchFilterPanelOpen(true);
+  };
+
+  const resetShopSearchFilters = () => {
+    setSearchFilter("전체");
+    setShopSearchPriceMin("");
+    setShopSearchPriceMax("");
+    setShopSearchColor("전체");
+    setShopSearchPurpose("전체");
   };
 
   const profileSearchResults = useMemo(() => {
@@ -7362,7 +7451,7 @@ export default function App() {
               <button
                 type="button"
                 className="header-inline-btn topbar-search-filter-btn"
-                onClick={cycleShopSearchFilter}
+                onClick={openShopSearchFilterPanel}
                 aria-label={`필터 ${searchFilter}`}
                 title={`필터 ${searchFilter}`}
               >
@@ -7439,7 +7528,7 @@ export default function App() {
           </section>
         ) : null}
         {overlayMode ? (
-          <section className={overlayMode === "notifications" ? "stack-gap notification-overlay-body compact-scroll-list notification-overlay-root" : `overlay-card ${overlayMode === "search" ? "overlay-card-search" : ""}`}>
+          <section className={overlayMode === "notifications" ? "stack-gap notification-overlay-body compact-scroll-list notification-overlay-root" : overlayMode === "search" ? `overlay-search-shell${activeTab === "쇼핑" ? " overlay-search-shell-shop" : ""}` : "overlay-card"}>
             {overlayMode !== "search" && overlayMode !== "notifications" ? (
               <div className="overlay-head">
                 <strong>{overlayMode === "menu" ? `${activeTab} 메뉴` : overlayMode === "reconsent_info" ? "필수 문서 재동의 안내" : "설정 카테고리"}</strong>
@@ -7464,11 +7553,52 @@ export default function App() {
                   </div>
                 ) : null}
                 <div className="search-toolbar-actions">
-                  {activeTab === "쇼핑" ? <span className="shop-search-filter-status">현재 필터: {searchFilter}</span> : null}
-                  <button className="ghost-btn" onClick={() => setGlobalKeyword("")}>검색어 초기화</button>
+                  {activeTab === "쇼핑" ? <span className="shop-search-filter-status">검색범위 {searchFilter} · 가격 {shopSearchPriceMin || "0"}~{shopSearchPriceMax || "∞"} · 색상 {shopSearchColor} · 용도 {shopSearchPurpose}</span> : null}
+                  <button className="ghost-btn search-clear-btn" onClick={() => setGlobalKeyword("")}>검색어 초기화</button>
                 </div>
+                {activeTab === "쇼핑" && shopSearchFilterPanelOpen ? (
+                  <div className="modal-backdrop shop-search-filter-modal-backdrop" onClick={() => setShopSearchFilterPanelOpen(false)}>
+                    <div className="modal-card shop-search-filter-modal" onClick={(event) => event.stopPropagation()}>
+                      <div className="modal-header-row shop-search-filter-modal-head">
+                        <button type="button" className="header-inline-btn header-icon-btn modal-back-btn" onClick={() => setShopSearchFilterPanelOpen(false)} aria-label="필터 닫기"><BackArrowIcon /></button>
+                        <strong>쇼핑 검색 필터</strong>
+                        <button type="button" className="ghost-btn shop-search-filter-apply-btn" onClick={() => setShopSearchFilterPanelOpen(false)}>적용</button>
+                      </div>
+                      <div className="stack-gap shop-search-filter-body">
+                        <div className="legacy-box compact shop-search-filter-box">
+                          <strong>가격 설정</strong>
+                          <div className="shop-search-price-range-row">
+                            <input value={shopSearchPriceMin} onChange={(event) => setShopSearchPriceMin(event.target.value.replace(/[^\d]/g, ""))} placeholder="최소 입력" inputMode="numeric" />
+                            <span>~</span>
+                            <input value={shopSearchPriceMax} onChange={(event) => setShopSearchPriceMax(event.target.value.replace(/[^\d]/g, ""))} placeholder="최대 입력" inputMode="numeric" />
+                          </div>
+                        </div>
+                        <div className="legacy-box compact shop-search-filter-box">
+                          <strong>색상 설정</strong>
+                          <div className="shop-search-filter-chip-row">
+                            {SHOP_SEARCH_COLOR_OPTIONS.map((option) => (
+                              <button key={`shop-color-${option}`} type="button" className={`shop-search-filter-chip ${shopSearchColor === option ? "active" : ""}`} onClick={() => setShopSearchColor(option)}>{option}</button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="legacy-box compact shop-search-filter-box">
+                          <strong>용도 설정</strong>
+                          <div className="shop-search-filter-chip-row">
+                            {SHOP_SEARCH_PURPOSE_OPTIONS.map((option) => (
+                              <button key={`shop-purpose-${option}`} type="button" className={`shop-search-filter-chip ${shopSearchPurpose === option ? "active" : ""}`} onClick={() => setShopSearchPurpose(option)}>{option}</button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="copy-action-row">
+                          <button type="button" className="ghost-btn" onClick={resetShopSearchFilters}>초기화</button>
+                          <button type="button" onClick={() => setShopSearchFilterPanelOpen(false)}>필터 적용</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
                 <div className={`context-search-results compact-scroll-list search-results-list ${activeTab === "쇼핑" ? "shop-search-results-list" : ""}`} onScroll={activeTab === "쇼핑" ? handleShopSearchResultsScroll : undefined}>
-                  {!globalKeyword.trim() ? <div className="legacy-box compact"><p>검색어를 입력하면 결과가 표시됩니다.</p></div> : null}
+                  {!globalKeyword.trim() ? <div className="legacy-box compact search-empty-hint-box"><p>검색어를 입력하면 결과가 표시됩니다.</p></div> : null}
 
                   {activeTab === "홈" && searchSection === "피드결과" ? homeSearchResults.map((item) => (
                     <article key={`home-feed-${item.id}`} className="legacy-box compact search-result-card search-result-list-card">
@@ -7493,7 +7623,9 @@ export default function App() {
 
                   {activeTab === "쇼핑" ? visibleShopSearchResults.map((item) => {
                     const rating = (4.1 + ((item.id % 8) * 0.1)).toFixed(1);
-                    const isSaved = savedProductIds.includes(item.id);
+                    const inCart = cartItems.some((cartItem) => cartItem.productId === item.id);
+                    const colorTag = getProductColorTag(item);
+                    const purposeTag = getProductPurposeTag(item);
                     return (
                       <article
                         key={`shop-${item.id}`}
@@ -7519,7 +7651,7 @@ export default function App() {
                         <div className="shop-search-result-copy">
                           <div className="shop-search-result-topline">
                             <span className="shop-search-result-badge">{item.badge}</span>
-                            <span className="shop-search-result-category">{item.category}</span>
+                            <span className="shop-search-result-category">{item.category} · {colorTag} · {purposeTag}</span>
                           </div>
                           <strong>{item.name}</strong>
                           <p>{item.subtitle}</p>
@@ -7531,14 +7663,14 @@ export default function App() {
                         <div className="shop-search-result-side">
                           <button
                             type="button"
-                            className={`shop-search-result-save ${isSaved ? "active" : ""}`}
+                            className={`shop-search-result-save ${inCart ? "active" : ""}`}
                             onClick={(event) => {
                               event.stopPropagation();
-                              toggleSavedProduct(item.id);
+                              addProductToCartFromSearch(item.id);
                             }}
-                            aria-label={isSaved ? "보관해제" : "보관함"}
+                            aria-label={inCart ? "장바구니 추가" : "장바구니 담기"}
                           >
-                            <HeartIcon filled={isSaved} />
+                            <HeartIcon filled={inCart} />
                           </button>
                         </div>
                       </article>
@@ -8028,6 +8160,23 @@ export default function App() {
                         onClick={() => setShopHomeBannerIndex(index)}
                         aria-label={`${index + 1}번 배너 보기`}
                       />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="chat-toolbar kakao-toolbar compact-only-toolbar feed-compose-launch-toolbar shop-home-sort-toolbar">
+                  <div className="feed-filter-tabs" role="tablist" aria-label="쇼핑 홈 정렬 필터">
+                    {SHOP_HOME_SORT_TABS.map((filter) => (
+                      <button
+                        key={`shop-home-sort-${filter}`}
+                        type="button"
+                        className={`feed-filter-tab ${shopHomeSort === filter ? "active" : ""}`}
+                        onClick={() => setShopHomeSort(filter)}
+                        role="tab"
+                        aria-selected={shopHomeSort === filter}
+                      >
+                        {filter}
+                      </button>
                     ))}
                   </div>
                 </div>

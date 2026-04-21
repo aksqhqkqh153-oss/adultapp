@@ -11314,3 +11314,208 @@ body {
 .x-chat-room-composer input::placeholder {
   color: rgba(255,255,255,0.42);
 }
+
+/* === 2026-04-22 request: shop search/filter/detail/home sort polish === */
+.overlay-search-shell {
+  min-height: 0;
+  display: grid;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+}
+
+.overlay-search-shell-shop {
+  padding: 10px 12px 0;
+  border-radius: 18px;
+  background: #000;
+}
+
+.search-overlay-pane {
+  min-height: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.search-toolbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 28px;
+  padding: 0 2px;
+}
+
+.search-clear-btn {
+  min-height: 28px !important;
+  height: 28px !important;
+  padding: 0 10px !important;
+  border-radius: 999px !important;
+  font-size: 12px !important;
+}
+
+.search-empty-hint-box {
+  margin: 0 !important;
+  padding: 10px 12px !important;
+}
+
+.shop-search-filter-status {
+  min-width: 0;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shop-search-results-list {
+  align-content: start;
+  padding-bottom: 16px;
+}
+
+.shop-search-result-save {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  padding: 0;
+  border-radius: 999px;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  color: rgba(255,255,255,0.58);
+}
+
+.shop-search-result-save:hover,
+.shop-search-result-save:focus,
+.shop-search-result-save:active {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.shop-search-result-save.active {
+  background: transparent !important;
+  border: 0 !important;
+  color: #ff79b7 !important;
+}
+
+.shop-search-result-save svg {
+  width: 20px;
+  height: 20px;
+}
+
+.shop-search-filter-modal-backdrop {
+  z-index: 35;
+}
+
+.shop-search-filter-modal {
+  width: min(560px, 100%);
+  background: #090b10;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 20px;
+  padding: 14px;
+}
+
+.shop-search-filter-modal-head {
+  grid-template-columns: 40px 1fr auto;
+}
+
+.shop-search-filter-apply-btn {
+  min-height: 30px !important;
+  height: 30px !important;
+  padding: 0 10px !important;
+}
+
+.shop-search-filter-body {
+  gap: 12px;
+}
+
+.shop-search-filter-box {
+  display: grid;
+  gap: 12px;
+}
+
+.shop-search-price-range-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.shop-search-price-range-row input {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 12px;
+  background: #06080c;
+  border: 1px solid rgba(255,255,255,0.08);
+  color: #fff;
+  padding: 0 12px;
+}
+
+.shop-search-filter-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.shop-search-filter-chip {
+  min-height: 34px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: #e7edf3;
+}
+
+.shop-search-filter-chip.active {
+  background: rgba(255, 77, 166, 0.16);
+  border-color: rgba(255, 77, 166, 0.38);
+  color: #ff8bc7;
+}
+
+.shop-home-sort-toolbar {
+  margin-top: 8px;
+  padding: 4px 0 8px !important;
+}
+
+.shop-home-sort-toolbar .feed-filter-tabs {
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  scrollbar-width: none;
+}
+
+.shop-home-sort-toolbar .feed-filter-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.shop-home-sort-toolbar .feed-filter-tab {
+  white-space: nowrap;
+}
+
+.shop-product-detail-page {
+  padding: 0 0 92px !important;
+  background: #000 !important;
+}
+
+.shop-product-detail-hero,
+.shop-product-detail-content {
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .overlay-search-shell-shop {
+    padding: 8px 10px 0;
+  }
+
+  .shop-search-filter-modal {
+    padding: 12px;
+  }
+
+  .shop-search-price-range-row {
+    grid-template-columns: 1fr;
+  }
+
+  .shop-search-price-range-row span {
+    display: none;
+  }
+}
