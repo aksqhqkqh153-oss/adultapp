@@ -1,5 +1,5 @@
 import { CSSProperties, PointerEvent, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent, UIEvent as ReactUIEvent } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, TouchEvent as ReactTouchEvent, UIEvent as ReactUIEvent } from "react";
 import { clearTokens, ensureAuthSession, getApiBase, getJson, getRefreshToken, hasAuthToken, postJson, setAuthToken, setRefreshToken } from "./lib/api";
 
 type FeedItem = {
@@ -49,6 +49,10 @@ type FeedComposeMode = "피드게시" | "사진피드" | "쇼츠게시";
 type HomeFeedFilter = "일반" | "추천" | "팔로잉";
 
 const HOME_FEED_BATCH_SIZE = 5;
+const HOME_FEED_PULL_MAX = 78;
+const HOME_FEED_PULL_TRIGGER = 54;
+const HOME_FEED_REFRESH_BATCH_SIZE = 3;
+const CHAT_LIST_BASE_ROWS = 10;
 const HOME_FEED_STATE_KEY = "adultapp_home_feed_state";
 const HOME_FEED_RESET_MS = 30 * 60 * 1000;
 
@@ -1392,6 +1396,33 @@ function rankHomeFeedItems({ items, keywordSignalMap, followedTopicKeywords, sav
   return ranked;
 }
 
+
+function buildFreshFeedItemFromTemplate(template: FeedItem, nextId: number, order: number): FeedItem {
+  const freshnessLabels = ["방금", "1분 전", "2분 전", "3분 전", "4분 전"] as const;
+  const badgeTitles = ["최신 관심 피드", "새 추천 피드", "실시간 관심 카드"] as const;
+  const extraCopy = [
+    "관심 키워드와 최근 반응을 반영해 새로 추천된 피드입니다.",
+    "최근 업로드 흐름과 저장 데이터를 반영한 최신 피드입니다.",
+    "지금 보고 있는 관심사와 가까운 항목을 우선 노출한 새 피드입니다.",
+  ] as const;
+  const nextTitle = `${template.title} · ${badgeTitles[order % badgeTitles.length]}`;
+  const nextCaptionBase = template.caption.endsWith('.') || template.caption.endsWith('!') || template.caption.endsWith('?')
+    ? template.caption
+    : `${template.caption}.`;
+
+  return {
+    ...template,
+    id: nextId,
+    title: nextTitle,
+    caption: `${nextCaptionBase} ${extraCopy[order % extraCopy.length]}`,
+    likes: template.likes + 12 + order * 7,
+    comments: template.comments + 1 + (order % 3),
+    reposts: (template.reposts ?? 0) + 1 + order,
+    views: typeof template.views === "number" ? template.views + 90 + order * 65 : undefined,
+    postedAt: freshnessLabels[order % freshnessLabels.length],
+  };
+}
+
 const storySeed: StoryItem[] = [
   { id: 1, name: "adult official", role: "브랜드 스토리", accent: "sunrise" },
   { id: 2, name: "seller studio", role: "판매자 소식", accent: "violet" },
@@ -2295,79 +2326,77 @@ function AskProfileScreen({ profile, activeTab, onClose, onNavigate, renderBotto
           <span className="modal-spacer" />
         </div>
       </section>
-      <div className="question-overlay-body question-overlay-body-with-nav">
-        <section className="asked-question-profile-header">
-          <div className="asked-question-profile-card asked-question-profile-card-inline">
-            <div className="asked-question-avatar">{profile.name.slice(0, 1).toUpperCase()}</div>
-            <div className="asked-question-copy">
-              <div className="asked-question-copy-head">
-                <div className="asked-question-copy-main">
-                  <button type="button" className="feed-author-link asked-profile-name-btn" onClick={() => onOpenProfile(profile.name)}>{profile.name}</button>
-                  <span>{profile.headline}</span>
-                </div>
-                <div className="asked-question-toolbar asked-question-toolbar-inline">
-                  <button type="button">팔로우</button>
-                  <button type="button" className="ghost-btn">공유</button>
+      <section className="asked-question-profile-header">
+        <div className="asked-question-profile-card asked-question-profile-card-inline">
+          <div className="asked-question-avatar">{profile.name.slice(0, 1).toUpperCase()}</div>
+          <div className="asked-question-copy">
+            <div className="asked-question-copy-head">
+              <div className="asked-question-copy-main">
+                <button type="button" className="feed-author-link asked-profile-name-btn" onClick={() => onOpenProfile(profile.name)}>{profile.name}</button>
+                <span>{profile.headline}</span>
+              </div>
+              <div className="asked-question-toolbar asked-question-toolbar-inline">
+                <button type="button">팔로우</button>
+                <button type="button" className="ghost-btn">공유</button>
+              </div>
+            </div>
+            <p>{profile.intro}</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="asked-question-form">
+        <div className="asked-question-form-title-row">
+          <label>질문 내용</label>
+          <label className="asked-question-anonymous-toggle">
+            <input type="checkbox" checked={anonymousQuestion} onChange={(event) => setAnonymousQuestion(event.target.checked)} />
+            <span>익명</span>
+          </label>
+        </div>
+        <textarea value={questionText} onChange={(e) => setQuestionText(e.target.value)} placeholder="상대에게 남길 질문을 입력하세요." />
+        <div className="asked-question-draft-note">작성 중인 질문은 임시저장됩니다.</div>
+        <div className="asked-question-form-actions asked-question-form-actions-submit-only">
+          <button
+            type="button"
+            className="ghost-btn"
+            onClick={() => {
+              if (typeof window !== "undefined") window.localStorage.removeItem(storageKey);
+              setQuestionText("");
+              window.alert(anonymousQuestion ? "질문이 익명으로 등록되었습니다." : "질문이 등록되었습니다.");
+            }}
+          >
+            질문 등록
+          </button>
+        </div>
+      </section>
+
+      <section className="question-list">
+        {questionSeed.map((item) => (
+          <div key={`ask-${item.id}`} className="question-feed-stack">
+            <article className="question-feed-card">
+              <div className="question-feed-top">
+                <div>
+                  <div className="question-user-line">
+                    <span className="community-chip">질문</span>
+                    <strong>{item.author}</strong>
+                    <span className="community-meta">{item.meta}</span>
+                  </div>
+                  <div className="question-body">Q. {item.question}</div>
                 </div>
               </div>
-              <p>{profile.intro}</p>
-            </div>
+              <div className="question-answer-box">
+                <span className="product-badge">답변</span>
+                <div className="question-body">{item.answer}</div>
+              </div>
+              <div className="question-footer-actions">
+                <button type="button" className="question-footer-icon-btn" aria-label="좋아요"><span className="question-footer-icon"><HeartIcon /></span><span>{item.likes}</span></button>
+                <button type="button" className="question-footer-icon-btn" aria-label="댓글"><span className="question-footer-icon"><CommentBubbleIcon /></span><span>{item.comments}</span></button>
+                <button type="button" className="question-footer-icon-btn" aria-label="공유"><span className="question-footer-icon"><ShareArrowIcon /></span><span>공유</span></button>
+              </div>
+            </article>
           </div>
-        </section>
-
-        <section className="asked-question-form">
-          <div className="asked-question-form-title-row">
-            <label>질문 내용</label>
-            <label className="asked-question-anonymous-toggle">
-              <input type="checkbox" checked={anonymousQuestion} onChange={(event) => setAnonymousQuestion(event.target.checked)} />
-              <span>익명</span>
-            </label>
-          </div>
-          <textarea value={questionText} onChange={(e) => setQuestionText(e.target.value)} placeholder="상대에게 남길 질문을 입력하세요." />
-          <div className="asked-question-draft-note">작성 중인 질문은 임시저장됩니다.</div>
-          <div className="asked-question-form-actions asked-question-form-actions-submit-only">
-            <button
-              type="button"
-              className="ghost-btn"
-              onClick={() => {
-                if (typeof window !== "undefined") window.localStorage.removeItem(storageKey);
-                setQuestionText("");
-                window.alert(anonymousQuestion ? "질문이 익명으로 등록되었습니다." : "질문이 등록되었습니다.");
-              }}
-            >
-              질문 등록
-            </button>
-          </div>
-        </section>
-
-        <section className="question-list">
-          {questionSeed.map((item) => (
-            <div key={`ask-${item.id}`} className="question-feed-stack">
-              <article className="question-feed-card">
-                <div className="question-feed-top">
-                  <div>
-                    <div className="question-user-line">
-                      <span className="community-chip">질문</span>
-                      <strong>{item.author}</strong>
-                      <span className="community-meta">{item.meta}</span>
-                    </div>
-                    <div className="question-body">Q. {item.question}</div>
-                  </div>
-                </div>
-                <div className="question-answer-box">
-                  <span className="product-badge">답변</span>
-                  <div className="question-body">{item.answer}</div>
-                </div>
-                <div className="question-footer-actions">
-                  <button type="button" className="question-footer-icon-btn" aria-label="좋아요"><span className="question-footer-icon"><HeartIcon /></span><span>{item.likes}</span></button>
-                  <button type="button" className="question-footer-icon-btn" aria-label="댓글"><span className="question-footer-icon"><CommentBubbleIcon /></span><span>{item.comments}</span></button>
-                  <button type="button" className="question-footer-icon-btn" aria-label="공유"><span className="question-footer-icon"><ShareArrowIcon /></span><span>공유</span></button>
-                </div>
-              </article>
-            </div>
-          ))}
-        </section>
-      </div>
+        ))}
+      </section>
       <nav className="bottom-nav question-overlay-bottom-nav">
         {mobileTabs.map((tab) => {
           const filled = activeTab === tab;
@@ -4961,6 +4990,10 @@ export default function App() {
   const homeFeedSource = useMemo(() => activeHomeFeedItems.slice(0, homeFeedVisibleCount), [activeHomeFeedItems, homeFeedVisibleCount]);
 
   useEffect(() => {
+    homeFeedViewedIdsRef.current = Array.from(new Set([...homeFeedViewedIdsRef.current, ...homeFeedSource.map((item) => item.id)])).slice(-240);
+  }, [homeFeedSource]);
+
+  useEffect(() => {
     setHomeFeedVisibleCount((prev) => {
       if (!activeHomeFeedItems.length) return HOME_FEED_BATCH_SIZE;
       return Math.min(Math.max(prev, HOME_FEED_BATCH_SIZE), activeHomeFeedItems.length);
@@ -5255,6 +5288,101 @@ export default function App() {
     setShopHomeBannerDragOffset(0);
   };
 
+  const refreshHomeFeedAtTop = useCallback(() => {
+    if (homeFeedRefreshing) return;
+    setHomeFeedRefreshing(true);
+
+    window.setTimeout(() => {
+      const visibleIds = new Set(homeFeedSource.map((item) => item.id));
+      const viewedIds = new Set(homeFeedViewedIdsRef.current);
+      const usedTemplateIds = new Set(homeFeedRefreshUsedTemplateIdsRef.current);
+
+      const primaryCandidates = recommendedHomeFeed.filter((item) => !visibleIds.has(item.id) && !viewedIds.has(item.id) && !usedTemplateIds.has(item.id));
+      const secondaryCandidates = recommendedHomeFeed.filter((item) => !visibleIds.has(item.id) && !usedTemplateIds.has(item.id));
+      const fallbackCandidates = chronologicalHomeFeed.filter((item) => !visibleIds.has(item.id) && !usedTemplateIds.has(item.id));
+      const selectedTemplates = (primaryCandidates.length ? primaryCandidates : secondaryCandidates.length ? secondaryCandidates : fallbackCandidates)
+        .slice(0, HOME_FEED_REFRESH_BATCH_SIZE);
+
+      if (!selectedTemplates.length) {
+        setHomeFeedRefreshing(false);
+        setHomeFeedPullDistance(0);
+        showListEndToast("새로 불러올 관심 피드가 없습니다");
+        return;
+      }
+
+      const nextStartId = Math.max(...allFeedItems.map((item) => item.id), 0) + 1;
+      const freshItems = selectedTemplates.map((item, index) => buildFreshFeedItemFromTemplate(item, nextStartId + index, index));
+
+      setCustomFeedItems((prev) => [...freshItems, ...prev]);
+      setFeedCommentMap((prev) => {
+        const next = { ...prev };
+        freshItems.forEach((item) => {
+          if (!next[item.id]) next[item.id] = [];
+        });
+        return next;
+      });
+
+      homeFeedRefreshUsedTemplateIdsRef.current = Array.from(new Set([...homeFeedRefreshUsedTemplateIdsRef.current, ...selectedTemplates.map((item) => item.id)])).slice(-240);
+      homeFeedViewedIdsRef.current = Array.from(new Set([...homeFeedViewedIdsRef.current, ...selectedTemplates.map((item) => item.id), ...freshItems.map((item) => item.id)])).slice(-240);
+
+      setHomeFeedVisibleCount((prev) => Math.max(prev, HOME_FEED_BATCH_SIZE));
+      setHomeFeedHeaderHidden(false);
+      homeFeedHideThresholdRef.current = 0;
+      homeFeedShowThresholdRef.current = 0;
+      lastHomeFeedScrollTopRef.current = 0;
+      const node = homeFeedScrollRef.current;
+      if (node) node.scrollTop = 0;
+      persistHomeFeedState({ visibleCount: Math.max(homeFeedVisibleCount, HOME_FEED_BATCH_SIZE), scrollTop: 0, lastInactiveAt: 0 });
+      setHomeFeedRefreshing(false);
+      setHomeFeedPullDistance(0);
+    }, 620);
+  }, [allFeedItems, chronologicalHomeFeed, homeFeedRefreshing, homeFeedSource, homeFeedVisibleCount, persistHomeFeedState, recommendedHomeFeed, showListEndToast]);
+
+  const handleHomeFeedPullStart = useCallback((event: ReactTouchEvent<HTMLDivElement>) => {
+    if (homeFeedRefreshing) return;
+    const node = homeFeedScrollRef.current;
+    if (!node || node.scrollTop > 0) {
+      homeFeedPullActiveRef.current = false;
+      homeFeedPullStartYRef.current = null;
+      return;
+    }
+    homeFeedPullActiveRef.current = true;
+    homeFeedPullStartYRef.current = event.touches[0]?.clientY ?? null;
+  }, [homeFeedRefreshing]);
+
+  const handleHomeFeedPullMove = useCallback((event: ReactTouchEvent<HTMLDivElement>) => {
+    if (!homeFeedPullActiveRef.current || homeFeedRefreshing) return;
+    const startY = homeFeedPullStartYRef.current;
+    const currentY = event.touches[0]?.clientY ?? null;
+    const node = homeFeedScrollRef.current;
+    if (startY === null || currentY === null || !node || node.scrollTop > 0) {
+      homeFeedPullActiveRef.current = false;
+      homeFeedPullStartYRef.current = null;
+      setHomeFeedPullDistance(0);
+      return;
+    }
+    const delta = Math.max(0, currentY - startY);
+    const nextDistance = Math.min(HOME_FEED_PULL_MAX, Math.round(delta * 0.45));
+    setHomeFeedPullDistance(nextDistance);
+    if (nextDistance > 0) {
+      event.preventDefault();
+    }
+  }, [homeFeedRefreshing]);
+
+  const handleHomeFeedPullEnd = useCallback(() => {
+    if (!homeFeedPullActiveRef.current) return;
+    homeFeedPullActiveRef.current = false;
+    homeFeedPullStartYRef.current = null;
+
+    if (homeFeedPullDistance >= HOME_FEED_PULL_TRIGGER) {
+      setHomeFeedPullDistance(HOME_FEED_PULL_TRIGGER);
+      refreshHomeFeedAtTop();
+      return;
+    }
+
+    setHomeFeedPullDistance(0);
+  }, [homeFeedPullDistance, refreshHomeFeedAtTop]);
+
   const handleHomeFeedScroll = useCallback((event: ReactUIEvent<HTMLDivElement>) => {
     const node = event.currentTarget;
     const currentTop = node.scrollTop;
@@ -5421,6 +5549,10 @@ export default function App() {
   }, [chatCategory, globalKeyword]);
 
   const pagedThreads = useMemo(() => filteredThreads.slice(0, chatVisibleCount), [filteredThreads, chatVisibleCount]);
+  const chatDisplayRows = useMemo(() => {
+    const rowCount = Math.max(CHAT_LIST_BASE_ROWS, pagedThreads.length);
+    return Array.from({ length: rowCount }, (_, index) => pagedThreads[index] ?? null);
+  }, [pagedThreads]);
 
   const filteredForumRooms = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
@@ -7427,7 +7559,21 @@ export default function App() {
                     ))}
                   </div>
                 </div>
-                <div ref={homeFeedScrollRef} className={`feed-post-list compact-scroll-list feed-post-list-stream${homeFeedHeaderHidden ? " feed-post-list-stream-collapsed" : ""}`} onScroll={handleHomeFeedScroll}>
+                <div className={`feed-refresh-slot${homeFeedRefreshing ? " refreshing" : ""}${homeFeedPullDistance >= HOME_FEED_PULL_TRIGGER ? " armed" : ""}`} style={homeFeedRefreshing ? undefined : { height: homeFeedPullDistance ? `${homeFeedPullDistance}px` : "0px" }}>
+                  <div className="feed-refresh-indicator" aria-live="polite">
+                    <span className="feed-refresh-spinner" aria-hidden="true" />
+                    <span>{homeFeedRefreshing ? "새 피드를 불러오는 중" : homeFeedPullDistance >= HOME_FEED_PULL_TRIGGER ? "놓으면 새 피드를 불러옵니다" : "당겨서 새 피드 보기"}</span>
+                  </div>
+                </div>
+                <div
+                  ref={homeFeedScrollRef}
+                  className={`feed-post-list compact-scroll-list feed-post-list-stream${homeFeedHeaderHidden ? " feed-post-list-stream-collapsed" : ""}`}
+                  onScroll={handleHomeFeedScroll}
+                  onTouchStart={handleHomeFeedPullStart}
+                  onTouchMove={handleHomeFeedPullMove}
+                  onTouchEnd={handleHomeFeedPullEnd}
+                  onTouchCancel={handleHomeFeedPullEnd}
+                >
                   {homeFeedSource.map((item) => (
                     <div key={`feed-wrap-${item.id}`} className="feed-stream-item">
                       <FeedPoster
@@ -8179,7 +8325,7 @@ export default function App() {
                   </div>
                 </div>
                 <div className="chat-list compact-scroll-list kakao-chat-list" onScroll={handleChatListScroll}>
-                  {pagedThreads.map((thread) => (
+                  {chatDisplayRows.map((thread, index) => thread ? (
                     <article key={thread.id} className="chat-row kakao-chat-row">
                       <div className="avatar-circle kakao-avatar"><img src={thread.avatarUrl ?? buildChatAvatarDataUri(thread.name)} alt="" loading="lazy" /></div>
                       <div className="chat-copy kakao-chat-copy">
@@ -8196,6 +8342,18 @@ export default function App() {
                         <span>{thread.time}</span>
                         {thread.unread > 0 ? <b>{thread.unread}</b> : null}
                       </div>
+                    </article>
+                  ) : (
+                    <article key={`chat-empty-${chatCategory}-${index}`} className="chat-row kakao-chat-row kakao-chat-row-empty" aria-hidden="true">
+                      <div className="avatar-circle kakao-avatar" />
+                      <div className="chat-copy kakao-chat-copy">
+                        <div className="kakao-chat-head">
+                          <strong>{" "}</strong>
+                          <div className="kakao-chat-badges"><span>{" "}</span></div>
+                        </div>
+                        <p>{" "}</p>
+                      </div>
+                      <div className="chat-meta kakao-chat-meta"><span>{" "}</span></div>
                     </article>
                   ))}
                   {pagedThreads.length < filteredThreads.length ? <div className="chat-loading-row">채팅 기록 10개 단위로 추가 로딩 중</div> : null}

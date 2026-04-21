@@ -10091,3 +10091,153 @@ body {
     flex-direction: column;
   }
 }
+
+
+/* === 2026-04-21 request: question overlay / community-chat header / feed refresh === */
+.question-overlay,
+.question-overlay .asked-page-head,
+.question-overlay .asked-nav-row,
+.question-overlay .asked-question-profile-header,
+.question-overlay .asked-question-form,
+.question-overlay .question-list,
+.chat-question-pane-body,
+.chat-question-pane .asked-question-profile-header,
+.chat-question-pane .asked-question-form,
+.chat-question-pane .question-list,
+.question-feed-card,
+.question-answer-box {
+  background: #000 !important;
+}
+
+.question-overlay {
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto !important;
+}
+
+.question-overlay > .asked-question-profile-header,
+.question-overlay > .asked-question-form {
+  margin: 0 !important;
+  border-left: 0 !important;
+  border-right: 0 !important;
+  border-radius: 0 !important;
+  border-color: rgba(255,255,255,0.08) !important;
+  box-shadow: none !important;
+}
+
+.question-overlay > .question-list {
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  padding: 0 14px calc(96px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+.question-overlay .asked-page-head,
+.question-overlay-bottom-nav,
+.chat-question-pane-body {
+  border-color: rgba(255,255,255,0.08) !important;
+}
+
+.question-overlay .asked-question-copy p,
+.question-overlay .asked-question-copy span,
+.chat-question-pane .asked-question-copy p,
+.chat-question-pane .asked-question-copy span {
+  color: rgba(255,255,255,0.74) !important;
+}
+
+.feed-compose-launch-toolbar,
+.chat-toolbar.kakao-toolbar.compact-only-toolbar,
+.community-simple-category-row,
+.forum-simple-category-row {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-height: 50px !important;
+  height: 50px !important;
+  padding: 0 12px !important;
+  box-sizing: border-box !important;
+  align-items: center !important;
+  background: #000 !important;
+}
+
+.feed-filter-tabs,
+.chat-category-scroll,
+.community-simple-category-row,
+.forum-simple-category-row {
+  min-height: 34px !important;
+  height: 34px !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+.feed-filter-tab,
+.chat-category-scroll .category-chip,
+.community-simple-chip {
+  min-height: 34px !important;
+  height: 34px !important;
+  padding: 0 12px !important;
+  line-height: 1 !important;
+}
+
+.community-simple-board.compact-scroll-list,
+.community-simple-board.compact-scroll-list .community-simple-list,
+.tab-pane.fill-pane.chat-tab-pane .chat-list.compact-scroll-list.kakao-chat-list {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.kakao-chat-row-empty {
+  opacity: 0.36 !important;
+}
+
+.kakao-chat-row-empty strong,
+.kakao-chat-row-empty p,
+.kakao-chat-row-empty span,
+.kakao-chat-row-empty em {
+  color: rgba(255,255,255,0.16) !important;
+}
+
+.feed-refresh-slot {
+  height: 0;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: #000;
+  transition: height 0.18s ease;
+}
+
+.feed-refresh-slot.refreshing {
+  height: 52px !important;
+}
+
+.feed-refresh-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.82);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.feed-refresh-slot.armed .feed-refresh-indicator {
+  border-color: rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.06);
+  color: #fff;
+}
+
+.feed-refresh-spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.18);
+  border-top-color: #fff;
+  animation: feed-refresh-spin 0.8s linear infinite;
+}
+
+@keyframes feed-refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
