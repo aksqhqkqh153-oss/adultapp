@@ -1,6 +1,6 @@
 {
-  "name": "adultapp",
-  "short_name": "adultapp",
+  "name": "PlayCat",
+  "short_name": "PlayCat",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#000000",

@@ -4894,30 +4894,10 @@ export default function App() {
     }
 
     homeFeedScrollRafRef.current = window.requestAnimationFrame(() => {
-      const prevTop = lastHomeFeedScrollTopRef.current;
-      const delta = currentTop - prevTop;
       lastHomeFeedScrollTopRef.current = currentTop;
-
-      if (currentTop <= 8) {
-        homeFeedHideThresholdRef.current = 0;
-        homeFeedShowThresholdRef.current = 0;
-        setHomeFeedHeaderHidden(false);
-        return;
-      }
-
-      if (delta > 2) {
-        homeFeedHideThresholdRef.current += delta;
-        homeFeedShowThresholdRef.current = 0;
-      } else if (delta < -2) {
-        homeFeedShowThresholdRef.current += Math.abs(delta);
-        homeFeedHideThresholdRef.current = 0;
-      }
-
-      if (!homeFeedHeaderHidden && homeFeedHideThresholdRef.current >= 28 && currentTop > 32) {
-        homeFeedHideThresholdRef.current = 0;
-        setHomeFeedHeaderHidden(true);
-      } else if (homeFeedHeaderHidden && homeFeedShowThresholdRef.current >= 18) {
-        homeFeedShowThresholdRef.current = 0;
+      homeFeedHideThresholdRef.current = 0;
+      homeFeedShowThresholdRef.current = 0;
+      if (homeFeedHeaderHidden) {
         setHomeFeedHeaderHidden(false);
       }
     });

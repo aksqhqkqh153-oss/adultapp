@@ -8649,3 +8649,37 @@ body {
     max-width: min(392px, calc(100% - 16px)) !important;
   }
 }
+
+
+/* === 2026-04-21 request: keep home feed filter tabs fixed and always visible === */
+.home-feed-pane-feed-scroll {
+  grid-template-rows: 50px minmax(0, 1fr) !important;
+}
+
+.home-feed-pane-feed-scroll .feed-compose-launch-toolbar,
+.home-feed-pane-feed-scroll .feed-compose-launch-toolbar.feed-compose-launch-toolbar-hidden {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 8 !important;
+  min-height: 50px !important;
+  max-height: 50px !important;
+  height: 50px !important;
+  margin: 0 !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  overflow: visible !important;
+  transform: translate3d(0, 0, 0) !important;
+  background: rgba(0, 0, 0, 0.96) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.feed-post-list.feed-post-list-stream,
+.feed-post-list-stream {
+  padding-top: 10px !important;
+}
+
+@media (max-width: 640px) {
+  .home-feed-pane-feed-scroll {
+    grid-template-rows: 50px minmax(0, 1fr) !important;
+  }
+}
