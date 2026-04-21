@@ -2557,6 +2557,8 @@ function FeedComposeScreen({ mode, title, caption, attachment, busy, helperText,
   const composeMeta = getFeedComposeModeMeta(mode);
   const isShortsMode = mode === "쇼츠게시";
   const isFeedMode = mode === "피드게시";
+  const feedMediaInputRef = useRef<HTMLInputElement | null>(null);
+  const feedGalleryPlaceholders = [0, 1, 2, 3, 4];
 
   return (
     <div className={`feed-compose-overlay${isFeedMode ? " feed-compose-overlay-x" : ""}${isShortsMode ? " feed-compose-overlay-shorts" : ""}`}>
@@ -2564,18 +2566,24 @@ function FeedComposeScreen({ mode, title, caption, attachment, busy, helperText,
         <div className="asked-nav-row feed-compose-nav-row">
           <button type="button" className="header-inline-btn header-icon-btn topbar-search-back" onClick={onClose} aria-label="뒤로가기"><BackArrowIcon /></button>
           <div className="asked-page-title">{composeMeta.title}</div>
-          <button type="button" className={`header-inline-btn feed-comment-submit-top${isShortsMode ? " feed-compose-submit-pill" : ""}`} onClick={onSubmit} disabled={!canSubmit}>등록</button>
+          <button type="button" className={`header-inline-btn feed-comment-submit-top${isShortsMode ? " feed-compose-submit-pill" : ""}`} onClick={onSubmit} disabled={!canSubmit}>게시하기</button>
         </div>
       </section>
       <div className="feed-compose-overlay-body compact-scroll-list">
         {isFeedMode ? (
           <section className="feed-compose-card feed-compose-card-x">
             <div className="feed-compose-profile-row feed-compose-profile-row-x">
-              <div className="feed-comment-composer-avatar">나</div>
               <div className="feed-compose-x-main">
-                <div className="feed-compose-x-identity">
-                  <strong>나</strong>
-                  <span>모든 사용자에게 공개</span>
+                <div className="feed-compose-gallery-access">
+                  <button
+                    type="button"
+                    className="feed-compose-gallery-open-btn"
+                    aria-label="사진첩 열기"
+                    onClick={() => feedMediaInputRef.current?.click()}
+                    disabled={busy}
+                  >
+                    <PhotoImageIcon />
+                  </button>
                 </div>
                 <textarea
                   value={caption}
@@ -2584,35 +2592,52 @@ function FeedComposeScreen({ mode, title, caption, attachment, busy, helperText,
                   placeholder="무슨 일이 일어나고 있나요?"
                   maxLength={400}
                 />
-                {attachment ? (
-                  <div className="feed-compose-preview-card feed-compose-preview-card-x">
-                    {attachment.type.startsWith("image/") ? (
-                      <img src={attachment.previewUrl} alt={attachment.name} className="feed-compose-preview-media" loading="lazy" />
-                    ) : (
-                      <video src={attachment.previewUrl} className="feed-compose-preview-media" controls playsInline preload="metadata" />
-                    )}
-                    <div className="feed-compose-preview-copy">
-                      <strong>{attachment.name}</strong>
-                      <span>{attachment.type.startsWith("video/") ? `영상 첨부${attachment.optimized ? " · 최적화" : ""}${attachment.durationSec ? ` · ${attachment.durationSec.toFixed(1)}초` : ""}` : "사진 첨부"} · {Math.max(1, Math.round(attachment.size / 1024))}KB</span>
-                    </div>
-                    <button type="button" className="ghost-btn" onClick={onClearAttachment}>삭제</button>
+                <div className="feed-compose-gallery-shell">
+                  <div className="feed-compose-gallery-strip" role="list" aria-label="사진 및 영상 선택">
+                    <label className={`feed-compose-gallery-tile feed-compose-gallery-picker${busy ? " is-busy" : ""}`} role="listitem">
+                      <input
+                        ref={feedMediaInputRef}
+                        type="file"
+                        accept={composeMeta.accept}
+                        hidden
+                        disabled={busy}
+                        onChange={(event) => {
+                          onAttachFile(event.target.files?.[0] ?? null);
+                          event.currentTarget.value = "";
+                        }}
+                      />
+                      <span className="feed-compose-gallery-picker-icon"><PhotoImageIcon /></span>
+                      <b>{busy ? "처리 중" : "사진첩"}</b>
+                    </label>
+                    {attachment ? (
+                      <div className="feed-compose-gallery-tile feed-compose-gallery-selected" role="listitem">
+                        {attachment.type.startsWith("image/") ? (
+                          <img src={attachment.previewUrl} alt={attachment.name} className="feed-compose-gallery-thumb" loading="lazy" />
+                        ) : (
+                          <video src={attachment.previewUrl} className="feed-compose-gallery-thumb" playsInline muted preload="metadata" />
+                        )}
+                        <button type="button" className="feed-compose-gallery-remove" onClick={onClearAttachment} aria-label="선택한 첨부 삭제">삭제</button>
+                      </div>
+                    ) : null}
+                    {feedGalleryPlaceholders.map((index) => (
+                      <button
+                        key={`feed-gallery-placeholder-${index}`}
+                        type="button"
+                        className="feed-compose-gallery-tile feed-compose-gallery-placeholder"
+                        onClick={() => feedMediaInputRef.current?.click()}
+                        aria-label={`첨부 항목 ${index + 1} 선택`}
+                      >
+                        <span className="feed-compose-gallery-placeholder-fill" />
+                      </button>
+                    ))}
                   </div>
-                ) : null}
-                <div className="feed-compose-x-toolbar">
-                  <label className={`creator-launch-btn feed-compose-attach-btn feed-compose-attach-btn-inline${busy ? " is-busy" : ""}`}>
-                    {busy ? "첨부 최적화 중" : composeMeta.attachLabel}
-                    <input
-                      type="file"
-                      accept={composeMeta.accept}
-                      hidden
-                      disabled={busy}
-                      onChange={(event) => {
-                        onAttachFile(event.target.files?.[0] ?? null);
-                        event.currentTarget.value = "";
-                      }}
-                    />
-                  </label>
-                  <span className="feed-compose-x-helper">{helperText}</span>
+                  <div className="feed-compose-gallery-meta">
+                    <strong>{attachment ? attachment.name : "사진 또는 영상 1개 선택"}</strong>
+                    <span>{attachment ? `${attachment.type.startsWith("video/") ? `영상 첨부${attachment.optimized ? " · 최적화" : ""}${attachment.durationSec ? ` · ${attachment.durationSec.toFixed(1)}초` : ""}` : "사진 첨부"} · ${Math.max(1, Math.round(attachment.size / 1024))}KB` : helperText}</span>
+                  </div>
+                </div>
+                <div className="feed-compose-x-privacy">
+                  <button type="button" className="feed-compose-privacy-chip">모든 사용자에게 공개</button>
                 </div>
               </div>
             </div>
@@ -2706,7 +2731,7 @@ function FeedComposeScreen({ mode, title, caption, attachment, busy, helperText,
         ) : (
           <section className="feed-compose-card">
             <div className="feed-compose-profile-row">
-              <div className="feed-comment-composer-avatar">나</div>
+              <div className="feed-comment-composer-avatar" aria-hidden="true" />
               <div>
                 <strong>{composeMeta.title}</strong>
                 <span>{composeMeta.description}</span>
