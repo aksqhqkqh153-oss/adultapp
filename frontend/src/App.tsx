@@ -8192,8 +8192,9 @@ export default function App() {
         {showAppTabContent && activeTab === "쇼핑" ? (
           <section className={shoppingTab === "홈" ? "compact-scroll-list shop-home-feed-pane shop-home-pane-root" : "tab-pane fill-pane"}>
             {shoppingTab === "홈" ? (
-              <>
-                <div
+              <div className="shop-home-home-shell">
+                <div className="shop-home-top-stack">
+                  <div
                   className="shop-home-hero-carousel"
                   aria-label="쇼핑 홈 배너"
                   onPointerDown={handleShopHomeBannerPointerDown}
@@ -8236,7 +8237,7 @@ export default function App() {
                 </div>
 
                 <div className="chat-toolbar kakao-toolbar compact-only-toolbar feed-compose-launch-toolbar shop-home-sort-toolbar">
-                  <div className="feed-filter-tabs" role="tablist" aria-label="쇼핑 홈 정렬 필터">
+                  <div className="feed-filter-tabs" role="tablist" aria-label="쇼핑 홈 즐겨찾기 필터">
                     {SHOP_HOME_SORT_TABS.map((filter) => (
                       <button
                         key={`shop-home-sort-${filter}`}
@@ -8250,6 +8251,7 @@ export default function App() {
                       </button>
                     ))}
                   </div>
+                </div>
                 </div>
 
                 <div ref={shopHomeGridScrollRef} className={`shop-home-product-grid-scroll compact-scroll-list ${shopHomeGridDragging ? "dragging" : ""}`} onScroll={handleShopHomeScroll} onPointerDown={handleShopHomeGridPointerDown} onPointerMove={handleShopHomeGridPointerMove} onPointerUp={finishShopHomeGridPointerDrag} onPointerCancel={finishShopHomeGridPointerDrag} onPointerLeave={finishShopHomeGridPointerDrag}>
@@ -8295,9 +8297,9 @@ export default function App() {
                       </article>
                     ))}
                   </div>
-                  <div className="feed-loading-row">상품을 계속 불러오는 중</div>
+                  <div className="feed-loading-row shop-home-loading-row">상품을 계속 불러오는 중</div>
                 </div>
-              </>
+              </div>
             ) : null}
 
             {shoppingTab === "목록" ? (
