@@ -2279,6 +2279,7 @@ function AskProfileScreen({ profile, activeTab, onClose, onNavigate, renderBotto
     if (typeof window === "undefined") return "";
     return window.localStorage.getItem(storageKey) ?? "";
   });
+  const [anonymousQuestion, setAnonymousQuestion] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -2315,18 +2316,23 @@ function AskProfileScreen({ profile, activeTab, onClose, onNavigate, renderBotto
         </section>
 
         <section className="asked-question-form">
-          <label>질문 내용</label>
+          <div className="asked-question-form-title-row">
+            <label>질문 내용</label>
+            <label className="asked-question-anonymous-toggle">
+              <input type="checkbox" checked={anonymousQuestion} onChange={(event) => setAnonymousQuestion(event.target.checked)} />
+              <span>익명</span>
+            </label>
+          </div>
           <textarea value={questionText} onChange={(e) => setQuestionText(e.target.value)} placeholder="상대에게 남길 질문을 입력하세요." />
           <div className="asked-question-draft-note">작성 중인 질문은 임시저장됩니다.</div>
-          <div className="asked-question-form-actions">
-            <button type="button">익명으로 질문</button>
+          <div className="asked-question-form-actions asked-question-form-actions-submit-only">
             <button
               type="button"
               className="ghost-btn"
               onClick={() => {
                 if (typeof window !== "undefined") window.localStorage.removeItem(storageKey);
                 setQuestionText("");
-                window.alert("질문이 등록되었습니다.");
+                window.alert(anonymousQuestion ? "질문이 익명으로 등록되었습니다." : "질문이 등록되었습니다.");
               }}
             >
               질문 등록
@@ -2353,9 +2359,9 @@ function AskProfileScreen({ profile, activeTab, onClose, onNavigate, renderBotto
                   <div className="question-body">{item.answer}</div>
                 </div>
                 <div className="question-footer-actions">
-                  <button type="button">좋아요 {item.likes}</button>
-                  <button type="button">댓글 {item.comments}</button>
-                  <button type="button">공유</button>
+                  <button type="button" className="question-footer-icon-btn" aria-label="좋아요"><span className="question-footer-icon"><HeartIcon /></span><span>{item.likes}</span></button>
+                  <button type="button" className="question-footer-icon-btn" aria-label="댓글"><span className="question-footer-icon"><CommentBubbleIcon /></span><span>{item.comments}</span></button>
+                  <button type="button" className="question-footer-icon-btn" aria-label="공유"><span className="question-footer-icon"><ShareArrowIcon /></span><span>공유</span></button>
                 </div>
               </article>
             </div>
@@ -2520,80 +2526,219 @@ type FeedComposeScreenProps = {
 function FeedComposeScreen({ mode, title, caption, attachment, busy, helperText, onChangeTitle, onChangeCaption, onAttachFile, onClearAttachment, onSubmit, onClose }: FeedComposeScreenProps) {
   const canSubmit = Boolean(caption.trim() || attachment);
   const composeMeta = getFeedComposeModeMeta(mode);
+  const isShortsMode = mode === "쇼츠게시";
+  const isFeedMode = mode === "피드게시";
 
   return (
-    <div className="feed-compose-overlay">
+    <div className={`feed-compose-overlay${isFeedMode ? " feed-compose-overlay-x" : ""}${isShortsMode ? " feed-compose-overlay-shorts" : ""}`}>
       <section className="asked-page-head feed-compose-head">
-        <div className="asked-nav-row">
+        <div className="asked-nav-row feed-compose-nav-row">
           <button type="button" className="header-inline-btn header-icon-btn topbar-search-back" onClick={onClose} aria-label="뒤로가기"><BackArrowIcon /></button>
           <div className="asked-page-title">{composeMeta.title}</div>
-          <button type="button" className="header-inline-btn feed-comment-submit-top" onClick={onSubmit} disabled={!canSubmit}>등록</button>
+          <button type="button" className={`header-inline-btn feed-comment-submit-top${isShortsMode ? " feed-compose-submit-pill" : ""}`} onClick={onSubmit} disabled={!canSubmit}>등록</button>
         </div>
       </section>
       <div className="feed-compose-overlay-body compact-scroll-list">
-        <section className="feed-compose-card">
-          <div className="feed-compose-profile-row">
-            <div className="feed-comment-composer-avatar">나</div>
-            <div>
-              <strong>{composeMeta.title}</strong>
-              <span>{composeMeta.description}</span>
-            </div>
-          </div>
-
-          <div className="feed-compose-field">
-            <span>제목</span>
-            <input
-              value={title}
-              onChange={(event) => onChangeTitle(event.target.value)}
-              placeholder="피드 제목을 입력하세요"
-              maxLength={60}
-            />
-          </div>
-
-          <div className="feed-compose-field">
-            <span>내용</span>
-            <textarea
-              value={caption}
-              onChange={(event) => onChangeCaption(event.target.value)}
-              placeholder="피드 내용을 입력하세요"
-              maxLength={400}
-            />
-          </div>
-
-          <div className="feed-compose-attach-row">
-            <label className={`creator-launch-btn feed-compose-attach-btn${busy ? " is-busy" : ""}`}>
-              {busy ? "첨부 최적화 중" : composeMeta.attachLabel}
-              <input
-                type="file"
-                accept={composeMeta.accept}
-                hidden
-                disabled={busy}
-                onChange={(event) => {
-                  onAttachFile(event.target.files?.[0] ?? null);
-                  event.currentTarget.value = "";
-                }}
-              />
-            </label>
-            <span>{helperText}</span>
-          </div>
-
-          {attachment ? (
-            <div className="feed-compose-preview-card">
-              {attachment.type.startsWith("image/") ? (
-                <img src={attachment.previewUrl} alt={attachment.name} className="feed-compose-preview-media" loading="lazy" />
-              ) : (
-                <video src={attachment.previewUrl} className="feed-compose-preview-media" controls playsInline preload="metadata" />
-              )}
-              <div className="feed-compose-preview-copy">
-                <strong>{attachment.name}</strong>
-                <span>{attachment.type.startsWith("video/") ? `영상 첨부${attachment.optimized ? " · 최적화" : ""}${attachment.durationSec ? ` · ${attachment.durationSec.toFixed(1)}초` : ""}` : "사진 첨부"} · {Math.max(1, Math.round(attachment.size / 1024))}KB</span>
+        {isFeedMode ? (
+          <section className="feed-compose-card feed-compose-card-x">
+            <div className="feed-compose-profile-row feed-compose-profile-row-x">
+              <div className="feed-comment-composer-avatar">나</div>
+              <div className="feed-compose-x-main">
+                <div className="feed-compose-x-identity">
+                  <strong>나</strong>
+                  <span>모든 사용자에게 공개</span>
+                </div>
+                <textarea
+                  value={caption}
+                  onChange={(event) => onChangeCaption(event.target.value)}
+                  className="feed-compose-x-textarea"
+                  placeholder="무슨 일이 일어나고 있나요?"
+                  maxLength={400}
+                />
+                {attachment ? (
+                  <div className="feed-compose-preview-card feed-compose-preview-card-x">
+                    {attachment.type.startsWith("image/") ? (
+                      <img src={attachment.previewUrl} alt={attachment.name} className="feed-compose-preview-media" loading="lazy" />
+                    ) : (
+                      <video src={attachment.previewUrl} className="feed-compose-preview-media" controls playsInline preload="metadata" />
+                    )}
+                    <div className="feed-compose-preview-copy">
+                      <strong>{attachment.name}</strong>
+                      <span>{attachment.type.startsWith("video/") ? `영상 첨부${attachment.optimized ? " · 최적화" : ""}${attachment.durationSec ? ` · ${attachment.durationSec.toFixed(1)}초` : ""}` : "사진 첨부"} · {Math.max(1, Math.round(attachment.size / 1024))}KB</span>
+                    </div>
+                    <button type="button" className="ghost-btn" onClick={onClearAttachment}>삭제</button>
+                  </div>
+                ) : null}
+                <div className="feed-compose-x-toolbar">
+                  <label className={`creator-launch-btn feed-compose-attach-btn feed-compose-attach-btn-inline${busy ? " is-busy" : ""}`}>
+                    {busy ? "첨부 최적화 중" : composeMeta.attachLabel}
+                    <input
+                      type="file"
+                      accept={composeMeta.accept}
+                      hidden
+                      disabled={busy}
+                      onChange={(event) => {
+                        onAttachFile(event.target.files?.[0] ?? null);
+                        event.currentTarget.value = "";
+                      }}
+                    />
+                  </label>
+                  <span className="feed-compose-x-helper">{helperText}</span>
+                </div>
               </div>
-              <button type="button" className="ghost-btn" onClick={onClearAttachment}>삭제</button>
             </div>
-          ) : (
-            <div className="feed-compose-empty">첨부한 사진/영상이 여기에 미리보기로 표시됩니다.</div>
-          )}
-        </section>
+          </section>
+        ) : isShortsMode ? (
+          <section className="feed-compose-card feed-compose-card-shorts">
+            <div className="feed-compose-shorts-hero">
+              <div>
+                <strong>유튜브 쇼츠 등록 흐름처럼 순서대로 진행</strong>
+                <span>영상 선택 → 제목 입력 → 설명 입력 → 업로드 전 확인 순서로 배치했습니다.</span>
+              </div>
+              <span className="feed-compose-shorts-chip">세로형 쇼츠</span>
+            </div>
+
+            <div className="feed-compose-step-card">
+              <div className="feed-compose-step-badge">1</div>
+              <div className="feed-compose-step-copy">
+                <strong>쇼츠 영상 선택</strong>
+                <span>{helperText}</span>
+              </div>
+              <label className={`creator-launch-btn feed-compose-attach-btn${busy ? " is-busy" : ""}`}>
+                {busy ? "첨부 최적화 중" : composeMeta.attachLabel}
+                <input
+                  type="file"
+                  accept={composeMeta.accept}
+                  hidden
+                  disabled={busy}
+                  onChange={(event) => {
+                    onAttachFile(event.target.files?.[0] ?? null);
+                    event.currentTarget.value = "";
+                  }}
+                />
+              </label>
+            </div>
+
+            {attachment ? (
+              <div className="feed-compose-preview-card feed-compose-preview-card-shorts">
+                <video src={attachment.previewUrl} className="feed-compose-preview-media" controls playsInline preload="metadata" />
+                <div className="feed-compose-preview-copy">
+                  <strong>{attachment.name}</strong>
+                  <span>{`영상 첨부${attachment.optimized ? " · 최적화" : ""}${attachment.durationSec ? ` · ${attachment.durationSec.toFixed(1)}초` : ""} · ${Math.max(1, Math.round(attachment.size / 1024))}KB`}</span>
+                </div>
+                <button type="button" className="ghost-btn" onClick={onClearAttachment}>삭제</button>
+              </div>
+            ) : (
+              <div className="feed-compose-empty feed-compose-empty-shorts">선택한 쇼츠 영상이 여기에 미리보기로 표시됩니다.</div>
+            )}
+
+            <div className="feed-compose-step-card">
+              <div className="feed-compose-step-badge">2</div>
+              <div className="feed-compose-step-copy">
+                <strong>제목</strong>
+                <span>목록과 추천 영역에 노출될 문구입니다.</span>
+              </div>
+              <input
+                value={title}
+                onChange={(event) => onChangeTitle(event.target.value)}
+                placeholder="쇼츠 제목을 입력하세요"
+                maxLength={60}
+              />
+            </div>
+
+            <div className="feed-compose-step-card">
+              <div className="feed-compose-step-badge">3</div>
+              <div className="feed-compose-step-copy">
+                <strong>설명</strong>
+                <span>시청자가 영상과 함께 보게 될 설명입니다.</span>
+              </div>
+              <textarea
+                value={caption}
+                onChange={(event) => onChangeCaption(event.target.value)}
+                placeholder="쇼츠 설명을 입력하세요"
+                maxLength={400}
+              />
+            </div>
+
+            <div className="feed-compose-step-card feed-compose-step-card-checklist">
+              <div className="feed-compose-step-badge">4</div>
+              <div className="feed-compose-step-copy">
+                <strong>업로드 전 확인</strong>
+                <span>실제 업로드 전 검토 항목처럼 정리했습니다.</span>
+              </div>
+              <ul className="feed-compose-checklist">
+                <li>세로형 비율 권장</li>
+                <li>20초 이하 영상 권장</li>
+                <li>대표 문구는 제목에 간결하게 작성</li>
+                <li>등록 후 홈 &gt; 쇼츠 탭에서 확인 가능</li>
+              </ul>
+            </div>
+          </section>
+        ) : (
+          <section className="feed-compose-card">
+            <div className="feed-compose-profile-row">
+              <div className="feed-comment-composer-avatar">나</div>
+              <div>
+                <strong>{composeMeta.title}</strong>
+                <span>{composeMeta.description}</span>
+              </div>
+            </div>
+
+            <div className="feed-compose-field">
+              <span>제목</span>
+              <input
+                value={title}
+                onChange={(event) => onChangeTitle(event.target.value)}
+                placeholder="피드 제목을 입력하세요"
+                maxLength={60}
+              />
+            </div>
+
+            <div className="feed-compose-field">
+              <span>내용</span>
+              <textarea
+                value={caption}
+                onChange={(event) => onChangeCaption(event.target.value)}
+                placeholder="피드 내용을 입력하세요"
+                maxLength={400}
+              />
+            </div>
+
+            <div className="feed-compose-attach-row">
+              <label className={`creator-launch-btn feed-compose-attach-btn${busy ? " is-busy" : ""}`}>
+                {busy ? "첨부 최적화 중" : composeMeta.attachLabel}
+                <input
+                  type="file"
+                  accept={composeMeta.accept}
+                  hidden
+                  disabled={busy}
+                  onChange={(event) => {
+                    onAttachFile(event.target.files?.[0] ?? null);
+                    event.currentTarget.value = "";
+                  }}
+                />
+              </label>
+              <span>{helperText}</span>
+            </div>
+
+            {attachment ? (
+              <div className="feed-compose-preview-card">
+                {attachment.type.startsWith("image/") ? (
+                  <img src={attachment.previewUrl} alt={attachment.name} className="feed-compose-preview-media" loading="lazy" />
+                ) : (
+                  <video src={attachment.previewUrl} className="feed-compose-preview-media" controls playsInline preload="metadata" />
+                )}
+                <div className="feed-compose-preview-copy">
+                  <strong>{attachment.name}</strong>
+                  <span>{attachment.type.startsWith("video/") ? `영상 첨부${attachment.optimized ? " · 최적화" : ""}${attachment.durationSec ? ` · ${attachment.durationSec.toFixed(1)}초` : ""}` : "사진 첨부"} · {Math.max(1, Math.round(attachment.size / 1024))}KB</span>
+                </div>
+                <button type="button" className="ghost-btn" onClick={onClearAttachment}>삭제</button>
+              </div>
+            ) : (
+              <div className="feed-compose-empty">첨부한 사진/영상이 여기에 미리보기로 표시됩니다.</div>
+            )}
+          </section>
+        )}
       </div>
     </div>
   );
@@ -3311,6 +3456,7 @@ export default function App() {
     if (typeof window === "undefined") return "";
     return window.localStorage.getItem("adultapp_chat_question_draft") ?? "";
   });
+  const [chatQuestionAnonymous, setChatQuestionAnonymous] = useState(false);
   const [chatCategory, setChatCategory] = useState<ChatCategory>("전체");
   const [chatVisibleCount, setChatVisibleCount] = useState(30);
   const [selectedForumCategory, setSelectedForumCategory] = useState<ForumBoardCategory>("자유대화");
@@ -7976,12 +8122,17 @@ export default function App() {
                 </section>
 
                 <section className="asked-question-form">
-                  <label>질문 내용</label>
+                  <div className="asked-question-form-title-row">
+                    <label>질문 내용</label>
+                    <label className="asked-question-anonymous-toggle">
+                      <input type="checkbox" checked={chatQuestionAnonymous} onChange={(event) => setChatQuestionAnonymous(event.target.checked)} />
+                      <span>익명</span>
+                    </label>
+                  </div>
                   <textarea value={chatQuestionDraft} onChange={(e) => setChatQuestionDraft(e.target.value)} placeholder="상대에게 남길 질문을 입력하세요." />
                   <div className="asked-question-draft-note">작성 중인 질문은 임시저장됩니다.</div>
-                  <div className="asked-question-form-actions">
-                    <button type="button">익명으로 질문</button>
-                    <button type="button" className="ghost-btn" onClick={() => { setChatQuestionDraft(""); if (typeof window !== "undefined") window.localStorage.removeItem("adultapp_chat_question_draft"); window.alert("질문이 등록되었습니다."); }}>질문 등록</button>
+                  <div className="asked-question-form-actions asked-question-form-actions-submit-only">
+                    <button type="button" className="ghost-btn" onClick={() => { setChatQuestionDraft(""); if (typeof window !== "undefined") window.localStorage.removeItem("adultapp_chat_question_draft"); window.alert(chatQuestionAnonymous ? "질문이 익명으로 등록되었습니다." : "질문이 등록되었습니다."); }}>질문 등록</button>
                   </div>
                 </section>
 
@@ -8003,9 +8154,9 @@ export default function App() {
                         <div className="question-body">{item.answer}</div>
                       </div>
                       <div className="question-footer-actions">
-                        <button>좋아요 {item.likes}</button>
-                        <button>댓글 {item.comments}</button>
-                        <button>공유</button>
+                        <button type="button" className="question-footer-icon-btn" aria-label="좋아요"><span className="question-footer-icon"><HeartIcon /></span><span>{item.likes}</span></button>
+                        <button type="button" className="question-footer-icon-btn" aria-label="댓글"><span className="question-footer-icon"><CommentBubbleIcon /></span><span>{item.comments}</span></button>
+                        <button type="button" className="question-footer-icon-btn" aria-label="공유"><span className="question-footer-icon"><ShareArrowIcon /></span><span>공유</span></button>
                       </div>
                     </article>
                   ))}
@@ -8284,7 +8435,6 @@ export default function App() {
               <div className="feed-create-options" aria-hidden={false}>
                 {([
                   { mode: "쇼츠게시" as const, label: "쇼츠게시", icon: <ShortsCameraIcon /> },
-                  { mode: "사진피드" as const, label: "사진피드", icon: <PhotoImageIcon /> },
                   { mode: "피드게시" as const, label: "피드게시", icon: <PaperDocumentIcon /> },
                 ]).map((item) => (
                   <button key={item.mode} type="button" className="feed-create-option" onClick={() => openFeedComposeWithMode(item.mode)}>
