@@ -184,6 +184,16 @@ type ThreadItem = {
   status?: string;
 };
 
+type ChatRoomMessage = {
+  id: number;
+  threadId: number;
+  author: string;
+  text: string;
+  meta: string;
+  mine?: boolean;
+  system?: boolean;
+};
+
 type ForumStarterUser = {
   id: number;
   name: string;
@@ -1743,6 +1753,21 @@ const archivedThreadSeed: ThreadItem[] = [
   { id: 139, name: "role board", purpose: "단체", preview: "관계/역할 포럼의 이번 주 공통 질문이 올라왔습니다.", time: "3월 5일", unread: 0, avatar: "역", kind: "단체" },
   { id: 140, name: "safety digest", purpose: "단체", preview: "안전수칙 요약본이 새로운 버전으로 교체되었습니다.", time: "3월 4일", unread: 0, avatar: "수", kind: "단체" },
 ];
+
+const createThreadRoomSeed = (thread: ThreadItem): ChatRoomMessage[] => {
+  const baseLead = thread.kind === "단체"
+    ? `${thread.name} 방입니다. 공지와 최근 대화를 아래에서 확인하고 자유롭게 이어가세요.`
+    : `${thread.name} 님과 연결된 채팅방입니다. 외부 연락처 교환과 사진/영상 전송은 계속 제한됩니다.`;
+  const supportLine = thread.kind === "단체"
+    ? `${thread.purpose} 주제로 최근 대화가 상단부터 정렬됩니다.`
+    : `${thread.purpose} 기준으로 대화가 생성되었고, 필요한 경우 문의 내용을 이어서 남길 수 있습니다.`;
+
+  return [
+    { id: thread.id * 100 + 1, threadId: thread.id, author: "system", text: baseLead, meta: "방금", system: true },
+    { id: thread.id * 100 + 2, threadId: thread.id, author: thread.name, text: thread.preview, meta: thread.time, mine: false },
+    { id: thread.id * 100 + 3, threadId: thread.id, author: "나", text: supportLine, meta: "지금", mine: true },
+  ];
+};
 
 const chatAvatarPalette = [
   ["#2b1120", "#ff5ea9"],
@@ -3513,6 +3538,12 @@ export default function App() {
   const [chatQuestionAnonymous, setChatQuestionAnonymous] = useState(false);
   const [chatCategory, setChatCategory] = useState<ChatCategory>("전체");
   const [chatVisibleCount, setChatVisibleCount] = useState(30);
+  const [activeChatThreadId, setActiveChatThreadId] = useState<number | null>(null);
+  const [chatRoomDraft, setChatRoomDraft] = useState("");
+  const [chatMessagesByThread, setChatMessagesByThread] = useState<Record<number, ChatRoomMessage[]>>(() => {
+    const merged = [...threadSeed, ...archivedThreadSeed];
+    return Object.fromEntries(merged.map((thread) => [thread.id, createThreadRoomSeed(thread)]));
+  });
   const [selectedForumCategory, setSelectedForumCategory] = useState<ForumBoardCategory>("자유대화");
   const [activeForumRoomId, setActiveForumRoomId] = useState<number | null>(null);
   const [forumRoomMessages, setForumRoomMessages] = useState<Record<number, ForumRoomMessage[]>>({});
@@ -4099,7 +4130,7 @@ export default function App() {
     }
     const existing = threadItems.find((item) => item.name === pendingDmUser.name && item.kind === "개인");
     if (!existing) {
-      setThreadItems((prev) => [{
+      const newThread: ThreadItem = {
         id: Date.now(),
         name: pendingDmUser.name,
         purpose: `${pendingDmUser.topic} · 상호수락 1:1`,
@@ -4110,7 +4141,12 @@ export default function App() {
         kind: "개인",
         favorite: true,
         status: "요청전송",
-      }, ...prev]);
+      };
+      setThreadItems((prev) => [newThread, ...prev]);
+      setChatMessagesByThread((prev) => ({ ...prev, [newThread.id]: createThreadRoomSeed(newThread) }));
+      setActiveChatThreadId(newThread.id);
+    } else {
+      setActiveChatThreadId(existing.id);
     }
     setPendingDmUser(null);
     setChatTab("채팅");
@@ -5673,6 +5709,51 @@ export default function App() {
     const rowCount = Math.max(CHAT_LIST_BASE_ROWS, pagedThreads.length);
     return Array.from({ length: rowCount }, (_, index) => pagedThreads[index] ?? null);
   }, [pagedThreads]);
+
+  const activeChatThread = useMemo(() => threadItems.find((item) => item.id === activeChatThreadId) ?? null, [threadItems, activeChatThreadId]);
+  const activeChatMessages = activeChatThread ? (chatMessagesByThread[activeChatThread.id] ?? []) : [];
+
+  const openChatThread = useCallback((thread: ThreadItem) => {
+    setActiveChatThreadId(thread.id);
+    setThreadItems((prev) => prev.map((item) => item.id === thread.id ? { ...item, unread: 0 } : item));
+    setChatMessagesByThread((prev) => prev[thread.id] ? prev : { ...prev, [thread.id]: createThreadRoomSeed(thread) });
+  }, []);
+
+  const closeActiveChatThread = useCallback(() => {
+    setActiveChatThreadId(null);
+    setChatRoomDraft("");
+  }, []);
+
+  const submitChatRoomMessage = useCallback(() => {
+    if (!activeChatThread) return;
+    const trimmed = chatRoomDraft.trim();
+    if (!trimmed) return;
+    const myMessage: ChatRoomMessage = {
+      id: Date.now(),
+      threadId: activeChatThread.id,
+      author: '나',
+      text: trimmed,
+      meta: '방금',
+      mine: true,
+    };
+    const replyText = activeChatThread.kind === '단체'
+      ? '방 주제에 맞는 대화로 이어가 주세요. 최근 메시지 아래에 순서대로 반영했습니다.'
+      : '메시지를 확인했습니다. 지금 채팅방에서 바로 이어서 대화를 진행할 수 있습니다.';
+    const replyMessage: ChatRoomMessage = {
+      id: Date.now() + 1,
+      threadId: activeChatThread.id,
+      author: activeChatThread.name,
+      text: replyText,
+      meta: '방금',
+      mine: false,
+    };
+    setChatMessagesByThread((prev) => ({
+      ...prev,
+      [activeChatThread.id]: [...(prev[activeChatThread.id] ?? []), myMessage, replyMessage],
+    }));
+    setThreadItems((prev) => prev.map((item) => item.id === activeChatThread.id ? { ...item, preview: trimmed, time: '방금', unread: 0 } : item));
+    setChatRoomDraft('');
+  }, [activeChatThread, chatRoomDraft]);
 
   const filteredForumRooms = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
@@ -7857,19 +7938,25 @@ export default function App() {
                 ) : null}
               </>
             ) : (
-              <div className="stack-gap compact-scroll-list saved-home-pane">
-                <div className="legacy-nav inline">
-                  {["피드", "쇼츠"].map((tab) => (
-                    <button key={tab} type="button" className={`legacy-nav-btn ${savedTab === tab ? "active" : ""}`} onClick={() => setSavedTab(tab as "피드" | "쇼츠")}>{tab}</button>
-                  ))}
+              <div className="saved-home-pane home-feed-pane home-feed-pane-feed-scroll">
+                <div className="chat-toolbar kakao-toolbar compact-only-toolbar feed-compose-launch-toolbar saved-home-favorites-toolbar">
+                  <div className="chat-category-scroll" role="tablist" aria-label="보관함 보기 필터">
+                    {["피드", "쇼츠"].map((tab) => (
+                      <button key={tab} type="button" className={`category-chip ${savedTab === tab ? "active" : ""}`} onClick={() => setSavedTab(tab as "피드" | "쇼츠")} role="tab" aria-selected={savedTab === tab}>{tab}</button>
+                    ))}
+                  </div>
                 </div>
                 {savedTab === "피드" ? (
-                  <div className="feed-post-list compact-scroll-list">
-                    {savedFeedItems.length ? savedFeedItems.map((item) => <FeedPoster key={item.id} item={item} onAsk={openAskFromFeed} saved={true} liked={likedFeedIds.includes(item.id)} reposted={repostedFeedIds.includes(item.id)} commentsOpen={openFeedCommentItem?.id === item.id} commentCount={feedCommentMap[item.id]?.length ?? item.comments} onOpenComments={openFeedComments} onToggleLike={toggleLikedFeed} onToggleRepost={toggleRepostedFeed} onToggleSave={toggleSavedFeed} onShare={shareFeedItem} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} onPreviewAuthorAvatar={openFeedAvatarPreview} following={followedFeedAuthors.includes(item.author)} onToggleFollow={toggleFollowedFeedAuthor} />) : <div className="legacy-box compact"><p>보관한 피드가 없습니다.</p></div>}
+                  <div className="feed-post-list compact-scroll-list feed-post-list-stream saved-home-feed-list">
+                    {savedFeedItems.length ? savedFeedItems.map((item) => (
+                      <div key={`saved-feed-wrap-${item.id}`} className="feed-stream-item">
+                        <FeedPoster item={item} onAsk={openAskFromFeed} saved={true} liked={likedFeedIds.includes(item.id)} reposted={repostedFeedIds.includes(item.id)} commentsOpen={openFeedCommentItem?.id === item.id} commentCount={feedCommentMap[item.id]?.length ?? item.comments} onOpenComments={openFeedComments} onToggleLike={toggleLikedFeed} onToggleRepost={toggleRepostedFeed} onToggleSave={toggleSavedFeed} onShare={shareFeedItem} keywordTags={getContentKeywordTags(item)} onOpenAuthorProfile={openProfileFromAuthor} onPreviewAuthorAvatar={openFeedAvatarPreview} following={followedFeedAuthors.includes(item.author)} onToggleFollow={toggleFollowedFeedAuthor} />
+                      </div>
+                    )) : <div className="legacy-box compact saved-home-empty-box"><p>보관한 피드가 없습니다.</p></div>}
                   </div>
                 ) : (
                   <>
-                    <div className="shorts-list-wrap compact-scroll-list" onScroll={handleShortsScroll}>
+                    <div className="shorts-list-wrap compact-scroll-list saved-home-shorts-list" onScroll={handleShortsScroll}>
                       {savedShortItems.length ? savedShortItems.map((item) => (
                         <ShortsListCard
                           key={`saved-short-${item.id}`}
@@ -7877,7 +7964,7 @@ export default function App() {
                           onOpenMore={setShortsMoreItem}
                           onOpenViewer={(target) => setSavedShortsViewerItemId(target.id)}
                         />
-                      )) : <div className="legacy-box compact"><p>보관한 쇼츠가 없습니다.</p></div>}
+                      )) : <div className="legacy-box compact saved-home-empty-box"><p>보관한 쇼츠가 없습니다.</p></div>}
                     </div>
                     {savedShortsViewerItemId !== null ? (
                       <ShortsViewer
@@ -8632,56 +8719,100 @@ export default function App() {
                 </section>
               </div>
             ) : (
-              <>
-                <div className="chat-toolbar kakao-toolbar compact-only-toolbar">
-                  <div className="chat-category-scroll">
-                    {chatCategories.map((category) => (
-                      <button
-                        key={category}
-                        type="button"
-                        className={`category-chip ${chatCategory === category ? "active" : ""}`}
-                        onClick={() => setChatCategory(category)}
-                      >
-                        {category}
-                      </button>
+              activeChatThread ? (
+                <div className="x-chat-room-shell">
+                  <div className="x-chat-room-topbar">
+                    <button type="button" className="header-inline-btn header-icon-btn" aria-label="뒤로가기" onClick={closeActiveChatThread}>
+                      <BackArrowIcon />
+                    </button>
+                    <div className="x-chat-room-profile">
+                      <div className="avatar-circle kakao-avatar x-chat-room-avatar"><img src={activeChatThread.avatarUrl ?? buildChatAvatarDataUri(activeChatThread.name)} alt="" loading="lazy" /></div>
+                      <div className="x-chat-room-copy">
+                        <strong>{activeChatThread.name}</strong>
+                        <span>{activeChatThread.purpose}{activeChatThread.status ? ` · ${activeChatThread.status}` : ""}</span>
+                      </div>
+                    </div>
+                    <button type="button" className={`header-inline-btn header-icon-btn ${activeChatThread.favorite ? "active" : ""}`} aria-label="즐겨찾기">
+                      <BookmarkIcon filled={!!activeChatThread.favorite} />
+                    </button>
+                  </div>
+                  <div className="x-chat-room-message-list compact-scroll-list">
+                    <div className="x-chat-room-rule-banner">X 스타일의 심플 채팅방입니다. 외부 연락처 교환·사진/영상 전송·반복 접촉 요청은 계속 제한됩니다.</div>
+                    {activeChatMessages.map((message) => (
+                      <article key={message.id} className={`x-chat-room-message${message.mine ? " mine" : ""}${message.system ? " system" : ""}`}>
+                        {!message.mine && !message.system ? <div className="x-chat-room-message-author">{message.author}</div> : null}
+                        <div className="x-chat-room-message-bubble">{message.text}</div>
+                        <div className="x-chat-room-message-meta">{message.meta}</div>
+                      </article>
                     ))}
                   </div>
+                  <div className="x-chat-room-composer">
+                    <input value={chatRoomDraft} onChange={(event) => setChatRoomDraft(event.target.value)} placeholder="메시지를 입력하세요" onKeyDown={(event) => {
+                      if (event.key === 'Enter' && !event.shiftKey) {
+                        event.preventDefault();
+                        submitChatRoomMessage();
+                      }
+                    }} />
+                    <button type="button" className="ghost-btn" onClick={submitChatRoomMessage}>보내기</button>
+                  </div>
                 </div>
-                <div className="chat-list compact-scroll-list kakao-chat-list" onScroll={handleChatListScroll}>
-                  {chatDisplayRows.map((thread, index) => thread ? (
-                    <article key={thread.id} className="chat-row kakao-chat-row">
-                      <div className="avatar-circle kakao-avatar"><img src={thread.avatarUrl ?? buildChatAvatarDataUri(thread.name)} alt="" loading="lazy" /></div>
-                      <div className="chat-copy kakao-chat-copy">
-                        <div className="kakao-chat-head">
-                          <strong>{thread.name}</strong>
-                          <div className="kakao-chat-badges">
-                            <span>{thread.purpose}</span>
-                            {thread.status ? <em>{thread.status}</em> : null}
+              ) : (
+                <>
+                  <div className="chat-toolbar kakao-toolbar compact-only-toolbar">
+                    <div className="chat-category-scroll">
+                      {chatCategories.map((category) => (
+                        <button
+                          key={category}
+                          type="button"
+                          className={`category-chip ${chatCategory === category ? "active" : ""}`}
+                          onClick={() => setChatCategory(category)}
+                        >
+                          {category}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="chat-list compact-scroll-list kakao-chat-list" onScroll={handleChatListScroll}>
+                    {chatDisplayRows.map((thread, index) => thread ? (
+                      <article key={thread.id} className="chat-row kakao-chat-row chat-row-openable" onClick={() => openChatThread(thread)} role="button" tabIndex={0} onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          openChatThread(thread);
+                        }
+                      }}>
+                        <div className="avatar-circle kakao-avatar"><img src={thread.avatarUrl ?? buildChatAvatarDataUri(thread.name)} alt="" loading="lazy" /></div>
+                        <div className="chat-copy kakao-chat-copy">
+                          <div className="kakao-chat-head">
+                            <strong>{thread.name}</strong>
+                            <div className="kakao-chat-badges">
+                              <span>{thread.purpose}</span>
+                              {thread.status ? <em>{thread.status}</em> : null}
+                            </div>
                           </div>
+                          <p>{thread.preview}</p>{thread.purpose.includes("상호수락 1:1") ? <span className="muted-mini">외부 연락처 교환 금지 · 사진/영상 전송 금지 · 반복 접촉 금지</span> : null}
                         </div>
-                        <p>{thread.preview}</p>{thread.purpose.includes("상호수락 1:1") ? <span className="muted-mini">외부 연락처 교환 금지 · 사진/영상 전송 금지 · 반복 접촉 금지</span> : null}
-                      </div>
-                      <div className="chat-meta kakao-chat-meta">
-                        <span>{thread.time}</span>
-                        {thread.unread > 0 ? <b>{thread.unread}</b> : null}
-                      </div>
-                    </article>
-                  ) : (
-                    <article key={`chat-empty-${chatCategory}-${index}`} className="chat-row kakao-chat-row kakao-chat-row-empty" aria-hidden="true">
-                      <div className="avatar-circle kakao-avatar" />
-                      <div className="chat-copy kakao-chat-copy">
-                        <div className="kakao-chat-head">
-                          <strong>{" "}</strong>
-                          <div className="kakao-chat-badges"><span>{" "}</span></div>
+                        <div className="chat-meta kakao-chat-meta">
+                          <span>{thread.time}</span>
+                          {thread.unread > 0 ? <b>{thread.unread}</b> : null}
                         </div>
-                        <p>{" "}</p>
-                      </div>
-                      <div className="chat-meta kakao-chat-meta"><span>{" "}</span></div>
-                    </article>
-                  ))}
-                  {pagedThreads.length < filteredThreads.length ? <div className="chat-loading-row">채팅 기록 10개 단위로 추가 로딩 중</div> : null}
-                </div>
-              </>
+                      </article>
+                    ) : (
+                      <article key={`chat-empty-${chatCategory}-${index}`} className="chat-row kakao-chat-row kakao-chat-row-empty" aria-hidden="true">
+                        <div className="avatar-circle kakao-avatar" />
+                        <div className="chat-copy kakao-chat-copy">
+                          <div className="kakao-chat-head">
+                            <strong>{" "}</strong>
+                            <div className="kakao-chat-badges"><span>{" "}</span></div>
+                          </div>
+                          <p>{" "}</p>
+                        </div>
+                        <div className="chat-meta kakao-chat-meta"><span>{" "}</span></div>
+                      </article>
+                    ))}
+                    {pagedThreads.length < filteredThreads.length ? <div className="chat-loading-row">채팅 기록 10개 단위로 추가 로딩 중</div> : null}
+                  </div>
+                </>
+              )
             )}
           </section>
         ) : null}
