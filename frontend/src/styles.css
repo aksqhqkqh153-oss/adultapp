@@ -8985,3 +8985,87 @@ body {
     font-size: 13px !important;
   }
 }
+
+/* === 2026-04-21 request: feed toolbar/footer/caption final overrides === */
+.chat-toolbar.kakao-toolbar.compact-only-toolbar.feed-compose-launch-toolbar,
+.feed-compose-launch-toolbar {
+  margin-bottom: 0 !important;
+}
+
+.history-feed-footer.history-feed-footer-icons,
+.history-feed-footer-icons {
+  padding-bottom: 4px !important;
+}
+
+.history-feed-footer-icons button,
+.history-feed-footer-icons .feed-action-btn {
+  min-height: 40px !important;
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+  gap: 2px !important;
+}
+
+.history-feed-footer-icons .feed-action-icon {
+  width: 22px !important;
+  height: 22px !important;
+}
+
+.history-feed-footer-icons .feed-action-count {
+  min-height: 10px !important;
+  line-height: 1 !important;
+}
+
+.feed-caption-block,
+.feed-caption-body,
+.feed-caption-text {
+  min-width: 0 !important;
+}
+
+.feed-caption-block.has-toggle:not(.expanded) .feed-caption-body {
+  min-height: calc(1.44em * 2) !important;
+}
+
+.feed-caption-block.has-toggle:not(.expanded) .feed-caption-text {
+  display: -webkit-box !important;
+  -webkit-box-orient: vertical !important;
+  -webkit-line-clamp: 2 !important;
+  overflow: hidden !important;
+  white-space: pre-wrap !important;
+  padding-right: 5.2em !important;
+}
+
+.feed-caption-text-content {
+  display: inline !important;
+  white-space: pre-wrap !important;
+}
+
+.feed-caption-more-inline {
+  position: absolute !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0 !important;
+  padding-left: 12px !important;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.9) 34%, #000 64%) !important;
+  color: var(--pink-2) !important;
+  font-size: 13px !important;
+  line-height: 1.44 !important;
+  font-weight: 700 !important;
+}
+
+.feed-caption-more-inline::before {
+  content: '... ' !important;
+  color: rgba(255, 255, 255, 0.72) !important;
+  margin-right: 0 !important;
+}
+
+.feed-caption-inline-less {
+  justify-self: end !important;
+}
+
+@media (max-width: 640px) {
+  .feed-caption-block.has-toggle:not(.expanded) .feed-caption-text {
+    padding-right: 4.9em !important;
+  }
+}
