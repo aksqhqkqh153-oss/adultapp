@@ -11519,3 +11519,57 @@ body {
     display: none;
   }
 }
+
+/* === 2026-04-22 request: shop home hero + detail page visibility polish === */
+.shop-home-pane-root {
+  display: flex !important;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden !important;
+  padding: 0 0 calc(var(--mobile-nav-height) + 12px) !important;
+  background: #000 !important;
+}
+.shop-home-hero-carousel {
+  flex-shrink: 0;
+  display: block !important;
+  width: 100%;
+  visibility: visible !important;
+  opacity: 1 !important;
+  min-height: clamp(220px, 32vh, 320px);
+  aspect-ratio: 4 / 3;
+  margin-top: 0 !important;
+}
+.shop-home-sort-toolbar {
+  flex-shrink: 0;
+  margin-top: 0 !important;
+  padding: 0 0 8px !important;
+}
+.shop-home-product-grid-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 2px 16px 0;
+  background: #000;
+}
+.shop-home-product-grid {
+  display: grid;
+  gap: 12px;
+}
+.shop-home-product-card {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+.shop-home-product-card:focus-visible {
+  outline: 2px solid rgba(255, 122, 182, 0.5);
+  outline-offset: 2px;
+}
+.shop-product-detail-page {
+  background: #000 !important;
+  padding-bottom: calc(var(--mobile-nav-height) + 12px) !important;
+}

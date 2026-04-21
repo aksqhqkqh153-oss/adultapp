@@ -6036,6 +6036,53 @@ export default function App() {
     privacyEmail: String(businessInfo?.business_info?.privacy_contact_email || "aksqhqkqh153@gmail.com"),
   }), [businessInfo]);
 
+
+  const buildFallbackProductDetail = useCallback((productId: number): ProductDetailResponse | null => {
+    const fallback = shopCatalogItems.find((item) => item.id === productId)
+      ?? productsSeed.find((item) => item.id === productId)
+      ?? null;
+    if (!fallback) return null;
+
+    const priceValue = Number(String(fallback.price).replace(/[^\d]/g, "")) || 0;
+    const shippingFee = fallback.isPremium ? 0 : 3000;
+    const sellerName = fallback.isPremium ? "adult premium store" : disclosedBusinessInfo.operatorName;
+    const description = fallback.subtitle?.trim() || `${fallback.name} 상품 상세 화면 샘플입니다.`;
+
+    return {
+      product: {
+        id: fallback.id,
+        category: fallback.category,
+        name: fallback.name,
+        description,
+        price: priceValue,
+        shipping_fee: shippingFee,
+        status: "published",
+        sku_code: `SAMPLE-${fallback.id}`,
+        stock_qty: fallback.stock_qty ?? 24,
+        thumbnail_url: fallback.thumbnailUrl ?? null,
+        review_count: Number(fallback.reviewCount ?? 0) || 0,
+      },
+      media: fallback.thumbnailUrl ? [{ id: 1, file_url: fallback.thumbnailUrl, media_type: "image", sort_order: 1 }] : [],
+      site_ready: {
+        adult_only_label: "성인용품",
+        illegal_goods_blocked: true,
+        price_visible: true,
+        purchase_button_visible: true,
+        customer_center_visible: true,
+        minimum_refund_window_days: 7,
+      },
+      seller_contact: {
+        name: sellerName,
+        business_name: sellerName,
+        business_registration_no: disclosedBusinessInfo.registrationNo,
+        business_address: disclosedBusinessInfo.address,
+        cs_contact: disclosedBusinessInfo.phone,
+        return_address: disclosedBusinessInfo.address,
+        support_email: disclosedBusinessInfo.email,
+      },
+    };
+  }, [shopCatalogItems, disclosedBusinessInfo]);
+
   const checkoutStepMeta: Array<{ key: CheckoutStage; label: string }> = [
     { key: "cart", label: "장바구니" },
     { key: "order_form", label: "주문서 작성" },
@@ -6464,11 +6511,35 @@ export default function App() {
   const openProductDetail = async (productId: number) => {
     setSelectedProductId(productId);
     setShoppingTab("상품");
+
+    const fallbackDetail = buildFallbackProductDetail(productId);
+
     try {
       const detail = await getJson<ProductDetailResponse>(`/products/${productId}`);
-      setProductDetail(detail);
+      setProductDetail({
+        ...(fallbackDetail ?? {}),
+        ...detail,
+        product: {
+          ...(fallbackDetail?.product ?? {}),
+          ...(detail.product ?? {}),
+        },
+        media: detail.media?.length ? detail.media : (fallbackDetail?.media ?? []),
+        site_ready: {
+          ...(fallbackDetail?.site_ready ?? {}),
+          ...(detail.site_ready ?? {}),
+        },
+        seller_contact: {
+          ...(fallbackDetail?.seller_contact ?? {}),
+          ...(detail.seller_contact ?? {}),
+        },
+      });
       setOrderMessage("");
     } catch (error) {
+      if (fallbackDetail) {
+        setProductDetail(fallbackDetail);
+        setOrderMessage("샘플 상품 상세 화면으로 표시 중입니다.");
+        return;
+      }
       setProductDetail(null);
       setOrderMessage(error instanceof Error ? error.message : "상품 상세 조회 실패");
     }
@@ -8184,11 +8255,18 @@ export default function App() {
                 <div ref={shopHomeGridScrollRef} className={`shop-home-product-grid-scroll compact-scroll-list ${shopHomeGridDragging ? "dragging" : ""}`} onScroll={handleShopHomeScroll} onPointerDown={handleShopHomeGridPointerDown} onPointerMove={handleShopHomeGridPointerMove} onPointerUp={finishShopHomeGridPointerDrag} onPointerCancel={finishShopHomeGridPointerDrag} onPointerLeave={finishShopHomeGridPointerDrag}>
                   <div className="shop-home-product-grid">
                     {shopHomeFeedItems.map((product) => (
-                      <button
+                      <article
                         key={`shop-feed-${product.id}-${product.feedIndex}`}
-                        type="button"
                         className="shop-home-product-card"
+                        role="button"
+                        tabIndex={0}
                         onClick={() => handleShopHomeProductCardClick(product.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            handleShopHomeProductCardClick(product.id);
+                          }
+                        }}
                       >
                         <div className="shop-home-product-thumb">
                           {product.thumbnailUrl ? <img src={product.thumbnailUrl} alt={product.name} className="shop-home-product-thumb-image" /> : null}
@@ -8214,7 +8292,7 @@ export default function App() {
                             <span>구매 {product.orderCount ?? 0}</span>
                           </div>
                         </div>
-                      </button>
+                      </article>
                     ))}
                   </div>
                   <div className="feed-loading-row">상품을 계속 불러오는 중</div>
