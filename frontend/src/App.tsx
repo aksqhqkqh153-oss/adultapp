@@ -3763,6 +3763,8 @@ export default function App() {
     return Math.max(HOME_FEED_BATCH_SIZE, stored.visibleCount ?? HOME_FEED_BATCH_SIZE);
   });
   const [homeFeedHeaderHidden, setHomeFeedHeaderHidden] = useState(false);
+  const [homeFeedRefreshing, setHomeFeedRefreshing] = useState(false);
+  const [homeFeedPullDistance, setHomeFeedPullDistance] = useState(0);
   const [feedAvatarPreviewItem, setFeedAvatarPreviewItem] = useState<FeedItem | null>(null);
   const homeFeedScrollRef = useRef<HTMLDivElement | null>(null);
   const homeFeedResetOnNextShowRef = useRef(false);
@@ -3770,6 +3772,10 @@ export default function App() {
   const homeFeedScrollRafRef = useRef<number | null>(null);
   const homeFeedHideThresholdRef = useRef(0);
   const homeFeedShowThresholdRef = useRef(0);
+  const homeFeedPullActiveRef = useRef(false);
+  const homeFeedPullStartYRef = useRef<number | null>(null);
+  const homeFeedViewedIdsRef = useRef<number[]>([]);
+  const homeFeedRefreshUsedTemplateIdsRef = useRef<number[]>([]);
   const allFeedItems = useMemo(() => [...customFeedItems, ...feedSeed].map((item) => normalizeFeedItemPresentation(item)), [customFeedItems]);
   const [shortsMoreItem, setShortsMoreItem] = useState<FeedItem | null>(null);
   const [shortsViewerItemId, setShortsViewerItemId] = useState<number | null>(null);
@@ -5160,7 +5166,7 @@ export default function App() {
 
   useEffect(() => {
     setProfileShortsVisibleCount(10);
-  }, [profileSection, currentProfileAuthor, profileShortItems.length]);
+  }, [profileSection, viewedProfileAuthor, shortsFeedItems.length]);
 
   useEffect(() => () => {
     if (shortsScrollRafRef.current !== null) {
