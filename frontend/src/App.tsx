@@ -3580,6 +3580,9 @@ export default function App() {
   const [paymentProviderStatus, setPaymentProviderStatus] = useState<PaymentProviderStatusResponse | null>(null);
   const [productDetail, setProductDetail] = useState<ProductDetailResponse | null>(null);
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
+  const [productDetailQuantity, setProductDetailQuantity] = useState(1);
+  const [selectedProductOption, setSelectedProductOption] = useState("");
+  const [productDetailMediaIndex, setProductDetailMediaIndex] = useState(0);
   const [adultGateStatus, setAdultGateStatus] = useState<AdultGateStatusResponse | null>(null);
   const [adultBirthdate, setAdultBirthdate] = useState("1990-01-01");
   const [minorPurgePreview, setMinorPurgePreview] = useState<MinorPurgePreview | null>(null);
@@ -5241,6 +5244,64 @@ export default function App() {
     return buildShopHomeRecommendationFeed({ items: productsSeed, keywordSignals: shopKeywordSignals, visibleCount: shopHomeVisibleCount });
   }, [shopHomeRecommendedItems, shopKeywordSignals, shopHomeVisibleCount]);
 
+  const productDetailDisplayItem = useMemo<ProductCard | null>(() => {
+    if (!productDetail?.product) return null;
+    const targetId = productDetail.product.id;
+    const fallback = allShopItems.find((item) => item.id === targetId) ?? productsSeed.find((item) => item.id === targetId) ?? null;
+    return {
+      id: targetId,
+      category: productDetail.product.category ?? fallback?.category ?? "기타",
+      name: productDetail.product.name,
+      subtitle: productDetail.product.description ?? fallback?.subtitle ?? "",
+      price: `₩${Number(productDetail.product.price || 0).toLocaleString()}`,
+      badge: fallback?.badge ?? (Number(productDetail.product.stock_qty || 0) > 0 ? "판매중" : "재고확인"),
+      reviewCount: Number(productDetail.product.review_count ?? fallback?.reviewCount ?? 0) || 0,
+      stock_qty: productDetail.product.stock_qty ?? fallback?.stock_qty,
+      thumbnailUrl: productDetail.product.thumbnail_url ?? fallback?.thumbnailUrl ?? null,
+      orderCount: fallback?.orderCount,
+      repurchaseCount: fallback?.repurchaseCount,
+      isPremium: fallback?.isPremium,
+      createdAt: fallback?.createdAt,
+    };
+  }, [productDetail, allShopItems]);
+
+  const productDetailImageUrls = useMemo(() => {
+    const urls = [
+      ...(productDetail?.media ?? []).map((item) => item.file_url).filter((value): value is string => Boolean(value)),
+      productDetail?.product.thumbnail_url ?? undefined,
+      productDetailDisplayItem?.thumbnailUrl ?? undefined,
+    ].filter((value): value is string => Boolean(value));
+    return Array.from(new Set(urls));
+  }, [productDetail, productDetailDisplayItem]);
+
+  const productDetailOptionChips = useMemo(() => {
+    const category = productDetailDisplayItem?.category ?? "기본";
+    const optionMap: Record<string, string[]> = {
+      "딜도": ["슬림", "미디엄", "프리미엄 세트"],
+      "바이브레이터": ["저소음", "듀얼모드", "프리미엄 세트"],
+      "플러그": ["소형", "중형", "케어 세트"],
+      "러브젤": ["기본형", "대용량", "세트구성"],
+      "케어 키트": ["기본구성", "추가용품 포함", "선물포장"],
+    };
+    return optionMap[category] ?? ["기본구성", "세트구성", "선물포장"];
+  }, [productDetailDisplayItem]);
+
+  const productDetailCurrentImage = productDetailImageUrls[productDetailMediaIndex] ?? "";
+  const productDetailPriceValue = Number(productDetail?.product.price || 0);
+  const productDetailShippingValue = Number(productDetail?.product.shipping_fee || 3000);
+  const productDetailTotalAmount = (productDetailPriceValue * Math.max(1, productDetailQuantity)) + productDetailShippingValue;
+  const productDetailRating = useMemo(() => {
+    const reviews = Number(productDetailDisplayItem?.reviewCount ?? 0);
+    if (!reviews) return 4.7;
+    return Math.min(5, 4.6 + ((reviews % 9) * 0.03));
+  }, [productDetailDisplayItem]);
+
+  useEffect(() => {
+    setProductDetailQuantity(1);
+    setProductDetailMediaIndex(0);
+    setSelectedProductOption(productDetailOptionChips[0] ?? "");
+  }, [productDetail?.product.id, productDetailOptionChips]);
+
   const currentProfileAuthor = viewedProfileAuthor ?? "adult official";
   const currentProfileMeta = useMemo(() => {
     const askProfile = askProfiles.find((item) => item.name === currentProfileAuthor);
@@ -6297,6 +6358,21 @@ export default function App() {
     }
   };
 
+  const addSelectedProductToCart = () => {
+    const target = productDetail?.product;
+    if (!target) {
+      setOrderMessage("선택된 상품이 없습니다.");
+      return;
+    }
+    setCartItems((prev) => {
+      const found = prev.find((item) => item.productId === target.id);
+      if (found) return prev.map((item) => item.productId === target.id ? { ...item, qty: item.qty + Math.max(1, productDetailQuantity) } : item);
+      return [...prev, { productId: target.id, qty: Math.max(1, productDetailQuantity) }];
+    });
+    setCheckoutStage("cart");
+    setOrderMessage(`${target.name} · ${Math.max(1, productDetailQuantity)}개가 장바구니에 담겼습니다.`);
+  };
+
   const addToCart = (productId: number) => {
     setCartItems((prev) => {
       const found = prev.find((item) => item.productId === productId);
@@ -6367,7 +6443,7 @@ export default function App() {
     try {
       const created = await postJson<{ order_no: string; total_amount: number; payment_init: { mode?: string; webhook_path?: string } }>("/orders", {
         product_id: target.id,
-        qty: 1,
+        qty: Math.max(1, productDetailQuantity),
         payment_method: "card",
         payment_pg: "verotel",
       });
@@ -7837,9 +7913,7 @@ export default function App() {
                         type="button"
                         className="shop-home-hero-slide"
                         onClick={() => {
-                          setShopKeyword(item.name);
-                          setSelectedShopCategory("전체");
-                          setShoppingTab("목록");
+                          openProductDetail(item.id);
                         }}
                       >
                         {item.thumbnailUrl ? <img src={item.thumbnailUrl} alt={item.name} className="shop-home-hero-image" /> : null}
@@ -7935,95 +8009,200 @@ export default function App() {
             ) : null}
 
             {shoppingTab === "상품" ? (
-              <div className="stack-gap compact-scroll-list">
+              <div className="shop-product-detail-page compact-scroll-list">
                 {productDetail ? (
                   <>
-                    <div className="shop-product-detail-topbar">
+                    <div className="shop-product-detail-topbar shop-product-detail-topbar-coupang">
                       <button type="button" className="header-inline-btn header-icon-btn topbar-search-back" onClick={() => { setProductDetail(null); setSelectedProductId(null); setShoppingTab("홈"); }} aria-label="뒤로가기"><BackArrowIcon /></button>
                       <div className="shop-product-detail-topbar-title">상품 상세</div>
+                      <button type="button" className={`header-inline-btn header-icon-btn ${savedProductIds.includes(productDetail.product.id) ? "active" : ""}`} onClick={() => toggleSavedProduct(productDetail.product.id)} aria-label="보관함">
+                        <BookmarkIcon filled={savedProductIds.includes(productDetail.product.id)} />
+                      </button>
                     </div>
-                    <div className="legacy-grid two-col compact-grid">
-                      <div className="legacy-box">
-                        <h3>{productDetail.product.name}</h3>
-                        <p><strong>성인용품</strong> · {productDetail.product.category}</p>
-                        <p>{productDetail.product.description || "상품 설명 준비중"}</p>
-                        <p>판매가: <strong>{`₩${Number(productDetail.product.price || 0).toLocaleString()}`}</strong></p>
-                        <p>배송비: <strong>{`₩${Number(productDetail.product.shipping_fee || 3000).toLocaleString()}`}</strong></p>
-                        <p>재고 상태: {Number(productDetail.product.stock_qty || 0) > 0 ? `${Number(productDetail.product.stock_qty || 0)}개 보유` : '품절'}</p>
-                        <p>판매자 정보: {productDetail.seller_contact?.business_name || productDetail.seller_contact?.name || disclosedBusinessInfo.operatorName}</p>
-                        <div className="profile-form-grid">
-                          <label><span>생년월일</span><input type="date" value={adultBirthdate} onChange={(e) => setAdultBirthdate(e.target.value)} /></label>
-                          <label><span>접근 상태</span><input readOnly value={adultGateStatus?.allowed_to_shop ? "쇼핑 가능" : adultGateStatus?.member_status || "미확인"} /></label>
+
+                    <section className="shop-product-detail-hero">
+                      <div className="shop-product-detail-gallery">
+                        <div className="shop-product-detail-image-frame">
+                          {productDetailCurrentImage ? (
+                            <img src={productDetailCurrentImage} alt={productDetail.product.name} className="shop-product-detail-image" />
+                          ) : (
+                            <div className="shop-product-detail-image-placeholder">
+                              <span>{productDetailDisplayItem?.category ?? "SHOP"}</span>
+                            </div>
+                          )}
+                          <div className="shop-product-detail-image-badges">
+                            <span className="shop-product-detail-pill accent">{productDetailDisplayItem?.badge ?? "판매중"}</span>
+                            <span className="shop-product-detail-pill">성인 전용</span>
+                          </div>
+                          <div className="shop-product-detail-image-count">{Math.min(productDetailMediaIndex + 1, Math.max(productDetailImageUrls.length, 1))}/{Math.max(productDetailImageUrls.length, 1)}</div>
                         </div>
-                        <div className="product-card-actions">
-                          <button type="button" onClick={() => addToCart(productDetail.product.id)}>장바구니 담기</button>
-                          <button type="button" className="ghost-btn" onClick={verifyAdultSelf}>성인인증 진행</button>
+                        {productDetailImageUrls.length > 1 ? (
+                          <div className="shop-product-detail-thumb-row">
+                            {productDetailImageUrls.map((imageUrl, index) => (
+                              <button
+                                key={`${imageUrl}-${index}`}
+                                type="button"
+                                className={`shop-product-detail-thumb ${index === productDetailMediaIndex ? "active" : ""}`}
+                                onClick={() => setProductDetailMediaIndex(index)}
+                              >
+                                <img src={imageUrl} alt={`${productDetail.product.name} 썸네일 ${index + 1}`} />
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <div className="shop-product-detail-summary">
+                        <div className="shop-product-detail-brand-row">
+                          <span className="shop-product-detail-brand">{productDetail.seller_contact?.business_name || productDetail.seller_contact?.name || disclosedBusinessInfo.operatorName}</span>
+                          <span className="shop-product-detail-rating">★ {productDetailRating.toFixed(1)} ({Number(productDetailDisplayItem?.reviewCount ?? 0).toLocaleString()})</span>
+                        </div>
+                        <h2>{productDetail.product.name}</h2>
+                        <p className="shop-product-detail-subtitle">{productDetail.product.description || productDetailDisplayItem?.subtitle || "상품 상세 설명을 준비 중입니다."}</p>
+
+                        <div className="shop-product-price-panel">
+                          <div>
+                            <span className="shop-product-price-label">판매가</span>
+                            <strong>{`₩${productDetailPriceValue.toLocaleString()}`}</strong>
+                          </div>
+                          <div className="shop-product-price-side">
+                            <span>배송비 {`₩${productDetailShippingValue.toLocaleString()}`}</span>
+                            <span>{Number(productDetail.product.stock_qty || 0) > 0 ? `재고 ${Number(productDetail.product.stock_qty || 0)}개` : "품절"}</span>
+                          </div>
+                        </div>
+
+                        <div className="shop-product-detail-meta-row">
+                          <span className="shop-product-detail-meta-chip">카테고리 · {productDetailDisplayItem?.category ?? "기타"}</span>
+                          <span className="shop-product-detail-meta-chip">최근 주문 {Number(productDetailDisplayItem?.orderCount ?? 0).toLocaleString()}</span>
+                          <span className="shop-product-detail-meta-chip">재구매 {Number(productDetailDisplayItem?.repurchaseCount ?? 0).toLocaleString()}</span>
+                        </div>
+
+                        <div className="shop-product-detail-picker-block">
+                          <div className="shop-product-detail-section-title-row">
+                            <strong>종류 선택</strong>
+                            <span>{selectedProductOption || productDetailOptionChips[0]}</span>
+                          </div>
+                          <div className="shop-product-detail-option-grid">
+                            {productDetailOptionChips.map((option) => (
+                              <button
+                                key={option}
+                                type="button"
+                                className={`shop-product-detail-option-chip ${selectedProductOption === option ? "active" : ""}`}
+                                onClick={() => setSelectedProductOption(option)}
+                              >
+                                {option}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="shop-product-detail-picker-block">
+                          <div className="shop-product-detail-section-title-row">
+                            <strong>수량 선택</strong>
+                            <span>{productDetailQuantity}개</span>
+                          </div>
+                          <div className="shop-product-qty-row">
+                            <button type="button" className="shop-product-qty-btn" onClick={() => setProductDetailQuantity((prev) => Math.max(1, prev - 1))}>-</button>
+                            <div className="shop-product-qty-value">{productDetailQuantity}</div>
+                            <button type="button" className="shop-product-qty-btn" onClick={() => setProductDetailQuantity((prev) => Math.min(99, prev + 1))}>+</button>
+                          </div>
+                        </div>
+
+                        <div className="shop-product-detail-total-box">
+                          <div>
+                            <span>총 상품금액</span>
+                            <strong>{`₩${productDetailTotalAmount.toLocaleString()}`}</strong>
+                          </div>
+                          <p>{selectedProductOption || productDetailOptionChips[0]} / {productDetailQuantity}개 / 배송비 포함</p>
+                        </div>
+
+                        <div className="shop-product-detail-cta-row">
+                          <button type="button" className="ghost-btn shop-detail-secondary-btn" onClick={() => toggleSavedProduct(productDetail.product.id)}>{savedProductIds.includes(productDetail.product.id) ? "보관해제" : "보관함"}</button>
+                          <button type="button" className="ghost-btn shop-detail-secondary-btn" onClick={addSelectedProductToCart}>장바구니</button>
+                          <button type="button" className="shop-detail-primary-btn" onClick={createOrderForSelectedProduct}>바로구매</button>
                         </div>
                       </div>
-                      <div className="legacy-box">
-                        <h3>결제 테스트 버튼 UI</h3>
-                        <p>장바구니 → 주문 생성 → 중립 결제창 이동 → 완료 확인 흐름을 점검합니다.</p>
-                        <div className="product-card-actions">
-                          <button type="button" onClick={createOrderForSelectedProduct}>주문 생성</button>
-                          <button type="button" className="ghost-btn" onClick={() => launchVerotelCheckout()}>중립 결제 테스트</button>
-                          <button type="button" className="ghost-btn" onClick={() => setShoppingTab("주문")}>주문 탭 열기</button>
+                    </section>
+
+                    <section className="shop-product-detail-content">
+                      <article className="shop-product-detail-section-card">
+                        <div className="shop-product-detail-section-head">
+                          <strong>상품 상세</strong>
+                          <span>쿠팡형 본문 영역</span>
                         </div>
-                        <p className="muted-mini">미성년자는 쇼핑과 결제가 차단됩니다. PASS 실연동 전에는 자체 성인 확인으로 QA 가능합니다.</p>
-                      </div>
-                    </div>
-                    <div className="legacy-grid two-col compact-grid">
-                      <div className="legacy-box compact">
-                        <h3>사이트 상태 준비</h3>
-                        <div className="consent-record-list">
-                          <div className="simple-list-row"><b>상품 표시</b><span>{productDetail.site_ready?.adult_only_label || "성인용품"} 명시</span></div>
-                          <div className="simple-list-row"><b>가격 표시</b><span>{productDetail.site_ready?.price_visible ? "표시 중" : "미표시"}</span></div>
-                          <div className="simple-list-row"><b>결제 버튼</b><span>{productDetail.site_ready?.purchase_button_visible ? "노출 중" : "미노출"}</span></div>
-                          <div className="simple-list-row"><b>불법 상품 차단</b><span>{productDetail.site_ready?.illegal_goods_blocked ? "차단 정책 적용" : "점검 필요"}</span></div>
-                          <div className="simple-list-row"><b>환불정책</b><span>최소 {productDetail.site_ready?.minimum_refund_window_days || 7}일</span></div>
+                        <div className="shop-product-detail-story-block">
+                          <div className="shop-product-detail-story-hero">
+                            <span>{productDetailDisplayItem?.category ?? "SHOP"}</span>
+                            <strong>{productDetail.product.name}</strong>
+                            <p>{productDetail.product.description || "상세 설명 준비중"}</p>
+                          </div>
+                          <div className="shop-product-detail-story-copy">
+                            <p>기본 사용 흐름과 보관 편의성을 중심으로 구성된 상품입니다. 첫 구매자도 이해하기 쉬운 형태로 제품 안내와 주문 동선을 단순화했습니다.</p>
+                            <p>상세 화면은 상단 핵심 구매 정보 이후, 상품 설명 · 배송/교환 · 판매자 정보 순으로 이어지도록 구성해 실제 이커머스 상세 구조처럼 보이도록 정리했습니다.</p>
+                          </div>
                         </div>
-                      </div>
-                      <div className="legacy-box compact">
-                        <h3>고객센터 정보</h3>
-                        <div className="consent-record-list">
-                          <div className="simple-list-row"><b>상호명</b><span>{productDetail.seller_contact?.business_name || productDetail.seller_contact?.name || disclosedBusinessInfo.operatorName}</span></div>
-                          <div className="simple-list-row"><b>사업자번호</b><span>{productDetail.seller_contact?.business_registration_no || disclosedBusinessInfo.registrationNo}</span></div>
-                          <div className="simple-list-row"><b>CS 연락처</b><span>{productDetail.seller_contact?.cs_contact || disclosedBusinessInfo.phone}</span></div>
-                          <div className="simple-list-row multi-line"><div><b>주소</b><span>{productDetail.seller_contact?.business_address || disclosedBusinessInfo.address}</span></div></div>
-                          <div className="simple-list-row multi-line"><div><b>반품 주소</b><span>{productDetail.seller_contact?.return_address || disclosedBusinessInfo.address}</span></div></div>
-                          <div className="simple-list-row"><b>문의 이메일</b><span>{productDetail.seller_contact?.support_email || disclosedBusinessInfo.email}</span></div>
+                      </article>
+
+                      <article className="shop-product-detail-section-card">
+                        <div className="shop-product-detail-section-head">
+                          <strong>기본 정보</strong>
+                          <span>필수 구매 정보</span>
                         </div>
-                      </div>
-                    </div>
-                    <div className="legacy-grid two-col compact-grid">
-                      <div className="legacy-box compact">
-                        <h3>PG 심사 대응 결제 구조</h3>
-                        <div className="consent-record-list">
-                          <div className="simple-list-row multi-line"><div><b>결제 모델</b><span>{paymentReviewReady?.mode?.model ?? "platform_single_checkout_seller_payout"}</span></div></div>
-                          <div className="simple-list-row multi-line"><div><b>체크아웃 표현</b><span>{paymentReviewReady?.mode?.checkout_mode ?? "neutral_without_product_images"}</span></div></div>
-                          <div className="simple-list-row multi-line"><div><b>정산 원칙</b><span>{paymentReviewReady?.mode?.settlement_clause ?? "플랫폼이 결제 수취 후 판매자에게 재정산"}</span></div></div>
-                          <div className="simple-list-row multi-line"><div><b>판매자 지급</b><span>{paymentReviewReady?.mode?.payout_method ?? "seller_bank_transfer"}</span></div></div>
+                        <div className="shop-product-spec-grid">
+                          <div className="shop-product-spec-row"><b>카테고리</b><span>{productDetailDisplayItem?.category ?? "기타"}</span></div>
+                          <div className="shop-product-spec-row"><b>옵션</b><span>{selectedProductOption || productDetailOptionChips[0]}</span></div>
+                          <div className="shop-product-spec-row"><b>배송비</b><span>{`₩${productDetailShippingValue.toLocaleString()}`}</span></div>
+                          <div className="shop-product-spec-row"><b>재고</b><span>{Number(productDetail.product.stock_qty || 0) > 0 ? `${Number(productDetail.product.stock_qty || 0)}개` : "품절"}</span></div>
+                          <div className="shop-product-spec-row"><b>접근상태</b><span>{adultGateStatus?.allowed_to_shop ? "쇼핑 가능" : adultGateStatus?.member_status || "미확인"}</span></div>
+                          <div className="shop-product-spec-row"><b>후기</b><span>{Number(productDetailDisplayItem?.reviewCount ?? 0).toLocaleString()}개</span></div>
                         </div>
-                      </div>
-                      <div className="legacy-box compact">
-                        <h3>리스크 완화 규칙</h3>
-                        <div className="copy-action-row wrap-row">
-                          {(paymentReviewReady?.mode?.risk_controls ?? ["고위험 카테고리 제한", "주문 금액/빈도 룰", "의심거래 플래그", "차지백 증빙 저장"]).map((item) => <span key={item} className="question-profile-chip">{item}</span>)}
+                      </article>
+
+                      <article className="shop-product-detail-section-card">
+                        <div className="shop-product-detail-section-head">
+                          <strong>배송 / 교환 / 환불</strong>
+                          <span>구매 전 안내</span>
                         </div>
-                      </div>
-                    </div>
-                    <div className="legacy-box compact">
-                      <h3>필수 정책 문서</h3>
-                      <div className="notification-policy-links">
-                        <a className="ghost-link-btn" href={`${getApiBase()}/legal/terms-of-service`} target="_blank" rel="noreferrer">이용약관</a>
-                        <a className="ghost-link-btn" href={`${getApiBase()}/legal/privacy-policy`} target="_blank" rel="noreferrer">개인정보 처리방침</a>
-                        <a className="ghost-link-btn" href={`${getApiBase()}/legal/refund-policy`} target="_blank" rel="noreferrer">환불정책</a>
-                        <a className="ghost-link-btn" href={`${getApiBase()}/legal/age-verification-policy`} target="_blank" rel="noreferrer">성인 인증 정책</a>
-                      </div>
-                    </div>
+                        <div className="shop-product-policy-list">
+                          <div className="shop-product-policy-row"><b>배송안내</b><span>결제 완료 후 순차 발송 · 기본 배송비 {`₩${productDetailShippingValue.toLocaleString()}`}</span></div>
+                          <div className="shop-product-policy-row"><b>교환/반품</b><span>최소 {productDetail.site_ready?.minimum_refund_window_days || 7}일 정책 적용</span></div>
+                          <div className="shop-product-policy-row"><b>상품표시</b><span>{productDetail.site_ready?.adult_only_label || "성인용품"} 명시</span></div>
+                          <div className="shop-product-policy-row"><b>구매버튼</b><span>{productDetail.site_ready?.purchase_button_visible ? "노출 중" : "노출 준비중"}</span></div>
+                        </div>
+                      </article>
+
+                      <article className="shop-product-detail-section-card">
+                        <div className="shop-product-detail-section-head">
+                          <strong>판매자 정보</strong>
+                          <span>고객센터 / 사업자 정보</span>
+                        </div>
+                        <div className="shop-product-spec-grid">
+                          <div className="shop-product-spec-row"><b>상호명</b><span>{productDetail.seller_contact?.business_name || productDetail.seller_contact?.name || disclosedBusinessInfo.operatorName}</span></div>
+                          <div className="shop-product-spec-row"><b>사업자번호</b><span>{productDetail.seller_contact?.business_registration_no || disclosedBusinessInfo.registrationNo}</span></div>
+                          <div className="shop-product-spec-row"><b>CS 연락처</b><span>{productDetail.seller_contact?.cs_contact || disclosedBusinessInfo.phone}</span></div>
+                          <div className="shop-product-spec-row"><b>문의 이메일</b><span>{productDetail.seller_contact?.support_email || disclosedBusinessInfo.email}</span></div>
+                          <div className="shop-product-spec-row wide"><b>사업장 주소</b><span>{productDetail.seller_contact?.business_address || disclosedBusinessInfo.address}</span></div>
+                          <div className="shop-product-spec-row wide"><b>반품 주소</b><span>{productDetail.seller_contact?.return_address || disclosedBusinessInfo.address}</span></div>
+                        </div>
+                      </article>
+
+                      <article className="shop-product-detail-section-card">
+                        <div className="shop-product-detail-section-head">
+                          <strong>주문 / 결제 테스트</strong>
+                          <span>현재 프로젝트 기능 유지</span>
+                        </div>
+                        <div className="shop-product-detail-cta-row shop-product-detail-cta-row-inline">
+                          <button type="button" className="ghost-btn shop-detail-secondary-btn" onClick={verifyAdultSelf}>성인인증 진행</button>
+                          <button type="button" className="ghost-btn shop-detail-secondary-btn" onClick={() => launchVerotelCheckout()}>중립 결제 테스트</button>
+                          <button type="button" className="shop-detail-primary-btn" onClick={() => setShoppingTab("주문")}>주문 탭 열기</button>
+                        </div>
+                        <p className="muted-mini shop-product-detail-note">미성년자는 쇼핑과 결제가 차단됩니다. PASS 실연동 전에는 자체 성인 확인으로 QA 가능합니다.</p>
+                      </article>
+                    </section>
                   </>
                 ) : (
                   <div className="legacy-box compact">
-                    <p>상품 목록에서 상세보기를 누르면 상품 상세, 결제 테스트, 정책 링크, 고객센터 정보를 확인할 수 있습니다.</p>
+                    <p>상품을 선택하면 상세 정보가 표시됩니다.</p>
                   </div>
                 )}
               </div>
