@@ -9739,3 +9739,81 @@ body {
 .chat-question-pane .question-list {
   padding: 0 14px;
 }
+
+/* === 2026-04-21 request: unify chat category list width/row structure with 전체 === */
+.tab-pane.fill-pane.chat-tab-pane .chat-list.compact-scroll-list.kakao-chat-list {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  display: grid !important;
+  grid-auto-rows: minmax(68px, auto) !important;
+  align-content: start !important;
+  padding: 0 !important;
+}
+
+.tab-pane.fill-pane.chat-tab-pane .chat-list.compact-scroll-list.kakao-chat-list .kakao-chat-row {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  display: grid !important;
+  grid-template-columns: 44px minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 10px 4px !important;
+}
+
+.tab-pane.fill-pane.chat-tab-pane .chat-list.compact-scroll-list.kakao-chat-list .kakao-chat-copy {
+  min-width: 0 !important;
+  width: 100% !important;
+  display: grid !important;
+  gap: 4px !important;
+  align-content: start !important;
+}
+
+.tab-pane.fill-pane.chat-tab-pane .chat-list.compact-scroll-list.kakao-chat-list .kakao-chat-head {
+  min-width: 0 !important;
+  width: 100% !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  gap: 8px !important;
+  align-items: center !important;
+}
+
+.tab-pane.fill-pane.chat-tab-pane .chat-list.compact-scroll-list.kakao-chat-list .kakao-chat-head strong {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.tab-pane.fill-pane.chat-tab-pane .chat-list.compact-scroll-list.kakao-chat-list .kakao-chat-badges {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+}
+
+.tab-pane.fill-pane.chat-tab-pane .chat-list.compact-scroll-list.kakao-chat-list .kakao-chat-badges span {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.tab-pane.fill-pane.chat-tab-pane .chat-list.compact-scroll-list.kakao-chat-list .kakao-chat-meta {
+  min-width: 40px !important;
+  width: 40px !important;
+  justify-self: end !important;
+  align-self: start !important;
+}
+
+.tab-pane.fill-pane.chat-tab-pane .chat-list.compact-scroll-list.kakao-chat-list .muted-mini {
+  display: block !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
