@@ -1639,7 +1639,7 @@ const FeedCaption = memo(function FeedCaption({ caption, title }: { caption: str
 
   useEffect(() => {
     setExpanded(false);
-  }, [caption, title]);
+  }, [caption]);
 
   useEffect(() => {
     const measure = () => {
@@ -1655,7 +1655,7 @@ const FeedCaption = memo(function FeedCaption({ caption, title }: { caption: str
       window.cancelAnimationFrame(rafId);
       window.removeEventListener("resize", measure);
     };
-  }, [caption, title, expanded]);
+  }, [caption, expanded]);
 
   const handleExpand = () => setExpanded(true);
   const handleCollapse = () => setExpanded(false);
@@ -1674,11 +1674,6 @@ const FeedCaption = memo(function FeedCaption({ caption, title }: { caption: str
 
   return (
     <div className={`feed-caption-block${expanded ? " expanded" : ""}${showToggle ? " has-toggle" : ""}`}>
-      {title ? (
-        <div className="feed-caption-title-row">
-          <strong className="feed-caption-title">{title}</strong>
-        </div>
-      ) : null}
       <div className="feed-caption-body">
         <p ref={captionRef} className={`feed-caption-text${expanded ? " expanded" : ""}`}>
           <span className="feed-caption-text-content">{caption}</span>
@@ -1738,7 +1733,7 @@ const FeedPoster = memo(function FeedPoster({ item, onAsk, saved, liked, reposte
       </div>
       <div className="feed-copy">
         <div>
-          <FeedCaption title={item.title} caption={item.caption} />
+          <FeedCaption caption={item.caption} />
         </div>
       </div>
       <div className="history-feed-footer history-feed-footer-icons">
@@ -8080,11 +8075,9 @@ export default function App() {
           <div className="feed-avatar-preview-sheet" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="프로필 사진 미리보기">
             <div className={`feed-avatar-preview-stage ${feedAvatarPreviewItem.accent}`}>
               <div className="feed-avatar-preview-square">
-                <div className="feed-avatar-preview-badge">프로필 사진 미리보기</div>
-                <div className="feed-avatar-preview-initial">{feedAvatarPreviewItem.author.slice(0, 1).toUpperCase()}</div>
-                <div className="feed-avatar-preview-meta">
-                  <strong>{feedAvatarPreviewItem.author}</strong>
-                  <span>{feedAvatarPreviewItem.title}</span>
+                <div className="feed-avatar-preview-silhouette" aria-hidden="true">
+                  <span className="feed-avatar-preview-head" />
+                  <span className="feed-avatar-preview-body" />
                 </div>
               </div>
             </div>
