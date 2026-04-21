@@ -3557,6 +3557,7 @@ export default function App() {
   const [randomMatchNote, setRandomMatchNote] = useState("앱 공개영역에서는 직접 매칭을 제공하지 않습니다. 민감한 정보교류는 성인인증·승인제 제한 웹 포럼으로만 분리합니다.");
   const randomRoomLifetimeMinutes = 20;
   const [shopKeyword, setShopKeyword] = useState("");
+  const [shopSearchVisibleCount, setShopSearchVisibleCount] = useState(12);
   const [shopHomeBannerIndex, setShopHomeBannerIndex] = useState(0);
   const [shopHomeBannerDragOffset, setShopHomeBannerDragOffset] = useState(0);
   const shopHomeBannerPointerStartXRef = useRef<number | null>(null);
@@ -5649,14 +5650,15 @@ export default function App() {
 
   const shopSearchResults = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
-    if (!keyword) return [];
-    return productsSeed.filter((item) => {
+    if (!keyword) return [] as ProductCard[];
+    return allShopItems.filter((item) => {
       if (searchFilter === "상품명") return item.name.toLowerCase().includes(keyword);
       if (searchFilter === "내용") return item.subtitle.toLowerCase().includes(keyword);
       if (searchFilter === "카테고리") return item.category.toLowerCase().includes(keyword);
       return `${item.name} ${item.subtitle} ${item.category}`.toLowerCase().includes(keyword);
     });
-  }, [globalKeyword, searchFilter]);
+  }, [allShopItems, globalKeyword, searchFilter]);
+  const visibleShopSearchResults = useMemo(() => shopSearchResults.slice(0, shopSearchVisibleCount), [shopSearchResults, shopSearchVisibleCount]);
 
   const communitySearchResults = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
@@ -6916,6 +6918,27 @@ export default function App() {
           ? ["전체", "제목", "내용", "유형"]
           : ["전체", "아이디", "피드"];
 
+  useEffect(() => {
+    if (activeTab !== "쇼핑" || overlayMode !== "search") return;
+    setShopSearchVisibleCount(12);
+  }, [activeTab, overlayMode, globalKeyword, searchFilter]);
+
+  const handleShopSearchResultsScroll = (event: ReactUIEvent<HTMLDivElement>) => {
+    if (activeTab !== "쇼핑") return;
+    const target = event.currentTarget;
+    if (target.scrollHeight - target.scrollTop - target.clientHeight < 180) {
+      setShopSearchVisibleCount((prev) => Math.min(prev + 12, shopSearchResults.length));
+    }
+  };
+
+  const cycleShopSearchFilter = () => {
+    if (activeTab !== "쇼핑") return;
+    const filters = searchFilterOptions;
+    const currentIndex = Math.max(0, filters.indexOf(searchFilter));
+    const nextFilter = filters[(currentIndex + 1) % filters.length];
+    setSearchFilter(nextFilter);
+  };
+
   const profileSearchResults = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
     if (!keyword) return [];
@@ -7162,7 +7185,7 @@ export default function App() {
     <div className="mobile-app-shell">
       <header className={`top-header${activeTab === "홈" && (((homeTab === "쇼츠" && shortsHeaderHidden) || (homeTab === "피드" && homeFeedHeaderHidden)) || isAnyShortsViewerOpen) ? " shorts-top-header-hidden" : ""}`}>
         {overlayMode === "search" ? (
-          <div className="topbar-search-row">
+          <div className={`topbar-search-row ${activeTab === "쇼핑" ? "topbar-search-row-shop" : ""}`}>
             <button
               type="button"
               className="header-inline-btn header-icon-btn topbar-search-back"
@@ -7172,6 +7195,17 @@ export default function App() {
             >
               <BackArrowIcon />
             </button>
+            {activeTab === "쇼핑" ? (
+              <button
+                type="button"
+                className="header-inline-btn topbar-search-filter-btn"
+                onClick={cycleShopSearchFilter}
+                aria-label={`필터 ${searchFilter}`}
+                title={`필터 ${searchFilter}`}
+              >
+                필터
+              </button>
+            ) : null}
             <div className="topbar-search-input-wrap">
               <input
                 value={globalKeyword}
@@ -7182,7 +7216,7 @@ export default function App() {
               />
             </div>
             <div className="topbar-search-trailing">
-              <div className="topbar-title-inline" aria-live="polite">{currentScreenTitle}</div>
+              <div className="topbar-title-inline" aria-live="polite">{activeTab === "쇼핑" ? "쇼핑검색" : currentScreenTitle}</div>
               <button className="header-inline-btn header-icon-btn header-toolbar-btn active" onClick={() => openOverlay("search")} aria-label={`${activeTab}검색`} title={`${activeTab}검색`}><SearchIcon /></button>
               <button className="header-inline-btn header-icon-btn header-notification-btn header-toolbar-btn" onClick={() => openOverlay("notifications")} aria-label={`${activeTab}알림`} title={`${activeTab}알림`}><BellIcon />{unreadNotificationCount > 0 ? <span className="header-badge">{unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}</span> : null}</button>
               <button className="header-inline-btn header-icon-btn header-toolbar-btn" onClick={() => openOverlay("settings")} aria-label={`${activeTab}설정`} title={`${activeTab}설정`}><SettingsIcon /></button>
@@ -7251,23 +7285,26 @@ export default function App() {
             ) : null}
 
             {overlayMode === "search" ? (
-              <div className="overlay-body stack-gap contextual-search-pane search-overlay-pane">
-                <div className="search-scope-row">
-                  {currentSearchSections.map((item) => (
-                    <button
-                      key={`search-section-${item}`}
-                      type="button"
-                      className={`search-scope-btn ${searchSection === item ? "active" : ""}`}
-                      onClick={() => setSearchSection(item)}
-                    >
-                      {item}
-                    </button>
-                  ))}
-                </div>
+              <div className={`overlay-body stack-gap contextual-search-pane search-overlay-pane ${activeTab === "쇼핑" ? "search-overlay-pane-shop" : ""}`}>
+                {activeTab !== "쇼핑" ? (
+                  <div className="search-scope-row">
+                    {currentSearchSections.map((item) => (
+                      <button
+                        key={`search-section-${item}`}
+                        type="button"
+                        className={`search-scope-btn ${searchSection === item ? "active" : ""}`}
+                        onClick={() => setSearchSection(item)}
+                      >
+                        {item}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
                 <div className="search-toolbar-actions">
+                  {activeTab === "쇼핑" ? <span className="shop-search-filter-status">현재 필터: {searchFilter}</span> : null}
                   <button className="ghost-btn" onClick={() => setGlobalKeyword("")}>검색어 초기화</button>
                 </div>
-                <div className="context-search-results compact-scroll-list search-results-list">
+                <div className={`context-search-results compact-scroll-list search-results-list ${activeTab === "쇼핑" ? "shop-search-results-list" : ""}`} onScroll={activeTab === "쇼핑" ? handleShopSearchResultsScroll : undefined}>
                   {!globalKeyword.trim() ? <div className="legacy-box compact"><p>검색어를 입력하면 결과가 표시됩니다.</p></div> : null}
 
                   {activeTab === "홈" && searchSection === "피드결과" ? homeSearchResults.map((item) => (
@@ -7291,13 +7328,62 @@ export default function App() {
                     </article>
                   )) : null}
 
-                  {activeTab === "쇼핑" ? shopSearchResults.map((item) => (
-                    <article key={`shop-${item.id}`} className="legacy-box compact search-result-card search-result-list-card">
-                      <div className="split-row"><strong>{item.name}</strong><span>{item.price}</span></div>
-                      <p>{item.subtitle}</p>
-                      <span className="community-meta">{item.category} · {item.badge}</span>
-                    </article>
-                  )) : null}
+                  {activeTab === "쇼핑" ? visibleShopSearchResults.map((item) => {
+                    const rating = (4.1 + ((item.id % 8) * 0.1)).toFixed(1);
+                    const isSaved = savedProductIds.includes(item.id);
+                    return (
+                      <article
+                        key={`shop-${item.id}`}
+                        className="shop-search-result-row"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => {
+                          setOverlayMode(null);
+                          openProductDetail(item.id);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            setOverlayMode(null);
+                            openProductDetail(item.id);
+                          }
+                        }}
+                      >
+                        <div className="shop-search-result-thumb">
+                          {item.thumbnailUrl ? <img src={item.thumbnailUrl} alt={item.name} className="shop-search-result-thumb-image" /> : null}
+                          <div className={`shop-search-result-thumb-placeholder hero-tone-${(item.id % 3) + 1}`} />
+                        </div>
+                        <div className="shop-search-result-copy">
+                          <div className="shop-search-result-topline">
+                            <span className="shop-search-result-badge">{item.badge}</span>
+                            <span className="shop-search-result-category">{item.category}</span>
+                          </div>
+                          <strong>{item.name}</strong>
+                          <p>{item.subtitle}</p>
+                          <div className="shop-search-result-meta">
+                            <b>{item.price}</b>
+                            <span>★ {rating} ({item.reviewCount ?? 0})</span>
+                          </div>
+                        </div>
+                        <div className="shop-search-result-side">
+                          <button
+                            type="button"
+                            className={`shop-search-result-save ${isSaved ? "active" : ""}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              toggleSavedProduct(item.id);
+                            }}
+                            aria-label={isSaved ? "보관해제" : "보관함"}
+                          >
+                            <HeartIcon filled={isSaved} />
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  }) : null}
+                  {activeTab === "쇼핑" && globalKeyword.trim() && visibleShopSearchResults.length > 0 && visibleShopSearchResults.length < shopSearchResults.length ? (
+                    <div className="feed-loading-row shop-search-loading-row">상품을 더 불러오는 중</div>
+                  ) : null}
 
                   {activeTab === "소통" ? communicationOverlayResults.map((item) => (
                     <article key={`community-${item.id}`} className="legacy-box compact search-result-card search-result-list-card">
