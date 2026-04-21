@@ -864,6 +864,36 @@ function PlusIcon() {
   );
 }
 
+function ShortsCameraIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <rect x="4.5" y="7" width="10.5" height="10" rx="2.2" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="9.75" cy="12" r="2.5" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M15 10.1 19.3 8v8L15 13.9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function PhotoImageIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <rect x="4.2" y="5.2" width="15.6" height="13.6" rx="2.2" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="9" cy="10" r="1.5" fill="currentColor" />
+      <path d="M6.8 16.1 10.3 12.7 12.9 15.2 15.2 12.8 17.8 16.1" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function PaperDocumentIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M8 4.5h6.6l3.4 3.5V19a1.5 1.5 0 0 1-1.5 1.5H8A1.5 1.5 0 0 1 6.5 19V6A1.5 1.5 0 0 1 8 4.5Z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M14.5 4.8V8h3.1" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M9 11.2h6M9 14.2h6M9 17.2h4.2" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function ThumbUpIcon({ filled = false }: { filled?: boolean }) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -8116,9 +8146,9 @@ export default function App() {
             {feedComposeLauncherOpen ? (
               <div className="feed-create-options" aria-hidden={false}>
                 {([
-                  { mode: "피드게시" as const, label: "피드게시", icon: "피" },
-                  { mode: "사진피드" as const, label: "사진피드", icon: "사" },
-                  { mode: "쇼츠게시" as const, label: "쇼츠게시", icon: "쇼" },
+                  { mode: "쇼츠게시" as const, label: "쇼츠게시", icon: <ShortsCameraIcon /> },
+                  { mode: "사진피드" as const, label: "사진피드", icon: <PhotoImageIcon /> },
+                  { mode: "피드게시" as const, label: "피드게시", icon: <PaperDocumentIcon /> },
                 ]).map((item) => (
                   <button key={item.mode} type="button" className="feed-create-option" onClick={() => openFeedComposeWithMode(item.mode)}>
                     <span className="feed-create-option-label">{item.label}</span>

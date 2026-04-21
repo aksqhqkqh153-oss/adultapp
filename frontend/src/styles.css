@@ -9444,3 +9444,58 @@ body {
   outline: 1px solid rgba(255,255,255,0.2);
   outline-offset: 2px;
 }
+
+
+/* === 2026-04-21 request: feed create launcher icon order / dark backdrop / pink outline === */
+.feed-create-backdrop {
+  background: rgba(0, 0, 0, 0.78) !important;
+  backdrop-filter: blur(2px);
+}
+.feed-create-dock {
+  gap: 14px !important;
+}
+.feed-create-options {
+  gap: 14px !important;
+}
+.feed-create-option {
+  gap: 12px !important;
+}
+.feed-create-option-label {
+  min-width: auto !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #ffffff !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  text-align: right !important;
+}
+.feed-create-option-icon {
+  width: 48px !important;
+  height: 48px !important;
+  border-radius: 50% !important;
+  border: 1.5px solid var(--pink-2) !important;
+  background: #000000 !important;
+  color: var(--pink-2) !important;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.44) !important;
+}
+.feed-create-option-icon svg {
+  width: 22px;
+  height: 22px;
+}
+.feed-create-option:hover .feed-create-option-label,
+.feed-create-option:focus-visible .feed-create-option-label {
+  color: #ffffff !important;
+}
+@media (max-width: 640px) {
+  .feed-create-option-icon {
+    width: 46px !important;
+    height: 46px !important;
+  }
+  .feed-create-option-label {
+    font-size: 13px !important;
+  }
+}
