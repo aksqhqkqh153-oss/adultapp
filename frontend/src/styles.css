@@ -10513,3 +10513,27 @@ body {
     font-size: 22px !important;
   }
 }
+
+
+/* === 2026-04-21 request: profile shorts infinite scroll === */
+.profile-pane-instagram .profile-ig-grid.profile-ig-grid-shorts {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 0 !important;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  background: #000 !important;
+}
+
+.profile-pane-instagram .profile-ig-grid.profile-ig-grid-shorts .shorts-list-card {
+  width: 100%;
+  background: #000;
+}
+
+.profile-pane-instagram .profile-ig-grid.profile-ig-grid-shorts .shorts-video-stage {
+  min-height: 280px;
+}
+
+.profile-pane-instagram .profile-ig-grid.profile-ig-grid-shorts .shorts-loading-row {
+  margin: 0;
+}

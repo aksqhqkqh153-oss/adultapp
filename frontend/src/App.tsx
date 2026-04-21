@@ -121,7 +121,7 @@ type AskProfile = {
   highlight: string;
 };
 
-type ProfileSection = "게시물" | "질문" | "릴스" | "태그됨" | "상품보기";
+type ProfileSection = "게시물" | "질문" | "쇼츠" | "태그됨" | "상품보기";
 
 type ShopCategory = {
   group: string;
@@ -3751,6 +3751,7 @@ export default function App() {
   });
   const [savedTab, setSavedTab] = useState<"피드" | "쇼츠">("피드");
   const [shortsVisibleCount, setShortsVisibleCount] = useState(10);
+  const [profileShortsVisibleCount, setProfileShortsVisibleCount] = useState(10);
   const [homeFeedVisibleCount, setHomeFeedVisibleCount] = useState(() => {
     if (typeof window === "undefined") return HOME_FEED_BATCH_SIZE;
     const stored = readHomeFeedPersistedState();
@@ -4951,6 +4952,15 @@ export default function App() {
     });
   };
 
+  const handleProfileShellScroll = (event: ReactUIEvent<HTMLDivElement>) => {
+    if (!showAppTabContent || activeTab !== "프로필" || profileSection !== "쇼츠") return;
+    const target = event.currentTarget;
+    const remain = target.scrollHeight - target.scrollTop - target.clientHeight;
+    if (remain <= 48 && profileShortsVisibleCount < profileShortItems.length) {
+      setProfileShortsVisibleCount((prev) => Math.min(prev + 10, profileShortItems.length));
+    }
+  };
+
   const showListEndToast = useCallback((message: string) => {
     if (listEndToastTimerRef.current !== null) {
       window.clearTimeout(listEndToastTimerRef.current);
@@ -5144,6 +5154,10 @@ export default function App() {
     setShortsVisibleCount(10);
   }, [globalKeyword, selectedShortsCategory]);
 
+  useEffect(() => {
+    setProfileShortsVisibleCount(10);
+  }, [profileSection, currentProfileAuthor, profileShortItems.length]);
+
   useEffect(() => () => {
     if (shortsScrollRafRef.current !== null) {
       window.cancelAnimationFrame(shortsScrollRafRef.current);
@@ -5255,6 +5269,19 @@ export default function App() {
     const source = picked.length >= 6 ? picked : pool.slice(ownerIndex * 6, ownerIndex * 6 + 9);
     return [...source].sort((a, b) => ((b.orderCount ?? 0) - (a.orderCount ?? 0)) || ((b.reviewCount ?? 0) - (a.reviewCount ?? 0)) || a.name.localeCompare(b.name));
   }, [allShopItems, currentProfileAuthor]);
+
+  const profileShortItems = useMemo(() => {
+    const authored = shortsFeedItems.filter((item) => item.type === "video" && item.author === currentProfileAuthor);
+    if (authored.length) return authored;
+    const fallback = shortsFeedItems.filter((item) => item.type === "video");
+    return fallback.slice(0, 30);
+  }, [shortsFeedItems, currentProfileAuthor]);
+
+  const pagedProfileShorts = useMemo(() => profileShortItems.slice(0, profileShortsVisibleCount), [profileShortItems, profileShortsVisibleCount]);
+  const profileShortsViewerInitialIndex = useMemo(
+    () => shortsViewerItemId === null ? 0 : Math.max(0, profileShortItems.findIndex((item) => item.id === shortsViewerItemId)),
+    [profileShortItems, shortsViewerItemId]
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -8390,7 +8417,7 @@ export default function App() {
 
                 {showAppTabContent && activeTab === "프로필" ? (
           <section className="tab-pane fill-pane profile-pane-instagram">
-            <div className="profile-ig-shell compact-scroll-list">
+            <div className="profile-ig-shell compact-scroll-list" onScroll={handleProfileShellScroll}>
               <div className="profile-ig-header">
                 <div className="profile-ig-avatar-wrap">
                   <div className="profile-ig-avatar">{currentProfileMeta.avatar}</div>
@@ -8424,7 +8451,7 @@ export default function App() {
               <div className="profile-ig-tabbar profile-ig-action-grid" aria-label="프로필 바로가기">
                 <button type="button" className={profileSection === "게시물" ? "active" : ""} onClick={() => setProfileSection("게시물")}>게시물</button>
                 <button type="button" className={profileSection === "질문" ? "active" : ""} onClick={() => setProfileSection("질문")}>질문</button>
-                <button type="button" className={profileSection === "릴스" ? "active" : ""} onClick={() => setProfileSection("릴스")}>릴스</button>
+                <button type="button" className={profileSection === "쇼츠" ? "active" : ""} onClick={() => setProfileSection("쇼츠")}>쇼츠</button>
                 <button type="button" className={profileSection === "태그됨" ? "active" : ""} onClick={() => setProfileSection("태그됨")}>태그됨</button>
                 <button type="button" className={profileSection === "상품보기" ? "active" : ""} onClick={() => setProfileSection("상품보기")}>상품 보기</button>
               </div>
@@ -8468,19 +8495,17 @@ export default function App() {
                 </div>
               ) : null}
 
-              {profileSection === "릴스" ? (
-                <div className="profile-ig-grid">
-                  {allFeedItems.filter((item) => item.type === "video" && item.author === currentProfileMeta.name).slice(0, 9).map((item) => (
-                    <article key={`reel-${item.id}`} className={`profile-ig-tile ${item.accent}`}>
-                      <div className="profile-ig-tile-media profile-ig-tile-media-reel">
-                        <span>릴스</span>
-                      </div>
-                      <div className="profile-ig-tile-meta">
-                        <strong>{item.title}</strong>
-                        <span>▶ {(item.views ?? 0).toLocaleString()} · ♥ {item.likes}</span>
-                      </div>
-                    </article>
-                  ))}
+              {profileSection === "쇼츠" ? (
+                <div className="profile-ig-grid profile-ig-grid-shorts">
+                  {pagedProfileShorts.length ? pagedProfileShorts.map((item) => (
+                    <ShortsListCard
+                      key={`profile-short-${item.id}`}
+                      item={item}
+                      onOpenMore={setShortsMoreItem}
+                      onOpenViewer={openShortsViewer}
+                    />
+                  )) : <div className="legacy-box compact"><p>올린 쇼츠가 없습니다.</p></div>}
+                  {pagedProfileShorts.length < profileShortItems.length ? <div className="shorts-loading-row">쇼츠 10개 단위로 추가 로딩 중</div> : null}
                 </div>
               ) : null}
 
@@ -8514,6 +8539,20 @@ export default function App() {
                     </article>
                   ))}
                 </div>
+              ) : null}
+
+              {profileSection === "쇼츠" && shortsViewerItemId !== null && profileShortItems.length ? (
+                <ShortsViewer
+                  items={profileShortItems}
+                  initialIndex={profileShortsViewerInitialIndex}
+                  onClose={() => setShortsViewerItemId(null)}
+                  onOpenMore={setShortsMoreItem}
+                  getKeywordTags={getContentKeywordTags}
+                  onOpenAuthorProfile={openProfileFromAuthor}
+                  onPreviewAuthorAvatar={openFeedAvatarPreview}
+                  followedAuthors={followedFeedAuthors}
+                  onToggleFollow={toggleFollowedFeedAuthor}
+                />
               ) : null}
             </div>
           </section>
