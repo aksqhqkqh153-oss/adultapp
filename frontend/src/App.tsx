@@ -846,9 +846,11 @@ function escapeHtmlAttribute(value: string) {
 
 function buildDesktopPaneFrameUrl(slot: DesktopPaneSlot, selection: DesktopPaneSelection) {
   if (typeof window === "undefined") return "";
-  const nextUrl = new URL(window.location.href);
+  const basePath = window.location.pathname || "/";
+  const nextUrl = new URL(basePath, window.location.origin);
   nextUrl.searchParams.set("desktopPane", slot);
   nextUrl.searchParams.set("initialTab", selection.mode === "tab" ? selection.tab : desktopBusinessViewMeta[selection.viewId].fallbackTab);
+  nextUrl.searchParams.set("desktopFrameMode", "app");
   if (selection.mode === "business") {
     nextUrl.searchParams.set("businessViewId", selection.viewId);
   } else {
@@ -1286,7 +1288,7 @@ function DesktopSplitShell() {
                 <span>{getDesktopPaneSelectionLabel(leftSelection)}</span>
               </div>
               <div className="desktop-split-device-frame">
-                {iframeReady ? <iframe className="desktop-split-iframe" src={leftFrameUrl} title="adultapp-left-pane" /> : <div className="desktop-split-fallback">좌측 화면을 준비 중입니다.</div>}
+                {iframeReady ? <iframe key={leftFrameUrl} className="desktop-split-iframe" src={leftFrameUrl} title="adultapp-left-pane" loading="eager" /> : <div className="desktop-split-fallback">좌측 화면을 준비 중입니다.</div>}
               </div>
             </section>
 
@@ -1296,7 +1298,7 @@ function DesktopSplitShell() {
                 <span>{getDesktopPaneSelectionLabel(rightSelection)}</span>
               </div>
               <div className="desktop-split-device-frame">
-                {iframeReady ? <iframe className="desktop-split-iframe" src={rightFrameUrl} title="adultapp-right-pane" /> : <div className="desktop-split-fallback">우측 화면을 준비 중입니다.</div>}
+                {iframeReady ? <iframe key={rightFrameUrl} className="desktop-split-iframe" src={rightFrameUrl} title="adultapp-right-pane" loading="eager" /> : <div className="desktop-split-fallback">우측 화면을 준비 중입니다.</div>}
               </div>
             </section>
           </div>
