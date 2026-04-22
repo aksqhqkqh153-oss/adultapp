@@ -778,6 +778,44 @@ function buildDesktopPaneSrcDoc(slot: DesktopPaneSlot, initialTab: MobileTab) {
 </html>`;
 }
 
+const desktopBusinessMenuSections: Array<{ title: string; items: Array<{ label: string; children?: string[] }> }> = [
+  {
+    title: "상품",
+    items: [
+      { label: "조회/등록/수정/삭제" },
+      { label: "주문" },
+      { label: "배송" },
+      { label: "환불/취소/반품/교환" },
+      { label: "정산", children: ["매출/순이익", "부가세", "세금계산서"] },
+      { label: "후기/상품평" },
+    ],
+  },
+  {
+    title: "메시지",
+    items: [
+      { label: "채팅" },
+      { label: "사용자 알림" },
+      { label: "자동발송멘트" },
+    ],
+  },
+  {
+    title: "알림",
+    items: [{ label: "운영 알림" }],
+  },
+  {
+    title: "고객센터",
+    items: [{ label: "고객문의" }],
+  },
+  {
+    title: "광고",
+    items: [
+      { label: "앱", children: ["배너"] },
+      { label: "메세지" },
+      { label: "알림" },
+    ],
+  },
+];
+
 function DesktopSplitShell() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [leftInitialTab, setLeftInitialTab] = useState<MobileTab>("홈");
@@ -786,10 +824,12 @@ function DesktopSplitShell() {
   const rightSrcDoc = useMemo(() => buildDesktopPaneSrcDoc("right", rightInitialTab), [rightInitialTab]);
   const iframeReady = Boolean(leftSrcDoc && rightSrcDoc);
 
-  const desktopMenuSections: Array<{ slot: DesktopPaneSlot; title: string; currentTab: MobileTab; onSelect: (tab: MobileTab) => void }> = [
+  const desktopTopControls: Array<{ slot: DesktopPaneSlot; title: string; currentTab: MobileTab; onSelect: (tab: MobileTab) => void }> = [
     { slot: "left", title: "좌측 화면 메뉴", currentTab: leftInitialTab, onSelect: setLeftInitialTab },
     { slot: "right", title: "우측 화면 메뉴", currentTab: rightInitialTab, onSelect: setRightInitialTab },
   ];
+
+  const toggleLabel = sidebarOpen ? "‹ 메뉴 접기" : "› 메뉴 펼치기";
 
   return (
     <div className={`desktop-split-shell ${sidebarOpen ? "sidebar-open" : "sidebar-closed"}`}>
@@ -800,26 +840,52 @@ function DesktopSplitShell() {
             className="desktop-side-menu-toggle"
             onClick={() => setSidebarOpen((prev) => !prev)}
             aria-expanded={sidebarOpen}
-            aria-label={sidebarOpen ? "메뉴 접기" : "메뉴 펼치기"}
-            title={sidebarOpen ? "메뉴 접기" : "메뉴 펼치기"}
+            aria-label={toggleLabel}
+            title={toggleLabel}
           >
-            <span className="desktop-side-menu-toggle-arrow" aria-hidden="true">{sidebarOpen ? "◀" : "▶"}</span>
-            <span className="desktop-side-menu-toggle-label">메뉴</span>
+            <span className="desktop-side-menu-toggle-arrow" aria-hidden="true">{sidebarOpen ? "‹" : "›"}</span>
+            <span className="desktop-side-menu-toggle-label">{sidebarOpen ? "메뉴 접기" : "메뉴 펼치기"}</span>
           </button>
 
           <div className="desktop-side-menu-scroll">
             <div className="desktop-side-menu-head">
-              <strong>PC 메뉴</strong>
-              <p>좌측에서 우측으로 접고 펼칠 수 있습니다.</p>
+              <strong>사업자 전용</strong>
+              <p>PC 화면용 빠른 메뉴입니다.</p>
             </div>
 
-            {desktopMenuSections.map((section) => (
-              <div key={section.slot} className="desktop-side-menu-section">
+            {desktopBusinessMenuSections.map((section) => (
+              <div key={section.title} className="desktop-side-menu-section desktop-side-menu-section-business">
                 <div className="desktop-side-menu-section-head">
                   <strong>{section.title}</strong>
-                  <span>현재: {section.currentTab}</span>
                 </div>
-                <div className="desktop-side-menu-tab-grid">
+                <ul className="desktop-side-menu-list">
+                  {section.items.map((item) => (
+                    <li key={item.label} className="desktop-side-menu-list-item">
+                      <span>{item.label}</span>
+                      {item.children ? (
+                        <ul className="desktop-side-menu-sublist">
+                          {item.children.map((child) => (
+                            <li key={child}>{child}</li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </aside>
+
+        <div className="desktop-split-main">
+          <div className="desktop-split-toolbar">
+            {desktopTopControls.map((section) => (
+              <section key={section.slot} className="desktop-top-control-card">
+                <div className="desktop-top-control-head">
+                  <strong>{section.title}</strong>
+                  <span>{section.currentTab} 시작</span>
+                </div>
+                <div className="desktop-top-control-grid">
                   {mobileTabs.map((tab) => (
                     <button
                       key={`${section.slot}-${tab}`}
@@ -831,18 +897,10 @@ function DesktopSplitShell() {
                     </button>
                   ))}
                 </div>
-              </div>
+              </section>
             ))}
           </div>
-        </aside>
 
-        <div className="desktop-split-main">
-          <div className="desktop-split-header">
-            <div>
-              <strong>PC 2분할 앱 화면</strong>
-              <p>좌측·우측 앱의 하단바가 서로 독립적으로 동작합니다.</p>
-            </div>
-          </div>
           <div className="desktop-split-grid">
             <section className="desktop-split-pane">
               <div className="desktop-split-pane-head">

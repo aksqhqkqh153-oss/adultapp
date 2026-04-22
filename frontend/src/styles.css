@@ -11724,42 +11724,44 @@ body {
 
 /* === 2026-04-22 request: desktop dual-pane + sliding menu === */
 .desktop-split-shell {
-  min-height: 100dvh;
-  padding: 20px;
+  height: 100dvh;
+  padding: 10px;
+  overflow: hidden;
   background: linear-gradient(180deg, #030303 0%, #0a0a0a 100%);
 }
 .desktop-split-shell.sidebar-open {
-  --desktop-side-menu-width: clamp(232px, 18vw, 296px);
+  --desktop-side-menu-width: clamp(250px, 17vw, 310px);
 }
 .desktop-split-shell.sidebar-closed {
-  --desktop-side-menu-width: 34px;
+  --desktop-side-menu-width: 54px;
 }
 .desktop-split-layout {
-  min-height: calc(100dvh - 40px);
+  height: calc(100dvh - 20px);
+  min-height: 0;
   display: grid;
   grid-template-columns: var(--desktop-side-menu-width) minmax(0, 1fr);
-  gap: 16px;
+  gap: 10px;
   transition: grid-template-columns 0.24s ease, gap 0.24s ease;
 }
 .desktop-side-menu {
   min-height: 0;
+  height: 100%;
   display: grid;
   grid-template-rows: auto 1fr;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.015) 100%);
-  transition: width 0.24s ease, transform 0.24s ease, opacity 0.24s ease;
 }
 .desktop-side-menu.closed {
-  width: 34px;
+  width: 54px;
 }
 .desktop-side-menu-toggle {
   display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
-  min-height: 52px;
-  padding: 0 10px;
+  min-height: 50px;
+  padding: 0 12px;
   border: 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(0, 0, 0, 0.58);
@@ -11767,9 +11769,10 @@ body {
   cursor: pointer;
 }
 .desktop-side-menu-toggle-arrow {
-  width: 16px;
+  width: 18px;
   text-align: center;
-  font-size: 13px;
+  font-size: 20px;
+  line-height: 1;
 }
 .desktop-side-menu-toggle-label {
   font-size: 13px;
@@ -11787,57 +11790,94 @@ body {
 .desktop-side-menu-scroll {
   min-height: 0;
   overflow-y: auto;
-  padding: 14px;
+  padding: 10px;
   display: grid;
   align-content: start;
-  gap: 14px;
+  gap: 10px;
 }
 .desktop-side-menu.closed .desktop-side-menu-scroll {
-  padding: 0;
-  overflow: hidden;
+  display: none;
 }
 .desktop-side-menu-head,
-.desktop-side-menu-section {
+.desktop-side-menu-section,
+.desktop-top-control-card,
+.desktop-split-pane {
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(0,0,0,0.42);
 }
 .desktop-side-menu-head {
-  padding: 14px 14px 12px;
+  padding: 12px;
 }
 .desktop-side-menu-head strong,
-.desktop-split-header strong,
 .desktop-split-pane-head strong,
-.desktop-side-menu-section-head strong {
+.desktop-side-menu-section-head strong,
+.desktop-top-control-head strong {
   display: block;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
 }
 .desktop-side-menu-head p,
-.desktop-split-header p,
 .desktop-split-pane-head span,
-.desktop-side-menu-section-head span {
-  margin: 6px 0 0;
+.desktop-side-menu-section-head span,
+.desktop-top-control-head span {
+  margin: 4px 0 0;
   color: rgba(255,255,255,0.68);
-  font-size: 13px;
+  font-size: 12px;
 }
 .desktop-side-menu-section {
-  padding: 12px;
+  padding: 10px;
   display: grid;
+  gap: 8px;
+}
+.desktop-side-menu-section-business {
   gap: 10px;
 }
 .desktop-side-menu-section-head {
   display: grid;
   gap: 2px;
 }
-.desktop-side-menu-tab-grid {
+.desktop-side-menu-list,
+.desktop-side-menu-sublist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.desktop-side-menu-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
+.desktop-side-menu-list-item {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+  color: #f5f5f5;
+  font-size: 13px;
+  font-weight: 600;
+}
+.desktop-side-menu-sublist {
+  display: grid;
+  gap: 4px;
+  padding-left: 10px;
+}
+.desktop-side-menu-sublist li {
+  position: relative;
+  color: rgba(255,255,255,0.74);
+  font-size: 12px;
+  font-weight: 500;
+  padding-left: 10px;
+}
+.desktop-side-menu-sublist li::before {
+  content: "-";
+  position: absolute;
+  left: 0;
+  top: 0;
+}
 .desktop-side-menu-tab-btn {
-  min-height: 42px;
+  min-height: 38px;
   padding: 0 10px;
-  border-radius: 12px;
+  border-radius: 10px;
   border: 1px solid rgba(255,255,255,0.1);
   background: rgba(255,255,255,0.04);
   color: #f5f5f5;
@@ -11855,21 +11895,35 @@ body {
   min-height: 0;
   display: grid;
   grid-template-rows: auto 1fr;
-  gap: 16px;
+  gap: 10px;
 }
-.desktop-split-header,
-.desktop-split-pane {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.015) 100%);
+.desktop-split-toolbar {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
-.desktop-split-header {
-  padding: 16px 18px;
+.desktop-top-control-card {
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+.desktop-top-control-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.desktop-top-control-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
 }
 .desktop-split-grid {
   min-height: 0;
+  height: 100%;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  gap: 10px;
 }
 .desktop-split-pane {
   min-height: 0;
@@ -11881,20 +11935,21 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 14px 16px;
+  gap: 10px;
+  padding: 10px 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(0,0,0,0.5);
 }
 .desktop-split-device-frame {
   min-height: 0;
-  padding: 14px;
+  padding: 10px;
   background: radial-gradient(circle at top, rgba(255,255,255,0.05), rgba(255,255,255,0.01) 48%, rgba(0,0,0,0.92) 100%);
 }
 .desktop-split-iframe,
 .desktop-split-fallback {
   width: 100%;
-  height: calc(100dvh - 124px);
+  height: 100%;
+  min-height: 0;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: #000;
   display: block;
@@ -11905,9 +11960,12 @@ body {
   color: rgba(255,255,255,0.78);
   font-size: 14px;
 }
-@media (max-width: 1399px) {
+@media (max-width: 1440px) {
   .desktop-split-shell.sidebar-open {
-    --desktop-side-menu-width: clamp(208px, 17vw, 248px);
+    --desktop-side-menu-width: clamp(232px, 17vw, 280px);
+  }
+  .desktop-top-control-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 @media (max-width: 1179px) {
@@ -11915,7 +11973,6 @@ body {
     display: none;
   }
 }
-
 
 /* === 2026-04-22 request: mobile shop search filter toggle layout === */
 .search-overlay-pane-shop {
