@@ -12853,3 +12853,280 @@ button.ghost-btn.danger { border-color:rgba(255,92,92,0.28); color:#ffb0b0; }
     border-radius: 16px;
   }
 }
+
+
+/* === 2026-04-23 request: chat room full height / emoji sheet / time position === */
+.chat-tab-pane {
+  overflow: hidden;
+}
+
+.x-chat-room-shell {
+  grid-template-rows: 56px minmax(0, 1fr) auto;
+  height: 100%;
+  min-height: 100%;
+}
+
+.x-chat-room-message-list {
+  overflow-y: auto;
+  padding-bottom: 20px;
+}
+
+.x-chat-room-composer-wrap {
+  position: relative;
+  left: auto;
+  right: auto;
+  bottom: 0;
+  z-index: 8;
+  gap: 6px;
+  padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(180deg, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.92) 32%, rgba(0,0,0,1) 100%);
+}
+
+.x-chat-room-composer {
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.x-chat-room-input-shell {
+  position: relative;
+  min-width: 0;
+}
+
+.x-chat-room-input-shell input {
+  padding-right: 48px;
+}
+
+.x-chat-room-emoji-toggle {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  color: #ffffff;
+  font-size: 16px;
+}
+
+.x-chat-room-message-row {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 6px;
+  max-width: min(88%, 620px);
+}
+
+.x-chat-room-message-row.mine {
+  justify-content: flex-end;
+}
+
+.x-chat-room-message-bubble.kind-emoji {
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.04);
+}
+
+.x-chat-room-emoji-content {
+  font-size: 34px;
+  line-height: 1;
+}
+
+.x-chat-room-special-card {
+  display: grid;
+  gap: 4px;
+}
+
+.x-chat-room-special-card strong {
+  font-size: 15px;
+}
+
+.x-chat-room-special-card small {
+  color: rgba(255,255,255,0.62);
+  font-size: 11px;
+}
+
+.x-chat-room-special-chip {
+  width: fit-content;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.12);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.x-chat-room-message-bubble.kind-sticker {
+  background: linear-gradient(180deg, rgba(168,85,247,0.22) 0%, rgba(99,102,241,0.18) 100%);
+  border: 1px solid rgba(167,139,250,0.35);
+}
+
+.x-chat-room-message-bubble.kind-gif {
+  background: linear-gradient(180deg, rgba(14,165,233,0.22) 0%, rgba(59,130,246,0.18) 100%);
+  border: 1px solid rgba(96,165,250,0.32);
+}
+
+.x-chat-room-message-side-meta {
+  display: inline-grid;
+  justify-items: end;
+  gap: 2px;
+  padding-bottom: 4px;
+}
+
+.x-chat-room-message-time,
+.x-chat-room-message-edited {
+  color: rgba(255,255,255,0.52);
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.chat-emoji-sheet {
+  width: 100%;
+  max-height: min(76vh, 640px);
+  padding: 10px 14px calc(14px + env(safe-area-inset-bottom, 0px));
+  border-radius: 24px 24px 0 0;
+  background: #0b0b0c;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  display: grid;
+  gap: 12px;
+}
+
+.chat-emoji-primary-row {
+  display: grid;
+  gap: 10px;
+}
+
+.chat-emoji-tab-row,
+.chat-emoji-collection-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.chat-emoji-tab-row::-webkit-scrollbar,
+.chat-emoji-collection-row::-webkit-scrollbar {
+  display: none;
+}
+
+.chat-emoji-mode-btn,
+.chat-emoji-collection-btn {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.8);
+}
+
+.chat-emoji-mode-btn.active,
+.chat-emoji-collection-btn.active {
+  background: rgba(236,72,153,0.16);
+  border-color: rgba(236,72,153,0.34);
+  color: #ffffff;
+}
+
+.chat-emoji-search-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+}
+
+.chat-emoji-search-row input {
+  min-height: 40px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+  color: #ffffff;
+  padding: 0 12px;
+}
+
+.chat-emoji-grid {
+  min-height: 0;
+  max-height: min(46vh, 380px);
+  overflow-y: auto;
+  gap: 10px;
+}
+
+.chat-emoji-grid.mode-emoji {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.chat-emoji-grid.mode-sticker {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.chat-emoji-grid.mode-gif {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.chat-emoji-item {
+  min-height: 88px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+  color: #ffffff;
+  padding: 10px;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.chat-emoji-item.emoji {
+  min-height: 82px;
+}
+
+.chat-emoji-item.sticker,
+.chat-emoji-item.gif {
+  align-content: stretch;
+}
+
+.chat-emoji-item strong {
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.chat-emoji-item small {
+  color: rgba(255,255,255,0.55);
+  font-size: 10px;
+  line-height: 1.25;
+}
+
+.chat-emoji-item-symbol {
+  font-size: 32px;
+  line-height: 1;
+}
+
+.chat-emoji-item-sticker-mark,
+.chat-emoji-item-gif-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.1);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.chat-emoji-empty-state {
+  grid-column: 1 / -1;
+  min-height: 120px;
+  border-radius: 18px;
+  border: 1px dashed rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.03);
+  color: rgba(255,255,255,0.68);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 16px;
+}

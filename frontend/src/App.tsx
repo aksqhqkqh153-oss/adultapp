@@ -191,6 +191,7 @@ type ThreadItem = {
 };
 
 type ChatRoomReactionKey = "heart" | "like" | "check" | "smile" | "surprised" | "sad";
+type ChatPickerMode = "이모티콘" | "스티커" | "GIF";
 
 type ChatRoomMessage = {
   id: number;
@@ -207,6 +208,8 @@ type ChatRoomMessage = {
     author: string;
     text: string;
   } | null;
+  contentKind?: "text" | "emoji" | "sticker" | "gif";
+  edited?: boolean;
 };
 
 type ForumStarterUser = {
@@ -2420,17 +2423,25 @@ const archivedThreadSeed: ThreadItem[] = [
 
 const createThreadRoomSeed = (thread: ThreadItem): ChatRoomMessage[] => {
   const baseLead = thread.kind === "단체"
-    ? `${thread.name} 방입니다. 공지와 최근 대화를 아래에서 확인하고 자유롭게 이어가세요.`
-    : `${thread.name} 님과 연결된 채팅방입니다. 외부 연락처 교환과 사진/영상 전송은 계속 제한됩니다.`;
+    ? `${thread.name} 방에 연결된 채팅방입니다.
+ㅡㅡㅡ주의사항ㅡㅡㅡ
+- 외부 연락처 교환은 지양하며, 사진 / 영상 전송은 제한됩니다.
+- 금전 거래를 통한 만남, 음란물 유포는 절대금지입니다.
+- 마약, 총기류 등 불법 거래는 절대금지입니다.`
+    : `${thread.name}님과 연결된 채팅방입니다.
+ㅡㅡㅡ주의사항ㅡㅡㅡ
+- 외부 연락처 교환은 지양하며, 사진 / 영상 전송은 제한됩니다.
+- 금전 거래를 통한 만남, 음란물 유포는 절대금지입니다.
+- 마약, 총기류 등 불법 거래는 절대금지입니다.`;
   const supportLine = thread.kind === "단체"
     ? `${thread.purpose} 주제로 최근 대화가 상단부터 정렬됩니다.`
-    : `${thread.purpose} 기준으로 대화가 생성되었고, 필요한 경우 문의 내용을 이어서 남길 수 있습니다.`;
+    : `${thread.purpose} 기준으로 연결된 채팅방이며, 필요한 경우 답장·공유·공지 기능을 이어서 사용할 수 있습니다.`;
   const now = Date.now();
 
   return [
-    { id: thread.id * 100 + 1, threadId: thread.id, author: "system", text: baseLead, meta: "방금", system: true, createdAt: now - 6 * 60000 },
-    { id: thread.id * 100 + 2, threadId: thread.id, author: thread.name, text: thread.preview, meta: thread.time, mine: false, createdAt: now - 4 * 60000 },
-    { id: thread.id * 100 + 3, threadId: thread.id, author: "나", text: supportLine, meta: "지금", mine: true, createdAt: now - 2 * 60000 },
+    { id: thread.id * 100 + 1, threadId: thread.id, author: "system", text: baseLead, meta: "안내", system: true, createdAt: now - 6 * 60000 },
+    { id: thread.id * 100 + 2, threadId: thread.id, author: thread.name, text: thread.preview, meta: thread.time, mine: false, createdAt: now - 4 * 60000, contentKind: "text" },
+    { id: thread.id * 100 + 3, threadId: thread.id, author: "나", text: supportLine, meta: "지금", mine: true, createdAt: now - 2 * 60000, contentKind: "text" },
   ];
 };
 
@@ -2477,11 +2488,43 @@ const CHAT_QUICK_SHARE_ITEMS = [
   { key: 'profile', label: '프로필공유', emoji: '👤' },
 ] as const;
 
+const CHAT_PICKER_TABS: ChatPickerMode[] = ["이모티콘", "스티커", "GIF"];
+const CHAT_PICKER_LIBRARY: Record<ChatPickerMode, Array<{ key: string; label: string; items: string[] }>> = {
+  "이모티콘": [
+    { key: "emoji-1", label: "이모티콘1", items: ["😀", "😄", "😊", "😍", "😎", "😉", "🤗", "🥰", "😘", "🤍", "💗", "💜", "🔥", "✨", "🎉", "🙌"] },
+    { key: "emoji-2", label: "이모티콘2", items: ["👍", "👌", "✌️", "👏", "🙏", "💯", "✅", "⭐", "🌙", "☀️", "🍀", "🎈", "🎵", "📍", "📎", "💌"] },
+    { key: "emoji-3", label: "이모티콘3", items: ["🤔", "😮", "😢", "😭", "😡", "😴", "🤯", "🥺", "😇", "🤝", "🫶", "💋", "💪", "🎁", "🖤", "💫"] },
+  ],
+  "스티커": [
+    { key: "sticker-1", label: "이모티콘1", items: ["러브곰 01", "러브곰 02", "러브곰 03", "러브곰 04", "러브곰 05", "러브곰 06"] },
+    { key: "sticker-2", label: "이모티콘2", items: ["야옹이 01", "야옹이 02", "야옹이 03", "야옹이 04", "야옹이 05", "야옹이 06"] },
+    { key: "sticker-3", label: "이모티콘3", items: ["말풍선 01", "말풍선 02", "말풍선 03", "말풍선 04", "말풍선 05", "말풍선 06"] },
+  ],
+  "GIF": [
+    { key: "gif-1", label: "이모티콘1", items: ["하트 루프", "박수 루프", "반짝 루프", "체크 루프", "댄스 루프", "손흔들기 루프"] },
+    { key: "gif-2", label: "이모티콘2", items: ["놀람 루프", "웃음 루프", "응원 루프", "엄지척 루프", "하이파이브 루프", "축하 루프"] },
+    { key: "gif-3", label: "이모티콘3", items: ["달빛 루프", "별빛 루프", "하트빔 루프", "핑크웨이브 루프", "무드라이트 루프", "네온사인 루프"] },
+  ],
+};
+const DEFAULT_CHAT_RECENT_PICKER_ITEMS: Record<ChatPickerMode, string[]> = {
+  "이모티콘": ["💗", "✨", "👍", "😊", "🔥", "🎉"],
+  "스티커": ["러브곰 01", "야옹이 01", "말풍선 01"],
+  "GIF": ["하트 루프", "박수 루프", "네온사인 루프"],
+};
+
 function formatChatMessageMeta(createdAt?: number, edited?: boolean) {
   if (!createdAt) return edited ? '방금 수정됨' : '방금';
   const diffMinutes = Math.max(0, Math.round((Date.now() - createdAt) / 60000));
   const base = diffMinutes < 1 ? '방금' : diffMinutes < 60 ? `${diffMinutes}분 전` : `${Math.floor(diffMinutes / 60)}시간 전`;
   return edited ? `${base} · 수정됨` : base;
+}
+
+function formatChatMessageClock(createdAt?: number) {
+  if (!createdAt) return '지금';
+  const date = new Date(createdAt);
+  const hour = `${date.getHours()}`.padStart(2, '0');
+  const minute = `${date.getMinutes()}`.padStart(2, '0');
+  return `${hour}:${minute}`;
 }
 
 const forumRoomNoticeText = `<포럼방 안내사항>
@@ -4409,6 +4452,11 @@ export default function App() {
     return Object.fromEntries(merged.map((thread) => [thread.id, createThreadRoomSeed(thread)]));
   });
   const [chatAttachmentSheetOpen, setChatAttachmentSheetOpen] = useState(false);
+  const [chatEmojiSheetOpen, setChatEmojiSheetOpen] = useState(false);
+  const [chatEmojiMode, setChatEmojiMode] = useState<ChatPickerMode>("이모티콘");
+  const [chatEmojiKeyword, setChatEmojiKeyword] = useState("");
+  const [chatEmojiCollectionKey, setChatEmojiCollectionKey] = useState("recent");
+  const [chatRecentPickerItems, setChatRecentPickerItems] = useState<Record<ChatPickerMode, string[]>>(() => ({ ...DEFAULT_CHAT_RECENT_PICKER_ITEMS }));
   const [chatReplyTarget, setChatReplyTarget] = useState<ChatRoomMessage | null>(null);
   const [chatContextMessage, setChatContextMessage] = useState<ChatRoomMessage | null>(null);
   const [chatPinnedMessageByThread, setChatPinnedMessageByThread] = useState<Record<number, number | null>>({});
@@ -6758,19 +6806,98 @@ export default function App() {
     });
   }, [activeChatThreadId, chatShareKeyword, threadItems]);
 
+  const chatPickerCollections = useMemo(() => {
+    return [
+      { key: 'recent', label: '최근사용' },
+      { key: 'all', label: '모든' },
+      ...CHAT_PICKER_LIBRARY[chatEmojiMode].map((item) => ({ key: item.key, label: item.label })),
+    ];
+  }, [chatEmojiMode]);
+  const chatPickerItems = useMemo(() => {
+    const keyword = chatEmojiKeyword.trim().toLowerCase();
+    const baseItems = chatEmojiCollectionKey === 'recent'
+      ? chatRecentPickerItems[chatEmojiMode]
+      : chatEmojiCollectionKey === 'all'
+        ? CHAT_PICKER_LIBRARY[chatEmojiMode].flatMap((item) => item.items)
+        : CHAT_PICKER_LIBRARY[chatEmojiMode].find((item) => item.key === chatEmojiCollectionKey)?.items ?? [];
+    return Array.from(new Set(baseItems)).filter((item) => !keyword || item.toLowerCase().includes(keyword));
+  }, [chatEmojiCollectionKey, chatEmojiKeyword, chatEmojiMode, chatRecentPickerItems]);
+
   const canManageChatMessage = useCallback((message: ChatRoomMessage) => {
     if (!message.mine || message.system) return false;
     return Date.now() - (message.createdAt ?? Date.now()) <= 60 * 60 * 1000;
   }, []);
 
+  const appendOutgoingChatMessage = useCallback((rawText: string, contentKind: ChatRoomMessage["contentKind"] = "text") => {
+    if (!activeChatThread) return;
+    const trimmed = rawText.trim();
+    if (!trimmed) return;
+    const now = Date.now();
+    const previewText = contentKind === "sticker" ? `[스티커] ${trimmed}` : contentKind === "gif" ? `[GIF] ${trimmed}` : trimmed;
+    const myMessage: ChatRoomMessage = {
+      id: now,
+      threadId: activeChatThread.id,
+      author: '나',
+      text: trimmed,
+      meta: formatChatMessageMeta(now),
+      mine: true,
+      createdAt: now,
+      replyTo: chatReplyTarget ? { id: chatReplyTarget.id, author: chatReplyTarget.author, text: chatReplyTarget.text } : null,
+      contentKind,
+    };
+    const replyText = activeChatThread.kind === '단체'
+      ? '방 주제에 맞는 대화로 이어가 주세요. 최근 메시지 아래에 순서대로 반영했습니다.'
+      : '메시지를 확인했습니다. 지금 채팅방에서 바로 이어서 대화를 진행할 수 있습니다.';
+    const replyMessage: ChatRoomMessage = {
+      id: now + 1,
+      threadId: activeChatThread.id,
+      author: activeChatThread.name,
+      text: replyText,
+      meta: formatChatMessageMeta(now + 1),
+      mine: false,
+      createdAt: now + 1,
+      contentKind: 'text',
+    };
+    setChatMessagesByThread((prev) => ({
+      ...prev,
+      [activeChatThread.id]: [...(prev[activeChatThread.id] ?? []), myMessage, replyMessage],
+    }));
+    setThreadItems((prev) => prev.map((item) => item.id === activeChatThread.id ? { ...item, preview: previewText, time: '방금', unread: 0 } : item));
+    setChatReplyTarget(null);
+    setChatRoomDraft('');
+    setChatAttachmentSheetOpen(false);
+    setChatEmojiSheetOpen(false);
+  }, [activeChatThread, chatReplyTarget]);
+
+  const handleChatEmojiSearch = useCallback(() => {
+    setChatEmojiCollectionKey('all');
+    setChatLongPressHint(`${chatEmojiMode} 검색 결과 ${chatPickerItems.length}건을 표시합니다.`);
+  }, [chatEmojiMode, chatPickerItems.length]);
+
+  const handleChatEmojiStoreOpen = useCallback(() => {
+    setChatLongPressHint(`${chatEmojiMode} 상점 화면은 준비 중입니다.`);
+  }, [chatEmojiMode]);
+
+  const handleChatPickerSelect = useCallback((item: string) => {
+    const contentKind = chatEmojiMode === '이모티콘' ? 'emoji' : chatEmojiMode === '스티커' ? 'sticker' : 'gif';
+    setChatRecentPickerItems((prev) => ({
+      ...prev,
+      [chatEmojiMode]: [item, ...prev[chatEmojiMode].filter((entry) => entry !== item)].slice(0, 12),
+    }));
+    appendOutgoingChatMessage(item, contentKind);
+    setChatLongPressHint(`${chatEmojiMode}이 전송되었습니다.`);
+  }, [appendOutgoingChatMessage, chatEmojiMode]);
+
   const handleChatQuickShareAction = useCallback((label: string) => {
     setChatAttachmentSheetOpen(false);
+    setChatEmojiSheetOpen(false);
     setChatLongPressHint(`${label} 메뉴가 열렸습니다.`);
   }, []);
 
   const openChatMessageMenu = useCallback((message: ChatRoomMessage) => {
     setChatContextMessage(message);
     setChatAttachmentSheetOpen(false);
+    setChatEmojiSheetOpen(false);
   }, []);
 
   const clearChatMessageHold = useCallback(() => {
@@ -6805,11 +6932,17 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [chatLongPressHint]);
 
+  useEffect(() => {
+    setChatEmojiCollectionKey('recent');
+    setChatEmojiKeyword('');
+  }, [chatEmojiMode]);
+
   const openChatThread = useCallback((thread: ThreadItem) => {
     setActiveChatThreadId(thread.id);
     setThreadItems((prev) => prev.map((item) => item.id === thread.id ? { ...item, unread: 0 } : item));
     setChatMessagesByThread((prev) => prev[thread.id] ? prev : { ...prev, [thread.id]: createThreadRoomSeed(thread) });
     setChatAttachmentSheetOpen(false);
+    setChatEmojiSheetOpen(false);
     setChatContextMessage(null);
     setChatReplyTarget(null);
     setChatEditableMessageId(null);
@@ -6822,6 +6955,7 @@ export default function App() {
     setActiveChatThreadId(null);
     setChatRoomDraft('');
     setChatAttachmentSheetOpen(false);
+    setChatEmojiSheetOpen(false);
     setChatContextMessage(null);
     setChatReplyTarget(null);
     setChatEditableMessageId(null);
@@ -6841,7 +6975,7 @@ export default function App() {
         ...prev,
         [activeChatThread.id]: (prev[activeChatThread.id] ?? []).map((message) => (
           message.id === chatEditableMessageId
-            ? { ...message, text: trimmed, meta: formatChatMessageMeta(message.createdAt, true) }
+            ? { ...message, text: trimmed, meta: formatChatMessageMeta(message.createdAt, true), edited: true }
             : message
         )),
       }));
@@ -6853,38 +6987,8 @@ export default function App() {
       return;
     }
 
-    const now = Date.now();
-    const myMessage: ChatRoomMessage = {
-      id: now,
-      threadId: activeChatThread.id,
-      author: '나',
-      text: trimmed,
-      meta: formatChatMessageMeta(now),
-      mine: true,
-      createdAt: now,
-      replyTo: chatReplyTarget ? { id: chatReplyTarget.id, author: chatReplyTarget.author, text: chatReplyTarget.text } : null,
-    };
-    const replyText = activeChatThread.kind === '단체'
-      ? '방 주제에 맞는 대화로 이어가 주세요. 최근 메시지 아래에 순서대로 반영했습니다.'
-      : '메시지를 확인했습니다. 지금 채팅방에서 바로 이어서 대화를 진행할 수 있습니다.';
-    const replyMessage: ChatRoomMessage = {
-      id: now + 1,
-      threadId: activeChatThread.id,
-      author: activeChatThread.name,
-      text: replyText,
-      meta: formatChatMessageMeta(now + 1),
-      mine: false,
-      createdAt: now + 1,
-    };
-    setChatMessagesByThread((prev) => ({
-      ...prev,
-      [activeChatThread.id]: [...(prev[activeChatThread.id] ?? []), myMessage, replyMessage],
-    }));
-    setThreadItems((prev) => prev.map((item) => item.id === activeChatThread.id ? { ...item, preview: trimmed, time: '방금', unread: 0 } : item));
-    setChatRoomDraft('');
-    setChatReplyTarget(null);
-    setChatSelectableMessageId(null);
-  }, [activeChatThread, chatEditableMessageId, chatReplyTarget, chatRoomDraft]);
+    appendOutgoingChatMessage(trimmed, 'text');
+  }, [activeChatThread, appendOutgoingChatMessage, chatEditableMessageId, chatRoomDraft]);
 
   const applyChatReaction = useCallback((message: ChatRoomMessage, reaction: ChatRoomReactionKey) => {
     setChatMessagesByThread((prev) => ({
@@ -10945,6 +11049,8 @@ export default function App() {
                     {activeChatMessages.map((message) => {
                       const reactionMeta = message.reaction ? CHAT_REACTION_OPTIONS.find((item) => item.key === message.reaction) ?? null : null;
                       const isSelectionTarget = chatSelectableMessageId === message.id;
+                      const messageClock = formatChatMessageClock(message.createdAt);
+                      const contentKind = message.contentKind ?? 'text';
                       return (
                         <article
                           key={message.id}
@@ -10967,9 +11073,38 @@ export default function App() {
                               <span>{message.replyTo.text}</span>
                             </div>
                           ) : null}
-                          <div className={`x-chat-room-message-bubble${isSelectionTarget ? " selection-enabled" : ""}`}>{message.text}</div>
+                          {message.system ? (
+                            <>
+                              <div className={`x-chat-room-message-bubble${isSelectionTarget ? " selection-enabled" : ""}`}>{message.text}</div>
+                              <div className="x-chat-room-message-meta">{message.meta}</div>
+                            </>
+                          ) : (
+                            <div className={`x-chat-room-message-row${message.mine ? " mine" : ""}`}>
+                              <div className={`x-chat-room-message-bubble kind-${contentKind}${isSelectionTarget ? " selection-enabled" : ""}`}>
+                                {contentKind === 'emoji' ? <div className="x-chat-room-emoji-content">{message.text}</div> : null}
+                                {contentKind === 'sticker' ? (
+                                  <div className="x-chat-room-special-card sticker">
+                                    <span className="x-chat-room-special-chip">스티커</span>
+                                    <strong>{message.text}</strong>
+                                    <small>선택한 스티커가 채팅으로 전송되었습니다.</small>
+                                  </div>
+                                ) : null}
+                                {contentKind === 'gif' ? (
+                                  <div className="x-chat-room-special-card gif">
+                                    <span className="x-chat-room-special-chip">GIF</span>
+                                    <strong>{message.text}</strong>
+                                    <small>루프 미리보기 대신 이름형 카드로 표시됩니다.</small>
+                                  </div>
+                                ) : null}
+                                {contentKind === 'text' ? message.text : null}
+                              </div>
+                              <div className="x-chat-room-message-side-meta">
+                                <span className="x-chat-room-message-time">{messageClock}</span>
+                                {message.edited ? <span className="x-chat-room-message-edited">수정됨</span> : null}
+                              </div>
+                            </div>
+                          )}
                           {reactionMeta ? <div className={`x-chat-room-message-reaction ${reactionMeta.className}`}>{reactionMeta.symbol}</div> : null}
-                          <div className="x-chat-room-message-meta">{message.meta}</div>
                         </article>
                       );
                     })}
@@ -11006,13 +11141,22 @@ export default function App() {
                       </div>
                     ) : null}
                     <div className="x-chat-room-composer">
-                      <button type="button" className="x-chat-room-plus-btn" aria-label="더보기" onClick={() => setChatAttachmentSheetOpen((prev) => !prev)}>+</button>
-                      <input value={chatRoomDraft} onChange={(event) => setChatRoomDraft(event.target.value)} placeholder="메시지를 입력하세요" onKeyDown={(event) => {
-                        if (event.key === 'Enter' && !event.shiftKey) {
-                          event.preventDefault();
-                          submitChatRoomMessage();
-                        }
-                      }} />
+                      <button type="button" className="x-chat-room-plus-btn" aria-label="더보기" onClick={() => {
+                        setChatEmojiSheetOpen(false);
+                        setChatAttachmentSheetOpen((prev) => !prev);
+                      }}>+</button>
+                      <div className="x-chat-room-input-shell">
+                        <input value={chatRoomDraft} onChange={(event) => setChatRoomDraft(event.target.value)} placeholder="메시지를 입력하세요" onKeyDown={(event) => {
+                          if (event.key === 'Enter' && !event.shiftKey) {
+                            event.preventDefault();
+                            submitChatRoomMessage();
+                          }
+                        }} />
+                        <button type="button" className="x-chat-room-emoji-toggle" aria-label="이모티콘 열기" onClick={() => {
+                          setChatAttachmentSheetOpen(false);
+                          setChatEmojiSheetOpen((prev) => !prev);
+                        }}>☺</button>
+                      </div>
                       <button type="button" className="ghost-btn x-chat-room-send-btn" onClick={submitChatRoomMessage}>보내기</button>
                     </div>
                   </div>
@@ -11269,6 +11413,42 @@ export default function App() {
                   <span>{item.label}</span>
                 </button>
               ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {chatEmojiSheetOpen && activeChatThread ? (
+        <div className="chat-sheet-backdrop" onClick={() => setChatEmojiSheetOpen(false)}>
+          <div className="chat-emoji-sheet" onClick={(event) => event.stopPropagation()}>
+            <div className="shorts-sheet-handle" />
+            <div className="chat-emoji-primary-row">
+              <div className="chat-emoji-tab-row">
+                {CHAT_PICKER_TABS.map((tab) => (
+                  <button key={tab} type="button" className={`chat-emoji-mode-btn ${chatEmojiMode === tab ? 'active' : ''}`} onClick={() => setChatEmojiMode(tab)}>{tab}</button>
+                ))}
+              </div>
+              <div className="chat-emoji-search-row">
+                <input value={chatEmojiKeyword} onChange={(event) => setChatEmojiKeyword(event.target.value)} placeholder="검색어 입력 텍스트칸" />
+                <button type="button" className="ghost-btn" onClick={handleChatEmojiSearch}>검색</button>
+                <button type="button" className="ghost-btn" onClick={handleChatEmojiStoreOpen}>상점</button>
+              </div>
+            </div>
+            <div className="chat-emoji-collection-row">
+              {chatPickerCollections.map((collection) => (
+                <button key={collection.key} type="button" className={`chat-emoji-collection-btn ${chatEmojiCollectionKey === collection.key ? 'active' : ''}`} onClick={() => setChatEmojiCollectionKey(collection.key)}>{collection.label}</button>
+              ))}
+            </div>
+            <div className={`chat-emoji-grid mode-${chatEmojiMode === '이모티콘' ? 'emoji' : chatEmojiMode === '스티커' ? 'sticker' : 'gif'} compact-scroll-list`}>
+              {chatPickerItems.length ? chatPickerItems.map((item) => (
+                <button key={`${chatEmojiMode}-${item}`} type="button" className={`chat-emoji-item ${chatEmojiMode === '이모티콘' ? 'emoji' : chatEmojiMode === '스티커' ? 'sticker' : 'gif'}`} onClick={() => handleChatPickerSelect(item)}>
+                  {chatEmojiMode === '이모티콘' ? <span className="chat-emoji-item-symbol">{item}</span> : null}
+                  {chatEmojiMode === '스티커' ? <span className="chat-emoji-item-sticker-mark">🧸</span> : null}
+                  {chatEmojiMode === 'GIF' ? <span className="chat-emoji-item-gif-mark">GIF</span> : null}
+                  <strong>{item}</strong>
+                  <small>{chatEmojiMode === '이모티콘' ? '4열 무한 스크롤' : chatEmojiMode === '스티커' ? '3열 무한 스크롤' : '2열 무한 스크롤'}</small>
+                </button>
+              )) : <div className="chat-emoji-empty-state">선택한 조건에 맞는 {chatEmojiMode} 항목이 없습니다.</div>}
             </div>
           </div>
         </div>
