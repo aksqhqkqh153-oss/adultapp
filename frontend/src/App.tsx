@@ -722,144 +722,129 @@ type SignupFormState = { email: string; password: string; displayName: string; l
 type DemoProfileState = { gender: string; ageBand: string; regionCode: string; interests: string[]; marketingOptIn: boolean; };
 
 type DesktopPaneSlot = "left" | "right";
-type DesktopPaneEmbedContext = { desktopPane: DesktopPaneSlot; initialTab: MobileTab; };
+type DesktopBusinessViewId =
+  | "product_crud"
+  | "orders"
+  | "shipping"
+  | "returns"
+  | "settlement"
+  | "reviews"
+  | "chat"
+  | "user_notifications"
+  | "auto_messages"
+  | "ops_alerts"
+  | "support"
+  | "ads_app"
+  | "ads_message"
+  | "ads_notice";
+type DesktopPaneSelection = { mode: "tab"; tab: MobileTab } | { mode: "business"; viewId: DesktopBusinessViewId };
+type DesktopPaneEmbedContext = { desktopPane: DesktopPaneSlot; initialTab: MobileTab; businessViewId?: DesktopBusinessViewId | null; };
+type DesktopBusinessMenuItem = { label: string; viewId: DesktopBusinessViewId; fallbackTab: MobileTab; summary: string; children?: string[] };
+type DesktopBusinessMenuSection = { title: string; items: DesktopBusinessMenuItem[] };
 
-function readDesktopPaneContext(): { embedded: boolean; slot: DesktopPaneSlot | null; initialTab: MobileTab } {
-  if (typeof window === "undefined") {
-    return { embedded: false, slot: null, initialTab: "홈" };
-  }
+const desktopBusinessViewMeta: Record<DesktopBusinessViewId, { title: string; description: string; fallbackTab: MobileTab; section: string }> = {
+  product_crud: { title: "상품 조회/등록/수정/삭제", description: "판매자센터 기본형 CRUD 화면입니다.", fallbackTab: "쇼핑", section: "상품" },
+  orders: { title: "주문 관리", description: "주문 접수/결제 상태/진행 흐름을 확인합니다.", fallbackTab: "쇼핑", section: "상품" },
+  shipping: { title: "배송 관리", description: "출고와 배송 처리 대상을 점검합니다.", fallbackTab: "쇼핑", section: "상품" },
+  returns: { title: "환불/취소/반품/교환", description: "CS 처리 대상 주문을 모아봅니다.", fallbackTab: "쇼핑", section: "상품" },
+  settlement: { title: "정산", description: "정산 예정, 수수료, 세금성 항목을 확인합니다.", fallbackTab: "쇼핑", section: "상품" },
+  reviews: { title: "후기/상품평", description: "상품 리뷰와 평가 지표를 확인합니다.", fallbackTab: "소통", section: "상품" },
+  chat: { title: "채팅", description: "최근 대화 목록과 상담 흐름을 확인합니다.", fallbackTab: "채팅", section: "메시지" },
+  user_notifications: { title: "사용자 알림", description: "사용자에게 노출되는 알림을 관리합니다.", fallbackTab: "프로필", section: "메시지" },
+  auto_messages: { title: "자동발송멘트", description: "주문/문의/안내 자동 문구를 확인합니다.", fallbackTab: "채팅", section: "메시지" },
+  ops_alerts: { title: "운영 알림", description: "운영자용 상태 알림과 점검 메시지를 봅니다.", fallbackTab: "프로필", section: "알림" },
+  support: { title: "고객문의", description: "고객센터/문의성 게시글 흐름을 모아봅니다.", fallbackTab: "소통", section: "고객센터" },
+  ads_app: { title: "광고 · 앱", description: "앱 내부 광고 슬롯과 배너 운영 현황입니다.", fallbackTab: "홈", section: "광고" },
+  ads_message: { title: "광고 · 메세지", description: "메세지형 광고 발송 대상을 관리합니다.", fallbackTab: "채팅", section: "광고" },
+  ads_notice: { title: "광고 · 알림", description: "푸시/알림형 광고 공지를 관리합니다.", fallbackTab: "프로필", section: "광고" },
+};
 
+const desktopBusinessMenuSections: DesktopBusinessMenuSection[] = [
+  { title: "상품", items: [
+    { label: "조회/등록/수정/삭제", viewId: "product_crud", fallbackTab: "쇼핑", summary: "상품 기본 CRUD" },
+    { label: "주문", viewId: "orders", fallbackTab: "쇼핑", summary: "주문 확인 및 상태 관리" },
+    { label: "배송", viewId: "shipping", fallbackTab: "쇼핑", summary: "출고/배송 대상 확인" },
+    { label: "환불/취소/반품/교환", viewId: "returns", fallbackTab: "쇼핑", summary: "취소/교환 처리" },
+    { label: "정산", viewId: "settlement", fallbackTab: "쇼핑", summary: "정산/세금 정보", children: ["매출/순이익", "부가세", "세금계산서"] },
+    { label: "후기/상품평", viewId: "reviews", fallbackTab: "소통", summary: "리뷰/평점 확인" },
+  ] },
+  { title: "메시지", items: [
+    { label: "채팅", viewId: "chat", fallbackTab: "채팅", summary: "최근 채팅 및 상담" },
+    { label: "사용자 알림", viewId: "user_notifications", fallbackTab: "프로필", summary: "알림 발송 목록" },
+    { label: "자동발송멘트", viewId: "auto_messages", fallbackTab: "채팅", summary: "자동 응답/안내 문구" },
+  ] },
+  { title: "알림", items: [{ label: "운영 알림", viewId: "ops_alerts", fallbackTab: "프로필", summary: "운영 공지/알림" }] },
+  { title: "고객센터", items: [{ label: "고객문의", viewId: "support", fallbackTab: "소통", summary: "고객 문의/지원" }] },
+  { title: "광고", items: [
+    { label: "앱", viewId: "ads_app", fallbackTab: "홈", summary: "앱 배너/슬롯", children: ["배너"] },
+    { label: "메세지", viewId: "ads_message", fallbackTab: "채팅", summary: "메세지형 광고" },
+    { label: "알림", viewId: "ads_notice", fallbackTab: "프로필", summary: "알림형 광고" },
+  ] },
+];
+
+function isDesktopBusinessViewId(value: string | null | undefined): value is DesktopBusinessViewId {
+  if (!value) return false;
+  return Object.prototype.hasOwnProperty.call(desktopBusinessViewMeta, value);
+}
+
+function getDesktopPaneSelectionLabel(selection: DesktopPaneSelection) {
+  return selection.mode === "tab" ? selection.tab : desktopBusinessViewMeta[selection.viewId].title;
+}
+
+function readDesktopPaneContext(): { embedded: boolean; slot: DesktopPaneSlot | null; initialTab: MobileTab; businessViewId: DesktopBusinessViewId | null } {
+  if (typeof window === "undefined") return { embedded: false, slot: null, initialTab: "홈", businessViewId: null };
   const embeddedContext = (window as Window & { __ADULTAPP_EMBED_CONTEXT__?: DesktopPaneEmbedContext }).__ADULTAPP_EMBED_CONTEXT__;
   if (embeddedContext && (embeddedContext.desktopPane === "left" || embeddedContext.desktopPane === "right")) {
     return {
       embedded: true,
       slot: embeddedContext.desktopPane,
       initialTab: mobileTabs.includes(embeddedContext.initialTab) ? embeddedContext.initialTab : "홈",
+      businessViewId: isDesktopBusinessViewId(embeddedContext.businessViewId ?? null) ? embeddedContext.businessViewId ?? null : null,
     };
   }
-
   const params = new URLSearchParams(window.location.search);
   const desktopPane = params.get("desktopPane");
   const initialTabParam = params.get("initialTab");
+  const businessViewIdParam = params.get("businessViewId");
   const initialTab = mobileTabs.includes(initialTabParam as MobileTab) ? (initialTabParam as MobileTab) : "홈";
-  if (desktopPane === "left" || desktopPane === "right") {
-    return { embedded: true, slot: desktopPane, initialTab };
-  }
-  return { embedded: false, slot: null, initialTab };
+  if (desktopPane === "left" || desktopPane === "right") return { embedded: true, slot: desktopPane, initialTab, businessViewId: isDesktopBusinessViewId(businessViewIdParam) ? businessViewIdParam : null };
+  return { embedded: false, slot: null, initialTab, businessViewId: null };
 }
 
 function escapeHtmlAttribute(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/"/g, "&quot;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+  return value.replace(/&/g, "&amp;").replace(/\"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function buildDesktopPaneSrcDoc(slot: DesktopPaneSlot, initialTab: MobileTab) {
+function buildDesktopPaneSrcDoc(slot: DesktopPaneSlot, selection: DesktopPaneSelection) {
   if (typeof document === "undefined" || typeof window === "undefined") return "";
-
-  const stylesheetHrefs = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"][href]'))
-    .map((link) => link.href)
-    .filter(Boolean);
-
-  const moduleScriptSrcs = Array.from(document.querySelectorAll<HTMLScriptElement>('script[type="module"][src]'))
-    .map((script) => script.src)
-    .filter(Boolean);
-
-  if (stylesheetHrefs.length === 0 || moduleScriptSrcs.length === 0) {
-    return "";
-  }
-
-  const stylesheetTags = stylesheetHrefs
-    .map((href) => `<link rel="stylesheet" crossorigin href="${escapeHtmlAttribute(href)}" />`)
-    .join("\n");
-
-  const moduleScriptTags = moduleScriptSrcs
-    .map((src) => `<script type="module" crossorigin src="${escapeHtmlAttribute(src)}"></script>`)
-    .join("\n");
-
-  const contextScript = `<script>window.__ADULTAPP_EMBED_CONTEXT__ = { desktopPane: ${JSON.stringify(slot)}, initialTab: ${JSON.stringify(initialTab)} };<\/script>`;
+  const stylesheetHrefs = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"][href]')).map((link) => link.href).filter(Boolean);
+  const moduleScriptSrcs = Array.from(document.querySelectorAll<HTMLScriptElement>('script[type="module"][src]')).map((script) => script.src).filter(Boolean);
+  if (stylesheetHrefs.length === 0 || moduleScriptSrcs.length === 0) return "";
+  const stylesheetTags = stylesheetHrefs.map((href) => `<link rel="stylesheet" crossorigin href="${escapeHtmlAttribute(href)}" />`).join("\\n");
+  const moduleScriptTags = moduleScriptSrcs.map((src) => `<script type="module" crossorigin src="${escapeHtmlAttribute(src)}"></script>`).join("\\n");
+  const embedContext: DesktopPaneEmbedContext = { desktopPane: slot, initialTab: selection.mode === "tab" ? selection.tab : desktopBusinessViewMeta[selection.viewId].fallbackTab, businessViewId: selection.mode === "business" ? selection.viewId : null };
+  const contextScript = `<script>window.__ADULTAPP_EMBED_CONTEXT__ = ${JSON.stringify(embedContext)};<\\/script>`;
   const titleText = slot === "left" ? "adultapp-left-pane" : "adultapp-right-pane";
-
-  return `<!doctype html>
-<html lang="ko">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#000000" />
-    ${stylesheetTags}
-  </head>
-  <body>
-    <div id="app-boot-splash" aria-hidden="true">
-      <img src="${escapeHtmlAttribute(new URL('/splash-logo.png', window.location.origin).toString())}" alt="PlayCat" class="app-boot-splash__logo" />
-    </div>
-    <div id="root"></div>
-    ${contextScript}
-    ${moduleScriptTags}
-    <title>${titleText}</title>
-  </body>
-</html>`;
+  return `<!doctype html>\n<html lang="ko">\n  <head>\n    <meta charset="UTF-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n    <meta name="theme-color" content="#000000" />\n    ${stylesheetTags}\n  </head>\n  <body>\n    <div id="app-boot-splash" aria-hidden="true">\n      <img src="${escapeHtmlAttribute(new URL('/splash-logo.png', window.location.origin).toString())}" alt="PlayCat" class="app-boot-splash__logo" />\n    </div>\n    <div id="root"></div>\n    ${contextScript}\n    ${moduleScriptTags}\n    <title>${titleText}</title>\n  </body>\n</html>`;
 }
-
-const desktopBusinessMenuSections: Array<{ title: string; items: Array<{ label: string; children?: string[] }> }> = [
-  {
-    title: "상품",
-    items: [
-      { label: "조회/등록/수정/삭제" },
-      { label: "주문" },
-      { label: "배송" },
-      { label: "환불/취소/반품/교환" },
-      { label: "정산", children: ["매출/순이익", "부가세", "세금계산서"] },
-      { label: "후기/상품평" },
-    ],
-  },
-  {
-    title: "메시지",
-    items: [
-      { label: "채팅" },
-      { label: "사용자 알림" },
-      { label: "자동발송멘트" },
-    ],
-  },
-  {
-    title: "알림",
-    items: [{ label: "운영 알림" }],
-  },
-  {
-    title: "고객센터",
-    items: [{ label: "고객문의" }],
-  },
-  {
-    title: "광고",
-    items: [
-      { label: "앱", children: ["배너"] },
-      { label: "메세지" },
-      { label: "알림" },
-    ],
-  },
-];
 
 function DesktopSplitShell() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [leftInitialTab, setLeftInitialTab] = useState<MobileTab>("홈");
-  const [rightInitialTab, setRightInitialTab] = useState<MobileTab>("쇼핑");
+  const [leftSelection, setLeftSelection] = useState<DesktopPaneSelection>({ mode: "tab", tab: "홈" });
+  const [rightSelection, setRightSelection] = useState<DesktopPaneSelection>({ mode: "tab", tab: "쇼핑" });
   const [desktopOverlayMode, setDesktopOverlayMode] = useState<"search" | "notifications" | "settings" | null>(null);
   const [desktopSearchKeyword, setDesktopSearchKeyword] = useState("");
   const [desktopSearchGroup, setDesktopSearchGroup] = useState<DesktopSearchGroup | "전체">("전체");
-  const leftSrcDoc = useMemo(() => buildDesktopPaneSrcDoc("left", leftInitialTab), [leftInitialTab]);
-  const rightSrcDoc = useMemo(() => buildDesktopPaneSrcDoc("right", rightInitialTab), [rightInitialTab]);
+  const leftSrcDoc = useMemo(() => buildDesktopPaneSrcDoc("left", leftSelection), [leftSelection]);
+  const rightSrcDoc = useMemo(() => buildDesktopPaneSrcDoc("right", rightSelection), [rightSelection]);
   const iframeReady = Boolean(leftSrcDoc && rightSrcDoc);
   const desktopSearchIndex = useMemo(() => buildDesktopGlobalSearchIndex(), []);
   const unreadDesktopNotificationCount = useMemo(() => notificationSeed.filter((item) => item.unread).length, []);
-
   const desktopTopControls: Array<{ slot: DesktopPaneSlot; title: string; currentTab: MobileTab; onSelect: (tab: MobileTab) => void }> = [
-    { slot: "left", title: "좌측 화면 메뉴", currentTab: leftInitialTab, onSelect: setLeftInitialTab },
-    { slot: "right", title: "우측 화면 메뉴", currentTab: rightInitialTab, onSelect: setRightInitialTab },
+    { slot: "left", title: "좌측 화면 메뉴", currentTab: leftSelection.mode === "tab" ? leftSelection.tab : desktopBusinessViewMeta[leftSelection.viewId].fallbackTab, onSelect: (tab) => setLeftSelection({ mode: "tab", tab }) },
+    { slot: "right", title: "우측 화면 메뉴", currentTab: rightSelection.mode === "tab" ? rightSelection.tab : desktopBusinessViewMeta[rightSelection.viewId].fallbackTab, onSelect: (tab) => setRightSelection({ mode: "tab", tab }) },
   ];
-
   const desktopSearchGroups: Array<DesktopSearchGroup | "전체"> = ["전체", "홈", "쇼핑", "소통", "채팅", "프로필", "알림", "테스트"];
-
   const desktopSearchResults = useMemo(() => {
     const keyword = desktopSearchKeyword.trim().toLowerCase();
     const filtered = desktopSearchIndex.filter((item) => {
@@ -867,228 +852,18 @@ function DesktopSplitShell() {
       const keywordMatch = !keyword || `${item.title} ${item.summary} ${item.keywords} ${item.path} ${item.category}`.toLowerCase().includes(keyword);
       return groupMatch && keywordMatch;
     });
-
-    return filtered
-      .sort((a, b) => {
-        const aExact = keyword && a.title.toLowerCase().includes(keyword) ? 1 : 0;
-        const bExact = keyword && b.title.toLowerCase().includes(keyword) ? 1 : 0;
-        if (aExact !== bExact) return bExact - aExact;
-        return a.path.localeCompare(b.path, "ko");
-      })
-      .slice(0, 80);
+    return filtered.sort((a, b) => {
+      const aExact = keyword && a.title.toLowerCase().includes(keyword) ? 1 : 0;
+      const bExact = keyword && b.title.toLowerCase().includes(keyword) ? 1 : 0;
+      if (aExact !== bExact) return bExact - aExact;
+      return a.path.localeCompare(b.path, "ko");
+    }).slice(0, 80);
   }, [desktopSearchGroup, desktopSearchIndex, desktopSearchKeyword]);
-
-  const desktopNotificationSections = useMemo(() => ({
-    notices: notificationSeed.filter((item) => item.section === "공지"),
-    orders: notificationSeed.filter((item) => item.section === "주문"),
-    community: notificationSeed.filter((item) => item.section === "소통"),
-    events: notificationSeed.filter((item) => item.section === "이벤트"),
-  }), []);
-
-  const handleDesktopResultOpen = useCallback((item: DesktopGlobalSearchItem) => {
-    setRightInitialTab(item.openTab);
-    setDesktopOverlayMode(null);
-  }, []);
-
+  const desktopNotificationSections = useMemo(() => ({ notices: notificationSeed.filter((item) => item.section === "공지"), orders: notificationSeed.filter((item) => item.section === "주문"), community: notificationSeed.filter((item) => item.section === "소통"), events: notificationSeed.filter((item) => item.section === "이벤트") }), []);
+  const handleDesktopResultOpen = useCallback((item: DesktopGlobalSearchItem) => { setRightSelection({ mode: "tab", tab: item.openTab }); setDesktopOverlayMode(null); }, []);
+  const openBusinessPane = useCallback((slot: DesktopPaneSlot, viewId: DesktopBusinessViewId) => { const nextSelection: DesktopPaneSelection = { mode: "business", viewId }; slot === "left" ? setLeftSelection(nextSelection) : setRightSelection(nextSelection); }, []);
   const toggleLabel = sidebarOpen ? "‹ 메뉴 접기" : "› 메뉴 펼치기";
-
-  return (
-    <div className={`desktop-split-shell ${sidebarOpen ? "sidebar-open" : "sidebar-closed"}`}>
-      <div className="desktop-split-layout">
-        <aside className={`desktop-side-menu ${sidebarOpen ? "open" : "closed"}`} aria-label="PC 분할 메뉴">
-          <button
-            type="button"
-            className="desktop-side-menu-toggle"
-            onClick={() => setSidebarOpen((prev) => !prev)}
-            aria-expanded={sidebarOpen}
-            aria-label={toggleLabel}
-            title={toggleLabel}
-          >
-            <span className="desktop-side-menu-toggle-arrow" aria-hidden="true">{sidebarOpen ? "‹" : "›"}</span>
-            <span className="desktop-side-menu-toggle-label">{sidebarOpen ? "메뉴 접기" : "메뉴 펼치기"}</span>
-          </button>
-
-          <div className="desktop-side-menu-scroll">
-            <div className="desktop-side-menu-head">
-              <strong>사업자 전용</strong>
-              <p>PC 화면용 빠른 메뉴입니다.</p>
-            </div>
-
-            {desktopBusinessMenuSections.map((section) => (
-              <div key={section.title} className="desktop-side-menu-section desktop-side-menu-section-business">
-                <div className="desktop-side-menu-section-head">
-                  <strong>{section.title}</strong>
-                </div>
-                <ul className="desktop-side-menu-list">
-                  {section.items.map((item) => (
-                    <li key={item.label} className="desktop-side-menu-list-item">
-                      <span>{item.label}</span>
-                      {item.children ? (
-                        <ul className="desktop-side-menu-sublist">
-                          {item.children.map((child) => (
-                            <li key={child}>{child}</li>
-                          ))}
-                        </ul>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </aside>
-
-        <div className="desktop-split-main">
-          <div className="desktop-shell-top-stack">
-            <div className="desktop-shell-header">
-              <div className="desktop-shell-header-copy">
-                <strong>adultapp PC 작업화면</strong>
-                <span>좌우 분할 화면과 통합 검색/알림 바로가기를 제공합니다.</span>
-              </div>
-              <div className="desktop-shell-header-actions">
-                <button type="button" className={`desktop-header-action-btn ${desktopOverlayMode === "search" ? "active" : ""}`} onClick={() => setDesktopOverlayMode((prev) => prev === "search" ? null : "search")} aria-label="통합 검색" title="통합 검색"><SearchIcon /></button>
-                <button type="button" className={`desktop-header-action-btn desktop-header-action-btn-bell ${desktopOverlayMode === "notifications" ? "active" : ""}`} onClick={() => setDesktopOverlayMode((prev) => prev === "notifications" ? null : "notifications")} aria-label="알림" title="알림"><BellIcon />{unreadDesktopNotificationCount > 0 ? <span className="desktop-header-badge">{unreadDesktopNotificationCount > 9 ? "9+" : unreadDesktopNotificationCount}</span> : null}</button>
-                <button type="button" className={`desktop-header-action-btn ${desktopOverlayMode === "settings" ? "active" : ""}`} onClick={() => setDesktopOverlayMode((prev) => prev === "settings" ? null : "settings")} aria-label="설정" title="설정"><SettingsIcon /></button>
-              </div>
-            </div>
-
-            <div className="desktop-split-toolbar">
-              {desktopTopControls.map((section) => (
-                <section key={section.slot} className="desktop-top-control-card">
-                  <div className="desktop-top-control-head">
-                    <strong>{section.title}</strong>
-                    <span>{section.currentTab} 시작</span>
-                  </div>
-                  <div className="desktop-top-control-grid">
-                    {mobileTabs.map((tab) => (
-                      <button
-                        key={`${section.slot}-${tab}`}
-                        type="button"
-                        className={`desktop-side-menu-tab-btn ${section.currentTab === tab ? "active" : ""}`}
-                        onClick={() => section.onSelect(tab)}
-                      >
-                        {tab}
-                      </button>
-                    ))}
-                  </div>
-                </section>
-              ))}
-            </div>
-          </div>
-
-          {desktopOverlayMode ? (
-            <div className="desktop-utility-overlay-shell">
-              <div className="desktop-utility-overlay-head">
-                <strong>{desktopOverlayMode === "search" ? "통합 검색" : desktopOverlayMode === "notifications" ? "알림 센터" : "설정"}</strong>
-                <button type="button" className="ghost-btn" onClick={() => setDesktopOverlayMode(null)}>닫기</button>
-              </div>
-
-              {desktopOverlayMode === "search" ? (
-                <div className="desktop-utility-overlay-body">
-                  <div className="desktop-utility-search-toolbar">
-                    <input
-                      value={desktopSearchKeyword}
-                      onChange={(event) => setDesktopSearchKeyword(event.target.value)}
-                      placeholder="PC/모바일 전체 키워드 검색"
-                      className="desktop-utility-search-input"
-                      autoFocus
-                    />
-                    <button type="button" className="ghost-btn" onClick={() => setDesktopSearchKeyword("")}>검색어 초기화</button>
-                  </div>
-                  <div className="desktop-utility-chip-row">
-                    {desktopSearchGroups.map((item) => (
-                      <button key={item} type="button" className={`desktop-utility-chip ${desktopSearchGroup === item ? "active" : ""}`} onClick={() => setDesktopSearchGroup(item)}>{item}</button>
-                    ))}
-                  </div>
-                  <div className="desktop-utility-result-summary">분류 {desktopSearchGroup} · 결과 {desktopSearchResults.length}건</div>
-                  <div className="desktop-utility-result-list">
-                    {desktopSearchResults.length ? desktopSearchResults.map((item) => (
-                      <button key={item.id} type="button" className="desktop-search-result-card" onClick={() => handleDesktopResultOpen(item)}>
-                        <div className="desktop-search-result-top">
-                          <span className="desktop-search-result-badge">{item.group}</span>
-                          <span className="desktop-search-result-category">{item.category}</span>
-                        </div>
-                        <strong>{item.title}</strong>
-                        <p>{item.summary}</p>
-                        <div className="desktop-search-result-path">경로: {item.path}</div>
-                      </button>
-                    )) : <div className="desktop-utility-empty">연관 검색 결과가 없습니다.</div>}
-                  </div>
-                </div>
-              ) : null}
-
-              {desktopOverlayMode === "notifications" ? (
-                <div className="desktop-utility-overlay-body desktop-notification-panel">
-                  <div className="desktop-notification-summary-grid">
-                    <div className="desktop-notification-summary-card"><strong>공지사항</strong><span>{desktopNotificationSections.notices.length}건</span></div>
-                    <div className="desktop-notification-summary-card"><strong>주문/배송/환불</strong><span>{desktopNotificationSections.orders.length}건</span></div>
-                    <div className="desktop-notification-summary-card"><strong>메세지/소통</strong><span>{desktopNotificationSections.community.length}건</span></div>
-                    <div className="desktop-notification-summary-card"><strong>이벤트</strong><span>{desktopNotificationSections.events.length}건</span></div>
-                  </div>
-                  <div className="desktop-utility-result-list">
-                    {notificationSeed.map((item) => (
-                      <article key={`desktop-noti-${item.id}`} className="desktop-notification-card">
-                        <div className="desktop-search-result-top">
-                          <span className="desktop-search-result-badge">{item.section}</span>
-                          <span className="desktop-search-result-category">{item.category}</span>
-                        </div>
-                        <strong>{item.title}</strong>
-                        <p>{item.body}</p>
-                        <div className="desktop-search-result-path">{item.meta} · {item.postedAt}{item.unread ? " · 읽지 않음" : ""}</div>
-                      </article>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              {desktopOverlayMode === "settings" ? (
-                <div className="desktop-utility-overlay-body desktop-settings-placeholder">
-                  <div className="desktop-settings-placeholder-card">
-                    <strong>설정 준비중</strong>
-                    <p>설정 버튼은 상단에 먼저 배치했고, 세부 항목은 추후 연결할 수 있도록 자리만 열어두었습니다.</p>
-                    <div className="desktop-utility-chip-row">
-                      <span className="desktop-placeholder-pill">계정</span>
-                      <span className="desktop-placeholder-pill">알림</span>
-                      <span className="desktop-placeholder-pill">보안</span>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-
-          <div className="desktop-split-grid">
-            <section className="desktop-split-pane">
-              <div className="desktop-split-pane-head">
-                <strong>좌측 화면</strong>
-                <span>{leftInitialTab} 시작</span>
-              </div>
-              <div className="desktop-split-device-frame">
-                {iframeReady ? (
-                  <iframe className="desktop-split-iframe" srcDoc={leftSrcDoc} title="adultapp-left-pane" />
-                ) : (
-                  <div className="desktop-split-fallback">좌측 화면을 준비 중입니다.</div>
-                )}
-              </div>
-            </section>
-            <section className="desktop-split-pane">
-              <div className="desktop-split-pane-head">
-                <strong>우측 화면</strong>
-                <span>{rightInitialTab} 시작</span>
-              </div>
-              <div className="desktop-split-device-frame">
-                {iframeReady ? (
-                  <iframe className="desktop-split-iframe" srcDoc={rightSrcDoc} title="adultapp-right-pane" />
-                ) : (
-                  <div className="desktop-split-fallback">우측 화면을 준비 중입니다.</div>
-                )}
-              </div>
-            </section>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  return (<div className={`desktop-split-shell ${sidebarOpen ? "sidebar-open" : "sidebar-closed"}`}><div className="desktop-split-layout"><aside className={`desktop-side-menu ${sidebarOpen ? "open" : "closed"}`} aria-label="PC 분할 메뉴"><button type="button" className="desktop-side-menu-toggle" onClick={() => setSidebarOpen((prev) => !prev)} aria-expanded={sidebarOpen} aria-label={toggleLabel} title={toggleLabel}><span className="desktop-side-menu-toggle-arrow" aria-hidden="true">{sidebarOpen ? "‹" : "›"}</span><span className="desktop-side-menu-toggle-label">{sidebarOpen ? "메뉴 접기" : "메뉴 펼치기"}</span></button><div className="desktop-side-menu-scroll"><div className="desktop-side-menu-head"><strong>사업자 전용</strong><p>PC 화면용 빠른 메뉴입니다.</p></div>{desktopBusinessMenuSections.map((section) => (<div key={section.title} className="desktop-side-menu-section desktop-side-menu-section-business"><div className="desktop-side-menu-section-head"><strong>{section.title}</strong></div><ul className="desktop-side-menu-list">{section.items.map((item) => (<li key={item.viewId} className="desktop-side-menu-list-item"><div className="desktop-side-menu-item-main"><div className="desktop-side-menu-item-title-row"><span>{item.label}</span><small>{item.summary}</small></div><div className="desktop-side-menu-item-actions"><button type="button" className="desktop-side-menu-open-btn" onClick={() => openBusinessPane("left", item.viewId)}>좌</button><button type="button" className="desktop-side-menu-open-btn" onClick={() => openBusinessPane("right", item.viewId)}>우</button></div></div>{item.children ? <ul className="desktop-side-menu-sublist">{item.children.map((child) => <li key={child}>{child}</li>)}</ul> : null}</li>))}</ul></div>))}</div></aside><div className="desktop-split-main"><div className="desktop-shell-top-stack"><div className="desktop-shell-header"><div className="desktop-shell-header-copy"><strong>adultapp PC 작업화면</strong><span>좌우 분할 화면과 통합 검색/알림 바로가기를 제공합니다.</span></div><div className="desktop-shell-header-actions"><button type="button" className={`desktop-header-action-btn ${desktopOverlayMode === "search" ? "active" : ""}`} onClick={() => setDesktopOverlayMode((prev) => prev === "search" ? null : "search")} aria-label="통합 검색" title="통합 검색"><SearchIcon /></button><button type="button" className={`desktop-header-action-btn desktop-header-action-btn-bell ${desktopOverlayMode === "notifications" ? "active" : ""}`} onClick={() => setDesktopOverlayMode((prev) => prev === "notifications" ? null : "notifications")} aria-label="알림" title="알림"><BellIcon />{unreadDesktopNotificationCount > 0 ? <span className="desktop-header-badge">{unreadDesktopNotificationCount > 9 ? "9+" : unreadDesktopNotificationCount}</span> : null}</button><button type="button" className={`desktop-header-action-btn ${desktopOverlayMode === "settings" ? "active" : ""}`} onClick={() => setDesktopOverlayMode((prev) => prev === "settings" ? null : "settings")} aria-label="설정" title="설정"><SettingsIcon /></button></div></div><div className="desktop-split-toolbar">{desktopTopControls.map((section) => (<section key={section.slot} className="desktop-top-control-card"><div className="desktop-top-control-head"><strong>{section.title}</strong><span>{section.currentTab} 시작</span></div><div className="desktop-top-control-grid">{mobileTabs.map((tab) => (<button key={`${section.slot}-${tab}`} type="button" className={`desktop-side-menu-tab-btn ${section.currentTab === tab ? "active" : ""}`} onClick={() => section.onSelect(tab)}>{tab}</button>))}</div></section>))}</div></div>{desktopOverlayMode ? (<div className="desktop-utility-overlay-shell"><div className="desktop-utility-overlay-head"><strong>{desktopOverlayMode === "search" ? "통합 검색" : desktopOverlayMode === "notifications" ? "알림 센터" : "설정"}</strong><button type="button" className="ghost-btn" onClick={() => setDesktopOverlayMode(null)}>닫기</button></div>{desktopOverlayMode === "search" ? (<div className="desktop-utility-overlay-body"><div className="desktop-utility-search-toolbar"><input value={desktopSearchKeyword} onChange={(event) => setDesktopSearchKeyword(event.target.value)} placeholder="PC/모바일 전체 키워드 검색" className="desktop-utility-search-input" autoFocus /><button type="button" className="ghost-btn" onClick={() => setDesktopSearchKeyword("")}>검색어 초기화</button></div><div className="desktop-utility-chip-row">{desktopSearchGroups.map((item) => (<button key={item} type="button" className={`desktop-utility-chip ${desktopSearchGroup === item ? "active" : ""}`} onClick={() => setDesktopSearchGroup(item)}>{item}</button>))}</div><div className="desktop-utility-result-summary">분류 {desktopSearchGroup} · 결과 {desktopSearchResults.length}건</div><div className="desktop-utility-result-list">{desktopSearchResults.length ? desktopSearchResults.map((item) => (<button key={item.id} type="button" className="desktop-search-result-card" onClick={() => handleDesktopResultOpen(item)}><div className="desktop-search-result-top"><span className="desktop-search-result-badge">{item.group}</span><span className="desktop-search-result-category">{item.category}</span></div><strong>{item.title}</strong><p>{item.summary}</p><div className="desktop-search-result-path">경로: {item.path}</div></button>)) : <div className="desktop-utility-empty">연관 검색 결과가 없습니다.</div>}</div></div>) : null}{desktopOverlayMode === "notifications" ? (<div className="desktop-utility-overlay-body desktop-notification-panel"><div className="desktop-notification-summary-grid"><div className="desktop-notification-summary-card"><strong>공지사항</strong><span>{desktopNotificationSections.notices.length}건</span></div><div className="desktop-notification-summary-card"><strong>주문/배송/환불</strong><span>{desktopNotificationSections.orders.length}건</span></div><div className="desktop-notification-summary-card"><strong>메세지/소통</strong><span>{desktopNotificationSections.community.length}건</span></div><div className="desktop-notification-summary-card"><strong>이벤트</strong><span>{desktopNotificationSections.events.length}건</span></div></div><div className="desktop-utility-result-list">{notificationSeed.map((item) => (<article key={`desktop-noti-${item.id}`} className="desktop-notification-card"><div className="desktop-search-result-top"><span className="desktop-search-result-badge">{item.section}</span><span className="desktop-search-result-category">{item.category}</span></div><strong>{item.title}</strong><p>{item.body}</p><div className="desktop-search-result-path">{item.meta} · {item.postedAt}{item.unread ? " · 읽지 않음" : ""}</div></article>))}</div></div>) : null}{desktopOverlayMode === "settings" ? (<div className="desktop-utility-overlay-body desktop-settings-placeholder"><div className="desktop-settings-placeholder-card"><strong>설정 준비중</strong><p>설정 버튼은 상단에 먼저 배치했고, 세부 항목은 추후 연결할 수 있도록 자리만 열어두었습니다.</p><div className="desktop-utility-chip-row"><span className="desktop-placeholder-pill">계정</span><span className="desktop-placeholder-pill">알림</span><span className="desktop-placeholder-pill">보안</span></div></div></div>) : null}</div>) : null}<div className="desktop-split-grid"><section className="desktop-split-pane"><div className="desktop-split-pane-head"><strong>좌측 화면</strong><span>{getDesktopPaneSelectionLabel(leftSelection)}</span></div><div className="desktop-split-device-frame">{iframeReady ? <iframe className="desktop-split-iframe" srcDoc={leftSrcDoc} title="adultapp-left-pane" /> : <div className="desktop-split-fallback">좌측 화면을 준비 중입니다.</div>}</div></section><section className="desktop-split-pane"><div className="desktop-split-pane-head"><strong>우측 화면</strong><span>{getDesktopPaneSelectionLabel(rightSelection)}</span></div><div className="desktop-split-device-frame">{iframeReady ? <iframe className="desktop-split-iframe" srcDoc={rightSrcDoc} title="adultapp-right-pane" /> : <div className="desktop-split-fallback">우측 화면을 준비 중입니다.</div>}</div></section></div></div></div></div>);
 }
 
 type HtmlInspectorInfo = {
@@ -4332,6 +4107,9 @@ export default function App() {
     try { return { ...defaultSellerVerification, ...JSON.parse(raw) }; } catch { return defaultSellerVerification; }
   });
   const [productRegistrationDraft, setProductRegistrationDraft] = useState<ProductRegistrationDraft>(() => ({ category: "위생/보관", name: "", imageUrls: ["", "", "", "", ""], description: "", price: "", stockQty: "", skuCode: "" }));
+  const [desktopProductEditId, setDesktopProductEditId] = useState<number | null>(null);
+  const [desktopProductCrudMessage, setDesktopProductCrudMessage] = useState("");
+  const [desktopProductCrudBusy, setDesktopProductCrudBusy] = useState(false);
   const [submittedProducts, setSubmittedProducts] = useState<ProductRegistrationDraft[]>(() => []);
   const [sellerApprovalQueue, setSellerApprovalQueue] = useState<SellerApprovalItem[]>([]);
   const [productApprovalQueue, setProductApprovalQueue] = useState<ProductApprovalItem[]>([]);
@@ -4721,6 +4499,15 @@ export default function App() {
     const fallbackCategories = shopCategories.flatMap((group) => group.items.map((item) => item.name));
     return [...new Set((backendCategories.length ? backendCategories : fallbackCategories).filter(Boolean))];
   }, [uiCategoryGroups]);
+  const createEmptyProductDraft = useCallback((): ProductRegistrationDraft => ({
+    category: productCategoryOptions[0] ?? "위생/보관",
+    name: "",
+    imageUrls: ["", "", "", "", ""],
+    description: "",
+    price: "",
+    stockQty: "",
+    skuCode: "",
+  }), [productCategoryOptions]);
   const mutualFollowIds = useMemo(() => followingUserIds.filter((id) => followerUserIds.includes(id)), [followingUserIds, followerUserIds]);
   const forumVisibleUsers = useMemo(() => forumStarterUsers.filter((item) => item.topic === forumTopic), [forumTopic]);
 
@@ -7036,8 +6823,9 @@ export default function App() {
   };
 
   const submitProductRegistration = async (submitMode: "draft" | "publish" = "draft") => {
-    if (!productDraftReady || !sellerApprovalReady || reconsentWriteRestricted) return;
+    if (!productDraftReady || !sellerApprovalReady || reconsentWriteRestricted || desktopProductCrudBusy) return;
     const payload = {
+      id: desktopProductEditId ?? undefined,
       name: productRegistrationDraft.name,
       sku_code: productRegistrationDraft.skuCode,
       category: productRegistrationDraft.category,
@@ -7050,26 +6838,41 @@ export default function App() {
       payment_scope: 'card_transfer',
       risk_grade: 'A',
     };
+    setDesktopProductCrudBusy(true);
+    setDesktopProductCrudMessage("");
     try {
       const created = await postJson<SellerProductItem>('/products', payload);
       getJson<SellerProductItem[]>('/seller/products/mine').then(setSellerProducts).catch(() => null);
       getJson<ApiProduct[]>('/products').then(setApiProducts).catch(() => null);
       if (isAdmin) getJson<{ items: ProductApprovalItem[] }>('/admin/product-approvals').then((res) => setProductApprovalQueue(res.items ?? [])).catch(() => null);
-      setOrderMessage(`${submitMode === 'publish' ? '상품등록' : '상품 임시저장'} 완료: ${created.name} · ${created.status ?? 'draft'}`);
+      setOrderMessage(`${submitMode === 'publish' ? (desktopProductEditId ? '상품수정 반영' : '상품등록') : (desktopProductEditId ? '상품수정 저장' : '상품 임시저장')} 완료: ${created.name} · ${created.status ?? 'draft'}`);
+      setDesktopProductCrudMessage(`${desktopProductEditId ? '상품 수정' : '상품 등록'}이 완료되었습니다.`);
+      setSubmittedProducts((prev) => [productRegistrationDraft, ...prev]);
+      setProductRegistrationDraft(createEmptyProductDraft());
+      setDesktopProductEditId(null);
     } catch (error) {
-      setOrderMessage(error instanceof Error ? error.message : submitMode === 'publish' ? '상품등록 실패' : '상품 임시저장 실패');
+      const message = error instanceof Error ? error.message : submitMode === 'publish' ? '상품등록 실패' : '상품 임시저장 실패';
+      setOrderMessage(message);
+      setDesktopProductCrudMessage(message);
       return;
+    } finally {
+      setDesktopProductCrudBusy(false);
     }
-    setSubmittedProducts((prev) => [productRegistrationDraft, ...prev]);
-    setProductRegistrationDraft({ category: productCategoryOptions[0] ?? '위생/보관', name: '', imageUrls: ['', '', '', '', ''], description: '', price: '', stockQty: '', skuCode: '' });
   };
 
   const submitProductForReview = async (productId: number) => {
+    setDesktopProductCrudBusy(true);
+    setDesktopProductCrudMessage("");
     try {
       await postJson(`/products/${productId}/submit-review`, { note: '승인대기 제출' });
       getJson<SellerProductItem[]>('/seller/products/mine').then(setSellerProducts).catch(() => null);
       if (isAdmin) getJson<{ items: ProductApprovalItem[] }>('/admin/product-approvals').then((res) => setProductApprovalQueue(res.items ?? [])).catch(() => null);
-    } catch {}
+      setDesktopProductCrudMessage('승인대기 상태로 전환했습니다.');
+    } catch (error) {
+      setDesktopProductCrudMessage(error instanceof Error ? error.message : '승인대기 제출 실패');
+    } finally {
+      setDesktopProductCrudBusy(false);
+    }
   };
 
   const adminDecideSeller = async (userId: number, decision: string) => {
@@ -8169,6 +7972,46 @@ export default function App() {
     );
   }
 
+  const loadDesktopProductForEdit = async (productId: number) => {
+    setDesktopProductCrudBusy(true);
+    setDesktopProductCrudMessage("");
+    try {
+      const detail = await getJson<ProductDetailResponse>(`/products/${productId}`);
+      const product = detail.product;
+      const imageUrls = [...(detail.media ?? []).map((item) => item.file_url ?? '').filter(Boolean), ...(product.thumbnail_url ? [product.thumbnail_url] : [])].slice(0, 5);
+      while (imageUrls.length < 5) imageUrls.push('');
+      setProductRegistrationDraft({ category: product.category ?? (productCategoryOptions[0] ?? '위생/보관'), name: product.name ?? '', imageUrls, description: product.description ?? '', price: String(product.price ?? ''), stockQty: String(product.stock_qty ?? ''), skuCode: product.sku_code ?? '' });
+      setDesktopProductEditId(product.id);
+      setDesktopProductCrudMessage(`수정 모드: ${product.name}`);
+    } catch (error) { setDesktopProductCrudMessage(error instanceof Error ? error.message : '상품 정보를 불러오지 못했습니다.'); }
+    finally { setDesktopProductCrudBusy(false); }
+  };
+  const resetDesktopProductDraft = () => { setDesktopProductEditId(null); setDesktopProductCrudMessage('신규 상품 작성 모드로 전환했습니다.'); setProductRegistrationDraft(createEmptyProductDraft()); };
+  const deleteDesktopProduct = async (productId: number) => {
+    setDesktopProductCrudBusy(true); setDesktopProductCrudMessage("");
+    try {
+      await postJson(`/products/${productId}/delete`, { note: 'desktop delete' });
+      getJson<SellerProductItem[]>('/seller/products/mine').then(setSellerProducts).catch(() => null);
+      getJson<ApiProduct[]>('/products').then(setApiProducts).catch(() => null);
+      if (desktopProductEditId === productId) { setDesktopProductEditId(null); setProductRegistrationDraft(createEmptyProductDraft()); }
+      setDesktopProductCrudMessage('상품을 삭제했습니다.');
+    } catch (error) { setDesktopProductCrudMessage(error instanceof Error ? error.message : '상품 삭제에 실패했습니다.'); }
+    finally { setDesktopProductCrudBusy(false); }
+  };
+  const renderDesktopEmbeddedBusinessView = () => {
+    const businessViewId = desktopPaneContext.businessViewId;
+    if (!businessViewId) return null;
+    const meta = desktopBusinessViewMeta[businessViewId];
+    const recentOrderRows = [...orders].slice().reverse().slice(0, 6);
+    const recentThreadRows = threadItems.slice(0, 6);
+    const recentSupportRows = communitySeed.slice(0, 6);
+    const recentNotificationRows = notificationItems.slice(0, 6);
+    const productStatusSummary = { total: sellerProducts.length, approved: sellerProducts.filter((item) => item.status === 'approved').length, waiting: sellerProducts.filter((item) => item.status !== 'approved').length, lowStock: sellerProducts.filter((item) => Number(item.stock_qty ?? 0) > 0 && Number(item.stock_qty ?? 0) <= 5).length };
+    if (businessViewId === 'product_crud') return (<div className="desktop-business-shell"><header className="desktop-business-header"><div><strong>{meta.title}</strong><p>{meta.description}</p></div><div className="desktop-business-chip-row"><span className="desktop-business-chip">전체 {productStatusSummary.total}</span><span className="desktop-business-chip">공개중 {productStatusSummary.approved}</span><span className="desktop-business-chip">검토/임시 {productStatusSummary.waiting}</span><span className="desktop-business-chip">재고주의 {productStatusSummary.lowStock}</span></div></header><section className="desktop-business-card desktop-product-crud-card"><div className="desktop-business-section-head"><div><h2>{desktopProductEditId ? '상품 수정' : '상품 등록'}</h2><p>{desktopProductEditId ? '선택한 상품 정보를 수정한 뒤 저장하거나 다시 공개 상태로 반영합니다.' : '일반적인 판매자센터 방식으로 상품 기본정보와 이미지 URL을 입력합니다.'}</p></div><div className="copy-action-row"><button type="button" className="ghost-btn" onClick={resetDesktopProductDraft}>신규 작성</button></div></div><div className="desktop-product-form-grid"><label><span>카테고리</span><select value={productRegistrationDraft.category} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, category: e.target.value }))}>{productCategoryOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><label><span>상품명</span><input value={productRegistrationDraft.name} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, name: e.target.value }))} placeholder="상품명" /></label><label><span>판매가</span><input value={productRegistrationDraft.price} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, price: e.target.value }))} placeholder="10000" /></label><label><span>재고수량</span><input value={productRegistrationDraft.stockQty} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, stockQty: e.target.value }))} placeholder="10" /></label><label><span>상품코드</span><input value={productRegistrationDraft.skuCode} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, skuCode: e.target.value }))} placeholder="SKU-0001" /></label><label className="wide"><span>상품소개</span><textarea value={productRegistrationDraft.description} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, description: e.target.value }))} placeholder="상품 소개" rows={5} /></label><label className="wide"><span>대표/상세 이미지 URL (최대 5개)</span><div className="photo-url-grid">{productRegistrationDraft.imageUrls.map((value, idx) => <input key={idx} value={value} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, imageUrls: prev.imageUrls.map((item, itemIdx) => itemIdx === idx ? e.target.value : item) }))} placeholder={`사진 ${idx + 1} URL`} />)}</div></label></div>{!sellerApprovalReady ? <p className="muted-mini">사업자 인증 승인 후 상품 관리가 가능합니다.</p> : null}{!productDraftReady ? <p className="muted-mini">카테고리, 상품명, 판매가, 재고수량, 상품코드, 상품소개를 모두 입력해야 저장할 수 있습니다.</p> : null}{desktopProductCrudMessage ? <p className="muted-mini">{desktopProductCrudMessage}</p> : null}<div className="copy-action-row"><button type="button" onClick={() => submitProductRegistration('draft')} disabled={!sellerApprovalReady || !productDraftReady || reconsentWriteRestricted || desktopProductCrudBusy}>{desktopProductEditId ? '수정 저장' : '임시저장'}</button><button type="button" onClick={() => submitProductRegistration('publish')} disabled={!sellerApprovalReady || !productDraftReady || reconsentWriteRestricted || desktopProductCrudBusy}>{desktopProductEditId ? '수정 후 반영' : '상품등록'}</button><button type="button" className="ghost-btn" onClick={openBusinessVerificationTab}>사업자인증 보기</button></div></section><section className="desktop-business-card"><div className="desktop-business-section-head"><div><h2>등록 상품 목록</h2><p>일반 판매자센터처럼 최근 등록 상품을 표 형태로 관리할 수 있게 구성했습니다.</p></div></div><div className="desktop-product-table-wrap"><table className="desktop-product-table"><thead><tr><th>상품명</th><th>카테고리</th><th>상태</th><th>가격</th><th>재고</th><th>수정일</th><th>관리</th></tr></thead><tbody>{sellerProducts.length ? sellerProducts.map((item) => <tr key={item.id}><td><strong>{item.name}</strong><div className="desktop-product-table-sub">{item.sku_code}</div></td><td>{item.category}</td><td>{item.status}</td><td>₩{item.price.toLocaleString()}</td><td>{item.stock_qty}</td><td>{item.updated_at ?? '-'}</td><td><div className="desktop-product-table-actions"><button type="button" className="ghost-btn" onClick={() => loadDesktopProductForEdit(item.id)} disabled={desktopProductCrudBusy}>수정</button><button type="button" className="ghost-btn" onClick={() => submitProductForReview(item.id)} disabled={desktopProductCrudBusy || item.status === 'approved'}>승인대기</button><button type="button" className="ghost-btn danger" onClick={() => deleteDesktopProduct(item.id)} disabled={desktopProductCrudBusy}>삭제</button></div></td></tr>) : <tr><td colSpan={7} className="desktop-product-table-empty">등록된 상품이 없습니다.</td></tr>}</tbody></table></div></section></div>);
+    const genericRows: Array<{ title: string; meta: string; body: string }> = businessViewId === 'orders' ? recentOrderRows.map((item) => ({ title: item.order_no, meta: `${item.status} · ${item.payment_method}`, body: `결제금액 ₩${Number(item.total_amount ?? 0).toLocaleString()} · 품목 ${Number(item.item_count ?? 0)}건` })) : businessViewId === 'shipping' ? recentOrderRows.map((item) => ({ title: item.order_no, meta: `${item.status} · 정산 ${item.settlement_status}`, body: `출고 처리 대상 주문 · 결제 ${item.payment_pg}` })) : businessViewId === 'returns' ? recentOrderRows.map((item) => ({ title: item.order_no, meta: `${item.status} · 정산 ${item.settlement_status}`, body: `취소/반품 검토 대상 주문 · 결제금액 ₩${Number(item.total_amount ?? 0).toLocaleString()}` })) : businessViewId === 'settlement' ? (settlementPreview?.items ?? []).map((item) => ({ title: item.order_no, meta: `${item.product}`, body: `판매자 정산 ${Number(item.seller_receivable ?? 0).toLocaleString()}원 · 플랫폼 수수료 ${Number(item.platform_fee ?? 0).toLocaleString()}원` })) : businessViewId === 'reviews' ? shopCatalogItems.slice(0, 6).map((item) => ({ title: item.name, meta: `${item.category} · 리뷰 ${item.reviewCount ?? 0}건`, body: item.subtitle })) : businessViewId === 'chat' ? recentThreadRows.map((item) => ({ title: item.name, meta: `${item.kind} · ${item.time}`, body: item.preview })) : businessViewId === 'support' ? recentSupportRows.map((item) => ({ title: item.title, meta: `${item.category} · ${item.meta}`, body: item.summary })) : recentNotificationRows.map((item) => ({ title: item.title, meta: `${item.section} · ${item.postedAt}`, body: item.body }));
+    return (<div className="desktop-business-shell"><header className="desktop-business-header"><div><strong>{meta.title}</strong><p>{meta.description}</p></div><div className="desktop-business-chip-row"><span className="desktop-business-chip">분류 {meta.section}</span><span className="desktop-business-chip">기본 탭 {meta.fallbackTab}</span><span className="desktop-business-chip">최근 항목 {genericRows.length}</span></div></header><section className="desktop-business-card"><div className="desktop-business-section-head"><div><h2>{meta.title} 화면</h2><p>{meta.description}</p></div></div><div className="desktop-business-list">{genericRows.length ? genericRows.map((item, index) => <article key={`${businessViewId}-${index}`} className="desktop-business-list-row"><div><strong>{item.title}</strong><span>{item.meta}</span></div><p>{item.body}</p></article>) : <div className="desktop-business-empty">표시할 최근 데이터가 없습니다.</div>}</div></section></div>);
+  };
+  if (desktopPaneContext.embedded && desktopPaneContext.businessViewId) { return renderDesktopEmbeddedBusinessView(); }
   if (companyMailMode) {
     return (
       <CompanyMailAdminScreen
@@ -10142,12 +9985,14 @@ export default function App() {
         </>
       ) : null}
 
-      <nav className="bottom-nav">{mobileTabs.map((tab) => (
+      {!desktopPaneContext.embedded ? (
+        <nav className="bottom-nav">{mobileTabs.map((tab) => (
           <button key={tab} className={`bottom-nav-btn ${overlayMode === null && activeTab === tab ? "active" : ""}`} onClick={() => selectBottomTab(tab)}>
             <span className="bottom-nav-icon">{bottomNavIconMap[tab]}</span>
             <span className="bottom-nav-label">{tab}</span>
           </button>
         ))}</nav>
+      ) : null}
 
       {selectedAskProfile ? <AskProfileScreen profile={selectedAskProfile} activeTab={activeTab} onClose={() => setSelectedAskProfile(null)} onNavigate={selectBottomTab} renderBottomTabIcon={renderBottomTabIcon} onOpenProfile={openProfileFromAuthor} /> : null}
 
