@@ -697,6 +697,69 @@ type SignupConsentState = Record<ConsentKey, boolean>;
 type SignupFormState = { email: string; password: string; displayName: string; loginMethod: LoginMethod; };
 type DemoProfileState = { gender: string; ageBand: string; regionCode: string; interests: string[]; marketingOptIn: boolean; };
 
+type DesktopPaneSlot = "left" | "right";
+
+function readDesktopPaneContext(): { embedded: boolean; slot: DesktopPaneSlot | null; initialTab: MobileTab } {
+  if (typeof window === "undefined") {
+    return { embedded: false, slot: null, initialTab: "홈" };
+  }
+  const params = new URLSearchParams(window.location.search);
+  const desktopPane = params.get("desktopPane");
+  const initialTabParam = params.get("initialTab");
+  const initialTab = mobileTabs.includes(initialTabParam as MobileTab) ? (initialTabParam as MobileTab) : "홈";
+  if (desktopPane === "left" || desktopPane === "right") {
+    return { embedded: true, slot: desktopPane, initialTab };
+  }
+  return { embedded: false, slot: null, initialTab };
+}
+
+function buildDesktopPaneSrc(slot: DesktopPaneSlot, initialTab: MobileTab) {
+  if (typeof window === "undefined") return "";
+  const url = new URL(window.location.href);
+  url.searchParams.set("desktopPane", slot);
+  url.searchParams.set("initialTab", initialTab);
+  url.hash = "";
+  return url.toString();
+}
+
+function DesktopSplitShell() {
+  const [leftInitialTab] = useState<MobileTab>("홈");
+  const [rightInitialTab] = useState<MobileTab>("쇼핑");
+  const leftSrc = useMemo(() => buildDesktopPaneSrc("left", leftInitialTab), [leftInitialTab]);
+  const rightSrc = useMemo(() => buildDesktopPaneSrc("right", rightInitialTab), [rightInitialTab]);
+
+  return (
+    <div className="desktop-split-shell">
+      <div className="desktop-split-header">
+        <div>
+          <strong>PC 2분할 앱 화면</strong>
+          <p>좌측·우측 앱의 하단바가 서로 독립적으로 동작합니다.</p>
+        </div>
+      </div>
+      <div className="desktop-split-grid">
+        <section className="desktop-split-pane">
+          <div className="desktop-split-pane-head">
+            <strong>좌측 화면</strong>
+            <span>{leftInitialTab} 시작</span>
+          </div>
+          <div className="desktop-split-device-frame">
+            <iframe className="desktop-split-iframe" src={leftSrc} title="adultapp-left-pane" />
+          </div>
+        </section>
+        <section className="desktop-split-pane">
+          <div className="desktop-split-pane-head">
+            <strong>우측 화면</strong>
+            <span>{rightInitialTab} 시작</span>
+          </div>
+          <div className="desktop-split-device-frame">
+            <iframe className="desktop-split-iframe" src={rightSrc} title="adultapp-right-pane" />
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
 type HtmlInspectorInfo = {
   selector: string;
   tagName: string;
@@ -3532,7 +3595,9 @@ function SettingSection({ category, isAdmin, legacySection, setLegacySection, pr
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<MobileTab>("홈");
+  const desktopPaneContext = readDesktopPaneContext();
+  const [windowWidth, setWindowWidth] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 0));
+  const [activeTab, setActiveTab] = useState<MobileTab>(desktopPaneContext.initialTab);
   const [authBootstrapDone, setAuthBootstrapDone] = useState(false);
   const [legacySection, setLegacySection] = useState<LegacyTab>("운영현황");
   const [overlayMode, setOverlayMode] = useState<OverlayMode>(null);
@@ -5979,6 +6044,16 @@ export default function App() {
     }
   }, []);
 
+  const isDesktopSplitHost = !desktopPaneContext.embedded && windowWidth >= 1180;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   const openCompanyMailPreview = useCallback(() => {
     setOverlayMode(null);
     setCompanyMailPreviewOpen(true);
@@ -7502,6 +7577,10 @@ export default function App() {
         hostLabel={companyMailHostLocked ? `숨김 도메인 접속 · ${companyMailHostLabel}` : `미리보기 경로 · ${companyMailHostLabel}#corp-mail-admin`}
       />
     );
+  }
+
+  if (isDesktopSplitHost) {
+    return <DesktopSplitShell />;
   }
 
   return (

@@ -11698,3 +11698,72 @@ body {
     gap: 10px 8px !important;
   }
 }
+
+
+/* === 2026-04-22 request: desktop dual-pane app shell === */
+.desktop-split-shell {
+  min-height: 100dvh;
+  padding: 20px;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 16px;
+  background: linear-gradient(180deg, #030303 0%, #0a0a0a 100%);
+}
+.desktop-split-header,
+.desktop-split-pane {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.015) 100%);
+}
+.desktop-split-header {
+  padding: 16px 18px;
+}
+.desktop-split-header strong,
+.desktop-split-pane-head strong {
+  display: block;
+  font-size: 16px;
+  font-weight: 700;
+}
+.desktop-split-header p,
+.desktop-split-pane-head span {
+  margin: 6px 0 0;
+  color: rgba(255,255,255,0.68);
+  font-size: 13px;
+}
+.desktop-split-grid {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.desktop-split-pane {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+}
+.desktop-split-pane-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0,0,0,0.5);
+}
+.desktop-split-device-frame {
+  min-height: 0;
+  padding: 14px;
+  background: radial-gradient(circle at top, rgba(255,255,255,0.05), rgba(255,255,255,0.01) 48%, rgba(0,0,0,0.92) 100%);
+}
+.desktop-split-iframe {
+  width: 100%;
+  height: calc(100dvh - 124px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #000;
+  display: block;
+}
+@media (max-width: 1179px) {
+  .desktop-split-shell {
+    display: none;
+  }
+}
