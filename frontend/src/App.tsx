@@ -190,6 +190,17 @@ type ThreadItem = {
   status?: string;
 };
 
+type ChatRequestItem = {
+  id: number;
+  name: string;
+  purpose: string;
+  preview: string;
+  requestText: string;
+  time: string;
+  avatar: string;
+  avatarUrl?: string;
+};
+
 type ChatRoomReactionKey = "heart" | "like" | "check" | "smile" | "surprised" | "sad";
 type ChatPickerMode = "이모티콘" | "스티커" | "GIF";
 
@@ -2423,6 +2434,36 @@ const archivedThreadSeed: ThreadItem[] = [
   { id: 140, name: "safety digest", purpose: "단체", preview: "안전수칙 요약본이 새로운 버전으로 교체되었습니다.", time: "3월 4일", unread: 0, avatar: "수", kind: "단체" },
 ];
 
+const incomingChatRequestSeed: ChatRequestItem[] = [
+  {
+    id: 901,
+    name: "velvet_room",
+    purpose: "상호수락 1:1",
+    preview: "채팅 요청을 보냈습니다. 수락하면 일반 채팅 목록으로 이동합니다.",
+    requestText: "관심사가 비슷해서 먼저 인사드려요. 괜찮으시면 수락 후 천천히 이야기 나누고 싶습니다.",
+    time: "방금",
+    avatar: "벨",
+  },
+  {
+    id: 902,
+    name: "calm_signal",
+    purpose: "상호수락 1:1",
+    preview: "답장은 수락 후에만 가능합니다.",
+    requestText: "프로필을 보고 먼저 채팅 요청 남깁니다. 편하실 때 확인 부탁드립니다.",
+    time: "오전 10:24",
+    avatar: "캄",
+  },
+  {
+    id: 903,
+    name: "soft_anchor",
+    purpose: "상호수락 1:1",
+    preview: "대화 규칙을 확인한 뒤 수락해 주세요.",
+    requestText: "상호 존중 기준으로 천천히 대화해 보고 싶어서 요청드립니다.",
+    time: "어제",
+    avatar: "앵",
+  },
+];
+
 const createThreadRoomSeed = (thread: ThreadItem): ChatRoomMessage[] => {
   const baseLead = thread.kind === "단체"
     ? `${thread.name} 방에 연결된 채팅방입니다.
@@ -2435,10 +2476,19 @@ const createThreadRoomSeed = (thread: ThreadItem): ChatRoomMessage[] => {
 - 외부 연락처 교환은 지양하며, 사진 / 영상 전송은 제한됩니다.
 - 금전 거래를 통한 만남, 음란물 유포는 절대금지입니다.
 - 마약, 총기류 등 불법 거래는 절대금지입니다.`;
+  const now = Date.now();
+
+  if (thread.status === "요청전송") {
+    return [
+      { id: thread.id * 100 + 1, threadId: thread.id, author: "system", text: baseLead, meta: "안내", system: true, createdAt: now - 6 * 60000 },
+      { id: thread.id * 100 + 2, threadId: thread.id, author: "system", text: "채팅 요청을 먼저 보낸 상태입니다. 상대방이 수락해야 답변이 가능합니다.", meta: "요청 대기", system: true, createdAt: now - 4 * 60000 },
+      { id: thread.id * 100 + 3, threadId: thread.id, author: "나", text: thread.preview, meta: thread.time, mine: true, createdAt: now - 2 * 60000, contentKind: "text" },
+    ];
+  }
+
   const supportLine = thread.kind === "단체"
     ? `${thread.purpose} 주제로 최근 대화가 상단부터 정렬됩니다.`
     : `${thread.purpose} 기준으로 연결된 채팅방이며, 필요한 경우 답장·공유·공지 기능을 이어서 사용할 수 있습니다.`;
-  const now = Date.now();
 
   return [
     { id: thread.id * 100 + 1, threadId: thread.id, author: "system", text: baseLead, meta: "안내", system: true, createdAt: now - 6 * 60000 },
@@ -4654,6 +4704,9 @@ export default function App() {
   const [paymentReviewReady, setPaymentReviewReady] = useState<PaymentReviewReadyResponse | null>(null);
   const [ledgerOverview, setLedgerOverview] = useState<LedgerOverviewResponse | null>(null);
   const [threadItems, setThreadItems] = useState<ThreadItem[]>([...threadSeed, ...archivedThreadSeed]);
+  const [chatListMode, setChatListMode] = useState<"threads" | "requests">("threads");
+  const [chatRequestItems, setChatRequestItems] = useState<ChatRequestItem[]>(incomingChatRequestSeed);
+  const [selectedChatRequestId, setSelectedChatRequestId] = useState<number | null>(incomingChatRequestSeed[0]?.id ?? null);
   const [forumTopic, setForumTopic] = useState<(typeof forumStarterTopics)[number]>("제품 이야기");
   const [followingUserIds, setFollowingUserIds] = useState<number[]>([301, 303, 304]);
   const [followerUserIds] = useState<number[]>(forumStarterUsers.filter((item) => item.followsMe).map((item) => item.id));
@@ -6799,6 +6852,10 @@ export default function App() {
     if (!pinnedId) return null;
     return activeChatMessages.find((message) => message.id === pinnedId) ?? null;
   }, [activeChatMessages, activeChatThread, chatPinnedMessageByThread]);
+  const selectedChatRequest = useMemo(() => {
+    if (selectedChatRequestId === null) return chatRequestItems[0] ?? null;
+    return chatRequestItems.find((item) => item.id === selectedChatRequestId) ?? chatRequestItems[0] ?? null;
+  }, [chatRequestItems, selectedChatRequestId]);
   const filteredChatShareTargets = useMemo(() => {
     const keyword = chatShareKeyword.trim().toLowerCase();
     return threadItems.filter((thread) => {
@@ -6847,6 +6904,21 @@ export default function App() {
       replyTo: chatReplyTarget ? { id: chatReplyTarget.id, author: chatReplyTarget.author, text: chatReplyTarget.text } : null,
       contentKind,
     };
+
+    if (activeChatThread.status === '요청전송') {
+      setChatMessagesByThread((prev) => ({
+        ...prev,
+        [activeChatThread.id]: [...(prev[activeChatThread.id] ?? []), myMessage],
+      }));
+      setThreadItems((prev) => prev.map((item) => item.id === activeChatThread.id ? { ...item, preview: previewText, time: '방금', unread: 0, status: '요청전송' } : item));
+      setChatReplyTarget(null);
+      setChatRoomDraft('');
+      setChatAttachmentSheetOpen(false);
+      setChatEmojiSheetOpen(false);
+      setChatLongPressHint('상대방이 아직 요청을 수락하지 않아 답장은 시작되지 않았습니다.');
+      return;
+    }
+
     const replyText = activeChatThread.kind === '단체'
       ? '방 주제에 맞는 대화로 이어가 주세요. 최근 메시지 아래에 순서대로 반영했습니다.'
       : '메시지를 확인했습니다. 지금 채팅방에서 바로 이어서 대화를 진행할 수 있습니다.';
@@ -6939,7 +7011,19 @@ export default function App() {
     setChatEmojiKeyword('');
   }, [chatEmojiMode]);
 
+  useEffect(() => {
+    if (!chatRequestItems.length) {
+      setSelectedChatRequestId(null);
+      return;
+    }
+    if (selectedChatRequestId !== null && chatRequestItems.some((item) => item.id === selectedChatRequestId)) {
+      return;
+    }
+    setSelectedChatRequestId(chatRequestItems[0].id);
+  }, [chatRequestItems, selectedChatRequestId]);
+
   const openChatThread = useCallback((thread: ThreadItem) => {
+    setChatListMode('threads');
     setActiveChatThreadId(thread.id);
     setThreadItems((prev) => prev.map((item) => item.id === thread.id ? { ...item, unread: 0 } : item));
     setChatMessagesByThread((prev) => prev[thread.id] ? prev : { ...prev, [thread.id]: createThreadRoomSeed(thread) });
@@ -6952,6 +7036,88 @@ export default function App() {
     setChatShareMessage(null);
     setChatShareKeyword('');
   }, []);
+
+  const openProfileChatRequest = useCallback(() => {
+    if (currentProfileMeta.isOwner) return;
+    const targetName = currentProfileMeta.name;
+    const existing = threadItems.find((item) => item.name === targetName && item.purpose === '상호수락 1:1');
+    const acceptedStatuses = new Set(['수락완료', '활성']);
+
+    if (existing) {
+      const nextStatus = acceptedStatuses.has(existing.status ?? '') ? existing.status : '요청전송';
+      const nextPreview = acceptedStatuses.has(existing.status ?? '')
+        ? existing.preview
+        : '채팅 요청을 보냈습니다. 상대방 수락 후 답장이 가능합니다.';
+      const nextThread = { ...existing, status: nextStatus, preview: nextPreview, time: acceptedStatuses.has(existing.status ?? '') ? existing.time : '방금', unread: 0 };
+      setThreadItems((prev) => prev.map((item) => item.id === existing.id ? nextThread : item));
+      setChatMessagesByThread((prev) => prev[existing.id] ? prev : { ...prev, [existing.id]: createThreadRoomSeed(nextThread) });
+      openChatThread(nextThread);
+      setChatTab('채팅');
+      setActiveTab('채팅');
+      return;
+    }
+
+    const newThread: ThreadItem = {
+      id: Date.now(),
+      name: targetName,
+      purpose: '상호수락 1:1',
+      preview: '채팅 요청을 보냈습니다. 상대방 수락 후 답장이 가능합니다.',
+      time: '방금',
+      unread: 0,
+      avatar: currentProfileMeta.avatar,
+      avatarUrl: buildChatAvatarDataUri(targetName),
+      kind: '개인',
+      favorite: true,
+      status: '요청전송',
+    };
+    setThreadItems((prev) => [newThread, ...prev]);
+    setChatMessagesByThread((prev) => ({ ...prev, [newThread.id]: createThreadRoomSeed(newThread) }));
+    openChatThread(newThread);
+    setChatTab('채팅');
+    setActiveTab('채팅');
+  }, [currentProfileMeta, openChatThread, setActiveTab, setChatTab, threadItems]);
+
+  const acceptChatRequest = useCallback((request: ChatRequestItem) => {
+    const existing = threadItems.find((item) => item.name === request.name && item.purpose === '상호수락 1:1');
+    const acceptedThread: ThreadItem = existing
+      ? { ...existing, preview: request.requestText, time: '방금', unread: 0, favorite: true, status: '수락완료' }
+      : {
+          id: Date.now(),
+          name: request.name,
+          purpose: '상호수락 1:1',
+          preview: request.requestText,
+          time: '방금',
+          unread: 0,
+          avatar: request.avatar,
+          avatarUrl: request.avatarUrl ?? buildChatAvatarDataUri(request.name),
+          kind: '개인',
+          favorite: true,
+          status: '수락완료',
+        };
+
+    setThreadItems((prev) => existing ? prev.map((item) => item.id === acceptedThread.id ? acceptedThread : item) : [acceptedThread, ...prev]);
+    setChatMessagesByThread((prev) => ({
+      ...prev,
+      [acceptedThread.id]: [
+        ...createThreadRoomSeed(acceptedThread),
+        {
+          id: acceptedThread.id * 100 + 88,
+          threadId: acceptedThread.id,
+          author: 'system',
+          text: '채팅 요청을 수락했습니다. 이제 서로 답장이 가능합니다.',
+          meta: '지금',
+          system: true,
+          createdAt: Date.now() - 60000,
+        },
+      ],
+    }));
+    setChatRequestItems((prev) => prev.filter((item) => item.id !== request.id));
+    setChatLongPressHint(`${request.name} 님 요청을 수락했습니다.`);
+    openChatThread(acceptedThread);
+    setChatCategory('전체');
+    setChatTab('채팅');
+    setActiveTab('채팅');
+  }, [openChatThread, setActiveTab, setChatTab, threadItems]);
 
   const closeActiveChatThread = useCallback(() => {
     setActiveChatThreadId(null);
@@ -11165,59 +11331,131 @@ export default function App() {
                 </div>
               ) : (
                 <>
-                  <div className="chat-toolbar kakao-toolbar compact-only-toolbar">
+                  <div className="chat-toolbar kakao-toolbar compact-only-toolbar chat-toolbar-with-request">
+                    <button
+                      type="button"
+                      className={`chat-request-toggle ${chatListMode === 'requests' ? 'active' : ''}`}
+                      onClick={() => setChatListMode('requests')}
+                    >
+                      요청
+                      {chatRequestItems.length ? <b>{chatRequestItems.length}</b> : null}
+                    </button>
                     <div className="chat-category-scroll">
                       {chatCategories.map((category) => (
                         <button
                           key={category}
                           type="button"
-                          className={`category-chip ${chatCategory === category ? "active" : ""}`}
-                          onClick={() => setChatCategory(category)}
+                          className={`category-chip ${chatListMode === 'threads' && chatCategory === category ? "active" : ""}`}
+                          onClick={() => {
+                            setChatListMode('threads');
+                            setChatCategory(category);
+                          }}
                         >
                           {category}
                         </button>
                       ))}
                     </div>
                   </div>
-                  <div className="chat-list compact-scroll-list kakao-chat-list" onScroll={handleChatListScroll}>
-                    {chatDisplayRows.map((thread, index) => thread ? (
-                      <article key={thread.id} className="chat-row kakao-chat-row chat-row-openable" onClick={() => openChatThread(thread)} role="button" tabIndex={0} onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          openChatThread(thread);
-                        }
-                      }}>
-                        <div className="avatar-circle kakao-avatar"><img src={thread.avatarUrl ?? buildChatAvatarDataUri(thread.name)} alt="" loading="lazy" /></div>
-                        <div className="chat-copy kakao-chat-copy">
-                          <div className="kakao-chat-head">
-                            <strong>{thread.name}</strong>
-                            <div className="kakao-chat-badges">
-                              <span>{thread.purpose}</span>
-                              {thread.status ? <em>{thread.status}</em> : null}
+                  {chatListMode === 'requests' ? (
+                    <div className="chat-request-pane compact-scroll-list">
+                      {selectedChatRequest ? (
+                        <div className="chat-request-detail-card">
+                          <div className="chat-request-detail-head">
+                            <div className="avatar-circle kakao-avatar"><img src={selectedChatRequest.avatarUrl ?? buildChatAvatarDataUri(selectedChatRequest.name)} alt="" loading="lazy" /></div>
+                            <div>
+                              <strong>{selectedChatRequest.name}</strong>
+                              <span>{selectedChatRequest.time} · {selectedChatRequest.purpose}</span>
                             </div>
                           </div>
-                          <p>{thread.preview}</p>{thread.purpose.includes("상호수락 1:1") ? <span className="muted-mini">외부 연락처 교환 금지 · 사진/영상 전송 금지 · 반복 접촉 금지</span> : null}
-                        </div>
-                        <div className="chat-meta kakao-chat-meta">
-                          <span>{thread.time}</span>
-                          {thread.unread > 0 ? <b>{thread.unread}</b> : null}
-                        </div>
-                      </article>
-                    ) : (
-                      <article key={`chat-empty-${chatCategory}-${index}`} className="chat-row kakao-chat-row kakao-chat-row-empty" aria-hidden="true">
-                        <div className="avatar-circle kakao-avatar" />
-                        <div className="chat-copy kakao-chat-copy">
-                          <div className="kakao-chat-head">
-                            <strong>{" "}</strong>
-                            <div className="kakao-chat-badges"><span>{" "}</span></div>
+                          <p>{selectedChatRequest.requestText}</p>
+                          <div className="copy-action-row chat-request-detail-actions">
+                            <button type="button" onClick={() => acceptChatRequest(selectedChatRequest)}>수락</button>
                           </div>
-                          <p>{" "}</p>
                         </div>
-                        <div className="chat-meta kakao-chat-meta"><span>{" "}</span></div>
-                      </article>
-                    ))}
-                    {pagedThreads.length < filteredThreads.length ? <div className="chat-loading-row">채팅 기록 10개 단위로 추가 로딩 중</div> : null}
-                  </div>
+                      ) : (
+                        <div className="legacy-box compact chat-request-empty-box">
+                          <strong>받은 채팅 요청이 없습니다.</strong>
+                          <p>새 요청이 오면 이 목록에 먼저 쌓이고, 수락해야 일반 채팅 목록으로 이동합니다.</p>
+                        </div>
+                      )}
+                      <div className="chat-request-list">
+                        {chatRequestItems.map((request) => (
+                          <article
+                            key={request.id}
+                            className={`chat-request-row ${selectedChatRequest?.id === request.id ? 'active' : ''}`}
+                            onClick={() => setSelectedChatRequestId(request.id)}
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                setSelectedChatRequestId(request.id);
+                              }
+                            }}
+                          >
+                            <div className="avatar-circle kakao-avatar"><img src={request.avatarUrl ?? buildChatAvatarDataUri(request.name)} alt="" loading="lazy" /></div>
+                            <div className="chat-request-copy">
+                              <div className="chat-request-copy-head">
+                                <strong>{request.name}</strong>
+                                <span>{request.time}</span>
+                              </div>
+                              <p>{request.preview}</p>
+                            </div>
+                            <button
+                              type="button"
+                              className="ghost-btn chat-request-accept-btn"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                acceptChatRequest(request);
+                              }}
+                            >
+                              수락
+                            </button>
+                          </article>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="chat-list compact-scroll-list kakao-chat-list" onScroll={handleChatListScroll}>
+                      {chatDisplayRows.map((thread, index) => thread ? (
+                        <article key={thread.id} className="chat-row kakao-chat-row chat-row-openable" onClick={() => openChatThread(thread)} role="button" tabIndex={0} onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            openChatThread(thread);
+                          }
+                        }}>
+                          <div className="avatar-circle kakao-avatar"><img src={thread.avatarUrl ?? buildChatAvatarDataUri(thread.name)} alt="" loading="lazy" /></div>
+                          <div className="chat-copy kakao-chat-copy">
+                            <div className="kakao-chat-head">
+                              <strong>{thread.name}</strong>
+                              <div className="kakao-chat-badges">
+                                <span>{thread.purpose}</span>
+                                {thread.status ? <em>{thread.status}</em> : null}
+                              </div>
+                            </div>
+                            <p>{thread.preview}</p>{thread.purpose.includes("상호수락 1:1") ? <span className="muted-mini">외부 연락처 교환 금지 · 사진/영상 전송 금지 · 반복 접촉 금지</span> : null}
+                          </div>
+                          <div className="chat-meta kakao-chat-meta">
+                            <span>{thread.time}</span>
+                            {thread.unread > 0 ? <b>{thread.unread}</b> : null}
+                          </div>
+                        </article>
+                      ) : (
+                        <article key={`chat-empty-${chatCategory}-${index}`} className="chat-row kakao-chat-row kakao-chat-row-empty" aria-hidden="true">
+                          <div className="avatar-circle kakao-avatar" />
+                          <div className="chat-copy kakao-chat-copy">
+                            <div className="kakao-chat-head">
+                              <strong>{" "}</strong>
+                              <div className="kakao-chat-badges"><span>{" "}</span></div>
+                            </div>
+                            <p>{" "}</p>
+                          </div>
+                          <div className="chat-meta kakao-chat-meta"><span>{" "}</span></div>
+                        </article>
+                      ))}
+                      {pagedThreads.length < filteredThreads.length ? <div className="chat-loading-row">채팅 기록 10개 단위로 추가 로딩 중</div> : null}
+                    </div>
+                  )}
                 </>
               )
             )}
@@ -11238,7 +11476,7 @@ export default function App() {
                       <button type="button" className="ghost-btn profile-ig-mini-btn" onClick={() => setAuthStandaloneScreen("login")}>프로필 편집</button>
                     ) : (
                       <div className="asked-question-toolbar asked-question-toolbar-inline profile-inline-actions">
-                        <button type="button" className="feed-question-btn profile-contact-btn" onClick={() => { setChatTab("채팅"); setActiveTab("채팅"); }}>문의</button>
+                        <button type="button" className="feed-question-btn profile-contact-btn" onClick={openProfileChatRequest}>채팅</button>
                         <button type="button" className={`feed-follow-btn profile-follow-btn ${followedFeedAuthors.includes(currentProfileMeta.name) ? "active" : ""}`} onClick={() => toggleFollowedFeedAuthor(currentProfileMeta.name)}>{followedFeedAuthors.includes(currentProfileMeta.name) ? "팔로잉" : "팔로우"}</button>
                         <button type="button" className="ghost-btn">공유</button>
                       </div>
