@@ -1,4 +1,4 @@
-import path from "node:path";
+﻿import path from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
@@ -26,16 +26,17 @@ export default defineConfig({
   },
   build: {
     emptyOutDir: true,
+    cssCodeSplit: false,
     rollupOptions: {
       output: {
-        entryFileNames: "assets/[name]-[hash].js",
-        chunkFileNames: "assets/[name]-[hash].js",
+        entryFileNames: "assets/index.js",
+        chunkFileNames: "assets/[name].js",
         assetFileNames: (assetInfo) => {
           const ext = path.extname(assetInfo.name ?? "");
           if (ext === ".css") {
-            return "assets/[name]-[hash][extname]";
+            return "assets/index.css";
           }
-          return "assets/[name]-[hash][extname]";
+          return "assets/[name][extname]";
         }
       }
     }
