@@ -936,6 +936,7 @@ type HeaderNavItem = {
 
 const APP_BACK_MINIMIZE_WINDOW_MS = 1800;
 const APP_NAVIGATION_HISTORY_LIMIT = 120;
+const APP_BROWSER_HISTORY_STATE_KEY = "__adultapp_nav_index";
 
 const cloneNavigationSnapshot = (snapshot: AppNavigationSnapshot): AppNavigationSnapshot => JSON.parse(JSON.stringify(snapshot)) as AppNavigationSnapshot;
 
@@ -4285,6 +4286,9 @@ export default function App() {
   const navigationHistoryRef = useRef<AppNavigationSnapshot[]>([]);
   const navigationSnapshotRef = useRef<AppNavigationSnapshot | null>(null);
   const navigationRestoreRef = useRef(false);
+  const browserHistoryReadyRef = useRef(false);
+  const browserHistoryIndexRef = useRef(0);
+  const suppressBrowserHistoryPushRef = useRef(false);
   const backMinimizeTimerRef = useRef<number | null>(null);
   const lastBackPressAtRef = useRef(0);
   const [backMinimizeHintVisible, setBackMinimizeHintVisible] = useState(false);
@@ -4356,6 +4360,17 @@ export default function App() {
     }
     setBackMinimizeHintVisible(false);
   }, []);
+  const showBackMinimizeHint = useCallback(() => {
+    hideBackMinimizeHint();
+    lastBackPressAtRef.current = Date.now();
+    setBackMinimizeHintVisible(true);
+    if (typeof window !== "undefined") {
+      backMinimizeTimerRef.current = window.setTimeout(() => {
+        setBackMinimizeHintVisible(false);
+        backMinimizeTimerRef.current = null;
+      }, APP_BACK_MINIMIZE_WINDOW_MS);
+    }
+  }, [hideBackMinimizeHint]);
   const isHomeNavigationSnapshot = useCallback((snapshot: AppNavigationSnapshot) => (
     snapshot.activeTab === "홈"
     && snapshot.homeTab === "피드"
@@ -4409,8 +4424,16 @@ export default function App() {
     savedTab: "피드",
   }), []);
   const isAtHomeScreen = useMemo(() => isHomeNavigationSnapshot(currentNavigationSnapshot), [currentNavigationSnapshot, isHomeNavigationSnapshot]);
+  const shouldManageMobileBrowserBack = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    if (window.Capacitor?.isNativePlatform?.()) return true;
+    if (windowWidth >= 1180) return false;
+    const userAgent = window.navigator?.userAgent ?? "";
+    return /Android|iPhone|iPad|iPod/i.test(userAgent);
+  }, [windowWidth]);
   const restoreNavigationSnapshot = useCallback((snapshot: AppNavigationSnapshot) => {
     navigationRestoreRef.current = true;
+    suppressBrowserHistoryPushRef.current = true;
     hideBackMinimizeHint();
     lastBackPressAtRef.current = 0;
     setActiveTab(snapshot.activeTab);
@@ -4450,7 +4473,23 @@ export default function App() {
       }
     }
   }, [hideBackMinimizeHint]);
-  const handleAppBackNavigation = useCallback(async () => {
+  const syncBrowserBackBarrier = useCallback((mode: "replace" | "push" = "push") => {
+    if (typeof window === "undefined" || !shouldManageMobileBrowserBack) return;
+    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    const previousState = window.history.state && typeof window.history.state === "object" ? window.history.state : {};
+    const nextIndex = mode === "replace" ? browserHistoryIndexRef.current : browserHistoryIndexRef.current + 1;
+    browserHistoryIndexRef.current = nextIndex;
+    const nextState = {
+      ...previousState,
+      [APP_BROWSER_HISTORY_STATE_KEY]: nextIndex,
+    };
+    if (mode === "replace") {
+      window.history.replaceState(nextState, "", currentUrl);
+      return;
+    }
+    window.history.pushState(nextState, "", currentUrl);
+  }, [shouldManageMobileBrowserBack]);
+  const handleAppBackNavigation = useCallback(async (source: "native" | "history" = "native") => {
     if (!authBootstrapDone) return;
     const previousSnapshot = navigationHistoryRef.current.pop();
     if (previousSnapshot) {
@@ -4466,22 +4505,22 @@ export default function App() {
       hideBackMinimizeHint();
       lastBackPressAtRef.current = 0;
       try {
-        await getNativeAppPlugin()?.minimizeApp?.();
+        const nativeAppPlugin = getNativeAppPlugin();
+        if (nativeAppPlugin?.minimizeApp) {
+          await nativeAppPlugin.minimizeApp();
+          return;
+        }
       } catch {}
+      if (source === "history" && typeof window !== "undefined") {
+        window.history.back();
+      }
       return;
     }
-    lastBackPressAtRef.current = now;
-    setBackMinimizeHintVisible(true);
-    if (typeof window !== "undefined") {
-      if (backMinimizeTimerRef.current !== null) {
-        window.clearTimeout(backMinimizeTimerRef.current);
-      }
-      backMinimizeTimerRef.current = window.setTimeout(() => {
-        setBackMinimizeHintVisible(false);
-        backMinimizeTimerRef.current = null;
-      }, APP_BACK_MINIMIZE_WINDOW_MS);
+    showBackMinimizeHint();
+    if (source === "history") {
+      syncBrowserBackBarrier("push");
     }
-  }, [authBootstrapDone, hideBackMinimizeHint, homeNavigationSnapshot, isAtHomeScreen, restoreNavigationSnapshot]);
+  }, [authBootstrapDone, hideBackMinimizeHint, homeNavigationSnapshot, isAtHomeScreen, restoreNavigationSnapshot, showBackMinimizeHint, syncBrowserBackBarrier]);
   const canToggleAccountMode = !isAdmin && currentUserRole !== "GUEST";
   const isBusinessAccountMode = currentUserRole === "SELLER";
   const accountModeToggleLabel = isBusinessAccountMode ? "일반회원 계정전환" : "사업자 계정전환";
@@ -6395,6 +6434,39 @@ export default function App() {
       lastBackPressAtRef.current = 0;
     }
   }, [authBootstrapDone, currentNavigationSnapshot, hideBackMinimizeHint, isHomeNavigationSnapshot]);
+
+  useEffect(() => {
+    if (!authBootstrapDone || typeof window === "undefined" || !shouldManageMobileBrowserBack) return;
+    if (browserHistoryReadyRef.current) return;
+    browserHistoryReadyRef.current = true;
+    browserHistoryIndexRef.current = 0;
+    syncBrowserBackBarrier("replace");
+    syncBrowserBackBarrier("push");
+  }, [authBootstrapDone, shouldManageMobileBrowserBack, syncBrowserBackBarrier]);
+
+  useEffect(() => {
+    if (!authBootstrapDone || typeof window === "undefined" || !shouldManageMobileBrowserBack) return;
+    if (!browserHistoryReadyRef.current) return;
+    if (suppressBrowserHistoryPushRef.current) {
+      suppressBrowserHistoryPushRef.current = false;
+      return;
+    }
+    syncBrowserBackBarrier("push");
+  }, [authBootstrapDone, currentNavigationSnapshot, shouldManageMobileBrowserBack, syncBrowserBackBarrier]);
+
+  useEffect(() => {
+    if (!authBootstrapDone || typeof window === "undefined" || !shouldManageMobileBrowserBack) return;
+    const handleBrowserBack = () => {
+      suppressBrowserHistoryPushRef.current = true;
+      void handleAppBackNavigation("history");
+    };
+    window.addEventListener("popstate", handleBrowserBack);
+    document.addEventListener("backbutton", handleBrowserBack as EventListener, false);
+    return () => {
+      window.removeEventListener("popstate", handleBrowserBack);
+      document.removeEventListener("backbutton", handleBrowserBack as EventListener, false);
+    };
+  }, [authBootstrapDone, handleAppBackNavigation, shouldManageMobileBrowserBack]);
 
   useEffect(() => {
     if (!authBootstrapDone) return;
