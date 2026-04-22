@@ -155,6 +155,11 @@ type CommunityPost = {
   audience?: string;
   sortScore?: number;
   board?: "커뮤" | "포럼" | "후기" | "이벤트";
+  path?: string;
+  detailTitle?: string;
+  detailBody?: string[];
+  pinned?: boolean;
+  contentType?: "standard" | "test";
 };
 
 
@@ -678,6 +683,25 @@ type ChatTab = (typeof chatTabs)[number];
 type HeaderFavoriteMap = Record<MobileTab, string[]>;
 type ProfileTab = (typeof profileTabs)[number];
 type SettingsCategory = (typeof settingsCategories)[number];
+type CommunityExplorerStage = "list" | "detail" | "test_intro" | "test_run" | "test_result";
+type TestAxisKey = "lead" | "follow" | "service" | "sensation" | "structure" | "restraint" | "playful" | "care" | "intimacy" | "switch";
+type TestQuestion = {
+  id: number;
+  prompt: string;
+  helper: string;
+  weights: Partial<Record<TestAxisKey, number>>;
+};
+type DesktopSearchGroup = "홈" | "쇼핑" | "소통" | "채팅" | "프로필" | "알림" | "테스트";
+type DesktopGlobalSearchItem = {
+  id: string;
+  group: DesktopSearchGroup;
+  category: string;
+  title: string;
+  summary: string;
+  path: string;
+  keywords: string;
+  openTab: MobileTab;
+};
 type RandomRoomCategory = (typeof randomRoomCategories)[number];
 type ForumBoardCategory = (typeof forumBoardCategories)[number];
 type ChatCategory = (typeof chatCategories)[number];
@@ -820,14 +844,51 @@ function DesktopSplitShell() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [leftInitialTab, setLeftInitialTab] = useState<MobileTab>("홈");
   const [rightInitialTab, setRightInitialTab] = useState<MobileTab>("쇼핑");
+  const [desktopOverlayMode, setDesktopOverlayMode] = useState<"search" | "notifications" | "settings" | null>(null);
+  const [desktopSearchKeyword, setDesktopSearchKeyword] = useState("");
+  const [desktopSearchGroup, setDesktopSearchGroup] = useState<DesktopSearchGroup | "전체">("전체");
   const leftSrcDoc = useMemo(() => buildDesktopPaneSrcDoc("left", leftInitialTab), [leftInitialTab]);
   const rightSrcDoc = useMemo(() => buildDesktopPaneSrcDoc("right", rightInitialTab), [rightInitialTab]);
   const iframeReady = Boolean(leftSrcDoc && rightSrcDoc);
+  const desktopSearchIndex = useMemo(() => buildDesktopGlobalSearchIndex(), []);
+  const unreadDesktopNotificationCount = useMemo(() => notificationSeed.filter((item) => item.unread).length, []);
 
   const desktopTopControls: Array<{ slot: DesktopPaneSlot; title: string; currentTab: MobileTab; onSelect: (tab: MobileTab) => void }> = [
     { slot: "left", title: "좌측 화면 메뉴", currentTab: leftInitialTab, onSelect: setLeftInitialTab },
     { slot: "right", title: "우측 화면 메뉴", currentTab: rightInitialTab, onSelect: setRightInitialTab },
   ];
+
+  const desktopSearchGroups: Array<DesktopSearchGroup | "전체"> = ["전체", "홈", "쇼핑", "소통", "채팅", "프로필", "알림", "테스트"];
+
+  const desktopSearchResults = useMemo(() => {
+    const keyword = desktopSearchKeyword.trim().toLowerCase();
+    const filtered = desktopSearchIndex.filter((item) => {
+      const groupMatch = desktopSearchGroup === "전체" || item.group === desktopSearchGroup;
+      const keywordMatch = !keyword || `${item.title} ${item.summary} ${item.keywords} ${item.path} ${item.category}`.toLowerCase().includes(keyword);
+      return groupMatch && keywordMatch;
+    });
+
+    return filtered
+      .sort((a, b) => {
+        const aExact = keyword && a.title.toLowerCase().includes(keyword) ? 1 : 0;
+        const bExact = keyword && b.title.toLowerCase().includes(keyword) ? 1 : 0;
+        if (aExact !== bExact) return bExact - aExact;
+        return a.path.localeCompare(b.path, "ko");
+      })
+      .slice(0, 80);
+  }, [desktopSearchGroup, desktopSearchIndex, desktopSearchKeyword]);
+
+  const desktopNotificationSections = useMemo(() => ({
+    notices: notificationSeed.filter((item) => item.section === "공지"),
+    orders: notificationSeed.filter((item) => item.section === "주문"),
+    community: notificationSeed.filter((item) => item.section === "소통"),
+    events: notificationSeed.filter((item) => item.section === "이벤트"),
+  }), []);
+
+  const handleDesktopResultOpen = useCallback((item: DesktopGlobalSearchItem) => {
+    setRightInitialTab(item.openTab);
+    setDesktopOverlayMode(null);
+  }, []);
 
   const toggleLabel = sidebarOpen ? "‹ 메뉴 접기" : "› 메뉴 펼치기";
 
@@ -878,28 +939,123 @@ function DesktopSplitShell() {
         </aside>
 
         <div className="desktop-split-main">
-          <div className="desktop-split-toolbar">
-            {desktopTopControls.map((section) => (
-              <section key={section.slot} className="desktop-top-control-card">
-                <div className="desktop-top-control-head">
-                  <strong>{section.title}</strong>
-                  <span>{section.currentTab} 시작</span>
-                </div>
-                <div className="desktop-top-control-grid">
-                  {mobileTabs.map((tab) => (
-                    <button
-                      key={`${section.slot}-${tab}`}
-                      type="button"
-                      className={`desktop-side-menu-tab-btn ${section.currentTab === tab ? "active" : ""}`}
-                      onClick={() => section.onSelect(tab)}
-                    >
-                      {tab}
-                    </button>
-                  ))}
-                </div>
-              </section>
-            ))}
+          <div className="desktop-shell-top-stack">
+            <div className="desktop-shell-header">
+              <div className="desktop-shell-header-copy">
+                <strong>adultapp PC 작업화면</strong>
+                <span>좌우 분할 화면과 통합 검색/알림 바로가기를 제공합니다.</span>
+              </div>
+              <div className="desktop-shell-header-actions">
+                <button type="button" className={`desktop-header-action-btn ${desktopOverlayMode === "search" ? "active" : ""}`} onClick={() => setDesktopOverlayMode((prev) => prev === "search" ? null : "search")} aria-label="통합 검색" title="통합 검색"><SearchIcon /></button>
+                <button type="button" className={`desktop-header-action-btn desktop-header-action-btn-bell ${desktopOverlayMode === "notifications" ? "active" : ""}`} onClick={() => setDesktopOverlayMode((prev) => prev === "notifications" ? null : "notifications")} aria-label="알림" title="알림"><BellIcon />{unreadDesktopNotificationCount > 0 ? <span className="desktop-header-badge">{unreadDesktopNotificationCount > 9 ? "9+" : unreadDesktopNotificationCount}</span> : null}</button>
+                <button type="button" className={`desktop-header-action-btn ${desktopOverlayMode === "settings" ? "active" : ""}`} onClick={() => setDesktopOverlayMode((prev) => prev === "settings" ? null : "settings")} aria-label="설정" title="설정"><SettingsIcon /></button>
+              </div>
+            </div>
+
+            <div className="desktop-split-toolbar">
+              {desktopTopControls.map((section) => (
+                <section key={section.slot} className="desktop-top-control-card">
+                  <div className="desktop-top-control-head">
+                    <strong>{section.title}</strong>
+                    <span>{section.currentTab} 시작</span>
+                  </div>
+                  <div className="desktop-top-control-grid">
+                    {mobileTabs.map((tab) => (
+                      <button
+                        key={`${section.slot}-${tab}`}
+                        type="button"
+                        className={`desktop-side-menu-tab-btn ${section.currentTab === tab ? "active" : ""}`}
+                        onClick={() => section.onSelect(tab)}
+                      >
+                        {tab}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
           </div>
+
+          {desktopOverlayMode ? (
+            <div className="desktop-utility-overlay-shell">
+              <div className="desktop-utility-overlay-head">
+                <strong>{desktopOverlayMode === "search" ? "통합 검색" : desktopOverlayMode === "notifications" ? "알림 센터" : "설정"}</strong>
+                <button type="button" className="ghost-btn" onClick={() => setDesktopOverlayMode(null)}>닫기</button>
+              </div>
+
+              {desktopOverlayMode === "search" ? (
+                <div className="desktop-utility-overlay-body">
+                  <div className="desktop-utility-search-toolbar">
+                    <input
+                      value={desktopSearchKeyword}
+                      onChange={(event) => setDesktopSearchKeyword(event.target.value)}
+                      placeholder="PC/모바일 전체 키워드 검색"
+                      className="desktop-utility-search-input"
+                      autoFocus
+                    />
+                    <button type="button" className="ghost-btn" onClick={() => setDesktopSearchKeyword("")}>검색어 초기화</button>
+                  </div>
+                  <div className="desktop-utility-chip-row">
+                    {desktopSearchGroups.map((item) => (
+                      <button key={item} type="button" className={`desktop-utility-chip ${desktopSearchGroup === item ? "active" : ""}`} onClick={() => setDesktopSearchGroup(item)}>{item}</button>
+                    ))}
+                  </div>
+                  <div className="desktop-utility-result-summary">분류 {desktopSearchGroup} · 결과 {desktopSearchResults.length}건</div>
+                  <div className="desktop-utility-result-list">
+                    {desktopSearchResults.length ? desktopSearchResults.map((item) => (
+                      <button key={item.id} type="button" className="desktop-search-result-card" onClick={() => handleDesktopResultOpen(item)}>
+                        <div className="desktop-search-result-top">
+                          <span className="desktop-search-result-badge">{item.group}</span>
+                          <span className="desktop-search-result-category">{item.category}</span>
+                        </div>
+                        <strong>{item.title}</strong>
+                        <p>{item.summary}</p>
+                        <div className="desktop-search-result-path">경로: {item.path}</div>
+                      </button>
+                    )) : <div className="desktop-utility-empty">연관 검색 결과가 없습니다.</div>}
+                  </div>
+                </div>
+              ) : null}
+
+              {desktopOverlayMode === "notifications" ? (
+                <div className="desktop-utility-overlay-body desktop-notification-panel">
+                  <div className="desktop-notification-summary-grid">
+                    <div className="desktop-notification-summary-card"><strong>공지사항</strong><span>{desktopNotificationSections.notices.length}건</span></div>
+                    <div className="desktop-notification-summary-card"><strong>주문/배송/환불</strong><span>{desktopNotificationSections.orders.length}건</span></div>
+                    <div className="desktop-notification-summary-card"><strong>메세지/소통</strong><span>{desktopNotificationSections.community.length}건</span></div>
+                    <div className="desktop-notification-summary-card"><strong>이벤트</strong><span>{desktopNotificationSections.events.length}건</span></div>
+                  </div>
+                  <div className="desktop-utility-result-list">
+                    {notificationSeed.map((item) => (
+                      <article key={`desktop-noti-${item.id}`} className="desktop-notification-card">
+                        <div className="desktop-search-result-top">
+                          <span className="desktop-search-result-badge">{item.section}</span>
+                          <span className="desktop-search-result-category">{item.category}</span>
+                        </div>
+                        <strong>{item.title}</strong>
+                        <p>{item.body}</p>
+                        <div className="desktop-search-result-path">{item.meta} · {item.postedAt}{item.unread ? " · 읽지 않음" : ""}</div>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {desktopOverlayMode === "settings" ? (
+                <div className="desktop-utility-overlay-body desktop-settings-placeholder">
+                  <div className="desktop-settings-placeholder-card">
+                    <strong>설정 준비중</strong>
+                    <p>설정 버튼은 상단에 먼저 배치했고, 세부 항목은 추후 연결할 수 있도록 자리만 열어두었습니다.</p>
+                    <div className="desktop-utility-chip-row">
+                      <span className="desktop-placeholder-pill">계정</span>
+                      <span className="desktop-placeholder-pill">알림</span>
+                      <span className="desktop-placeholder-pill">보안</span>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="desktop-split-grid">
             <section className="desktop-split-pane">
@@ -1952,14 +2108,33 @@ const communityPrimaryFilters = ["전체", "공식", "회원", "운영"] as cons
 const communitySecondaryFilters = ["전체", "최신순", "공지우선", "인기순"] as const;
 
 const communitySeed: CommunityPost[] = [
-  { id: 1, board: "커뮤", category: "공지", title: "안전모드 기준 및 커뮤니티 운영 원칙", summary: "앱 공개영역에서 허용되는 표현과 금지되는 표현을 한 번에 정리합니다.", meta: "관리자 · 1시간 전", audience: "공식", sortScore: 100 },
-  { id: 2, board: "커뮤", category: "정보", title: "익명포장 SOP와 반품 회수 체크포인트", summary: "판매자/고객 모두 확인할 수 있는 실무형 요약 카드입니다.", meta: "운영팀 · 2시간 전", audience: "운영", sortScore: 92 },
-  { id: 3, board: "후기", category: "후기", title: "사진 피드형 상품 리뷰 구성 예시", summary: "사진·짧은 영상·요약문이 결합된 소통 공간 예시입니다.", meta: "brand_note · 4시간 전", audience: "회원", sortScore: 88 },
-  { id: 4, board: "포럼", category: "토론", title: "신규 카테고리 승인 대기 상품 현황", summary: "판매자센터에서 확인 중인 상품들을 카테고리별로 묶어서 보여줍니다.", meta: "seller_studio · 26.4.18", audience: "회원", sortScore: 81 },
-  { id: 5, board: "포럼", category: "이벤트", title: "앱 심사 safe UI 점검 이벤트", summary: "모바일 노출 점검과 신고 흐름 확인용 공지입니다.", meta: "프로덕트팀 · 26.4.18", audience: "공식", sortScore: 90 },
-  { id: 6, board: "커뮤", category: "공지", title: "이용약관 및 개인정보 처리방침 안내", summary: "앱 내 약관, 개인정보 처리방침, 청소년 보호정책, 환불정책은 알림 > 공지사항과 커뮤니티 공지 카테고리에서 확인할 수 있습니다.", meta: "운영공지 · 3시간 전", audience: "공식", sortScore: 99 },
-  { id: 7, board: "포럼", category: "공지", title: "청소년 보호정책 및 제한 웹 포럼 운영 기준", summary: "앱 공개영역에서는 랜덤채팅을 열지 않고, 제한 웹 영역에서만 안전·동의·세척/보관 정보 포럼을 승인제로 운영합니다.", meta: "안전운영팀 · 26.4.18", audience: "공식", sortScore: 97 },
-  { id: 8, board: "커뮤", category: "정보", title: "구매자 활성화를 위한 앱 내 소통 기능 10선", summary: "안전수칙 토론, 초보 Q&A, 익명 고민상담, 주간 토크방처럼 법적 리스크가 낮은 소통 구조를 정리했습니다.", meta: "기획팀 · 14시간 전", audience: "운영", sortScore: 84 },
+  {
+    id: 9001,
+    board: "커뮤",
+    category: "테스트",
+    title: "테스트",
+    summary: "스스로에 대해 알아 가는 시간을 가져보세요.",
+    meta: "운영팀 · 12분 전",
+    audience: "공식",
+    sortScore: 200,
+    pinned: true,
+    path: "소통 > 커뮤 > 테스트",
+    detailTitle: "성향 탐색 테스트",
+    detailBody: [
+      "이 화면은 7점 척도로 답변하는 오리지널 성향 탐색 테스트입니다.",
+      "주도/수용, 봉사, 규칙 선호, 감각 자극, 돌봄, 일상 친밀감 같은 축을 함께 확인하도록 구성했습니다.",
+      "결과는 의료적 진단이 아니라 자기이해와 대화 정리를 위한 참고용 요약으로 제공합니다.",
+    ],
+    contentType: "test",
+  },
+  { id: 1, board: "커뮤", category: "공지", title: "안전모드 기준 및 커뮤니티 운영 원칙", summary: "앱 공개영역에서 허용되는 표현과 금지되는 표현을 한 번에 정리합니다.", meta: "관리자 · 1시간 전", audience: "공식", sortScore: 100, path: "소통 > 커뮤 > 공지" },
+  { id: 2, board: "커뮤", category: "정보", title: "익명포장 SOP와 반품 회수 체크포인트", summary: "판매자/고객 모두 확인할 수 있는 실무형 요약 카드입니다.", meta: "운영팀 · 2시간 전", audience: "운영", sortScore: 92, path: "소통 > 커뮤 > 정보" },
+  { id: 3, board: "후기", category: "후기", title: "사진 피드형 상품 리뷰 구성 예시", summary: "사진·짧은 영상·요약문이 결합된 소통 공간 예시입니다.", meta: "brand_note · 4시간 전", audience: "회원", sortScore: 88, path: "소통 > 후기 > 상품 후기" },
+  { id: 4, board: "포럼", category: "토론", title: "신규 카테고리 승인 대기 상품 현황", summary: "판매자센터에서 확인 중인 상품들을 카테고리별로 묶어서 보여줍니다.", meta: "seller_studio · 26.4.18", audience: "회원", sortScore: 81, path: "소통 > 포럼 > 토론" },
+  { id: 5, board: "포럼", category: "이벤트", title: "앱 심사 safe UI 점검 이벤트", summary: "모바일 노출 점검과 신고 흐름 확인용 공지입니다.", meta: "프로덕트팀 · 26.4.18", audience: "공식", sortScore: 90, path: "소통 > 포럼 > 이벤트" },
+  { id: 6, board: "커뮤", category: "공지", title: "이용약관 및 개인정보 처리방침 안내", summary: "앱 내 약관, 개인정보 처리방침, 청소년 보호정책, 환불정책은 알림 > 공지사항과 커뮤니티 공지 카테고리에서 확인할 수 있습니다.", meta: "운영공지 · 3시간 전", audience: "공식", sortScore: 99, path: "소통 > 커뮤 > 공지" },
+  { id: 7, board: "포럼", category: "공지", title: "청소년 보호정책 및 제한 웹 포럼 운영 기준", summary: "앱 공개영역에서는 랜덤채팅을 열지 않고, 제한 웹 영역에서만 안전·동의·세척/보관 정보 포럼을 승인제로 운영합니다.", meta: "안전운영팀 · 26.4.18", audience: "공식", sortScore: 97, path: "소통 > 포럼 > 공지" },
+  { id: 8, board: "커뮤", category: "정보", title: "구매자 활성화를 위한 앱 내 소통 기능 10선", summary: "안전수칙 토론, 초보 Q&A, 익명 고민상담, 주간 토크방처럼 법적 리스크가 낮은 소통 구조를 정리했습니다.", meta: "기획팀 · 14시간 전", audience: "운영", sortScore: 84, path: "소통 > 커뮤 > 정보" },
 ];
 
 const notificationSeed: NotificationItem[] = [
@@ -1969,12 +2144,19 @@ const notificationSeed: NotificationItem[] = [
   { id: 10, section: "이벤트", category: "이벤트", title: "이번 주 기획전 오픈", body: "홈과 쇼핑 화면에서 이번 주 기획전 상품과 할인 정보를 바로 확인할 수 있습니다.", meta: "이벤트 소식", author: "이벤트팀", postedAt: "2026-04-19", unread: true, ctaLabel: "상세 보기" },
   { id: 11, section: "이벤트", category: "쿠폰", title: "앱 전용 쿠폰 지급", body: "앱 전용 할인 쿠폰이 발급되었습니다. 사용 가능 상품은 쇼핑 홈 추천 영역에서 우선 노출됩니다.", meta: "혜택 안내", author: "혜택운영", postedAt: "2026-04-18", ctaLabel: "상세 보기" },
   { id: 12, section: "이벤트", category: "기획전", title: "브랜드 기획전 종료 임박", body: "관심 키워드와 맞는 브랜드 기획전이 곧 종료됩니다. 마감 전에 상세를 확인하세요.", meta: "기획전 안내", author: "브랜드기획", postedAt: "2026-04-17", ctaLabel: "상세 보기" },
-  { id: 3, section: "주문", category: "주문", title: "주문한 제품 발송 준비중", body: "주문번호 A-240412-001 상품이 발송 준비 단계로 변경되었습니다.", meta: "쇼핑 주문", author: "주문시스템", postedAt: "2026-04-19", unread: true, ctaLabel: "상세 보기" },
+  { id: 3, section: "주문", category: "주문", title: "제품 신청접수 완료", body: "주문번호 A-240412-001 상품 신청이 접수되었고 판매자 확인 단계로 이동했습니다.", meta: "쇼핑 주문", author: "주문시스템", postedAt: "2026-04-19", unread: true, ctaLabel: "상세 보기" },
   { id: 4, section: "주문", category: "배송", title: "배송 상태 변경", body: "익명포장 배송 건이 택배사에 인계되었습니다. 상세 추적은 주문 목록에서 확인하세요.", meta: "배송 알림", author: "배송센터", postedAt: "2026-04-18", ctaLabel: "상세 보기" },
   { id: 8, section: "주문", category: "교환/환불", title: "환불 요청 접수", body: "환불 요청이 정상 접수되었으며 판매자 검수 후 처리 상태가 갱신됩니다.", meta: "주문 처리", author: "정산지원", postedAt: "2026-04-17", ctaLabel: "상세 보기" },
+  { id: 13, section: "주문", category: "배송", title: "배송 준비 완료", body: "주문번호 A-240412-001 건이 포장 완료되어 출고 대기 상태입니다.", meta: "출고 준비", author: "물류센터", postedAt: "2026-04-19", unread: true, ctaLabel: "상세 보기" },
+  { id: 14, section: "주문", category: "배송", title: "배송 완료", body: "주문하신 상품 배송이 완료되었습니다. 필요 시 후기/상품평을 남겨주세요.", meta: "배송 완료", author: "배송센터", postedAt: "2026-04-18", ctaLabel: "상세 보기" },
+  { id: 15, section: "주문", category: "취소", title: "주문 취소 승인", body: "요청하신 주문 취소가 승인되어 결제 취소 절차가 진행 중입니다.", meta: "주문 처리", author: "주문시스템", postedAt: "2026-04-18", ctaLabel: "상세 보기" },
+  { id: 16, section: "주문", category: "반품", title: "반품 회수 접수", body: "반품 회수 요청이 등록되었고 택배사 수거 일정이 배정되었습니다.", meta: "반품 처리", author: "회수지원", postedAt: "2026-04-17", ctaLabel: "상세 보기" },
+  { id: 17, section: "주문", category: "교환", title: "교환 재발송 준비중", body: "교환 승인 건의 대체 상품이 재포장 단계에 들어갔습니다.", meta: "교환 처리", author: "물류센터", postedAt: "2026-04-17", ctaLabel: "상세 보기" },
   { id: 5, section: "소통", category: "댓글", title: "커뮤니티 댓글 알림", body: "공지 카테고리 게시글에 새 댓글이 등록되었습니다.", meta: "커뮤니티", author: "커뮤니티봇", postedAt: "2026-04-19", unread: true, ctaLabel: "상세 보기" },
   { id: 6, section: "소통", category: "채팅", title: "그룹대화/1:1 운영 안내", body: "앱에서는 성향/관심사 기반 그룹대화를 허용하되, 외부 연락처 교환·오프라인 제안·사진/영상 전송은 금지하고 1:1은 상호 수락 후에만 허용합니다.", meta: "채팅 안내", author: "안전운영팀", postedAt: "2026-04-18", ctaLabel: "상세 보기" },
   { id: 9, section: "소통", category: "질문", title: "질문 답변 등록 완료", body: "질문 카드에 새로운 답변이 등록되어 프로필 질문 탭에서 바로 확인할 수 있습니다.", meta: "질문 알림", author: "Q&A봇", postedAt: "2026-04-17", ctaLabel: "상세 보기" },
+  { id: 18, section: "소통", category: "메세지", title: "내 계정으로 새 메세지 도착", body: "상호수락 1:1 대화방에 새 메세지가 도착했습니다.", meta: "메세지 알림", author: "채팅시스템", postedAt: "2026-04-19", unread: true, ctaLabel: "상세 보기" },
+  { id: 19, section: "소통", category: "후기/상품평", title: "후기 등록 요청", body: "배송 완료 상품에 대해 후기 또는 상품평을 남길 수 있습니다.", meta: "리뷰 알림", author: "리뷰봇", postedAt: "2026-04-18", ctaLabel: "상세 보기" },
 ];
 
 const threadSeed: ThreadItem[] = [
@@ -2102,6 +2284,180 @@ const questionSeed: QuestionCard[] = [
   { id: 2, author: "visitor_204", question: "질문 기능은 어떤 식으로 운영하면 참여율이 높아질까요?", answer: "질문 등록 버튼을 눈에 띄게 두고, 답변 완료된 질문을 카드형으로 계속 노출하면 참여율이 높아집니다. 상단 광고는 콘텐츠 흐름을 끊지 않는 위치에 두는 것이 안전합니다.", meta: "답변 완료 · 2시간 전", likes: 17, comments: 4 },
   { id: 3, author: "community_user", question: "익명 질문과 일반 질문을 같이 운영해도 괜찮나요?", answer: "가능합니다. 다만 신고, 차단, 키워드 필터, 운영정책이 함께 있어야 운영 리스크를 줄일 수 있습니다. 질문 등록 전 가이드 문구도 같이 노출하는 것이 좋습니다.", meta: "답변 완료 · 어제", likes: 21, comments: 3 },
 ];
+
+const testScaleOptions = [
+  { score: -3, label: "전혀 아니다" },
+  { score: -2, label: "아니다" },
+  { score: -1, label: "조금 아니다" },
+  { score: 0, label: "잘 모르겠다" },
+  { score: 1, label: "조금 그렇다" },
+  { score: 2, label: "그렇다" },
+  { score: 3, label: "매우 그렇다" },
+] as const;
+
+const testAxisMeta: Record<TestAxisKey, { label: string; summary: string }> = {
+  lead: { label: "주도형", summary: "상황의 방향과 흐름을 먼저 설계하려는 경향" },
+  follow: { label: "수용형", summary: "상대가 제안한 흐름을 받아들이며 안정감을 얻는 경향" },
+  service: { label: "봉사형", summary: "상대를 챙기고 준비하는 역할에서 만족을 느끼는 경향" },
+  sensation: { label: "감각자극형", summary: "새로운 감각 자극과 긴장감에 호기심을 보이는 경향" },
+  structure: { label: "규칙/구조형", summary: "명확한 약속, 신호, 순서를 선호하는 경향" },
+  restraint: { label: "속박호기심형", summary: "제한감이나 고정된 자세 같은 통제 장치에 관심을 보이는 경향" },
+  playful: { label: "놀이/도전형", summary: "장난기와 역할 놀이, 밀고 당기기 대화에 흥미를 느끼는 경향" },
+  care: { label: "돌봄/안정형", summary: "안심, 돌봄, 정서적 안전장치가 있어야 몰입되는 경향" },
+  intimacy: { label: "일상친밀형", summary: "특별한 장치보다 일상적 친밀감과 대화를 더 중시하는 경향" },
+  switch: { label: "혼합탐색형", summary: "상황에 따라 주도와 수용이 모두 자연스러운 경향" },
+};
+
+const testQuestions: TestQuestion[] = [
+  { id: 1, prompt: "관계나 플레이 상황에서 내가 먼저 방향을 잡는 편이 편하다.", helper: "리드와 진행 설계 선호를 확인합니다.", weights: { lead: 1.8, structure: 0.8, switch: 0.4 } },
+  { id: 2, prompt: "상대가 제안한 흐름을 따라갈 때 더 안정감을 느낀다.", helper: "수용과 위임의 편안함을 확인합니다.", weights: { follow: 1.8, care: 0.6, switch: 0.4 } },
+  { id: 3, prompt: "상대를 위해 준비하고 챙기는 역할에서 만족감이 크다.", helper: "봉사 성향과 배려 역할을 확인합니다.", weights: { service: 1.8, care: 0.7 } },
+  { id: 4, prompt: "사전에 규칙, 금지선, 신호를 또렷하게 맞추는 과정이 중요하다.", helper: "규칙/구조 선호를 확인합니다.", weights: { structure: 1.8, care: 0.6 } },
+  { id: 5, prompt: "살짝 긴장되는 감각 자극이나 새로운 자극을 탐색해 보고 싶다.", helper: "감각 자극과 탐색 성향을 확인합니다.", weights: { sensation: 1.7, playful: 0.5 } },
+  { id: 6, prompt: "움직임이 제한되거나 자세가 고정되는 설정에 호기심이 있다.", helper: "제한감/속박 호기심을 확인합니다.", weights: { restraint: 1.9, structure: 0.5 } },
+  { id: 7, prompt: "가벼운 역할 놀이와 밀고 당기기 대화가 재미있다.", helper: "놀이/도전형 반응을 확인합니다.", weights: { playful: 1.8, switch: 0.5 } },
+  { id: 8, prompt: "강한 자극보다도 안심시키는 말과 마무리 돌봄이 더 중요하다.", helper: "정서적 안정과 돌봄 기대를 확인합니다.", weights: { care: 1.9, intimacy: 0.6 } },
+  { id: 9, prompt: "특별한 장치 없이도 대화와 친밀감만으로 충분히 몰입할 수 있다.", helper: "일상 친밀감 중심 성향을 확인합니다.", weights: { intimacy: 1.9, care: 0.5 } },
+  { id: 10, prompt: "상대가 내 반응을 세심하게 읽으며 속도를 조절해 주면 좋다.", helper: "수용형과 돌봄 기대를 함께 확인합니다.", weights: { follow: 1.2, care: 1.0 } },
+  { id: 11, prompt: "필요할 때는 내가 규칙과 리듬을 정리해 주는 편이 자연스럽다.", helper: "주도형과 구조형의 결합을 확인합니다.", weights: { lead: 1.3, structure: 1.2 } },
+  { id: 12, prompt: "상대의 반응을 보고 준비를 맞춰 주거나 챙겨 주는 일에 보람을 느낀다.", helper: "봉사형과 돌봄형의 결합을 확인합니다.", weights: { service: 1.3, care: 1.0 } },
+  { id: 13, prompt: "조금 예측하기 어려운 분위기나 도전적인 제안이 끌릴 때가 있다.", helper: "놀이/감각 탐색 성향을 확인합니다.", weights: { playful: 1.2, sensation: 1.0 } },
+  { id: 14, prompt: "준비된 공간, 도구, 합의된 순서가 갖춰져 있을수록 몰입이 쉽다.", helper: "구조와 제한감의 조합을 확인합니다.", weights: { structure: 1.2, restraint: 1.0 } },
+  { id: 15, prompt: "그날의 분위기에 따라 주도하거나 따라가는 쪽이 모두 자연스러울 수 있다.", helper: "혼합탐색형 가능성을 확인합니다.", weights: { switch: 1.9, lead: 0.5, follow: 0.5 } },
+  { id: 16, prompt: "결국 가장 중요한 것은 서로의 합의와 편안함이라고 생각한다.", helper: "돌봄/친밀/구조 기반을 확인합니다.", weights: { care: 1.2, intimacy: 0.8, structure: 0.6 } },
+];
+
+const testQuestionCount = testQuestions.length;
+const testMaxScores = testQuestions.reduce((acc, question) => {
+  Object.entries(question.weights).forEach(([axis, weight]) => {
+    const key = axis as TestAxisKey;
+    acc[key] = (acc[key] ?? 0) + Math.abs(weight) * 3;
+  });
+  return acc;
+}, {} as Record<TestAxisKey, number>);
+
+const buildDesktopGlobalSearchIndex = (): DesktopGlobalSearchItem[] => {
+  const items: DesktopGlobalSearchItem[] = [];
+
+  feedSeed.forEach((item) => {
+    items.push({
+      id: `feed-${item.id}`,
+      group: "홈",
+      category: item.type === "video" ? "쇼츠/영상" : "피드",
+      title: item.title,
+      summary: item.caption,
+      path: item.type === "video" ? "홈 > 쇼츠" : "홈 > 피드",
+      keywords: `${item.title} ${item.caption} ${item.author} ${item.category}`,
+      openTab: "홈",
+    });
+  });
+
+  productsSeed.forEach((item) => {
+    items.push({
+      id: `product-${item.id}`,
+      group: "쇼핑",
+      category: "상품",
+      title: item.name,
+      summary: `${item.subtitle} · ${item.price}`,
+      path: "쇼핑 > 홈",
+      keywords: `${item.name} ${item.subtitle} ${item.category} ${item.badge} ${item.price}`,
+      openTab: "쇼핑",
+    });
+  });
+
+  communitySeed.forEach((item) => {
+    items.push({
+      id: `community-${item.id}`,
+      group: item.contentType === "test" ? "테스트" : "소통",
+      category: `${item.board ?? "커뮤"}/${item.category}`,
+      title: item.title,
+      summary: item.summary,
+      path: item.path ?? `소통 > ${item.board ?? "커뮤"}`,
+      keywords: `${item.title} ${item.summary} ${item.category} ${item.detailTitle ?? ""} ${(item.detailBody ?? []).join(" ")}`,
+      openTab: "소통",
+    });
+  });
+
+  forumRoomSeed.forEach((item) => {
+    items.push({
+      id: `forum-${item.id}`,
+      group: "소통",
+      category: "포럼",
+      title: item.title,
+      summary: item.summary,
+      path: "소통 > 포럼",
+      keywords: `${item.title} ${item.summary} ${item.category} ${item.introMessage}`,
+      openTab: "소통",
+    });
+  });
+
+  threadSeed.forEach((item) => {
+    items.push({
+      id: `thread-${item.id}`,
+      group: "채팅",
+      category: item.kind,
+      title: item.name,
+      summary: item.preview,
+      path: "채팅 > 채팅",
+      keywords: `${item.name} ${item.preview} ${item.purpose} ${item.kind}`,
+      openTab: "채팅",
+    });
+  });
+
+  questionSeed.forEach((item) => {
+    items.push({
+      id: `question-${item.id}`,
+      group: "채팅",
+      category: "질문",
+      title: item.question,
+      summary: item.answer,
+      path: "채팅 > 질문",
+      keywords: `${item.question} ${item.answer} ${item.author}`,
+      openTab: "채팅",
+    });
+  });
+
+  notificationSeed.forEach((item) => {
+    items.push({
+      id: `notification-${item.id}`,
+      group: "알림",
+      category: `${item.section}/${item.category}`,
+      title: item.title,
+      summary: item.body,
+      path: `알림 > ${item.section}`,
+      keywords: `${item.title} ${item.body} ${item.category} ${item.section} ${item.meta}`,
+      openTab: item.section === "주문" ? "쇼핑" : item.section === "소통" ? "채팅" : "홈",
+    });
+  });
+
+  testQuestions.forEach((item) => {
+    items.push({
+      id: `test-question-${item.id}`,
+      group: "테스트",
+      category: "문항",
+      title: `테스트 문항 ${item.id}`,
+      summary: item.prompt,
+      path: "소통 > 커뮤 > 테스트 > 성향 탐색 테스트",
+      keywords: `${item.prompt} ${item.helper}`,
+      openTab: "소통",
+    });
+  });
+
+  Object.entries(testAxisMeta).forEach(([axis, meta]) => {
+    items.push({
+      id: `test-axis-${axis}`,
+      group: "테스트",
+      category: "결과축",
+      title: meta.label,
+      summary: meta.summary,
+      path: "소통 > 커뮤 > 테스트 > 결과 리포트",
+      keywords: `${meta.label} ${meta.summary}`,
+      openTab: "소통",
+    });
+  });
+
+  return items;
+};
 
 const cartSeed: CartItem[] = [
   { id: 1, name: "뉴트럴 케어 파우치", qty: 1, price: "₩18,000", option: "위생/보관" },
@@ -3841,6 +4197,10 @@ export default function App() {
   const [selectedCommunityCategory, setSelectedCommunityCategory] = useState<string>("전체");
   const [communityPrimaryFilter, setCommunityPrimaryFilter] = useState<string>("전체");
   const [communitySecondaryFilter, setCommunitySecondaryFilter] = useState<string>("전체");
+  const [communityExplorerStage, setCommunityExplorerStage] = useState<CommunityExplorerStage>("list");
+  const [selectedCommunityPost, setSelectedCommunityPost] = useState<CommunityPost | null>(null);
+  const [testProfile, setTestProfile] = useState({ gender: "선택 안 함", ageBand: "20대", focus: "자기이해" });
+  const [testAnswers, setTestAnswers] = useState<Record<number, number>>({});
   const [randomRoomCategory, setRandomRoomCategory] = useState<RandomRoomCategory>("전체");
   const [oneToOneCategory, setOneToOneCategory] = useState<OneToOneRandomCategory>("고민상담");
   const [randomGenderOption, setRandomGenderOption] = useState<RandomGenderOption>("무관");
@@ -5979,6 +6339,68 @@ export default function App() {
   const communityDisplayRows = useMemo(() => (
     Array.from({ length: COMMUNITY_PAGE_SIZE }, (_, index) => pagedCommunity[index] ?? null)
   ), [pagedCommunity]);
+
+  useEffect(() => {
+    setCommunityExplorerStage("list");
+    setSelectedCommunityPost(null);
+  }, [communityTab, selectedCommunityCategory, communityPrimaryFilter, communitySecondaryFilter, communityPage]);
+
+  const openCommunityPost = useCallback((post: CommunityPost) => {
+    setSelectedCommunityPost(post);
+    if (post.contentType === "test") {
+      setTestAnswers({});
+    }
+    setCommunityExplorerStage(post.contentType === "test" ? "test_intro" : "detail");
+  }, []);
+
+  const closeCommunityExplorer = useCallback(() => {
+    setCommunityExplorerStage("list");
+    setSelectedCommunityPost(null);
+  }, []);
+
+  const resetCommunityTest = useCallback(() => {
+    setTestAnswers({});
+    setCommunityExplorerStage(selectedCommunityPost?.contentType === "test" ? "test_intro" : "detail");
+  }, [selectedCommunityPost]);
+
+  const testAnsweredCount = useMemo(() => Object.keys(testAnswers).length, [testAnswers]);
+  const currentTestQuestionIndex = useMemo(() => {
+    const firstEmpty = testQuestions.findIndex((question) => testAnswers[question.id] === undefined);
+    return firstEmpty === -1 ? testQuestions.length - 1 : firstEmpty;
+  }, [testAnswers]);
+  const currentTestQuestion = testQuestions[currentTestQuestionIndex];
+
+  const testResultRows = useMemo(() => {
+    const rawScores = testQuestions.reduce((acc, question) => {
+      const answer = testAnswers[question.id];
+      Object.entries(question.weights).forEach(([axis, weight]) => {
+        const key = axis as TestAxisKey;
+        acc[key] = (acc[key] ?? 0) + (answer ?? 0) * weight;
+      });
+      return acc;
+    }, {} as Record<TestAxisKey, number>);
+
+    return (Object.keys(testAxisMeta) as TestAxisKey[])
+      .map((axis) => {
+        const raw = rawScores[axis] ?? 0;
+        const max = Math.max(testMaxScores[axis] ?? 1, 1);
+        const normalized = Math.round(((raw + max) / (max * 2)) * 100);
+        return {
+          axis,
+          label: testAxisMeta[axis].label,
+          summary: testAxisMeta[axis].summary,
+          score: Math.max(0, Math.min(100, normalized)),
+        };
+      })
+      .sort((a, b) => b.score - a.score);
+  }, [testAnswers]);
+
+  const testTopResults = testResultRows.slice(0, 5);
+  const testCanShowResult = testAnsweredCount === testQuestionCount;
+
+  const answerCommunityTestQuestion = useCallback((questionId: number, score: number) => {
+    setTestAnswers((prev) => ({ ...prev, [questionId]: score }));
+  }, []);
 
   const filteredThreads = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
@@ -9093,57 +9515,202 @@ export default function App() {
               </div>
             ) : (
               <>
-                <div className="community-simple-board compact-scroll-list">
-                  <div className="community-simple-category-row">
-                    <button className={`community-simple-chip ${selectedCommunityCategory === "전체" ? "active" : ""}`} onClick={() => setSelectedCommunityCategory("전체")}>전체</button>
-                    {communityCategories.map((category) => (
-                      <button key={category} className={`community-simple-chip ${selectedCommunityCategory === category ? "active" : ""}`} onClick={() => setSelectedCommunityCategory(category)}>{category}</button>
-                    ))}
-                  </div>
-                  <div className="community-simple-list">
-                    {communityDisplayRows.map((post, index) => {
-                      if (!post) {
+                {communityExplorerStage === "list" || !selectedCommunityPost ? (
+                  <div className="community-simple-board compact-scroll-list">
+                    <div className="community-simple-category-row">
+                      <button className={`community-simple-chip ${selectedCommunityCategory === "전체" ? "active" : ""}`} onClick={() => setSelectedCommunityCategory("전체")}>전체</button>
+                      {communityCategories.map((category) => (
+                        <button key={category} className={`community-simple-chip ${selectedCommunityCategory === category ? "active" : ""}`} onClick={() => setSelectedCommunityCategory(category)}>{category}</button>
+                      ))}
+                    </div>
+                    <div className="community-simple-list">
+                      {communityDisplayRows.map((post, index) => {
+                        if (!post) {
+                          return (
+                            <article key={`community-empty-${communityPage}-${index}`} className="community-simple-item community-simple-item-empty" aria-hidden="true">
+                              <div className="community-simple-head-row">
+                                <div className="community-simple-title-wrap">
+                                  <span className="community-chip community-chip-placeholder">빈 칸</span>
+                                  <strong>{" "}</strong>
+                                </div>
+                                <div className="community-simple-meta-row">
+                                  <span>{" "}</span>
+                                  <span>{" "}</span>
+                                </div>
+                              </div>
+                              <p>{" "}</p>
+                            </article>
+                          );
+                        }
+
+                        const parsedMeta = parseCommunityMeta(post.meta);
                         return (
-                          <article key={`community-empty-${communityPage}-${index}`} className="community-simple-item community-simple-item-empty" aria-hidden="true">
+                          <button key={post.id} type="button" className={`community-simple-item community-simple-item-button ${post.pinned ? "community-simple-item-pinned" : ""}`} onClick={() => openCommunityPost(post)}>
                             <div className="community-simple-head-row">
                               <div className="community-simple-title-wrap">
-                                <span className="community-chip community-chip-placeholder">빈 칸</span>
-                                <strong>{"\u00A0"}</strong>
+                                <span className="community-chip">{post.category}</span>
+                                <strong title={post.title}>{post.title}</strong>
                               </div>
                               <div className="community-simple-meta-row">
-                                <span>{"\u00A0"}</span>
-                                <span>{"\u00A0"}</span>
+                                <span>{parsedMeta.author}</span>
+                                <span>{parsedMeta.postedAt}</span>
                               </div>
                             </div>
-                            <p>{"\u00A0"}</p>
-                          </article>
+                            <p>{post.summary}</p>
+                            {post.path ? <div className="community-post-path">경로: {post.path}</div> : null}
+                          </button>
                         );
-                      }
+                      })}
+                    </div>
+                    <div className="community-simple-pagination">
+                      <button type="button" className="ghost-btn" onClick={() => setCommunityPage((prev) => Math.max(1, prev - 1))} disabled={communityPage <= 1}>이전</button>
+                      <span>{communityPage} / {communityPageCount}</span>
+                      <button type="button" className="ghost-btn" onClick={() => setCommunityPage((prev) => Math.min(communityPageCount, prev + 1))} disabled={communityPage >= communityPageCount}>다음</button>
+                    </div>
+                  </div>
+                ) : null}
 
-                      const parsedMeta = parseCommunityMeta(post.meta);
-                      return (
-                        <article key={post.id} className="community-simple-item">
-                          <div className="community-simple-head-row">
-                            <div className="community-simple-title-wrap">
-                              <span className="community-chip">{post.category}</span>
-                              <strong title={post.title}>{post.title}</strong>
-                            </div>
-                            <div className="community-simple-meta-row">
-                              <span>{parsedMeta.author}</span>
-                              <span>{parsedMeta.postedAt}</span>
-                            </div>
+                {communityExplorerStage === "detail" && selectedCommunityPost ? (
+                  <div className="community-detail-shell compact-scroll-list">
+                    <div className="community-detail-topbar">
+                      <button type="button" className="header-inline-btn header-icon-btn topbar-search-back" onClick={closeCommunityExplorer} aria-label="목록으로 돌아가기"><BackArrowIcon /></button>
+                      <div className="community-detail-topbar-copy">
+                        <strong>{selectedCommunityPost.title}</strong>
+                        <span>{selectedCommunityPost.path ?? `소통 > ${selectedCommunityPost.board ?? "커뮤"}`}</span>
+                      </div>
+                    </div>
+                    <article className="community-detail-card">
+                      <div className="community-simple-head-row">
+                        <div className="community-simple-title-wrap">
+                          <span className="community-chip">{selectedCommunityPost.category}</span>
+                          <strong>{selectedCommunityPost.detailTitle ?? selectedCommunityPost.title}</strong>
+                        </div>
+                        <div className="community-simple-meta-row">
+                          <span>{parseCommunityMeta(selectedCommunityPost.meta).author}</span>
+                          <span>{parseCommunityMeta(selectedCommunityPost.meta).postedAt}</span>
+                        </div>
+                      </div>
+                      <p className="community-detail-summary">{selectedCommunityPost.summary}</p>
+                      <div className="community-detail-body">
+                        {(selectedCommunityPost.detailBody ?? [selectedCommunityPost.summary]).map((line, index) => <p key={`${selectedCommunityPost.id}-line-${index}`}>{line}</p>)}
+                      </div>
+                    </article>
+                  </div>
+                ) : null}
+
+                {communityExplorerStage === "test_intro" && selectedCommunityPost ? (
+                  <div className="community-detail-shell compact-scroll-list">
+                    <div className="community-detail-topbar">
+                      <button type="button" className="header-inline-btn header-icon-btn topbar-search-back" onClick={closeCommunityExplorer} aria-label="목록으로 돌아가기"><BackArrowIcon /></button>
+                      <div className="community-detail-topbar-copy">
+                        <strong>{selectedCommunityPost.detailTitle ?? selectedCommunityPost.title}</strong>
+                        <span>{selectedCommunityPost.path ?? "소통 > 커뮤 > 테스트"}</span>
+                      </div>
+                    </div>
+                    <article className="community-detail-card community-test-intro-card">
+                      <div className="community-simple-title-wrap">
+                        <span className="community-chip">7점 척도</span>
+                        <strong>스스로에 대해 알아 가는 시간을 가져보세요.</strong>
+                      </div>
+                      <p className="community-detail-summary">합의, 역할, 규칙, 돌봄, 일상 친밀감 같은 축을 함께 확인하는 자기이해형 테스트입니다.</p>
+                      <div className="community-test-profile-grid">
+                        <label><span>성별</span><select value={testProfile.gender} onChange={(event) => setTestProfile((prev) => ({ ...prev, gender: event.target.value }))}><option>선택 안 함</option><option>여성</option><option>남성</option><option>기타</option></select></label>
+                        <label><span>연령대</span><select value={testProfile.ageBand} onChange={(event) => setTestProfile((prev) => ({ ...prev, ageBand: event.target.value }))}><option>10대 후반</option><option>20대</option><option>30대</option><option>40대</option><option>50대 이상</option></select></label>
+                        <label><span>테스트 목적</span><select value={testProfile.focus} onChange={(event) => setTestProfile((prev) => ({ ...prev, focus: event.target.value }))}><option>자기이해</option><option>대화준비</option><option>커플체크인</option></select></label>
+                      </div>
+                      <div className="community-detail-body">
+                        <p>기본 {testQuestionCount}문항으로 먼저 진행하며, 각 문항은 전혀 아니다부터 매우 그렇다까지 7단계로 응답합니다.</p>
+                        <p>결과는 저장형 진단이 아니라 현재 기준의 성향 탐색 요약으로 보여주며, 민감한 내용은 기본 비공개 흐름으로 설계했습니다.</p>
+                      </div>
+                      <div className="copy-action-row">
+                        <button type="button" onClick={() => setCommunityExplorerStage("test_run")}>테스트 시작</button>
+                        <button type="button" className="ghost-btn" onClick={resetCommunityTest}>응답 초기화</button>
+                      </div>
+                    </article>
+                  </div>
+                ) : null}
+
+                {communityExplorerStage === "test_run" && selectedCommunityPost ? (
+                  <div className="community-detail-shell compact-scroll-list">
+                    <div className="community-detail-topbar">
+                      <button type="button" className="header-inline-btn header-icon-btn topbar-search-back" onClick={() => setCommunityExplorerStage("test_intro")} aria-label="테스트 소개로 돌아가기"><BackArrowIcon /></button>
+                      <div className="community-detail-topbar-copy">
+                        <strong>{selectedCommunityPost.detailTitle ?? selectedCommunityPost.title}</strong>
+                        <span>진행률 {testAnsweredCount}/{testQuestionCount}</span>
+                      </div>
+                    </div>
+                    <div className="community-test-progress-bar"><span style={{ width: `${(testAnsweredCount / testQuestionCount) * 100}%` }} /></div>
+                    <div className="community-test-question-list">
+                      {testQuestions.map((question) => (
+                        <article key={question.id} className="community-test-question-card">
+                          <div className="community-test-question-head">
+                            <strong>{question.id}. {question.prompt}</strong>
+                            <span>{question.helper}</span>
                           </div>
-                          <p>{post.summary}</p>
+                          <div className="community-test-option-row">
+                            {testScaleOptions.map((option) => (
+                              <button key={`${question.id}-${option.score}`} type="button" className={`community-test-scale-btn ${testAnswers[question.id] === option.score ? "active" : ""}`} onClick={() => answerCommunityTestQuestion(question.id, option.score)}>
+                                <span>{option.label}</span>
+                              </button>
+                            ))}
+                          </div>
                         </article>
-                      );
-                    })}
+                      ))}
+                    </div>
+                    <div className="copy-action-row">
+                      <button type="button" onClick={() => setCommunityExplorerStage("test_result")} disabled={!testCanShowResult}>결과 보기</button>
+                      <button type="button" className="ghost-btn" onClick={resetCommunityTest}>처음부터 다시</button>
+                    </div>
                   </div>
-                  <div className="community-simple-pagination">
-                    <button type="button" className="ghost-btn" onClick={() => setCommunityPage((prev) => Math.max(1, prev - 1))} disabled={communityPage <= 1}>이전</button>
-                    <span>{communityPage} / {communityPageCount}</span>
-                    <button type="button" className="ghost-btn" onClick={() => setCommunityPage((prev) => Math.min(communityPageCount, prev + 1))} disabled={communityPage >= communityPageCount}>다음</button>
+                ) : null}
+
+                {communityExplorerStage === "test_result" && selectedCommunityPost ? (
+                  <div className="community-detail-shell compact-scroll-list">
+                    <div className="community-detail-topbar">
+                      <button type="button" className="header-inline-btn header-icon-btn topbar-search-back" onClick={() => setCommunityExplorerStage("test_run")} aria-label="테스트로 돌아가기"><BackArrowIcon /></button>
+                      <div className="community-detail-topbar-copy">
+                        <strong>테스트 결과</strong>
+                        <span>{testProfile.gender} · {testProfile.ageBand} · {testProfile.focus}</span>
+                      </div>
+                    </div>
+                    <article className="community-detail-card community-test-result-card">
+                      <div className="community-simple-title-wrap">
+                        <span className="community-chip">TOP 5</span>
+                        <strong>현재 응답 기준의 성향 요약</strong>
+                      </div>
+                      <div className="community-test-top-result-grid">
+                        {testTopResults.map((item) => (
+                          <div key={item.axis} className="community-test-top-result-item">
+                            <div className="community-test-top-result-head">
+                              <strong>{item.label}</strong>
+                              <span>{item.score}%</span>
+                            </div>
+                            <div className="community-test-progress-bar small"><span style={{ width: `${item.score}%` }} /></div>
+                            <p>{item.summary}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="community-detail-body">
+                        <p>결과는 현재 응답을 바탕으로 한 참고용 리포트입니다. 강한 항목과 약한 항목을 함께 보면서 경계선, 합의 방식, 대화 우선순위를 정리해 보세요.</p>
+                      </div>
+                      <div className="community-test-result-list">
+                        {testResultRows.map((item) => (
+                          <div key={`result-${item.axis}`} className="community-test-result-row">
+                            <div>
+                              <strong>{item.label}</strong>
+                              <span>{item.summary}</span>
+                            </div>
+                            <b>{item.score}%</b>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="copy-action-row">
+                        <button type="button" onClick={() => setCommunityExplorerStage("test_run")}>응답 수정</button>
+                        <button type="button" className="ghost-btn" onClick={resetCommunityTest}>새로 하기</button>
+                      </div>
+                    </article>
                   </div>
-                </div>
+                ) : null}
               </>
             )}
           </section>
