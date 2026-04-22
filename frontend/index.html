@@ -18,6 +18,59 @@
       <img src="/splash-logo.png" alt="PlayCat" class="app-boot-splash__logo" />
     </div>
     <div id="root"></div>
+    <script>
+      (function () {
+        var reloadKey = "adultapp:asset-reload-once";
+
+        function reloadToLatest() {
+          try {
+            var url = new URL(window.location.href);
+            url.searchParams.set("v", String(Date.now()));
+            window.location.replace(url.toString());
+          } catch (error) {
+            window.location.reload();
+          }
+        }
+
+        function clearCachesThenReload() {
+          if (!("caches" in window)) {
+            reloadToLatest();
+            return;
+          }
+
+          caches.keys()
+            .then(function (keys) {
+              return Promise.all(keys.map(function (key) { return caches.delete(key); }));
+            })
+            .catch(function () {
+              return null;
+            })
+            .finally(reloadToLatest);
+        }
+
+        window.addEventListener(
+          "error",
+          function (event) {
+            var target = event && event.target;
+            if (!(target instanceof HTMLScriptElement)) return;
+            if (target.type !== "module") return;
+            if (window.sessionStorage.getItem(reloadKey) === "1") return;
+
+            window.sessionStorage.setItem(reloadKey, "1");
+            clearCachesThenReload();
+          },
+          true
+        );
+
+        window.addEventListener(
+          "load",
+          function () {
+            window.sessionStorage.removeItem(reloadKey);
+          },
+          { once: true }
+        );
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
