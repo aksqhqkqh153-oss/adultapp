@@ -857,11 +857,11 @@ function escapeHtmlAttribute(value: string) {
 
 function buildDesktopPaneFrameUrl(slot: DesktopPaneSlot, selection: DesktopPaneSelection) {
   if (typeof window === "undefined") return "";
-  const basePath = window.location.pathname || "/";
-  const nextUrl = new URL(basePath, window.location.origin);
+  const nextUrl = new URL("/index.html", window.location.origin);
   nextUrl.searchParams.set("desktopPane", slot);
   nextUrl.searchParams.set("initialTab", selection.mode === "tab" ? selection.tab : desktopBusinessViewMeta[selection.viewId].fallbackTab);
   nextUrl.searchParams.set("desktopFrameMode", "app");
+  nextUrl.searchParams.set("paneKey", selection.mode === "tab" ? `${slot}-${selection.tab}` : `${slot}-${selection.viewId}`);
   if (selection.mode === "business") {
     nextUrl.searchParams.set("businessViewId", selection.viewId);
   } else {
@@ -1097,11 +1097,6 @@ function DesktopSplitShell() {
           </button>
 
           <div className="desktop-side-menu-scroll">
-            <div className="desktop-side-menu-head">
-              <strong>PC 분할 메뉴</strong>
-              <p>좌/우 화면을 각각 원하는 탭이나 업무 화면으로 바로 열 수 있습니다.</p>
-            </div>
-
             {desktopBusinessMenuSections.map((section) => (
               <div key={section.title} className="desktop-side-menu-section desktop-side-menu-section-business">
                 <div className="desktop-side-menu-section-head">
@@ -9528,10 +9523,8 @@ export default function App() {
       );
     }
 
-    const genericRows: Array<{ title: string; meta: string; body: string }> = businessViewId === 'orders'
-      ? recentOrderRows.map((item) => ({ title: item.order_no, meta: `${item.status} · ${item.payment_method}`, body: `결제금액 ₩${Number(item.total_amount ?? 0).toLocaleString()} · 품목 ${Number(item.item_count ?? 0)}건` }))
-      : businessViewId === 'shipping'
-        ? recentOrderRows.map((item) => ({ title: item.order_no, meta: `${item.status} · 정산 ${item.settlement_status}`, body: `출고 처리 대상 주문 · 결제 ${item.payment_pg}` }))
+    const genericRows: Array<{ title: string; meta: string; body: string }> = businessViewId === 'shipping'
+      ? recentOrderRows.map((item) => ({ title: item.order_no, meta: `${item.status} · 정산 ${item.settlement_status}`, body: `출고 처리 대상 주문 · 결제 ${item.payment_pg}` }))
         : businessViewId === 'returns'
           ? recentOrderRows.map((item) => ({ title: item.order_no, meta: `${item.status} · 정산 ${item.settlement_status}`, body: `취소/반품 검토 대상 주문 · 결제금액 ₩${Number(item.total_amount ?? 0).toLocaleString()}` }))
           : businessViewId === 'settlement'
