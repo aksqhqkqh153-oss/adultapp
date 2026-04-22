@@ -698,11 +698,22 @@ type SignupFormState = { email: string; password: string; displayName: string; l
 type DemoProfileState = { gender: string; ageBand: string; regionCode: string; interests: string[]; marketingOptIn: boolean; };
 
 type DesktopPaneSlot = "left" | "right";
+type DesktopPaneEmbedContext = { desktopPane: DesktopPaneSlot; initialTab: MobileTab; };
 
 function readDesktopPaneContext(): { embedded: boolean; slot: DesktopPaneSlot | null; initialTab: MobileTab } {
   if (typeof window === "undefined") {
     return { embedded: false, slot: null, initialTab: "홈" };
   }
+
+  const embeddedContext = (window as Window & { __ADULTAPP_EMBED_CONTEXT__?: DesktopPaneEmbedContext }).__ADULTAPP_EMBED_CONTEXT__;
+  if (embeddedContext && (embeddedContext.desktopPane === "left" || embeddedContext.desktopPane === "right")) {
+    return {
+      embedded: true,
+      slot: embeddedContext.desktopPane,
+      initialTab: mobileTabs.includes(embeddedContext.initialTab) ? embeddedContext.initialTab : "홈",
+    };
+  }
+
   const params = new URLSearchParams(window.location.search);
   const desktopPane = params.get("desktopPane");
   const initialTabParam = params.get("initialTab");
@@ -713,48 +724,154 @@ function readDesktopPaneContext(): { embedded: boolean; slot: DesktopPaneSlot | 
   return { embedded: false, slot: null, initialTab };
 }
 
-function buildDesktopPaneSrc(slot: DesktopPaneSlot, initialTab: MobileTab) {
-  if (typeof window === "undefined") return "";
-  const url = new URL(window.location.href);
-  url.searchParams.set("desktopPane", slot);
-  url.searchParams.set("initialTab", initialTab);
-  url.hash = "";
-  return url.toString();
+function escapeHtmlAttribute(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function buildDesktopPaneSrcDoc(slot: DesktopPaneSlot, initialTab: MobileTab) {
+  if (typeof document === "undefined" || typeof window === "undefined") return "";
+
+  const stylesheetHrefs = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"][href]'))
+    .map((link) => link.href)
+    .filter(Boolean);
+
+  const moduleScriptSrcs = Array.from(document.querySelectorAll<HTMLScriptElement>('script[type="module"][src]'))
+    .map((script) => script.src)
+    .filter(Boolean);
+
+  if (stylesheetHrefs.length === 0 || moduleScriptSrcs.length === 0) {
+    return "";
+  }
+
+  const stylesheetTags = stylesheetHrefs
+    .map((href) => `<link rel="stylesheet" crossorigin href="${escapeHtmlAttribute(href)}" />`)
+    .join("\n");
+
+  const moduleScriptTags = moduleScriptSrcs
+    .map((src) => `<script type="module" crossorigin src="${escapeHtmlAttribute(src)}"></script>`)
+    .join("\n");
+
+  const contextScript = `<script>window.__ADULTAPP_EMBED_CONTEXT__ = { desktopPane: ${JSON.stringify(slot)}, initialTab: ${JSON.stringify(initialTab)} };<\/script>`;
+  const titleText = slot === "left" ? "adultapp-left-pane" : "adultapp-right-pane";
+
+  return `<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#000000" />
+    ${stylesheetTags}
+  </head>
+  <body>
+    <div id="app-boot-splash" aria-hidden="true">
+      <img src="${escapeHtmlAttribute(new URL('/splash-logo.png', window.location.origin).toString())}" alt="PlayCat" class="app-boot-splash__logo" />
+    </div>
+    <div id="root"></div>
+    ${contextScript}
+    ${moduleScriptTags}
+    <title>${titleText}</title>
+  </body>
+</html>`;
 }
 
 function DesktopSplitShell() {
-  const [leftInitialTab] = useState<MobileTab>("홈");
-  const [rightInitialTab] = useState<MobileTab>("쇼핑");
-  const leftSrc = useMemo(() => buildDesktopPaneSrc("left", leftInitialTab), [leftInitialTab]);
-  const rightSrc = useMemo(() => buildDesktopPaneSrc("right", rightInitialTab), [rightInitialTab]);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [leftInitialTab, setLeftInitialTab] = useState<MobileTab>("홈");
+  const [rightInitialTab, setRightInitialTab] = useState<MobileTab>("쇼핑");
+  const leftSrcDoc = useMemo(() => buildDesktopPaneSrcDoc("left", leftInitialTab), [leftInitialTab]);
+  const rightSrcDoc = useMemo(() => buildDesktopPaneSrcDoc("right", rightInitialTab), [rightInitialTab]);
+  const iframeReady = Boolean(leftSrcDoc && rightSrcDoc);
+
+  const desktopMenuSections: Array<{ slot: DesktopPaneSlot; title: string; currentTab: MobileTab; onSelect: (tab: MobileTab) => void }> = [
+    { slot: "left", title: "좌측 화면 메뉴", currentTab: leftInitialTab, onSelect: setLeftInitialTab },
+    { slot: "right", title: "우측 화면 메뉴", currentTab: rightInitialTab, onSelect: setRightInitialTab },
+  ];
 
   return (
-    <div className="desktop-split-shell">
-      <div className="desktop-split-header">
-        <div>
-          <strong>PC 2분할 앱 화면</strong>
-          <p>좌측·우측 앱의 하단바가 서로 독립적으로 동작합니다.</p>
+    <div className={`desktop-split-shell ${sidebarOpen ? "sidebar-open" : "sidebar-closed"}`}>
+      <div className="desktop-split-layout">
+        <aside className={`desktop-side-menu ${sidebarOpen ? "open" : "closed"}`} aria-label="PC 분할 메뉴">
+          <button
+            type="button"
+            className="desktop-side-menu-toggle"
+            onClick={() => setSidebarOpen((prev) => !prev)}
+            aria-expanded={sidebarOpen}
+            aria-label={sidebarOpen ? "메뉴 접기" : "메뉴 펼치기"}
+            title={sidebarOpen ? "메뉴 접기" : "메뉴 펼치기"}
+          >
+            <span className="desktop-side-menu-toggle-arrow" aria-hidden="true">{sidebarOpen ? "◀" : "▶"}</span>
+            <span className="desktop-side-menu-toggle-label">메뉴</span>
+          </button>
+
+          <div className="desktop-side-menu-scroll">
+            <div className="desktop-side-menu-head">
+              <strong>PC 메뉴</strong>
+              <p>좌측에서 우측으로 접고 펼칠 수 있습니다.</p>
+            </div>
+
+            {desktopMenuSections.map((section) => (
+              <div key={section.slot} className="desktop-side-menu-section">
+                <div className="desktop-side-menu-section-head">
+                  <strong>{section.title}</strong>
+                  <span>현재: {section.currentTab}</span>
+                </div>
+                <div className="desktop-side-menu-tab-grid">
+                  {mobileTabs.map((tab) => (
+                    <button
+                      key={`${section.slot}-${tab}`}
+                      type="button"
+                      className={`desktop-side-menu-tab-btn ${section.currentTab === tab ? "active" : ""}`}
+                      onClick={() => section.onSelect(tab)}
+                    >
+                      {tab}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </aside>
+
+        <div className="desktop-split-main">
+          <div className="desktop-split-header">
+            <div>
+              <strong>PC 2분할 앱 화면</strong>
+              <p>좌측·우측 앱의 하단바가 서로 독립적으로 동작합니다.</p>
+            </div>
+          </div>
+          <div className="desktop-split-grid">
+            <section className="desktop-split-pane">
+              <div className="desktop-split-pane-head">
+                <strong>좌측 화면</strong>
+                <span>{leftInitialTab} 시작</span>
+              </div>
+              <div className="desktop-split-device-frame">
+                {iframeReady ? (
+                  <iframe className="desktop-split-iframe" srcDoc={leftSrcDoc} title="adultapp-left-pane" />
+                ) : (
+                  <div className="desktop-split-fallback">좌측 화면을 준비 중입니다.</div>
+                )}
+              </div>
+            </section>
+            <section className="desktop-split-pane">
+              <div className="desktop-split-pane-head">
+                <strong>우측 화면</strong>
+                <span>{rightInitialTab} 시작</span>
+              </div>
+              <div className="desktop-split-device-frame">
+                {iframeReady ? (
+                  <iframe className="desktop-split-iframe" srcDoc={rightSrcDoc} title="adultapp-right-pane" />
+                ) : (
+                  <div className="desktop-split-fallback">우측 화면을 준비 중입니다.</div>
+                )}
+              </div>
+            </section>
+          </div>
         </div>
-      </div>
-      <div className="desktop-split-grid">
-        <section className="desktop-split-pane">
-          <div className="desktop-split-pane-head">
-            <strong>좌측 화면</strong>
-            <span>{leftInitialTab} 시작</span>
-          </div>
-          <div className="desktop-split-device-frame">
-            <iframe className="desktop-split-iframe" src={leftSrc} title="adultapp-left-pane" />
-          </div>
-        </section>
-        <section className="desktop-split-pane">
-          <div className="desktop-split-pane-head">
-            <strong>우측 화면</strong>
-            <span>{rightInitialTab} 시작</span>
-          </div>
-          <div className="desktop-split-device-frame">
-            <iframe className="desktop-split-iframe" src={rightSrc} title="adultapp-right-pane" />
-          </div>
-        </section>
       </div>
     </div>
   );
