@@ -897,13 +897,11 @@ function formatDesktopOrderDateLabelFromOrderNo(orderNo: string, fallbackIndex =
   return formatDesktopOrderIsoDate(date);
 }
 
-function normalizeDesktopOrderNo(rawOrderNo: string, fallbackIndex = 0, seed = 1) {
-  const digits = rawOrderNo.replace(/[^0-9]/g, "");
-  if (digits.length >= 16) return digits.slice(0, 16);
-  if (digits.length >= 6) return `${digits.slice(0, 6)}${digits.slice(6).padStart(10, "0").slice(0, 10)}`;
-  const fallbackIso = formatDesktopOrderDateLabelFromOrderNo(rawOrderNo, fallbackIndex);
-  const compactDate = fallbackIso.slice(2).replace(/-/g, "");
-  return `${compactDate}${String(seed).padStart(10, "0")}`;
+function formatDesktopSellerOrderNoParts(orderedDateIso: string, sellerId: number, sellerDailySequence: number) {
+  const compactDate = orderedDateIso.replace(/-/g, "").slice(2);
+  const sellerKey = String(Math.max(1, Number(sellerId || 1))).padStart(4, "0").slice(-4);
+  const dailySequence = String(Math.max(1, Number(sellerDailySequence || 1))).padStart(3, "0").slice(-3);
+  return `${compactDate}${sellerKey}${dailySequence}`;
 }
 
 function mapDesktopOrderStatuses(status: string, index: number) {
@@ -935,12 +933,17 @@ function buildDesktopOrderAdminRows(orders: ApiOrder[], sellerProducts: SellerPr
     "대전 유성구 대학로 99",
     "광주 서구 상무중앙로 57",
   ];
+  const sellerDailyCounters = new Map<string, number>();
 
   if (orders.length) {
     return orders.slice().reverse().map((order, index) => {
       const linkedProduct = sellerProducts.length ? sellerProducts[index % sellerProducts.length] : null;
-      const orderNo = normalizeDesktopOrderNo(order.order_no, index, order.id);
-      const orderedDateIso = formatDesktopOrderDateLabelFromOrderNo(orderNo, index);
+      const orderedDateIso = formatDesktopOrderDateLabelFromOrderNo(order.order_no, index);
+      const sellerId = Math.max(1, Number(order.seller_id || linkedProduct?.seller_id || 1));
+      const counterKey = `${orderedDateIso}:${sellerId}`;
+      const nextSequence = (sellerDailyCounters.get(counterKey) ?? 0) + 1;
+      sellerDailyCounters.set(counterKey, nextSequence);
+      const orderNo = formatDesktopSellerOrderNoParts(orderedDateIso, sellerId, nextSequence);
       const orderedDate = new Date(`${orderedDateIso}T09:00:00`);
       const statusInfo = mapDesktopOrderStatuses(order.status, index);
       const ordererName = ordererNames[index % ordererNames.length];
@@ -968,7 +971,10 @@ function buildDesktopOrderAdminRows(orders: ApiOrder[], sellerProducts: SellerPr
     date.setDate(date.getDate() - index);
     const orderedDateIso = formatDesktopOrderIsoDate(date);
     const statusInfo = mapDesktopOrderStatuses("", index);
-    const dateKey = `${String(date.getFullYear()).slice(2)}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
+    const sellerId = Math.max(1, Number(product.seller_id || 1));
+    const counterKey = `${orderedDateIso}:${sellerId}`;
+    const nextSequence = (sellerDailyCounters.get(counterKey) ?? 0) + 1;
+    sellerDailyCounters.set(counterKey, nextSequence);
     const ordererName = ordererNames[index % ordererNames.length];
     const receiverName = receiverNames[index % receiverNames.length];
     const phoneTail = String(1400 + index * 51).padStart(4, "0");
@@ -976,7 +982,7 @@ function buildDesktopOrderAdminRows(orders: ApiOrder[], sellerProducts: SellerPr
       id: `desktop-order-fallback-${product.id}`,
       orderedAt: formatDesktopOrderShortDate(date),
       orderedDateIso,
-      orderNo: `${dateKey}${String(product.id).padStart(10, "0")}`,
+      orderNo: formatDesktopSellerOrderNoParts(orderedDateIso, sellerId, nextSequence),
       productName: product.name,
       productCode: product.sku_code,
       quantity: Math.max(1, (index % 3) + 1),
