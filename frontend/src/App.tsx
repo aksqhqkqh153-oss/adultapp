@@ -750,6 +750,23 @@ type DesktopPaneSelection = { mode: "tab"; tab: MobileTab } | { mode: "business"
 type DesktopPaneEmbedContext = { desktopPane: DesktopPaneSlot; initialTab: MobileTab; businessViewId?: DesktopBusinessViewId | null; };
 type DesktopBusinessMenuItem = { label: string; viewId: DesktopBusinessViewId; fallbackTab: MobileTab; summary: string; children?: string[] };
 type DesktopBusinessMenuSection = { title: string; items: DesktopBusinessMenuItem[] };
+type DesktopOrderProgressFilter = "전체" | "주문접수" | "상품준비중" | "배송지시" | "배송중" | "배송완료";
+type DesktopOrderDeliveryFilter = "전체" | "결제완료" | "상품준비중" | "배송지시" | "배송중" | "배송완료" | "업체 직접 배송";
+type DesktopOrderSearchField = "주문번호" | "주문자명" | "수취인명";
+type DesktopOrderAdminRow = {
+  id: string;
+  orderedAt: string;
+  orderedDateIso: string;
+  orderNo: string;
+  productName: string;
+  productCode: string;
+  quantity: number;
+  ordererLabel: string;
+  receiverLabel: string;
+  address: string;
+  deliveryStatus: Exclude<DesktopOrderDeliveryFilter, "전체">;
+  progressStatus: "주문접수대기" | "상품준비중" | "배송지시" | "배송중" | "배송완료";
+};
 
 const desktopBusinessViewMeta: Record<DesktopBusinessViewId, { title: string; description: string; fallbackTab: MobileTab; section: string }> = {
   product_crud: { title: "상품 조회/등록/수정/삭제", description: "판매자센터 기본형 CRUD 화면입니다.", fallbackTab: "쇼핑", section: "상품" },
@@ -821,20 +838,139 @@ function readDesktopPaneContext(): { embedded: boolean; slot: DesktopPaneSlot | 
 }
 
 function escapeHtmlAttribute(value: string) {
-  return value.replace(/&/g, "&amp;").replace(/\"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function buildDesktopPaneSrcDoc(slot: DesktopPaneSlot, selection: DesktopPaneSelection) {
-  if (typeof document === "undefined" || typeof window === "undefined") return "";
-  const stylesheetHrefs = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"][href]')).map((link) => link.href).filter(Boolean);
-  const moduleScriptSrcs = Array.from(document.querySelectorAll<HTMLScriptElement>('script[type="module"][src]')).map((script) => script.src).filter(Boolean);
-  if (stylesheetHrefs.length === 0 || moduleScriptSrcs.length === 0) return "";
-  const stylesheetTags = stylesheetHrefs.map((href) => `<link rel="stylesheet" crossorigin href="${escapeHtmlAttribute(href)}" />`).join("\\n");
-  const moduleScriptTags = moduleScriptSrcs.map((src) => `<script type="module" crossorigin src="${escapeHtmlAttribute(src)}"></script>`).join("\\n");
-  const embedContext: DesktopPaneEmbedContext = { desktopPane: slot, initialTab: selection.mode === "tab" ? selection.tab : desktopBusinessViewMeta[selection.viewId].fallbackTab, businessViewId: selection.mode === "business" ? selection.viewId : null };
-  const contextScript = `<script>window.__ADULTAPP_EMBED_CONTEXT__ = ${JSON.stringify(embedContext)};<\\/script>`;
-  const titleText = slot === "left" ? "adultapp-left-pane" : "adultapp-right-pane";
-  return `<!doctype html>\n<html lang="ko">\n  <head>\n    <meta charset="UTF-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n    <meta name="theme-color" content="#000000" />\n    ${stylesheetTags}\n  </head>\n  <body>\n    <div id="app-boot-splash" aria-hidden="true">\n      <img src="${escapeHtmlAttribute(new URL('/splash-logo.png', window.location.origin).toString())}" alt="PlayCat" class="app-boot-splash__logo" />\n    </div>\n    <div id="root"></div>\n    ${contextScript}\n    ${moduleScriptTags}\n    <title>${titleText}</title>\n  </body>\n</html>`;
+function buildDesktopPaneFrameUrl(slot: DesktopPaneSlot, selection: DesktopPaneSelection) {
+  if (typeof window === "undefined") return "";
+  const nextUrl = new URL(window.location.href);
+  nextUrl.searchParams.set("desktopPane", slot);
+  nextUrl.searchParams.set("initialTab", selection.mode === "tab" ? selection.tab : desktopBusinessViewMeta[selection.viewId].fallbackTab);
+  if (selection.mode === "business") {
+    nextUrl.searchParams.set("businessViewId", selection.viewId);
+  } else {
+    nextUrl.searchParams.delete("businessViewId");
+  }
+  return nextUrl.toString();
+}
+
+function formatDesktopOrderShortDate(value: Date) {
+  const year = String(value.getFullYear()).slice(2);
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}.${month}.${day}`;
+}
+
+function formatDesktopOrderIsoDate(value: Date) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatDesktopOrderDateLabelFromOrderNo(orderNo: string, fallbackIndex = 0) {
+  const compact = orderNo.replace(/[^0-9]/g, "").slice(0, 8);
+  if (compact.length >= 6) {
+    const yy = compact.slice(0, 2);
+    const mm = compact.slice(2, 4);
+    const dd = compact.slice(4, 6);
+    return `20${yy}-${mm}-${dd}`;
+  }
+  const date = new Date();
+  date.setDate(date.getDate() - fallbackIndex);
+  return formatDesktopOrderIsoDate(date);
+}
+
+function normalizeDesktopOrderNo(rawOrderNo: string, fallbackIndex = 0, seed = 1) {
+  const digits = rawOrderNo.replace(/[^0-9]/g, "");
+  if (digits.length >= 16) return digits.slice(0, 16);
+  if (digits.length >= 6) return `${digits.slice(0, 6)}${digits.slice(6).padStart(10, "0").slice(0, 10)}`;
+  const fallbackIso = formatDesktopOrderDateLabelFromOrderNo(rawOrderNo, fallbackIndex);
+  const compactDate = fallbackIso.slice(2).replace(/-/g, "");
+  return `${compactDate}${String(seed).padStart(10, "0")}`;
+}
+
+function mapDesktopOrderStatuses(status: string, index: number) {
+  if (status === "shipped") return { deliveryStatus: "배송중" as const, progressStatus: "배송중" as const };
+  if (status === "delivered") return { deliveryStatus: "배송완료" as const, progressStatus: "배송완료" as const };
+  if (status === "ready_to_ship") return { deliveryStatus: "배송지시" as const, progressStatus: "배송지시" as const };
+  if (status === "preparing") return { deliveryStatus: "상품준비중" as const, progressStatus: "상품준비중" as const };
+  if (status === "seller_direct") return { deliveryStatus: "업체 직접 배송" as const, progressStatus: "배송지시" as const };
+  if (status === "paid") return { deliveryStatus: "결제완료" as const, progressStatus: "주문접수대기" as const };
+  const fallbackCycle = [
+    { deliveryStatus: "결제완료" as const, progressStatus: "주문접수대기" as const },
+    { deliveryStatus: "상품준비중" as const, progressStatus: "상품준비중" as const },
+    { deliveryStatus: "배송지시" as const, progressStatus: "배송지시" as const },
+    { deliveryStatus: "배송중" as const, progressStatus: "배송중" as const },
+    { deliveryStatus: "배송완료" as const, progressStatus: "배송완료" as const },
+    { deliveryStatus: "업체 직접 배송" as const, progressStatus: "배송지시" as const },
+  ];
+  return fallbackCycle[index % fallbackCycle.length];
+}
+
+function buildDesktopOrderAdminRows(orders: ApiOrder[], sellerProducts: SellerProductItem[]) {
+  const ordererNames = ["민트고양이", "로즈캣", "블랙벨", "은하수", "달빛노트", "소프트문"];
+  const receiverNames = ["김수취", "박받는", "이도착", "최안심", "정포장", "윤비밀"];
+  const addressSamples = [
+    "서울 강남구 테헤란로 101",
+    "경기 성남시 분당구 판교역로 235",
+    "인천 연수구 센트럴로 123",
+    "부산 해운대구 센텀남대로 35",
+    "대전 유성구 대학로 99",
+    "광주 서구 상무중앙로 57",
+  ];
+
+  if (orders.length) {
+    return orders.slice().reverse().map((order, index) => {
+      const linkedProduct = sellerProducts.length ? sellerProducts[index % sellerProducts.length] : null;
+      const orderNo = normalizeDesktopOrderNo(order.order_no, index, order.id);
+      const orderedDateIso = formatDesktopOrderDateLabelFromOrderNo(orderNo, index);
+      const orderedDate = new Date(`${orderedDateIso}T09:00:00`);
+      const statusInfo = mapDesktopOrderStatuses(order.status, index);
+      const ordererName = ordererNames[index % ordererNames.length];
+      const receiverName = receiverNames[index % receiverNames.length];
+      const phoneTail = String(1200 + index * 37).padStart(4, "0");
+      return {
+        id: `desktop-order-${order.order_no}`,
+        orderedAt: formatDesktopOrderShortDate(orderedDate),
+        orderedDateIso,
+        orderNo,
+        productName: linkedProduct?.name ?? `주문 상품 ${index + 1}`,
+        productCode: linkedProduct?.sku_code ?? `SKU-${String(index + 1).padStart(4, "0")}`,
+        quantity: Math.max(1, Number(order.item_count ?? 1)),
+        ordererLabel: `${ordererName} / buyer${order.member_id}`,
+        receiverLabel: `${receiverName} / 010-48${String(index).padStart(2, "0")}-${phoneTail}`,
+        address: addressSamples[index % addressSamples.length],
+        deliveryStatus: statusInfo.deliveryStatus,
+        progressStatus: statusInfo.progressStatus,
+      } satisfies DesktopOrderAdminRow;
+    });
+  }
+
+  return sellerProducts.slice(0, 8).map((product, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() - index);
+    const orderedDateIso = formatDesktopOrderIsoDate(date);
+    const statusInfo = mapDesktopOrderStatuses("", index);
+    const dateKey = `${String(date.getFullYear()).slice(2)}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
+    const ordererName = ordererNames[index % ordererNames.length];
+    const receiverName = receiverNames[index % receiverNames.length];
+    const phoneTail = String(1400 + index * 51).padStart(4, "0");
+    return {
+      id: `desktop-order-fallback-${product.id}`,
+      orderedAt: formatDesktopOrderShortDate(date),
+      orderedDateIso,
+      orderNo: `${dateKey}${String(product.id).padStart(10, "0")}`,
+      productName: product.name,
+      productCode: product.sku_code,
+      quantity: Math.max(1, (index % 3) + 1),
+      ordererLabel: `${ordererName} / buyer${300 + index}`,
+      receiverLabel: `${receiverName} / 010-57${String(index).padStart(2, "0")}-${phoneTail}`,
+      address: addressSamples[index % addressSamples.length],
+      deliveryStatus: statusInfo.deliveryStatus,
+      progressStatus: statusInfo.progressStatus,
+    } satisfies DesktopOrderAdminRow;
+  });
 }
 
 function DesktopSplitShell() {
@@ -845,9 +981,9 @@ function DesktopSplitShell() {
   const [desktopSearchKeyword, setDesktopSearchKeyword] = useState("");
   const [desktopSearchGroup, setDesktopSearchGroup] = useState<DesktopSearchGroup | "전체">("전체");
 
-  const leftSrcDoc = useMemo(() => buildDesktopPaneSrcDoc("left", leftSelection), [leftSelection]);
-  const rightSrcDoc = useMemo(() => buildDesktopPaneSrcDoc("right", rightSelection), [rightSelection]);
-  const iframeReady = Boolean(leftSrcDoc && rightSrcDoc);
+  const leftFrameUrl = useMemo(() => buildDesktopPaneFrameUrl("left", leftSelection), [leftSelection]);
+  const rightFrameUrl = useMemo(() => buildDesktopPaneFrameUrl("right", rightSelection), [rightSelection]);
+  const iframeReady = Boolean(leftFrameUrl && rightFrameUrl);
   const desktopSearchIndex = useMemo(() => buildDesktopGlobalSearchIndex(), []);
   const unreadDesktopNotificationCount = useMemo(() => notificationSeed.filter((item) => item.unread).length, []);
 
@@ -942,29 +1078,6 @@ function DesktopSplitShell() {
             <div className="desktop-side-menu-head">
               <strong>PC 분할 메뉴</strong>
               <p>좌/우 화면을 각각 원하는 탭이나 업무 화면으로 바로 열 수 있습니다.</p>
-            </div>
-
-            <div className="desktop-side-pane-menu-grid">
-              {desktopTopControls.map((section) => (
-                <section key={section.slot} className="desktop-side-menu-section desktop-side-pane-menu-section">
-                  <div className="desktop-side-menu-section-head">
-                    <strong>{section.title}</strong>
-                    <span>현재 화면: {section.currentLabel}</span>
-                  </div>
-                  <div className="desktop-side-pane-tab-grid">
-                    {mobileTabs.map((tab) => (
-                      <button
-                        key={`${section.slot}-${tab}`}
-                        type="button"
-                        className={`desktop-side-menu-tab-btn ${section.currentTab === tab ? "active" : ""}`}
-                        onClick={() => section.onSelect(tab)}
-                      >
-                        {tab}
-                      </button>
-                    ))}
-                  </div>
-                </section>
-              ))}
             </div>
 
             {desktopBusinessMenuSections.map((section) => (
@@ -1170,7 +1283,7 @@ function DesktopSplitShell() {
                 <span>{getDesktopPaneSelectionLabel(leftSelection)}</span>
               </div>
               <div className="desktop-split-device-frame">
-                {iframeReady ? <iframe className="desktop-split-iframe" srcDoc={leftSrcDoc} title="adultapp-left-pane" /> : <div className="desktop-split-fallback">좌측 화면을 준비 중입니다.</div>}
+                {iframeReady ? <iframe className="desktop-split-iframe" src={leftFrameUrl} title="adultapp-left-pane" /> : <div className="desktop-split-fallback">좌측 화면을 준비 중입니다.</div>}
               </div>
             </section>
 
@@ -1180,7 +1293,7 @@ function DesktopSplitShell() {
                 <span>{getDesktopPaneSelectionLabel(rightSelection)}</span>
               </div>
               <div className="desktop-split-device-frame">
-                {iframeReady ? <iframe className="desktop-split-iframe" srcDoc={rightSrcDoc} title="adultapp-right-pane" /> : <div className="desktop-split-fallback">우측 화면을 준비 중입니다.</div>}
+                {iframeReady ? <iframe className="desktop-split-iframe" src={rightFrameUrl} title="adultapp-right-pane" /> : <div className="desktop-split-fallback">우측 화면을 준비 중입니다.</div>}
               </div>
             </section>
           </div>
@@ -4474,6 +4587,15 @@ export default function App() {
   const [desktopProductFulfillmentMode, setDesktopProductFulfillmentMode] = useState<"seller_delivery" | "rocket_growth">("seller_delivery");
   const [desktopProductCrudMessage, setDesktopProductCrudMessage] = useState("");
   const [desktopProductCrudBusy, setDesktopProductCrudBusy] = useState(false);
+  const [desktopOrderStageFilter, setDesktopOrderStageFilter] = useState<DesktopOrderProgressFilter>("전체");
+  const [desktopOrderDatePreset, setDesktopOrderDatePreset] = useState<"오늘" | "지난7일" | "지난30일" | "사용자지정" | "전체">("전체");
+  const [desktopOrderStartDate, setDesktopOrderStartDate] = useState("");
+  const [desktopOrderEndDate, setDesktopOrderEndDate] = useState("");
+  const [desktopOrderDeliveryFilter, setDesktopOrderDeliveryFilter] = useState<DesktopOrderDeliveryFilter>("전체");
+  const [desktopOrderSearchField, setDesktopOrderSearchField] = useState<DesktopOrderSearchField>("주문번호");
+  const [desktopOrderSearchInput, setDesktopOrderSearchInput] = useState("");
+  const [desktopOrderSearchKeyword, setDesktopOrderSearchKeyword] = useState("");
+  const [desktopOrderSelectedNos, setDesktopOrderSelectedNos] = useState<string[]>([]);
   const [submittedProducts, setSubmittedProducts] = useState<ProductRegistrationDraft[]>(() => []);
   const [sellerApprovalQueue, setSellerApprovalQueue] = useState<SellerApprovalItem[]>([]);
   const [productApprovalQueue, setProductApprovalQueue] = useState<ProductApprovalItem[]>([]);
@@ -8690,6 +8812,36 @@ export default function App() {
       setDesktopProductCrudBusy(false);
     }
   };
+  const applyDesktopOrderPreset = (preset: "오늘" | "지난7일" | "지난30일" | "전체") => {
+    setDesktopOrderDatePreset(preset);
+    if (preset === "전체") {
+      setDesktopOrderStartDate("");
+      setDesktopOrderEndDate("");
+      return;
+    }
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - (preset === "오늘" ? 0 : preset === "지난7일" ? 6 : 29));
+    setDesktopOrderStartDate(formatDesktopOrderIsoDate(start));
+    setDesktopOrderEndDate(formatDesktopOrderIsoDate(end));
+  };
+
+  const resetDesktopOrderFilters = () => {
+    setDesktopOrderStageFilter("전체");
+    setDesktopOrderDatePreset("전체");
+    setDesktopOrderStartDate("");
+    setDesktopOrderEndDate("");
+    setDesktopOrderDeliveryFilter("전체");
+    setDesktopOrderSearchField("주문번호");
+    setDesktopOrderSearchInput("");
+    setDesktopOrderSearchKeyword("");
+    setDesktopOrderSelectedNos([]);
+  };
+
+  const applyDesktopOrderSearch = () => {
+    setDesktopOrderSearchKeyword(desktopOrderSearchInput.trim());
+  };
+
   const renderDesktopEmbeddedBusinessView = () => {
     const businessViewId = desktopPaneContext.businessViewId;
     if (!businessViewId) return null;
@@ -8698,6 +8850,19 @@ export default function App() {
     const recentThreadRows = threadItems.slice(0, 6);
     const recentSupportRows = communitySeed.slice(0, 6);
     const recentNotificationRows = notificationItems.slice(0, 6);
+    const desktopOrderRows = buildDesktopOrderAdminRows(orders, sellerProducts);
+    const filteredDesktopOrderRows = desktopOrderRows.filter((item) => {
+      const stageMatch = desktopOrderStageFilter === "전체"
+        || (desktopOrderStageFilter === "주문접수" ? item.progressStatus.startsWith("주문접수") : item.progressStatus === desktopOrderStageFilter);
+      const deliveryMatch = desktopOrderDeliveryFilter === "전체" || item.deliveryStatus === desktopOrderDeliveryFilter;
+      const startMatch = !desktopOrderStartDate || item.orderedDateIso >= desktopOrderStartDate;
+      const endMatch = !desktopOrderEndDate || item.orderedDateIso <= desktopOrderEndDate;
+      const keyword = desktopOrderSearchKeyword.trim().toLowerCase();
+      const searchTarget = desktopOrderSearchField === "주문번호" ? item.orderNo : desktopOrderSearchField === "주문자명" ? item.ordererLabel : item.receiverLabel;
+      const keywordMatch = !keyword || searchTarget.toLowerCase().includes(keyword);
+      return stageMatch && deliveryMatch && startMatch && endMatch && keywordMatch;
+    });
+    const allDesktopOrderRowsSelected = filteredDesktopOrderRows.length > 0 && filteredDesktopOrderRows.every((item) => desktopOrderSelectedNos.includes(item.orderNo));
     const productStatusSummary = {
       total: sellerProducts.length,
       approved: sellerProducts.filter((item) => item.status === 'approved').length,
@@ -8941,6 +9106,146 @@ export default function App() {
               </div>
             </section>
           ) : null}
+        </div>
+      );
+    }
+
+    if (businessViewId === 'orders') {
+      return (
+        <div className="desktop-business-shell">
+          <header className="desktop-business-header">
+            <div>
+              <strong>{meta.title}</strong>
+              <p>{meta.description}</p>
+            </div>
+            <div className="desktop-business-chip-row">
+              <span className="desktop-business-chip">전체 주문 {desktopOrderRows.length}</span>
+              <span className="desktop-business-chip">조회 결과 {filteredDesktopOrderRows.length}</span>
+              <span className="desktop-business-chip">선택 {desktopOrderSelectedNos.length}</span>
+            </div>
+          </header>
+
+          <section className="desktop-business-card desktop-order-stage-card">
+            <div className="desktop-order-stage-row">
+              {(["전체", "주문접수", "상품준비중", "배송지시", "배송중", "배송완료"] as DesktopOrderProgressFilter[]).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  className={`desktop-order-stage-btn ${desktopOrderStageFilter === item ? 'active' : ''}`}
+                  onClick={() => setDesktopOrderStageFilter(item)}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="desktop-business-card desktop-order-filter-card">
+            <div className="desktop-business-section-head">
+              <div>
+                <h2>주문접수 및 배송처리</h2>
+                <p>조회/등록/수정/삭제 화면에 등록된 상품과 연결되는 주문 목록을 검색·필터·상태 흐름 기준으로 볼 수 있게 구성했습니다.</p>
+              </div>
+            </div>
+
+            <div className="desktop-order-filter-grid">
+              <div className="desktop-order-filter-line">
+                <strong>기간</strong>
+                <div className="desktop-order-period-chip-row">
+                  {(["오늘", "지난7일", "지난30일"] as const).map((item) => (
+                    <button
+                      key={item}
+                      type="button"
+                      className={`desktop-order-period-chip ${desktopOrderDatePreset === item ? 'active' : ''}`}
+                      onClick={() => applyDesktopOrderPreset(item)}
+                    >
+                      {item}
+                    </button>
+                  ))}
+                </div>
+                <input type="date" value={desktopOrderStartDate} onChange={(event) => { setDesktopOrderDatePreset("사용자지정"); setDesktopOrderStartDate(event.target.value); }} />
+                <span className="desktop-order-date-wave">~</span>
+                <input type="date" value={desktopOrderEndDate} onChange={(event) => { setDesktopOrderDatePreset("사용자지정"); setDesktopOrderEndDate(event.target.value); }} />
+                <div className="copy-action-row">
+                  <button type="button" className="ghost-btn" onClick={resetDesktopOrderFilters}>초기화</button>
+                  <button type="button" onClick={applyDesktopOrderSearch}>검색</button>
+                </div>
+              </div>
+
+              <div className="desktop-order-filter-line">
+                <strong>배송상태</strong>
+                <select value={desktopOrderDeliveryFilter} onChange={(event) => setDesktopOrderDeliveryFilter(event.target.value as DesktopOrderDeliveryFilter)}>
+                  {(["전체", "결제완료", "상품준비중", "배송지시", "배송중", "배송완료", "업체 직접 배송"] as DesktopOrderDeliveryFilter[]).map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+              </div>
+
+              <div className="desktop-order-filter-line">
+                <strong>상세조건</strong>
+                <select value={desktopOrderSearchField} onChange={(event) => setDesktopOrderSearchField(event.target.value as DesktopOrderSearchField)}>
+                  {(["주문번호", "주문자명", "수취인명"] as DesktopOrderSearchField[]).map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+                <input value={desktopOrderSearchInput} onChange={(event) => setDesktopOrderSearchInput(event.target.value)} placeholder="검색어 입력" />
+              </div>
+            </div>
+
+            <div className="desktop-product-table-wrap">
+              <table className="desktop-product-table desktop-order-table">
+                <thead>
+                  <tr>
+                    <th>
+                      <input
+                        type="checkbox"
+                        checked={allDesktopOrderRowsSelected}
+                        onChange={() => setDesktopOrderSelectedNos(allDesktopOrderRowsSelected ? [] : filteredDesktopOrderRows.map((item) => item.orderNo))}
+                        aria-label="전체 주문 선택"
+                      />
+                    </th>
+                    <th>주문일시</th>
+                    <th>주문번호</th>
+                    <th>상품명</th>
+                    <th>상품코드</th>
+                    <th>주문개수</th>
+                    <th>주문자명/아이디</th>
+                    <th>수취인/연락처</th>
+                    <th>배송지</th>
+                    <th>배송상태</th>
+                    <th>진행상태</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredDesktopOrderRows.length ? filteredDesktopOrderRows.map((item) => {
+                    const checked = desktopOrderSelectedNos.includes(item.orderNo);
+                    return (
+                      <tr key={item.id}>
+                        <td>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => setDesktopOrderSelectedNos((prev) => prev.includes(item.orderNo) ? prev.filter((orderNo) => orderNo !== item.orderNo) : [...prev, item.orderNo])}
+                            aria-label={`${item.orderNo} 선택`}
+                          />
+                        </td>
+                        <td>{item.orderedAt}</td>
+                        <td><strong>{item.orderNo}</strong></td>
+                        <td>{item.productName}</td>
+                        <td>{item.productCode}</td>
+                        <td>{item.quantity}</td>
+                        <td>{item.ordererLabel}</td>
+                        <td>{item.receiverLabel}</td>
+                        <td className="desktop-order-address-cell">{item.address}</td>
+                        <td><span className={`desktop-order-status-chip desktop-order-status-chip-${item.deliveryStatus === '업체 직접 배송' ? 'direct' : item.deliveryStatus === '배송완료' ? 'done' : item.deliveryStatus === '배송중' ? 'moving' : item.deliveryStatus === '배송지시' ? 'guide' : item.deliveryStatus === '상품준비중' ? 'prepare' : 'paid'}`}>{item.deliveryStatus}</span></td>
+                        <td>{item.progressStatus}</td>
+                      </tr>
+                    );
+                  }) : (
+                    <tr>
+                      <td colSpan={11} className="desktop-product-table-empty">조건에 맞는 주문이 없습니다. 등록 상품 또는 생성된 주문 데이터가 있으면 이곳에 표시됩니다.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
         </div>
       );
     }
