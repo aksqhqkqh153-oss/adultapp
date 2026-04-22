@@ -190,6 +190,8 @@ type ThreadItem = {
   status?: string;
 };
 
+type ChatRoomReactionKey = "heart" | "like" | "check" | "smile" | "surprised" | "sad";
+
 type ChatRoomMessage = {
   id: number;
   threadId: number;
@@ -198,6 +200,13 @@ type ChatRoomMessage = {
   meta: string;
   mine?: boolean;
   system?: boolean;
+  createdAt?: number;
+  reaction?: ChatRoomReactionKey | null;
+  replyTo?: {
+    id: number;
+    author: string;
+    text: string;
+  } | null;
 };
 
 type ForumStarterUser = {
@@ -2303,11 +2312,12 @@ const createThreadRoomSeed = (thread: ThreadItem): ChatRoomMessage[] => {
   const supportLine = thread.kind === "단체"
     ? `${thread.purpose} 주제로 최근 대화가 상단부터 정렬됩니다.`
     : `${thread.purpose} 기준으로 대화가 생성되었고, 필요한 경우 문의 내용을 이어서 남길 수 있습니다.`;
+  const now = Date.now();
 
   return [
-    { id: thread.id * 100 + 1, threadId: thread.id, author: "system", text: baseLead, meta: "방금", system: true },
-    { id: thread.id * 100 + 2, threadId: thread.id, author: thread.name, text: thread.preview, meta: thread.time, mine: false },
-    { id: thread.id * 100 + 3, threadId: thread.id, author: "나", text: supportLine, meta: "지금", mine: true },
+    { id: thread.id * 100 + 1, threadId: thread.id, author: "system", text: baseLead, meta: "방금", system: true, createdAt: now - 6 * 60000 },
+    { id: thread.id * 100 + 2, threadId: thread.id, author: thread.name, text: thread.preview, meta: thread.time, mine: false, createdAt: now - 4 * 60000 },
+    { id: thread.id * 100 + 3, threadId: thread.id, author: "나", text: supportLine, meta: "지금", mine: true, createdAt: now - 2 * 60000 },
   ];
 };
 
@@ -2337,6 +2347,29 @@ const buildChatAvatarDataUri = (seed: string) => {
   `.replace(/\s+/g, ' ').trim();
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 };
+
+const CHAT_REACTION_OPTIONS: Array<{ key: ChatRoomReactionKey; label: string; symbol: string; className: string }> = [
+  { key: "heart", label: "하트", symbol: "♥", className: "heart" },
+  { key: "like", label: "좋아요", symbol: "👍", className: "like" },
+  { key: "check", label: "체크", symbol: "✓", className: "check" },
+  { key: "smile", label: "웃음", symbol: "☺", className: "smile" },
+  { key: "surprised", label: "놀람", symbol: "!", className: "surprised" },
+  { key: "sad", label: "슬픔", symbol: "☹", className: "sad" },
+];
+
+const CHAT_QUICK_SHARE_ITEMS = [
+  { key: 'photo', label: '사진첨부', emoji: '🖼' },
+  { key: 'map', label: '지도공유', emoji: '📍' },
+  { key: 'file', label: '파일첨부', emoji: '📎' },
+  { key: 'profile', label: '프로필공유', emoji: '👤' },
+] as const;
+
+function formatChatMessageMeta(createdAt?: number, edited?: boolean) {
+  if (!createdAt) return edited ? '방금 수정됨' : '방금';
+  const diffMinutes = Math.max(0, Math.round((Date.now() - createdAt) / 60000));
+  const base = diffMinutes < 1 ? '방금' : diffMinutes < 60 ? `${diffMinutes}분 전` : `${Math.floor(diffMinutes / 60)}시간 전`;
+  return edited ? `${base} · 수정됨` : base;
+}
 
 const forumRoomNoticeText = `<포럼방 안내사항>
  - 정보교류와 고민상담용이며, 만남/주선은 허용하지 않습니다.
@@ -4262,6 +4295,16 @@ export default function App() {
     const merged = [...threadSeed, ...archivedThreadSeed];
     return Object.fromEntries(merged.map((thread) => [thread.id, createThreadRoomSeed(thread)]));
   });
+  const [chatAttachmentSheetOpen, setChatAttachmentSheetOpen] = useState(false);
+  const [chatReplyTarget, setChatReplyTarget] = useState<ChatRoomMessage | null>(null);
+  const [chatContextMessage, setChatContextMessage] = useState<ChatRoomMessage | null>(null);
+  const [chatPinnedMessageByThread, setChatPinnedMessageByThread] = useState<Record<number, number | null>>({});
+  const [chatEditableMessageId, setChatEditableMessageId] = useState<number | null>(null);
+  const [chatSelectableMessageId, setChatSelectableMessageId] = useState<number | null>(null);
+  const [chatShareMessage, setChatShareMessage] = useState<ChatRoomMessage | null>(null);
+  const [chatShareKeyword, setChatShareKeyword] = useState("");
+  const [chatLongPressHint, setChatLongPressHint] = useState("");
+  const [chatCopiedSelection, setChatCopiedSelection] = useState("");
   const [selectedForumCategory, setSelectedForumCategory] = useState<ForumBoardCategory>("자유대화");
   const [activeForumRoomId, setActiveForumRoomId] = useState<number | null>(null);
   const [forumRoomMessages, setForumRoomMessages] = useState<Record<number, ForumRoomMessage[]>>({});
@@ -4327,6 +4370,8 @@ export default function App() {
   const shopHomeGridDraggingRef = useRef(false);
   const shopHomeGridHasDraggedRef = useRef(false);
   const shopHomeGridSuppressClickUntilRef = useRef(0);
+  const chatMessageHoldTimerRef = useRef<number | null>(null);
+  const chatMessageListRef = useRef<HTMLDivElement | null>(null);
   const [shopHomeGridDragging, setShopHomeGridDragging] = useState(false);
   const [shopHomeVisibleCount, setShopHomeVisibleCount] = useState(9);
   const [communityKeyword, setCommunityKeyword] = useState("");
@@ -6576,40 +6621,138 @@ export default function App() {
 
   const activeChatThread = useMemo(() => threadItems.find((item) => item.id === activeChatThreadId) ?? null, [threadItems, activeChatThreadId]);
   const activeChatMessages = activeChatThread ? (chatMessagesByThread[activeChatThread.id] ?? []) : [];
+  const activePinnedMessage = useMemo(() => {
+    if (!activeChatThread) return null;
+    const pinnedId = chatPinnedMessageByThread[activeChatThread.id];
+    if (!pinnedId) return null;
+    return activeChatMessages.find((message) => message.id === pinnedId) ?? null;
+  }, [activeChatMessages, activeChatThread, chatPinnedMessageByThread]);
+  const filteredChatShareTargets = useMemo(() => {
+    const keyword = chatShareKeyword.trim().toLowerCase();
+    return threadItems.filter((thread) => {
+      if (thread.id === activeChatThreadId) return false;
+      if (!keyword) return true;
+      return `${thread.name} ${thread.purpose} ${thread.preview}`.toLowerCase().includes(keyword);
+    });
+  }, [activeChatThreadId, chatShareKeyword, threadItems]);
+
+  const canManageChatMessage = useCallback((message: ChatRoomMessage) => {
+    if (!message.mine || message.system) return false;
+    return Date.now() - (message.createdAt ?? Date.now()) <= 60 * 60 * 1000;
+  }, []);
+
+  const handleChatQuickShareAction = useCallback((label: string) => {
+    setChatAttachmentSheetOpen(false);
+    setChatLongPressHint(`${label} 메뉴가 열렸습니다.`);
+  }, []);
+
+  const openChatMessageMenu = useCallback((message: ChatRoomMessage) => {
+    setChatContextMessage(message);
+    setChatAttachmentSheetOpen(false);
+  }, []);
+
+  const clearChatMessageHold = useCallback(() => {
+    if (chatMessageHoldTimerRef.current !== null) {
+      window.clearTimeout(chatMessageHoldTimerRef.current);
+      chatMessageHoldTimerRef.current = null;
+    }
+  }, []);
+
+  const startChatMessageHold = useCallback((message: ChatRoomMessage) => {
+    clearChatMessageHold();
+    chatMessageHoldTimerRef.current = window.setTimeout(() => {
+      openChatMessageMenu(message);
+      chatMessageHoldTimerRef.current = null;
+    }, 420);
+  }, [clearChatMessageHold, openChatMessageMenu]);
+
+  useEffect(() => () => {
+    if (chatMessageHoldTimerRef.current !== null) {
+      window.clearTimeout(chatMessageHoldTimerRef.current);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!chatMessageListRef.current) return;
+    chatMessageListRef.current.scrollTop = chatMessageListRef.current.scrollHeight;
+  }, [activeChatMessages.length, activeChatThreadId]);
+
+  useEffect(() => {
+    if (!chatLongPressHint) return;
+    const timer = window.setTimeout(() => setChatLongPressHint(''), 2200);
+    return () => window.clearTimeout(timer);
+  }, [chatLongPressHint]);
 
   const openChatThread = useCallback((thread: ThreadItem) => {
     setActiveChatThreadId(thread.id);
     setThreadItems((prev) => prev.map((item) => item.id === thread.id ? { ...item, unread: 0 } : item));
     setChatMessagesByThread((prev) => prev[thread.id] ? prev : { ...prev, [thread.id]: createThreadRoomSeed(thread) });
+    setChatAttachmentSheetOpen(false);
+    setChatContextMessage(null);
+    setChatReplyTarget(null);
+    setChatEditableMessageId(null);
+    setChatSelectableMessageId(null);
+    setChatShareMessage(null);
+    setChatShareKeyword('');
   }, []);
 
   const closeActiveChatThread = useCallback(() => {
     setActiveChatThreadId(null);
-    setChatRoomDraft("");
+    setChatRoomDraft('');
+    setChatAttachmentSheetOpen(false);
+    setChatContextMessage(null);
+    setChatReplyTarget(null);
+    setChatEditableMessageId(null);
+    setChatSelectableMessageId(null);
+    setChatShareMessage(null);
+    setChatShareKeyword('');
+    setChatCopiedSelection('');
   }, []);
 
   const submitChatRoomMessage = useCallback(() => {
     if (!activeChatThread) return;
     const trimmed = chatRoomDraft.trim();
     if (!trimmed) return;
+
+    if (chatEditableMessageId !== null) {
+      setChatMessagesByThread((prev) => ({
+        ...prev,
+        [activeChatThread.id]: (prev[activeChatThread.id] ?? []).map((message) => (
+          message.id === chatEditableMessageId
+            ? { ...message, text: trimmed, meta: formatChatMessageMeta(message.createdAt, true) }
+            : message
+        )),
+      }));
+      setThreadItems((prev) => prev.map((item) => item.id === activeChatThread.id ? { ...item, preview: trimmed, time: '방금', unread: 0 } : item));
+      setChatEditableMessageId(null);
+      setChatReplyTarget(null);
+      setChatRoomDraft('');
+      setChatLongPressHint('메시지가 수정되었습니다.');
+      return;
+    }
+
+    const now = Date.now();
     const myMessage: ChatRoomMessage = {
-      id: Date.now(),
+      id: now,
       threadId: activeChatThread.id,
       author: '나',
       text: trimmed,
-      meta: '방금',
+      meta: formatChatMessageMeta(now),
       mine: true,
+      createdAt: now,
+      replyTo: chatReplyTarget ? { id: chatReplyTarget.id, author: chatReplyTarget.author, text: chatReplyTarget.text } : null,
     };
     const replyText = activeChatThread.kind === '단체'
       ? '방 주제에 맞는 대화로 이어가 주세요. 최근 메시지 아래에 순서대로 반영했습니다.'
       : '메시지를 확인했습니다. 지금 채팅방에서 바로 이어서 대화를 진행할 수 있습니다.';
     const replyMessage: ChatRoomMessage = {
-      id: Date.now() + 1,
+      id: now + 1,
       threadId: activeChatThread.id,
       author: activeChatThread.name,
       text: replyText,
-      meta: '방금',
+      meta: formatChatMessageMeta(now + 1),
       mine: false,
+      createdAt: now + 1,
     };
     setChatMessagesByThread((prev) => ({
       ...prev,
@@ -6617,7 +6760,107 @@ export default function App() {
     }));
     setThreadItems((prev) => prev.map((item) => item.id === activeChatThread.id ? { ...item, preview: trimmed, time: '방금', unread: 0 } : item));
     setChatRoomDraft('');
-  }, [activeChatThread, chatRoomDraft]);
+    setChatReplyTarget(null);
+    setChatSelectableMessageId(null);
+  }, [activeChatThread, chatEditableMessageId, chatReplyTarget, chatRoomDraft]);
+
+  const applyChatReaction = useCallback((message: ChatRoomMessage, reaction: ChatRoomReactionKey) => {
+    setChatMessagesByThread((prev) => ({
+      ...prev,
+      [message.threadId]: (prev[message.threadId] ?? []).map((item) => item.id === message.id ? { ...item, reaction } : item),
+    }));
+    setChatContextMessage(null);
+    setChatLongPressHint(`${CHAT_REACTION_OPTIONS.find((item) => item.key === reaction)?.label ?? '이모지'} 반응을 남겼습니다.`);
+  }, []);
+
+  const copyChatMessage = useCallback((message: ChatRoomMessage) => {
+    copyToClipboard(message.text);
+    setChatContextMessage(null);
+    setChatLongPressHint('메시지를 복사했습니다.');
+  }, []);
+
+  const enableChatSelectionCopy = useCallback((message: ChatRoomMessage) => {
+    setChatContextMessage(null);
+    setChatSelectableMessageId(message.id);
+    setChatCopiedSelection('');
+    setChatLongPressHint('메시지 일부를 드래그해 선택한 뒤 복사 버튼을 눌러주세요.');
+  }, []);
+
+  const copySelectedChatText = useCallback(() => {
+    const selectedText = typeof window !== 'undefined' ? window.getSelection?.()?.toString().trim() ?? '' : '';
+    const fallback = activeChatMessages.find((message) => message.id === chatSelectableMessageId)?.text ?? '';
+    const nextText = selectedText || fallback;
+    if (!nextText) return;
+    copyToClipboard(nextText);
+    setChatCopiedSelection(nextText);
+    setChatLongPressHint('선택한 텍스트를 복사했습니다.');
+  }, [activeChatMessages, chatSelectableMessageId]);
+
+  const pinChatMessage = useCallback((message: ChatRoomMessage) => {
+    setChatPinnedMessageByThread((prev) => ({ ...prev, [message.threadId]: message.id }));
+    setChatContextMessage(null);
+    setChatLongPressHint('상단 공지로 고정했습니다.');
+  }, []);
+
+  const startChatEdit = useCallback((message: ChatRoomMessage) => {
+    if (!canManageChatMessage(message)) return;
+    setChatEditableMessageId(message.id);
+    setChatRoomDraft(message.text);
+    setChatReplyTarget(null);
+    setChatContextMessage(null);
+    setChatLongPressHint('1시간 이내 메시지 수정 모드입니다.');
+  }, [canManageChatMessage]);
+
+  const deleteChatMessage = useCallback((message: ChatRoomMessage) => {
+    if (!canManageChatMessage(message)) return;
+    setChatMessagesByThread((prev) => ({
+      ...prev,
+      [message.threadId]: (prev[message.threadId] ?? []).filter((item) => item.id !== message.id),
+    }));
+    setChatPinnedMessageByThread((prev) => prev[message.threadId] === message.id ? { ...prev, [message.threadId]: null } : prev);
+    setChatContextMessage(null);
+    setChatLongPressHint('메시지를 삭제했습니다.');
+  }, [canManageChatMessage]);
+
+  const openChatShareSheet = useCallback((message: ChatRoomMessage) => {
+    setChatContextMessage(null);
+    setChatShareMessage(message);
+    setChatShareKeyword('');
+  }, []);
+
+  const shareChatMessageToThread = useCallback((thread: ThreadItem) => {
+    if (!chatShareMessage) return;
+    const now = Date.now();
+    const sharedText = `[공유] ${chatShareMessage.author}: ${chatShareMessage.text}`;
+    const sharedMessage: ChatRoomMessage = {
+      id: now,
+      threadId: thread.id,
+      author: '나',
+      text: sharedText,
+      meta: formatChatMessageMeta(now),
+      mine: true,
+      createdAt: now,
+    };
+    setChatMessagesByThread((prev) => ({
+      ...prev,
+      [thread.id]: [...(prev[thread.id] ?? createThreadRoomSeed(thread)), sharedMessage],
+    }));
+    setThreadItems((prev) => prev.map((item) => item.id === thread.id ? { ...item, preview: sharedText, time: '방금', unread: 0 } : item));
+    setChatShareMessage(null);
+    setChatLongPressHint(`${thread.name} 채팅방으로 공유했습니다.`);
+  }, [chatShareMessage]);
+
+  const copyChatShareLink = useCallback(() => {
+    if (!chatShareMessage) return;
+    copyToClipboard(`adultapp://chat/${chatShareMessage.threadId}/message/${chatShareMessage.id}`);
+    setChatLongPressHint('메시지 링크를 복사했습니다.');
+  }, [chatShareMessage]);
+
+  const replyChatMessage = useCallback((message: ChatRoomMessage) => {
+    setChatReplyTarget(message);
+    setChatContextMessage(null);
+    setChatLongPressHint(`${message.author} 메시지에 답장합니다.`);
+  }, []);
 
   const filteredForumRooms = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
@@ -10382,24 +10625,91 @@ export default function App() {
                       <BookmarkIcon filled={!!activeChatThread.favorite} />
                     </button>
                   </div>
-                  <div className="x-chat-room-message-list compact-scroll-list">
-                    <div className="x-chat-room-rule-banner">X 스타일의 심플 채팅방입니다. 외부 연락처 교환·사진/영상 전송·반복 접촉 요청은 계속 제한됩니다.</div>
-                    {activeChatMessages.map((message) => (
-                      <article key={message.id} className={`x-chat-room-message${message.mine ? " mine" : ""}${message.system ? " system" : ""}`}>
-                        {!message.mine && !message.system ? <div className="x-chat-room-message-author">{message.author}</div> : null}
-                        <div className="x-chat-room-message-bubble">{message.text}</div>
-                        <div className="x-chat-room-message-meta">{message.meta}</div>
-                      </article>
-                    ))}
+                  <div ref={chatMessageListRef} className="x-chat-room-message-list compact-scroll-list">
+                    <div className="x-chat-room-rule-banner">채팅 입력창은 하단바 바로 위에 고정되며, 길게 눌러 이모지·복사·답장·공유·공지·수정·삭제 메뉴를 열 수 있습니다.</div>
+                    {activePinnedMessage ? (
+                      <div className="x-chat-room-pinned-banner">
+                        <div>
+                          <strong>공지</strong>
+                          <p>{activePinnedMessage.text}</p>
+                        </div>
+                        <button type="button" className="ghost-btn" onClick={() => setChatPinnedMessageByThread((prev) => ({ ...prev, [activeChatThread.id]: null }))}>해제</button>
+                      </div>
+                    ) : null}
+                    {chatLongPressHint ? <div className="x-chat-room-floating-hint">{chatLongPressHint}</div> : null}
+                    {activeChatMessages.map((message) => {
+                      const reactionMeta = message.reaction ? CHAT_REACTION_OPTIONS.find((item) => item.key === message.reaction) ?? null : null;
+                      const isSelectionTarget = chatSelectableMessageId === message.id;
+                      return (
+                        <article
+                          key={message.id}
+                          className={`x-chat-room-message${message.mine ? " mine" : ""}${message.system ? " system" : ""}`}
+                          onContextMenu={(event) => {
+                            event.preventDefault();
+                            openChatMessageMenu(message);
+                          }}
+                          onMouseDown={() => startChatMessageHold(message)}
+                          onMouseUp={clearChatMessageHold}
+                          onMouseLeave={clearChatMessageHold}
+                          onTouchStart={() => startChatMessageHold(message)}
+                          onTouchEnd={clearChatMessageHold}
+                          onTouchCancel={clearChatMessageHold}
+                        >
+                          {!message.mine && !message.system ? <div className="x-chat-room-message-author">{message.author}</div> : null}
+                          {message.replyTo ? (
+                            <div className="x-chat-room-message-reply-ref">
+                              <strong>{message.replyTo.author}</strong>
+                              <span>{message.replyTo.text}</span>
+                            </div>
+                          ) : null}
+                          <div className={`x-chat-room-message-bubble${isSelectionTarget ? " selection-enabled" : ""}`}>{message.text}</div>
+                          {reactionMeta ? <div className={`x-chat-room-message-reaction ${reactionMeta.className}`}>{reactionMeta.symbol}</div> : null}
+                          <div className="x-chat-room-message-meta">{message.meta}</div>
+                        </article>
+                      );
+                    })}
                   </div>
-                  <div className="x-chat-room-composer">
-                    <input value={chatRoomDraft} onChange={(event) => setChatRoomDraft(event.target.value)} placeholder="메시지를 입력하세요" onKeyDown={(event) => {
-                      if (event.key === 'Enter' && !event.shiftKey) {
-                        event.preventDefault();
-                        submitChatRoomMessage();
-                      }
-                    }} />
-                    <button type="button" className="ghost-btn" onClick={submitChatRoomMessage}>보내기</button>
+                  <div className="x-chat-room-composer-wrap">
+                    {chatSelectableMessageId !== null ? (
+                      <div className="x-chat-room-context-strip selection-mode">
+                        <div>
+                          <strong>선택 복사</strong>
+                          <span>{chatCopiedSelection ? `복사됨: ${chatCopiedSelection}` : '메시지를 드래그해 일부 텍스트를 선택한 뒤 복사하세요.'}</span>
+                        </div>
+                        <div className="x-chat-room-context-actions">
+                          <button type="button" className="ghost-btn" onClick={copySelectedChatText}>선택영역 복사</button>
+                          <button type="button" className="ghost-btn" onClick={() => { setChatSelectableMessageId(null); setChatCopiedSelection(''); }}>취소</button>
+                        </div>
+                      </div>
+                    ) : null}
+                    {chatReplyTarget ? (
+                      <div className="x-chat-room-context-strip">
+                        <div>
+                          <strong>{chatReplyTarget.author}에게 답장</strong>
+                          <span>{chatReplyTarget.text}</span>
+                        </div>
+                        <button type="button" className="ghost-btn" onClick={() => setChatReplyTarget(null)}>닫기</button>
+                      </div>
+                    ) : null}
+                    {chatEditableMessageId !== null ? (
+                      <div className="x-chat-room-context-strip edit-mode">
+                        <div>
+                          <strong>메시지 수정</strong>
+                          <span>보낸 뒤 1시간 이내 메시지만 수정할 수 있습니다.</span>
+                        </div>
+                        <button type="button" className="ghost-btn" onClick={() => { setChatEditableMessageId(null); setChatRoomDraft(''); }}>취소</button>
+                      </div>
+                    ) : null}
+                    <div className="x-chat-room-composer">
+                      <button type="button" className="x-chat-room-plus-btn" aria-label="더보기" onClick={() => setChatAttachmentSheetOpen((prev) => !prev)}>+</button>
+                      <input value={chatRoomDraft} onChange={(event) => setChatRoomDraft(event.target.value)} placeholder="메시지를 입력하세요" onKeyDown={(event) => {
+                        if (event.key === 'Enter' && !event.shiftKey) {
+                          event.preventDefault();
+                          submitChatRoomMessage();
+                        }
+                      }} />
+                      <button type="button" className="ghost-btn x-chat-room-send-btn" onClick={submitChatRoomMessage}>보내기</button>
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -10637,6 +10947,76 @@ export default function App() {
             </div>
           </div>
         </section>
+      ) : null}
+
+      {chatAttachmentSheetOpen && activeChatThread ? (
+        <div className="chat-sheet-backdrop" onClick={() => setChatAttachmentSheetOpen(false)}>
+          <div className="chat-action-sheet" onClick={(event) => event.stopPropagation()}>
+            <div className="shorts-sheet-handle" />
+            <div className="chat-action-sheet-header">
+              <strong>더보기</strong>
+              <span>사진첨부 · 지도공유 · 파일첨부 · 프로필공유</span>
+            </div>
+            <div className="chat-action-grid">
+              {CHAT_QUICK_SHARE_ITEMS.map((item) => (
+                <button key={item.key} type="button" className="chat-action-grid-btn" onClick={() => handleChatQuickShareAction(item.label)}>
+                  <span className="chat-action-grid-icon" aria-hidden="true">{item.emoji}</span>
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {chatContextMessage ? (
+        <div className="modal-backdrop" onClick={() => setChatContextMessage(null)}>
+          <div className="modal-card chat-message-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="chat-message-emoji-row">
+              {CHAT_REACTION_OPTIONS.map((item) => (
+                <button key={item.key} type="button" className={`chat-message-emoji-btn ${item.className}`} onClick={() => applyChatReaction(chatContextMessage, item.key)} aria-label={item.label}>
+                  {item.symbol}
+                </button>
+              ))}
+            </div>
+            <div className="chat-message-menu-list">
+              <button type="button" className="chat-message-menu-btn" onClick={() => copyChatMessage(chatContextMessage)}>복사</button>
+              <button type="button" className="chat-message-menu-btn" onClick={() => enableChatSelectionCopy(chatContextMessage)}>선택 복사</button>
+              <button type="button" className="chat-message-menu-btn" onClick={() => replyChatMessage(chatContextMessage)}>답장</button>
+              <button type="button" className="chat-message-menu-btn" onClick={() => openChatShareSheet(chatContextMessage)}>공유</button>
+              <button type="button" className="chat-message-menu-btn" onClick={() => pinChatMessage(chatContextMessage)}>공지</button>
+              <button type="button" className="chat-message-menu-btn" onClick={() => startChatEdit(chatContextMessage)} disabled={!canManageChatMessage(chatContextMessage)}>수정</button>
+              <button type="button" className="chat-message-menu-btn danger" onClick={() => deleteChatMessage(chatContextMessage)} disabled={!canManageChatMessage(chatContextMessage)}>삭제</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {chatShareMessage ? (
+        <div className="chat-sheet-backdrop" onClick={() => setChatShareMessage(null)}>
+          <div className="chat-share-sheet" onClick={(event) => event.stopPropagation()}>
+            <div className="shorts-sheet-handle" />
+            <div className="chat-action-sheet-header">
+              <strong>다른 채팅방으로 공유</strong>
+              <span>최근 채팅방을 검색하고 링크도 복사할 수 있습니다.</span>
+            </div>
+            <div className="chat-share-toolbar">
+              <input value={chatShareKeyword} onChange={(event) => setChatShareKeyword(event.target.value)} placeholder="최근 채팅방 검색" />
+              <button type="button" className="ghost-btn" onClick={copyChatShareLink}>링크 복사</button>
+            </div>
+            <div className="chat-share-list compact-scroll-list">
+              {filteredChatShareTargets.map((thread) => (
+                <button key={thread.id} type="button" className="chat-share-row" onClick={() => shareChatMessageToThread(thread)}>
+                  <div className="avatar-circle kakao-avatar"><img src={thread.avatarUrl ?? buildChatAvatarDataUri(thread.name)} alt="" loading="lazy" /></div>
+                  <div className="chat-share-copy">
+                    <strong>{thread.name}</strong>
+                    <span>{thread.purpose} · {thread.preview}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       ) : null}
 
               {shortsMoreItem ? (
