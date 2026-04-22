@@ -857,17 +857,18 @@ function escapeHtmlAttribute(value: string) {
 
 function buildDesktopPaneFrameUrl(slot: DesktopPaneSlot, selection: DesktopPaneSelection) {
   if (typeof window === "undefined") return "";
-  const nextUrl = new URL("/index.html", window.location.origin);
+  const nextUrl = new URL("/index.html", window.location.href);
+  nextUrl.hash = "";
+  nextUrl.search = "";
   nextUrl.searchParams.set("desktopPane", slot);
   nextUrl.searchParams.set("initialTab", selection.mode === "tab" ? selection.tab : desktopBusinessViewMeta[selection.viewId].fallbackTab);
   nextUrl.searchParams.set("desktopFrameMode", "app");
   nextUrl.searchParams.set("paneKey", selection.mode === "tab" ? `${slot}-${selection.tab}` : `${slot}-${selection.viewId}`);
   if (selection.mode === "business") {
     nextUrl.searchParams.set("businessViewId", selection.viewId);
-  } else {
-    nextUrl.searchParams.delete("businessViewId");
   }
-  return nextUrl.toString();
+  const pathWithQuery = `${nextUrl.pathname}${nextUrl.search}`;
+  return pathWithQuery.startsWith("/") ? pathWithQuery : `/${pathWithQuery}`;
 }
 
 function formatDesktopOrderShortDate(value: Date) {
