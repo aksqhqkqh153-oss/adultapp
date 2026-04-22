@@ -7443,7 +7443,11 @@ export default function App() {
 
   const openShopSearchFilterPanel = () => {
     if (activeTab !== "쇼핑") return;
-    setShopSearchFilterPanelOpen(true);
+    setShopSearchFilterPanelOpen((prev) => !prev);
+  };
+
+  const closeShopSearchFilterPanel = () => {
+    setShopSearchFilterPanelOpen(false);
   };
 
   const resetShopSearchFilters = () => {
@@ -7717,10 +7721,11 @@ export default function App() {
             {activeTab === "쇼핑" ? (
               <button
                 type="button"
-                className="header-inline-btn topbar-search-filter-btn"
+                className={`header-inline-btn topbar-search-filter-btn${shopSearchFilterPanelOpen ? " active" : ""}`}
                 onClick={openShopSearchFilterPanel}
                 aria-label={`필터 ${searchFilter}`}
                 title={`필터 ${searchFilter}`}
+                aria-expanded={shopSearchFilterPanelOpen}
               >
                 필터
               </button>
@@ -7804,7 +7809,7 @@ export default function App() {
             ) : null}
 
             {overlayMode === "search" ? (
-              <div className={`overlay-body stack-gap contextual-search-pane search-overlay-pane ${activeTab === "쇼핑" ? "search-overlay-pane-shop" : ""}`}>
+              <div className={`overlay-body stack-gap contextual-search-pane search-overlay-pane ${activeTab === "쇼핑" ? `search-overlay-pane-shop${shopSearchFilterPanelOpen ? " filter-open" : " filter-closed"}` : ""}`}>
                 {activeTab !== "쇼핑" ? (
                   <div className="search-scope-row">
                     {currentSearchSections.map((item) => (
@@ -7819,47 +7824,54 @@ export default function App() {
                     ))}
                   </div>
                 ) : null}
-                <div className="search-toolbar-actions">
-                  {activeTab === "쇼핑" ? <span className="shop-search-filter-status">검색범위 {searchFilter} · 가격 {shopSearchPriceMin || "0"}~{shopSearchPriceMax || "∞"} · 색상 {shopSearchColor} · 용도 {shopSearchPurpose}</span> : null}
-                  <button className="ghost-btn search-clear-btn" onClick={() => setGlobalKeyword("")}>검색어 초기화</button>
-                </div>
+                {activeTab === "쇼핑" ? (
+                  <div className={`search-toolbar-actions shop-search-toolbar-actions${shopSearchFilterPanelOpen ? " filter-open" : " filter-closed"}`}>
+                    {shopSearchFilterPanelOpen ? (
+                      <>
+                        <span className="shop-search-filter-status">검색범위 {searchFilter} · 가격 {shopSearchPriceMin || "0"}~{shopSearchPriceMax || "∞"} · 색상 {shopSearchColor} · 용도 {shopSearchPurpose}</span>
+                        <button className="ghost-btn search-clear-btn" onClick={() => setGlobalKeyword("")}>검색어 초기화</button>
+                      </>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="search-toolbar-actions">
+                    <button className="ghost-btn search-clear-btn" onClick={() => setGlobalKeyword("")}>검색어 초기화</button>
+                  </div>
+                )}
                 {activeTab === "쇼핑" && shopSearchFilterPanelOpen ? (
-                  <div className="modal-backdrop shop-search-filter-modal-backdrop" onClick={() => setShopSearchFilterPanelOpen(false)}>
-                    <div className="modal-card shop-search-filter-modal" onClick={(event) => event.stopPropagation()}>
-                      <div className="modal-header-row shop-search-filter-modal-head">
-                        <button type="button" className="header-inline-btn header-icon-btn modal-back-btn" onClick={() => setShopSearchFilterPanelOpen(false)} aria-label="필터 닫기"><BackArrowIcon /></button>
-                        <strong>쇼핑 검색 필터</strong>
-                        <button type="button" className="ghost-btn shop-search-filter-apply-btn" onClick={() => setShopSearchFilterPanelOpen(false)}>적용</button>
+                  <div className="shop-search-filter-inline-panel">
+                    <div className="shop-search-filter-inline-head">
+                      <strong>쇼핑 검색 필터</strong>
+                      <button type="button" className="ghost-btn shop-search-filter-apply-btn" onClick={closeShopSearchFilterPanel}>적용</button>
+                    </div>
+                    <div className="stack-gap shop-search-filter-body">
+                      <div className="legacy-box compact shop-search-filter-box">
+                        <strong>가격 설정</strong>
+                        <div className="shop-search-price-range-row">
+                          <input value={shopSearchPriceMin} onChange={(event) => setShopSearchPriceMin(event.target.value.replace(/[^\d]/g, ""))} placeholder="최소 입력" inputMode="numeric" />
+                          <span>~</span>
+                          <input value={shopSearchPriceMax} onChange={(event) => setShopSearchPriceMax(event.target.value.replace(/[^\d]/g, ""))} placeholder="최대 입력" inputMode="numeric" />
+                        </div>
                       </div>
-                      <div className="stack-gap shop-search-filter-body">
-                        <div className="legacy-box compact shop-search-filter-box">
-                          <strong>가격 설정</strong>
-                          <div className="shop-search-price-range-row">
-                            <input value={shopSearchPriceMin} onChange={(event) => setShopSearchPriceMin(event.target.value.replace(/[^\d]/g, ""))} placeholder="최소 입력" inputMode="numeric" />
-                            <span>~</span>
-                            <input value={shopSearchPriceMax} onChange={(event) => setShopSearchPriceMax(event.target.value.replace(/[^\d]/g, ""))} placeholder="최대 입력" inputMode="numeric" />
-                          </div>
+                      <div className="legacy-box compact shop-search-filter-box">
+                        <strong>색상 설정</strong>
+                        <div className="shop-search-filter-chip-row">
+                          {SHOP_SEARCH_COLOR_OPTIONS.map((option) => (
+                            <button key={`shop-color-${option}`} type="button" className={`shop-search-filter-chip ${shopSearchColor === option ? "active" : ""}`} onClick={() => setShopSearchColor(option)}>{option}</button>
+                          ))}
                         </div>
-                        <div className="legacy-box compact shop-search-filter-box">
-                          <strong>색상 설정</strong>
-                          <div className="shop-search-filter-chip-row">
-                            {SHOP_SEARCH_COLOR_OPTIONS.map((option) => (
-                              <button key={`shop-color-${option}`} type="button" className={`shop-search-filter-chip ${shopSearchColor === option ? "active" : ""}`} onClick={() => setShopSearchColor(option)}>{option}</button>
-                            ))}
-                          </div>
+                      </div>
+                      <div className="legacy-box compact shop-search-filter-box">
+                        <strong>용도 설정</strong>
+                        <div className="shop-search-filter-chip-row">
+                          {SHOP_SEARCH_PURPOSE_OPTIONS.map((option) => (
+                            <button key={`shop-purpose-${option}`} type="button" className={`shop-search-filter-chip ${shopSearchPurpose === option ? "active" : ""}`} onClick={() => setShopSearchPurpose(option)}>{option}</button>
+                          ))}
                         </div>
-                        <div className="legacy-box compact shop-search-filter-box">
-                          <strong>용도 설정</strong>
-                          <div className="shop-search-filter-chip-row">
-                            {SHOP_SEARCH_PURPOSE_OPTIONS.map((option) => (
-                              <button key={`shop-purpose-${option}`} type="button" className={`shop-search-filter-chip ${shopSearchPurpose === option ? "active" : ""}`} onClick={() => setShopSearchPurpose(option)}>{option}</button>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="copy-action-row">
-                          <button type="button" className="ghost-btn" onClick={resetShopSearchFilters}>초기화</button>
-                          <button type="button" onClick={() => setShopSearchFilterPanelOpen(false)}>필터 적용</button>
-                        </div>
+                      </div>
+                      <div className="copy-action-row">
+                        <button type="button" className="ghost-btn" onClick={resetShopSearchFilters}>초기화</button>
+                        <button type="button" onClick={closeShopSearchFilterPanel}>필터 적용</button>
                       </div>
                     </div>
                   </div>
