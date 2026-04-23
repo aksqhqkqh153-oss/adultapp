@@ -782,6 +782,19 @@ type DesktopOrderAdminRow = {
   deliveryStatus: Exclude<DesktopOrderDeliveryFilter, "전체">;
   progressStatus: "주문접수대기" | "상품준비중" | "배송지시" | "배송중" | "배송완료";
 };
+type DesktopShippingAdminRow = {
+  id: string;
+  orderedAt: string;
+  orderNo: string;
+  ordererName: string;
+  productSummary: string;
+  receiverSummary: string;
+  expectedShipDate: string;
+  deliveryStatus: Exclude<DesktopOrderDeliveryFilter, "전체">;
+  delayNotice: string;
+  courier: string;
+  trackingNo: string;
+};
 
 const desktopBusinessViewMeta: Record<DesktopBusinessViewId, { title: string; description: string; fallbackTab: MobileTab; section: string }> = {
   product_crud: { title: "상품 조회/등록/수정/삭제", description: "판매자센터 기본형 CRUD 화면입니다.", fallbackTab: "쇼핑", section: "상품" },
@@ -922,6 +935,57 @@ function mapDesktopOrderStatuses(status: string, index: number) {
     { deliveryStatus: "업체 직접 배송" as const, progressStatus: "배송지시" as const },
   ];
   return fallbackCycle[index % fallbackCycle.length];
+}
+
+function buildDesktopShippingAdminRows(rows: DesktopOrderAdminRow[]): DesktopShippingAdminRow[] {
+  const optionLabels = ["기본형", "대형", "프리미엄", "익명포장", "선물포장", "단품"];
+  const courierByStatus: Record<DesktopShippingAdminRow["deliveryStatus"], string> = {
+    "결제완료": "출고대기",
+    "상품준비중": "로젠택배",
+    "배송지시": "CJ대한통운",
+    "배송중": "우체국택배",
+    "배송완료": "한진택배",
+    "업체 직접 배송": "업체 직접 배송",
+  };
+  const delayNoticeByStatus: Record<DesktopShippingAdminRow["deliveryStatus"], string> = {
+    "결제완료": "출고 준비 중",
+    "상품준비중": "정상 출고 예정",
+    "배송지시": "집하 요청 완료",
+    "배송중": "지연 없음",
+    "배송완료": "배송 완료",
+    "업체 직접 배송": "판매자 직접 조율",
+  };
+
+  return rows.map((item, index) => {
+    const shipDate = new Date(`${item.orderedDateIso}T09:00:00`);
+    shipDate.setDate(shipDate.getDate() + (item.deliveryStatus === "결제완료" ? 1 : item.deliveryStatus === "상품준비중" ? 1 : 0));
+    const expectedShipDate = formatDesktopOrderIsoDate(shipDate);
+    const ordererName = item.ordererLabel.split(" /")[0] ?? item.ordererLabel;
+    const optionLabel = optionLabels[index % optionLabels.length];
+    const receiverName = item.receiverLabel.split(" /")[0] ?? item.receiverLabel;
+    const receiverPhone = item.receiverLabel.split(" /")[1] ?? "연락처 미기입";
+    const delayNotice = delayNoticeByStatus[item.deliveryStatus];
+    const courier = courierByStatus[item.deliveryStatus];
+    const trackingNo = item.deliveryStatus === "결제완료"
+      ? "출고 후 입력"
+      : item.deliveryStatus === "업체 직접 배송"
+        ? "직접 배송"
+        : `${String(6100 + index).padStart(4, "0")}-${String(32000000 + index * 73).padStart(8, "0")}`;
+
+    return {
+      id: `shipping-${item.id}`,
+      orderedAt: item.orderedAt,
+      orderNo: item.orderNo,
+      ordererName,
+      productSummary: `${item.productName} / ${optionLabel} / ${item.quantity}개`,
+      receiverSummary: `${receiverName} / ${receiverPhone} / ${item.address}`,
+      expectedShipDate,
+      deliveryStatus: item.deliveryStatus,
+      delayNotice,
+      courier,
+      trackingNo,
+    } satisfies DesktopShippingAdminRow;
+  });
 }
 
 function buildDesktopOrderAdminRows(orders: ApiOrder[], sellerProducts: SellerProductItem[]) {
@@ -9679,6 +9743,7 @@ export default function App() {
       );
     }
 
+    const shippingTableRows = businessViewId === 'shipping' ? buildDesktopShippingAdminRows(desktopOrderRows) : [];
     const genericRows: Array<{ title: string; meta: string; body: string }> = businessViewId === 'shipping'
       ? recentOrderRows.map((item) => ({ title: item.order_no, meta: `${item.status} · 정산 ${item.settlement_status}`, body: `출고 처리 대상 주문 · 결제 ${item.payment_pg}` }))
         : businessViewId === 'returns'
@@ -9722,6 +9787,54 @@ export default function App() {
             )) : <div className="desktop-business-empty">표시할 최근 데이터가 없습니다.</div>}
           </div>
         </section>
+        {businessViewId === 'shipping' ? (
+          <section className="desktop-business-card">
+            <div className="desktop-business-section-head">
+              <div>
+                <h2>배송관리 목록</h2>
+                <p>주문 기준으로 출고예정일, 배송상태, 지연안내, 택배사, 운송장번호를 한 번에 확인할 수 있도록 하단 목록을 추가했습니다.</p>
+              </div>
+            </div>
+            <div className="desktop-product-table-wrap">
+              <table className="desktop-product-table desktop-order-table">
+                <thead>
+                  <tr>
+                    <th>주문일시</th>
+                    <th>주문번호</th>
+                    <th>주문자명</th>
+                    <th>상품명/옵션/수량</th>
+                    <th>수취인/연락처/배송지</th>
+                    <th>출고예정일</th>
+                    <th>배송상태</th>
+                    <th>배송지연안내</th>
+                    <th>택배사</th>
+                    <th>운송장번호</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {shippingTableRows.length ? shippingTableRows.map((item) => (
+                    <tr key={item.id}>
+                      <td>{item.orderedAt}</td>
+                      <td><strong>{item.orderNo}</strong></td>
+                      <td>{item.ordererName}</td>
+                      <td>{item.productSummary}</td>
+                      <td className="desktop-order-address-cell">{item.receiverSummary}</td>
+                      <td>{item.expectedShipDate}</td>
+                      <td><span className={`desktop-order-status-chip desktop-order-status-chip-${item.deliveryStatus === '업체 직접 배송' ? 'direct' : item.deliveryStatus === '배송완료' ? 'done' : item.deliveryStatus === '배송중' ? 'moving' : item.deliveryStatus === '배송지시' ? 'guide' : item.deliveryStatus === '상품준비중' ? 'prepare' : 'paid'}`}>{item.deliveryStatus}</span></td>
+                      <td>{item.delayNotice}</td>
+                      <td>{item.courier}</td>
+                      <td>{item.trackingNo}</td>
+                    </tr>
+                  )) : (
+                    <tr>
+                      <td colSpan={10} className="desktop-product-table-empty">표시할 배송 데이터가 없습니다.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ) : null}
       </div>
     );
   };
