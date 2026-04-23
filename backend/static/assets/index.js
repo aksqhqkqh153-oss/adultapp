@@ -10785,6 +10785,7 @@ function App() {
   const [profileSection, setProfileSection] = reactExports.useState("게시물");
   const [profileEditMode, setProfileEditMode] = reactExports.useState(false);
   const [profileEditDraft, setProfileEditDraft] = reactExports.useState(defaultDemoProfile);
+  const [profileNicknameEditUnlocked, setProfileNicknameEditUnlocked] = reactExports.useState(false);
   const [followedFeedAuthors, setFollowedFeedAuthors] = reactExports.useState(() => {
     if (typeof window === "undefined") return ["adult official", "seller studio"];
     try {
@@ -12318,6 +12319,7 @@ function App() {
       hashtags: demoProfile.hashtags.trim() || currentProfileMeta.hashtags.join(" "),
       avatarUrl: demoProfile.avatarUrl
     });
+    setProfileNicknameEditUnlocked(false);
     setProfileEditMode(true);
   }, [currentProfileMeta, demoProfile]);
   const cancelProfileEditMode = reactExports.useCallback(() => {
@@ -12328,18 +12330,38 @@ function App() {
       hashtags: demoProfile.hashtags.trim() || currentProfileMeta.hashtags.join(" "),
       avatarUrl: demoProfile.avatarUrl
     }));
+    setProfileNicknameEditUnlocked(false);
     setProfileEditMode(false);
   }, [currentProfileMeta, demoProfile]);
   const saveProfileEditMode = reactExports.useCallback(() => {
+    const nextDisplayName = profileEditDraft.displayName.trim();
+    const currentDisplayName = (demoProfile.displayName.trim() || currentProfileMeta.name).trim();
+    if (nextDisplayName && nextDisplayName !== currentDisplayName) {
+      const confirmed = window.confirm(`닉네임이 변경되었습니다. 변경된 닉네임으로 사용하시겠습니까?
+
+변경 전 닉네임을 사용시 취소를 누르고, 변경 후 닉네임을 사용시 선택시 네를 눌러주세요`);
+      if (!confirmed) return;
+    }
     setDemoProfile((prev) => ({
       ...prev,
-      displayName: profileEditDraft.displayName.trim(),
+      displayName: nextDisplayName,
       bio: profileEditDraft.bio.trim(),
       hashtags: profileEditDraft.hashtags.trim(),
       avatarUrl: profileEditDraft.avatarUrl.trim()
     }));
+    setProfileNicknameEditUnlocked(false);
     setProfileEditMode(false);
-  }, [profileEditDraft]);
+  }, [currentProfileMeta.name, demoProfile.displayName, profileEditDraft]);
+  const handleProfileNicknameEditUnlock = reactExports.useCallback(() => {
+    if (!profileEditMode || profileNicknameEditUnlocked) return;
+    window.alert("닉네임 변경시 1개월간 재변경이 불가능합니다");
+    setProfileNicknameEditUnlocked(true);
+    window.setTimeout(() => {
+      const input = document.querySelector(".profile-ig-edit-username");
+      input == null ? void 0 : input.focus();
+      input == null ? void 0 : input.select();
+    }, 0);
+  }, [profileEditMode, profileNicknameEditUnlocked]);
   const handleProfileAvatarFileChange = reactExports.useCallback((event) => {
     var _a2;
     const file = (_a2 = event.target.files) == null ? void 0 : _a2[0];
@@ -17528,8 +17550,14 @@ function App() {
                 {
                   className: "profile-ig-edit-input profile-ig-edit-username",
                   value: profileEditDraft.displayName,
-                  onChange: (event) => setProfileEditDraft((prev) => ({ ...prev, displayName: event.target.value })),
-                  placeholder: "표시 이름"
+                  onChange: (event) => {
+                    if (!profileNicknameEditUnlocked) return;
+                    setProfileEditDraft((prev) => ({ ...prev, displayName: event.target.value }));
+                  },
+                  onClick: handleProfileNicknameEditUnlock,
+                  onFocus: handleProfileNicknameEditUnlock,
+                  placeholder: "표시 이름",
+                  readOnly: !profileNicknameEditUnlocked
                 }
               ) : /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { className: "profile-ig-username", children: currentProfileMeta.name }),
               currentProfileMeta.isOwner ? profileEditMode ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "profile-inline-actions profile-inline-actions-edit", children: [

@@ -4264,14 +4264,14 @@ pre,
 .profile-ig-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: 4px;
 }
 
 .profile-ig-stats div {
   display: grid;
-  gap: 4px;
+  gap: 1px;
   text-align: center;
-  padding: 10px 8px;
+  padding: 4px;
   border-radius: 18px;
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.06);
