@@ -4688,7 +4688,7 @@ export default function App() {
     if (!raw) return defaultSellerVerification;
     try { return { ...defaultSellerVerification, ...JSON.parse(raw) }; } catch { return defaultSellerVerification; }
   });
-  const [productRegistrationDraft, setProductRegistrationDraft] = useState<ProductRegistrationDraft>(() => ({ category: "위생/보관", name: "", imageUrls: ["", "", "", "", ""], description: "", price: "", stockQty: "", skuCode: "" }));
+  const [productRegistrationDraft, setProductRegistrationDraft] = useState<ProductRegistrationDraft>(() => ({ category: "", name: "", imageUrls: ["", "", "", "", ""], description: "", price: "", stockQty: "", skuCode: "" }));
   const [desktopProductEditId, setDesktopProductEditId] = useState<number | null>(null);
   const [desktopProductEditorOpen, setDesktopProductEditorOpen] = useState(false);
   const [desktopProductSelectedIds, setDesktopProductSelectedIds] = useState<number[]>([]);
@@ -5132,17 +5132,50 @@ export default function App() {
   const productCategoryOptions = useMemo(() => {
     const backendCategories = uiCategoryGroups.flatMap((group) => group.items).filter((item) => !["상품등록", "사진/영상 첨부", "SKU 관리", "재고/상태 변경"].includes(item));
     const fallbackCategories = shopCategories.flatMap((group) => group.items.map((item) => item.name));
-    return [...new Set((backendCategories.length ? backendCategories : fallbackCategories).filter(Boolean))];
+    return [...new Set([...(backendCategories.length ? backendCategories : fallbackCategories).filter(Boolean), "채팅-이모티콘"])] as string[];
   }, [uiCategoryGroups]);
   const createEmptyProductDraft = useCallback((): ProductRegistrationDraft => ({
-    category: productCategoryOptions[0] ?? "위생/보관",
+    category: "",
     name: "",
     imageUrls: ["", "", "", "", ""],
     description: "",
     price: "",
     stockQty: "",
     skuCode: "",
-  }), [productCategoryOptions]);
+  }), []);
+  const isProductCategorySelected = Boolean(productRegistrationDraft.category.trim());
+  const isChatEmoticonCategory = productRegistrationDraft.category === "채팅-이모티콘";
+  const productImageInputMeta = isChatEmoticonCategory
+    ? [
+        { label: "대표 이모티콘 이미지", placeholder: "대표 이모티콘 이미지 URL 입력" },
+        { label: "미리보기 이미지 1", placeholder: "미리보기 이미지 1 URL 입력" },
+        { label: "미리보기 이미지 2", placeholder: "미리보기 이미지 2 URL 입력" },
+      ]
+    : [
+        { label: "대표 이미지", placeholder: "대표 이미지 URL 입력" },
+        { label: "추가 이미지 1", placeholder: "추가 이미지 1 URL 입력" },
+        { label: "추가 이미지 2", placeholder: "추가 이미지 2 URL 입력" },
+        { label: "추가 이미지 3", placeholder: "추가 이미지 3 URL 입력" },
+        { label: "추가 이미지 4", placeholder: "추가 이미지 4 URL 입력" },
+      ];
+  const handleProductCategoryChange = (nextCategory: string) => {
+    setProductRegistrationDraft((prev) => ({ ...prev, category: nextCategory }));
+  };
+  const handleProductNameChange = (nextName: string) => {
+    setProductRegistrationDraft((prev) => ({ ...prev, name: nextName.slice(0, 29) }));
+  };
+  const handleProductDescriptionChange = (nextDescription: string) => {
+    setProductRegistrationDraft((prev) => ({ ...prev, description: nextDescription }));
+  };
+  const handleProductPriceChange = (nextPrice: string) => {
+    setProductRegistrationDraft((prev) => ({ ...prev, price: nextPrice.replace(/[^0-9]/g, "") }));
+  };
+  const handleProductStockQtyChange = (nextStockQty: string) => {
+    setProductRegistrationDraft((prev) => ({ ...prev, stockQty: nextStockQty.replace(/[^0-9]/g, "").slice(0, 4) }));
+  };
+  const handleProductSkuCodeChange = (nextSkuCode: string) => {
+    setProductRegistrationDraft((prev) => ({ ...prev, skuCode: nextSkuCode }));
+  };
   useEffect(() => {
     setDesktopProductSelectedIds((prev) => prev.filter((id) => sellerProducts.some((item) => item.id === id)));
   }, [sellerProducts]);
@@ -7749,7 +7782,7 @@ export default function App() {
     && sellerVerification.settlementAccountHolder.trim()
     && sellerVerification.handledCategories.trim()
   );
-  const productDraftReady = Boolean(productRegistrationDraft.category && productRegistrationDraft.name.trim() && productRegistrationDraft.description.trim() && productRegistrationDraft.price.trim() && productRegistrationDraft.stockQty.trim() && productRegistrationDraft.skuCode.trim());
+  const productDraftReady = Boolean(isProductCategorySelected && productRegistrationDraft.name.trim() && productRegistrationDraft.description.trim() && productRegistrationDraft.price.trim() && productRegistrationDraft.stockQty.trim() && productRegistrationDraft.skuCode.trim());
   const consentRecordsPreview = [
     { consent_type: "terms_of_service", agreed: signupConsents.terms, required: true, version: consentVersionMap.terms },
     { consent_type: "privacy_policy", agreed: signupConsents.privacy, required: true, version: consentVersionMap.privacy },
@@ -9160,20 +9193,36 @@ export default function App() {
         ? sellerProducts.find((item) => item.id === desktopProductEditId)?.status ?? 'draft'
         : 'new';
 
+      const desktopProductOperationCards = isChatEmoticonCategory
+        ? [
+            { title: '상품 주요 정보', body: `현재 상태: ${currentStatusLabel} · 상품코드: ${productRegistrationDraft.skuCode || '-'} · 카테고리: ${productRegistrationDraft.category || '-'}` },
+            { title: '노출 가이드', body: '대표 이미지와 미리보기 이미지는 채팅 내 미리보기/상점 카드에 맞는 정사각형 비율을 권장합니다.' },
+            { title: '사용 범위', body: '채팅-이모티콘은 채팅방 이모티콘 전용 상품으로 가정하고 설명, 썸네일, 가격 정보 중심으로 등록합니다.' },
+            { title: '판매 운영', body: '임시저장 후 검토 또는 상품등록 시 즉시 공개 흐름을 유지하고, 필요 시 판매중지/교체 이미지를 후속 반영할 수 있습니다.' },
+          ]
+        : [
+            { title: '상품 주요 정보', body: `현재 상태: ${currentStatusLabel} · 상품코드: ${productRegistrationDraft.skuCode || '-'} · 카테고리: ${productRegistrationDraft.category || '-'}` },
+            { title: '상품정보제공고시 / 구비서류', body: '카테고리 확정 후 필수 고시정보와 판매 증빙서류 업로드 영역을 연결할 수 있습니다.' },
+            { title: '배송', body: '익명포장, 배송비, 출고리드타임 정책을 연결할 수 있습니다.' },
+            { title: '반품/교환', body: '반품지, 교환 기준, 고객센터 안내 문구를 연결할 수 있습니다.' },
+          ];
+
       return (
         <div className="desktop-business-shell">
-          <header className="desktop-business-header">
-            <div>
-              <strong>{meta.title}</strong>
-              <p>{meta.description}</p>
-            </div>
-            <div className="desktop-business-chip-row">
-              <span className="desktop-business-chip">전체 {productStatusSummary.total}</span>
-              <span className="desktop-business-chip">공개중 {productStatusSummary.approved}</span>
-              <span className="desktop-business-chip">검토/임시 {productStatusSummary.waiting}</span>
-              <span className="desktop-business-chip">재고주의 {productStatusSummary.lowStock}</span>
-            </div>
-          </header>
+          {!desktopProductEditorOpen ? (
+            <header className="desktop-business-header">
+              <div>
+                <strong>{meta.title}</strong>
+                <p>{meta.description}</p>
+              </div>
+              <div className="desktop-business-chip-row">
+                <span className="desktop-business-chip">전체 {productStatusSummary.total}</span>
+                <span className="desktop-business-chip">공개중 {productStatusSummary.approved}</span>
+                <span className="desktop-business-chip">검토/임시 {productStatusSummary.waiting}</span>
+                <span className="desktop-business-chip">재고주의 {productStatusSummary.lowStock}</span>
+              </div>
+            </header>
+          ) : null}
 
           {!desktopProductEditorOpen ? (
             <section className="desktop-business-card">
@@ -9286,53 +9335,50 @@ export default function App() {
                   <div className="desktop-product-section-headline">
                     <strong>기본 정보</strong>
                   </div>
-                  <div className="desktop-product-form-grid desktop-product-form-grid-detailed">
+                  <div className="desktop-product-form-grid desktop-product-form-grid-detailed desktop-product-form-grid-labelless">
                     <label>
-                      <span>카테고리</span>
-                      <select value={productRegistrationDraft.category} onChange={(event) => setProductRegistrationDraft((prev) => ({ ...prev, category: event.target.value }))}>
-                        <option value="위생/보관">위생/보관</option>
-                        {productCategoryOptions.filter((item) => item !== "위생/보관").map((item) => <option key={item} value={item}>{item}</option>)}
+                      <select value={productRegistrationDraft.category} onChange={(event) => handleProductCategoryChange(event.target.value)}>
+                        <option value="">카테고리 선택</option>
+                        {productCategoryOptions.map((item) => <option key={item} value={item}>{item}</option>)}
                       </select>
                     </label>
                     <label>
-                      <span>등록상품명</span>
-                      <input value={productRegistrationDraft.name} onChange={(event) => setProductRegistrationDraft((prev) => ({ ...prev, name: event.target.value }))} placeholder="등록상품명 입력" />
+                      <input value={productRegistrationDraft.name} onChange={(event) => handleProductNameChange(event.target.value)} placeholder="등록상품명 입력" maxLength={29} disabled={!isProductCategorySelected} />
                     </label>
                     <label className="wide">
-                      <span>상세 설명</span>
-                      <textarea value={productRegistrationDraft.description} onChange={(event) => setProductRegistrationDraft((prev) => ({ ...prev, description: event.target.value }))} rows={6} placeholder="상품 상세 설명 입력" />
+                      <textarea value={productRegistrationDraft.description} onChange={(event) => handleProductDescriptionChange(event.target.value)} rows={6} placeholder="상세설명 입력" disabled={!isProductCategorySelected} />
                     </label>
                     <label>
-                      <span>판매가</span>
-                      <input type="number" value={productRegistrationDraft.price} onChange={(event) => setProductRegistrationDraft((prev) => ({ ...prev, price: event.target.value }))} placeholder="판매가" />
+                      <div className={`desktop-product-inline-affix${!isProductCategorySelected ? ' disabled' : ''}`}>
+                        <input inputMode="numeric" value={productRegistrationDraft.price} onChange={(event) => handleProductPriceChange(event.target.value)} placeholder="판매가 입력" disabled={!isProductCategorySelected} />
+                        <span>원</span>
+                      </div>
                     </label>
                     <label>
-                      <span>재고수량</span>
-                      <input type="number" value={productRegistrationDraft.stockQty} onChange={(event) => setProductRegistrationDraft((prev) => ({ ...prev, stockQty: event.target.value }))} placeholder="재고수량" />
+                      <input inputMode="numeric" value={productRegistrationDraft.stockQty} onChange={(event) => handleProductStockQtyChange(event.target.value)} placeholder="재고수량 입력" disabled={!isProductCategorySelected} />
                     </label>
                     <label className="wide">
-                      <span>상품코드(SKU)</span>
-                      <input value={productRegistrationDraft.skuCode} onChange={(event) => setProductRegistrationDraft((prev) => ({ ...prev, skuCode: event.target.value }))} placeholder="상품코드 입력" />
+                      <input value={productRegistrationDraft.skuCode} onChange={(event) => handleProductSkuCodeChange(event.target.value)} placeholder="상품코드 SKU 입력" disabled={!isProductCategorySelected} />
                     </label>
                   </div>
                 </article>
 
                 <article className="desktop-product-section-card">
                   <div className="desktop-product-section-headline">
-                    <strong>대표 이미지 / 추가 이미지</strong>
+                    <strong>{isChatEmoticonCategory ? '대표 이미지 / 미리보기 이미지' : '대표 이미지 / 추가 이미지'}</strong>
                   </div>
                   <div className="desktop-product-form-grid desktop-product-photo-grid">
-                    {productRegistrationDraft.imageUrls.map((item, index) => (
+                    {productImageInputMeta.map((meta, index) => (
                       <label key={`product-image-${index}`} className={index === 0 ? 'wide' : undefined}>
-                        <span>{index === 0 ? '대표 이미지 URL' : `추가 이미지 ${index} URL`}</span>
                         <input
-                          value={item}
+                          value={productRegistrationDraft.imageUrls[index] ?? ''}
                           onChange={(event) => {
                             const next = [...productRegistrationDraft.imageUrls];
                             next[index] = event.target.value;
                             setProductRegistrationDraft((prev) => ({ ...prev, imageUrls: next }));
                           }}
-                          placeholder="https://example.com/image.jpg"
+                          placeholder={meta.placeholder}
+                          disabled={!isProductCategorySelected}
                         />
                       </label>
                     ))}
@@ -9344,22 +9390,12 @@ export default function App() {
                     <strong>상품 운영 정보</strong>
                   </div>
                   <div className="desktop-product-support-grid">
-                    <article className="desktop-product-mini-card">
-                      <strong>상품 주요 정보</strong>
-                      <p>현재 상태: {currentStatusLabel} · 상품코드: {productRegistrationDraft.skuCode || '-'} · 카테고리: {productRegistrationDraft.category || '-'}</p>
-                    </article>
-                    <article className="desktop-product-mini-card">
-                      <strong>상품정보제공고시 / 구비서류</strong>
-                      <p>카테고리 확정 후 필수 고시정보와 판매 증빙서류 업로드 영역을 연결할 수 있습니다.</p>
-                    </article>
-                    <article className="desktop-product-mini-card">
-                      <strong>배송</strong>
-                      <p>익명포장, 배송비, 출고리드타임 정책을 연결할 수 있습니다.</p>
-                    </article>
-                    <article className="desktop-product-mini-card">
-                      <strong>반품/교환</strong>
-                      <p>반품지, 교환 기준, 고객센터 안내 문구를 연결할 수 있습니다.</p>
-                    </article>
+                    {desktopProductOperationCards.map((card) => (
+                      <article key={card.title} className="desktop-product-mini-card">
+                        <strong>{card.title}</strong>
+                        <p>{card.body}</p>
+                      </article>
+                    ))}
                   </div>
                 </article>
               </div>
@@ -10904,13 +10940,13 @@ export default function App() {
                     <div className="legacy-box compact">
                       <h3>상품 등록 화면</h3>
                       <div className="profile-form-grid">
-                        <label><span>카테고리</span><select value={productRegistrationDraft.category} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, category: e.target.value }))}>{productCategoryOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-                        <label><span>등록상품명</span><input value={productRegistrationDraft.name} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, name: e.target.value }))} placeholder="등록상품명 입력" /></label>
-                        <label><span>판매가</span><input value={productRegistrationDraft.price} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, price: e.target.value }))} placeholder="판매가" /></label>
-                        <label><span>재고수량</span><input value={productRegistrationDraft.stockQty} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, stockQty: e.target.value }))} placeholder="재고수량" /></label>
-                        <label><span>상품코드(SKU)</span><input value={productRegistrationDraft.skuCode} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, skuCode: e.target.value }))} placeholder="상품코드 입력" /></label>
-                        <label className="wide"><span>상세 설명</span><textarea value={productRegistrationDraft.description} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, description: e.target.value }))} placeholder="상품 상세 설명 입력" /></label>
-                        <label className="wide"><span>대표 이미지 / 추가 이미지</span><div className="photo-url-grid">{productRegistrationDraft.imageUrls.map((value, idx) => <input key={idx} value={value} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, imageUrls: prev.imageUrls.map((item, itemIdx) => itemIdx === idx ? e.target.value : item) }))} placeholder="https://example.com/image.jpg" />)}</div></label>
+                        <label><span>카테고리</span><select value={productRegistrationDraft.category} onChange={(e) => handleProductCategoryChange(e.target.value)}><option value="">카테고리 선택</option>{productCategoryOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+                        <label><span>등록상품명</span><input value={productRegistrationDraft.name} onChange={(e) => handleProductNameChange(e.target.value)} placeholder="등록상품명 입력" maxLength={29} disabled={!isProductCategorySelected} /></label>
+                        <label><span>판매가</span><input value={productRegistrationDraft.price} onChange={(e) => handleProductPriceChange(e.target.value)} placeholder="판매가 입력" inputMode="numeric" disabled={!isProductCategorySelected} /></label>
+                        <label><span>재고수량</span><input value={productRegistrationDraft.stockQty} onChange={(e) => handleProductStockQtyChange(e.target.value)} placeholder="재고수량 입력" inputMode="numeric" disabled={!isProductCategorySelected} /></label>
+                        <label><span>상품코드(SKU)</span><input value={productRegistrationDraft.skuCode} onChange={(e) => handleProductSkuCodeChange(e.target.value)} placeholder="상품코드 SKU 입력" disabled={!isProductCategorySelected} /></label>
+                        <label className="wide"><span>상세 설명</span><textarea value={productRegistrationDraft.description} onChange={(e) => handleProductDescriptionChange(e.target.value)} placeholder="상세설명 입력" disabled={!isProductCategorySelected} /></label>
+                        <label className="wide"><span>{isChatEmoticonCategory ? '대표 이미지 / 미리보기 이미지' : '대표 이미지 / 추가 이미지'}</span><div className="photo-url-grid">{productImageInputMeta.map((meta, idx) => <input key={idx} value={productRegistrationDraft.imageUrls[idx] ?? ''} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, imageUrls: prev.imageUrls.map((item, itemIdx) => itemIdx === idx ? e.target.value : item) }))} placeholder={meta.placeholder} disabled={!isProductCategorySelected} />)}</div></label>
                       </div>
                       {!productDraftReady ? <p className="muted-mini">카테고리, 상품명, 가격, 개수, 상품 코드, 상품소개를 입력해야 등록할 수 있습니다. 사진 URL은 선택입니다.</p> : null}{reconsentWriteRestricted ? <p className="muted-mini">유예기간 없이 최신 필수 문서 재동의가 필요합니다. 먼저 필수 문서 안내 화면에서 최신 약관과 재동의 절차를 확인하세요.</p> : null}
                       <div className="copy-action-row">
