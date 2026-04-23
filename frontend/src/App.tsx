@@ -689,6 +689,14 @@ const defaultDemoProfile: DemoProfileState = {
   hashtags: "",
   avatarUrl: "",
 };
+
+const PROFILE_KEYWORD_TAG_LIMIT = 20;
+const normalizeProfileKeywordTags = (value: string) => value
+  .split(/[
+,\s#]+/)
+  .map((item) => item.trim())
+  .filter(Boolean)
+  .slice(0, PROFILE_KEYWORD_TAG_LIMIT);
 const defaultSellerVerification: SellerVerificationState = {
   companyName: "",
   representativeName: "",
@@ -6567,11 +6575,8 @@ export default function App() {
     const postCount = Math.max(9, authorFeeds.length * 4 || 12);
     const isOwner = viewedProfileAuthor === null;
     const ownerDisplayName = demoProfile.displayName.trim() || signupForm.displayName.trim() || currentProfileAuthor;
-    const ownerBio = demoProfile.bio.trim() || firstFeed?.caption || "피드와 질문, 쇼핑 정보를 함께 운영하는 계정입니다.";
-    const ownerHashtags = demoProfile.hashtags
-      .split(/[,\s#]+/)
-      .map((item) => item.trim())
-      .filter(Boolean);
+    const ownerBio = demoProfile.bio.trim();
+    const ownerHashtags = normalizeProfileKeywordTags(demoProfile.hashtags);
     return {
       name: isOwner ? ownerDisplayName : currentProfileAuthor,
       avatar: (isOwner ? ownerDisplayName : currentProfileAuthor).slice(0, 1).toUpperCase(),
@@ -6624,11 +6629,12 @@ export default function App() {
   }, [currentProfileMeta, demoProfile]);
 
   const saveProfileEditMode = useCallback(() => {
+    const normalizedKeywordTags = normalizeProfileKeywordTags(profileEditDraft.hashtags).join(" ");
     setDemoProfile((prev) => ({
       ...prev,
       displayName: profileEditDraft.displayName.trim(),
       bio: profileEditDraft.bio.trim(),
-      hashtags: profileEditDraft.hashtags.trim(),
+      hashtags: normalizedKeywordTags,
       avatarUrl: profileEditDraft.avatarUrl.trim(),
     }));
     setProfileEditMode(false);
@@ -7582,21 +7588,24 @@ export default function App() {
   const homeSearchResults = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
     if (!keyword) return [];
+    const ownerKeywordSource = currentProfileMeta.isOwner ? normalizeProfileKeywordTags(demoProfile.hashtags).join(" ").toLowerCase() : "";
     return allFeedItems.filter((item) => {
-      const source = `${item.title} ${item.caption} ${item.author} ${item.category}`.toLowerCase();
-      if (searchFilter === "피드") return `${item.title} ${item.caption}`.toLowerCase().includes(keyword);
+      const isOwnerItem = currentProfileMeta.isOwner && currentProfileAuthorAliases.includes(item.author);
+      const source = `${item.title} ${item.caption} ${item.author} ${item.category} ${isOwnerItem ? ownerKeywordSource : ""}`.toLowerCase();
+      if (searchFilter === "피드") return `${item.title} ${item.caption} ${isOwnerItem ? ownerKeywordSource : ""}`.toLowerCase().includes(keyword);
       if (searchFilter === "작성자") return item.author.toLowerCase().includes(keyword);
       return source.includes(keyword);
     });
-  }, [globalKeyword, searchFilter]);
+  }, [currentProfileAuthorAliases, currentProfileMeta.isOwner, demoProfile.hashtags, globalKeyword, searchFilter]);
 
   const shopSearchResults = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
     const minPrice = Number(shopSearchPriceMin.replace(/[^\d]/g, "")) || 0;
     const maxPrice = Number(shopSearchPriceMax.replace(/[^\d]/g, "")) || 0;
     if (!keyword) return [] as ProductCard[];
+    const ownerKeywordSource = normalizeProfileKeywordTags(demoProfile.hashtags).join(" ").toLowerCase();
     return shopCatalogItems.filter((item) => {
-      const source = `${item.name} ${item.subtitle} ${item.category}`.toLowerCase();
+      const source = `${item.name} ${item.subtitle} ${item.category} ${ownerKeywordSource}`.toLowerCase();
       const colorTag = getProductColorTag(item);
       const purposeTag = getProductPurposeTag(item);
       const priceValue = getProductNumericPrice(item);
@@ -7613,7 +7622,7 @@ export default function App() {
       const matchPurpose = shopSearchPurpose === "전체" || purposeTag === shopSearchPurpose;
       return matchKeyword && matchMin && matchMax && matchColor && matchPurpose;
     });
-  }, [globalKeyword, searchFilter, shopCatalogItems, shopSearchPriceMin, shopSearchPriceMax, shopSearchColor, shopSearchPurpose]);
+  }, [demoProfile.hashtags, globalKeyword, searchFilter, shopCatalogItems, shopSearchPriceMin, shopSearchPriceMax, shopSearchColor, shopSearchPurpose]);
   const visibleShopSearchResults = useMemo(() => shopSearchResults.slice(0, shopSearchVisibleCount), [shopSearchResults, shopSearchVisibleCount]);
 
   const communitySearchResults = useMemo(() => {
@@ -9068,12 +9077,14 @@ export default function App() {
   const profileSearchResults = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
     if (!keyword) return [];
+    const ownerKeywordSource = normalizeProfileKeywordTags(demoProfile.hashtags).join(" ").toLowerCase();
     return allFeedItems.filter((item) => {
+      const isOwnerItem = currentProfileMeta.isOwner && currentProfileAuthorAliases.includes(item.author);
       if (searchFilter === "아이디") return item.author.toLowerCase().includes(keyword);
-      if (searchFilter === "피드") return `${item.title} ${item.caption}`.toLowerCase().includes(keyword);
-      return `${item.author} ${item.title} ${item.caption}`.toLowerCase().includes(keyword);
+      if (searchFilter === "피드") return `${item.title} ${item.caption} ${isOwnerItem ? ownerKeywordSource : ""}`.toLowerCase().includes(keyword);
+      return `${item.author} ${item.title} ${item.caption} ${isOwnerItem ? ownerKeywordSource : ""}`.toLowerCase().includes(keyword);
     });
-  }, [globalKeyword, searchFilter]);
+  }, [currentProfileAuthorAliases, currentProfileMeta.isOwner, demoProfile.hashtags, globalKeyword, searchFilter]);
 
   if (!authBootstrapDone) {
     return (
@@ -11964,26 +11975,23 @@ export default function App() {
                   <div className="profile-ig-bio">
                     {currentProfileMeta.isOwner && profileEditMode ? (
                       <>
-                        <strong>{profileEditDraft.displayName.trim() || currentProfileMeta.name}</strong>
                         <textarea
                           className="profile-ig-edit-textarea"
                           value={profileEditDraft.bio}
                           onChange={(event) => setProfileEditDraft((prev) => ({ ...prev, bio: event.target.value }))}
-                          placeholder="프로필 소개를 입력하세요"
+                          placeholder="자기소개를 작성하세요"
                           rows={4}
                         />
                         <input
                           className="profile-ig-edit-input"
                           value={profileEditDraft.hashtags}
-                          onChange={(event) => setProfileEditDraft((prev) => ({ ...prev, hashtags: event.target.value }))}
-                          placeholder="#태그 공백 또는 쉼표로 구분"
+                          onChange={(event) => setProfileEditDraft((prev) => ({ ...prev, hashtags: normalizeProfileKeywordTags(event.target.value).join(" ") }))}
+                          placeholder="태그입력(최대20개)"
                         />
                       </>
                     ) : (
                       <>
-                        <strong>{currentProfileMeta.name}</strong>
                         <p>{currentProfileMeta.bio}</p>
-                        <span>{currentProfileMeta.hashtags.map((tag) => `#${tag}`).join(" ")}</span>
                       </>
                     )}
                   </div>

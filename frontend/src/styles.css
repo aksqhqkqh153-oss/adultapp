@@ -2181,7 +2181,7 @@ pre {
 
 .auth-standalone-head h1 {
   margin: 6px 0 8px;
-  font-size: 32px;
+  font-size: 20px;
 }
 
 .auth-standalone-kicker {
@@ -3775,13 +3775,13 @@ pre,
 .profile-ig-shell {
   display: grid;
   gap: 18px;
-  padding: 18px;
+  padding: 5px 0 0;
 }
 
 .profile-ig-header {
   display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
-  gap: 16px;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 12px;
   align-items: start;
 }
 
@@ -3791,8 +3791,8 @@ pre,
 }
 
 .profile-ig-avatar {
-  width: 88px;
-  height: 88px;
+  width: 50px;
+  height: 50px;
   border-radius: 999px;
   display: grid;
   place-items: center;
@@ -3816,7 +3816,7 @@ pre,
   overflow: hidden;
   background-image: none !important;
   color: #fff !important;
-  font-size: 32px !important;
+  font-size: 20px !important;
   text-indent: 0 !important;
 }
 
@@ -4059,19 +4059,19 @@ pre,
 
 @media (max-width: 640px) {
   .profile-ig-shell {
-    padding: 14px;
+    padding: 5px 0 0;
     gap: 14px;
   }
 
   .profile-ig-header {
-    grid-template-columns: 78px minmax(0, 1fr);
-    gap: 12px;
+    grid-template-columns: 58px minmax(0, 1fr);
+    gap: 10px;
   }
 
   .profile-ig-avatar {
-    width: 72px;
-    height: 72px;
-    font-size: 28px;
+    width: 50px;
+    height: 50px;
+    font-size: 20px;
   }
 
   .profile-ig-username {
