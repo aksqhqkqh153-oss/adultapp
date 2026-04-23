@@ -1,5 +1,5 @@
 import { CSSProperties, PointerEvent, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent, TouchEvent as ReactTouchEvent, UIEvent as ReactUIEvent } from "react";
+import type { ChangeEvent, KeyboardEvent as ReactKeyboardEvent, TouchEvent as ReactTouchEvent, UIEvent as ReactUIEvent } from "react";
 import { clearTokens, ensureAuthSession, getApiBase, getJson, getRefreshToken, hasAuthToken, postJson, setAuthToken, setRefreshToken } from "./lib/api";
 
 type FeedItem = {
@@ -678,7 +678,17 @@ const defaultHeaderFavorites: HeaderFavoriteMap = {
 
 const defaultSignupConsents: SignupConsentState = { terms: false, privacy: false, adultNotice: false, identityNotice: false, marketing: false, profileOptional: false };
 const defaultSignupForm: SignupFormState = { email: "", password: "", displayName: "", loginMethod: "이메일" };
-const defaultDemoProfile: DemoProfileState = { gender: "", ageBand: "", regionCode: "", interests: [], marketingOptIn: false };
+const defaultDemoProfile: DemoProfileState = {
+  gender: "",
+  ageBand: "",
+  regionCode: "",
+  interests: [],
+  marketingOptIn: false,
+  displayName: "",
+  bio: "",
+  hashtags: "",
+  avatarUrl: "",
+};
 const defaultSellerVerification: SellerVerificationState = {
   companyName: "",
   representativeName: "",
@@ -742,7 +752,17 @@ type LoginMethod = "이메일" | "카카오";
 type ConsentKey = "terms" | "privacy" | "adultNotice" | "identityNotice" | "marketing" | "profileOptional";
 type SignupConsentState = Record<ConsentKey, boolean>;
 type SignupFormState = { email: string; password: string; displayName: string; loginMethod: LoginMethod; };
-type DemoProfileState = { gender: string; ageBand: string; regionCode: string; interests: string[]; marketingOptIn: boolean; };
+type DemoProfileState = {
+  gender: string;
+  ageBand: string;
+  regionCode: string;
+  interests: string[];
+  marketingOptIn: boolean;
+  displayName: string;
+  bio: string;
+  hashtags: string;
+  avatarUrl: string;
+};
 
 type DesktopPaneSlot = "left" | "right";
 type DesktopBusinessViewId =
@@ -4860,6 +4880,8 @@ export default function App() {
   const [feedCommentAttachmentBusyId, setFeedCommentAttachmentBusyId] = useState<number | null>(null);
   const [viewedProfileAuthor, setViewedProfileAuthor] = useState<string | null>(null);
   const [profileSection, setProfileSection] = useState<ProfileSection>("게시물");
+  const [profileEditMode, setProfileEditMode] = useState(false);
+  const [profileEditDraft, setProfileEditDraft] = useState<DemoProfileState>(defaultDemoProfile);
   const [followedFeedAuthors, setFollowedFeedAuthors] = useState<string[]>(() => {
     if (typeof window === "undefined") return ["adult official", "seller studio"];
     try { return JSON.parse(window.localStorage.getItem("adultapp_followed_feed_authors") ?? '["adult official","seller studio"]'); } catch { return ["adult official", "seller studio"]; }
@@ -4891,6 +4913,7 @@ export default function App() {
   const homeFeedPullStartYRef = useRef<number | null>(null);
   const homeFeedViewedIdsRef = useRef<number[]>([]);
   const homeFeedRefreshUsedTemplateIdsRef = useRef<number[]>([]);
+  const profileAvatarInputRef = useRef<HTMLInputElement | null>(null);
   const allFeedItems = useMemo(() => [...customFeedItems, ...feedSeed].map((item) => normalizeFeedItemPresentation(item)), [customFeedItems]);
   const [shortsMoreItem, setShortsMoreItem] = useState<FeedItem | null>(null);
   const [shortsViewerItemId, setShortsViewerItemId] = useState<number | null>(null);
@@ -6530,41 +6553,114 @@ export default function App() {
   }, [productDetail?.product.id, productDetailOptionChips]);
 
   const currentProfileAuthor = viewedProfileAuthor ?? "adult official";
+  const currentProfileAuthorAliases = useMemo(
+    () => [...new Set([currentProfileAuthor, demoProfile.displayName.trim()].filter(Boolean))],
+    [currentProfileAuthor, demoProfile.displayName],
+  );
   const currentProfileMeta = useMemo(() => {
     const askProfile = askProfiles.find((item) => item.name === currentProfileAuthor);
-    const authorFeeds = allFeedItems.filter((item) => item.author === currentProfileAuthor);
+    const authorFeeds = allFeedItems.filter((item) => currentProfileAuthorAliases.includes(item.author));
     const firstFeed = authorFeeds[0];
     const hash = deterministicHash(currentProfileAuthor);
     const followerCount = 1200 + (hash % 4200);
     const followingCount = 120 + (hash % 430);
     const postCount = Math.max(9, authorFeeds.length * 4 || 12);
+    const isOwner = viewedProfileAuthor === null;
+    const ownerDisplayName = demoProfile.displayName.trim() || signupForm.displayName.trim() || currentProfileAuthor;
+    const ownerBio = demoProfile.bio.trim() || firstFeed?.caption || "피드와 질문, 쇼핑 정보를 함께 운영하는 계정입니다.";
+    const ownerHashtags = demoProfile.hashtags
+      .split(/[,\s#]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
     return {
-      name: currentProfileAuthor,
-      avatar: currentProfileAuthor.slice(0, 1).toUpperCase(),
+      name: isOwner ? ownerDisplayName : currentProfileAuthor,
+      avatar: (isOwner ? ownerDisplayName : currentProfileAuthor).slice(0, 1).toUpperCase(),
+      avatarUrl: isOwner ? demoProfile.avatarUrl.trim() : undefined,
       headline: askProfile?.headline ?? firstFeed?.category ?? "프로필",
-      bio: askProfile?.intro ?? firstFeed?.caption ?? "피드와 질문, 쇼핑 정보를 함께 운영하는 계정입니다.",
-      hashtags: getContentKeywordTags(firstFeed ?? allFeedItems[0] ?? feedSeed[0]),
+      bio: isOwner ? ownerBio : (askProfile?.intro ?? firstFeed?.caption ?? "피드와 질문, 쇼핑 정보를 함께 운영하는 계정입니다."),
+      hashtags: isOwner && ownerHashtags.length ? ownerHashtags : getContentKeywordTags(firstFeed ?? allFeedItems[0] ?? feedSeed[0]),
       postCount,
       followerCount,
       followingCount,
-      isOwner: viewedProfileAuthor === null,
+      isOwner,
     };
-  }, [currentProfileAuthor, viewedProfileAuthor]);
+  }, [allFeedItems, askProfiles, currentProfileAuthor, currentProfileAuthorAliases, demoProfile.avatarUrl, demoProfile.bio, demoProfile.hashtags, demoProfile.displayName, signupForm.displayName, viewedProfileAuthor]);
+
+  useEffect(() => {
+    if (!currentProfileMeta.isOwner) {
+      setProfileEditMode(false);
+      return;
+    }
+    setProfileEditDraft((prev) => ({
+      ...prev,
+      displayName: demoProfile.displayName.trim() || currentProfileMeta.name,
+      bio: demoProfile.bio.trim() || currentProfileMeta.bio,
+      hashtags: demoProfile.hashtags.trim() || currentProfileMeta.hashtags.join(" "),
+      avatarUrl: demoProfile.avatarUrl,
+    }));
+  }, [currentProfileMeta.bio, currentProfileMeta.hashtags, currentProfileMeta.isOwner, currentProfileMeta.name, demoProfile.avatarUrl, demoProfile.bio, demoProfile.displayName, demoProfile.hashtags]);
+
+  const openProfileEditMode = useCallback(() => {
+    if (!currentProfileMeta.isOwner) return;
+    setProfileEditDraft({
+      ...demoProfile,
+      displayName: demoProfile.displayName.trim() || currentProfileMeta.name,
+      bio: demoProfile.bio.trim() || currentProfileMeta.bio,
+      hashtags: demoProfile.hashtags.trim() || currentProfileMeta.hashtags.join(" "),
+      avatarUrl: demoProfile.avatarUrl,
+    });
+    setProfileEditMode(true);
+  }, [currentProfileMeta, demoProfile]);
+
+  const cancelProfileEditMode = useCallback(() => {
+    setProfileEditDraft((prev) => ({
+      ...prev,
+      displayName: demoProfile.displayName.trim() || currentProfileMeta.name,
+      bio: demoProfile.bio.trim() || currentProfileMeta.bio,
+      hashtags: demoProfile.hashtags.trim() || currentProfileMeta.hashtags.join(" "),
+      avatarUrl: demoProfile.avatarUrl,
+    }));
+    setProfileEditMode(false);
+  }, [currentProfileMeta, demoProfile]);
+
+  const saveProfileEditMode = useCallback(() => {
+    setDemoProfile((prev) => ({
+      ...prev,
+      displayName: profileEditDraft.displayName.trim(),
+      bio: profileEditDraft.bio.trim(),
+      hashtags: profileEditDraft.hashtags.trim(),
+      avatarUrl: profileEditDraft.avatarUrl.trim(),
+    }));
+    setProfileEditMode(false);
+  }, [profileEditDraft]);
+
+  const handleProfileAvatarFileChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      setProfileEditDraft((prev) => ({ ...prev, avatarUrl: result }));
+    };
+    reader.readAsDataURL(file);
+    event.target.value = "";
+  }, []);
 
   const currentProfileProducts = useMemo(() => {
     const pool = (shopCatalogItems.length ? shopCatalogItems : productsSeed.map((item, index) => withProductMetrics(item, index))).map((item, index) => withProductMetrics(item, index));
-    const ownerIndex = Math.abs(deterministicHash(currentProfileAuthor)) % 5;
-    const picked = pool.filter((item) => Math.abs(deterministicHash(`${currentProfileAuthor}-${item.id}-${item.name}`)) % 5 === ownerIndex);
+    const ownerSeedName = currentProfileAuthorAliases[0] ?? currentProfileAuthor;
+    const ownerIndex = Math.abs(deterministicHash(ownerSeedName)) % 5;
+    const picked = pool.filter((item) => Math.abs(deterministicHash(`${ownerSeedName}-${item.id}-${item.name}`)) % 5 === ownerIndex);
     const source = picked.length >= 6 ? picked : pool.slice(ownerIndex * 6, ownerIndex * 6 + 9);
     return [...source].sort((a, b) => ((b.orderCount ?? 0) - (a.orderCount ?? 0)) || ((b.reviewCount ?? 0) - (a.reviewCount ?? 0)) || a.name.localeCompare(b.name));
-  }, [shopCatalogItems, currentProfileAuthor]);
+  }, [shopCatalogItems, currentProfileAuthor, currentProfileAuthorAliases]);
 
   const profileShortItems = useMemo(() => {
-    const authored = shortsFeedItems.filter((item) => item.type === "video" && item.author === currentProfileAuthor);
+    const authored = shortsFeedItems.filter((item) => item.type === "video" && currentProfileAuthorAliases.includes(item.author));
     if (authored.length) return authored;
     const fallback = shortsFeedItems.filter((item) => item.type === "video");
     return fallback.slice(0, 30);
-  }, [shortsFeedItems, currentProfileAuthor]);
+  }, [shortsFeedItems, currentProfileAuthor, currentProfileAuthorAliases]);
 
   const pagedProfileShorts = useMemo(() => profileShortItems.slice(0, profileShortsVisibleCount), [profileShortItems, profileShortsVisibleCount]);
   const profileShortsViewerInitialIndex = useMemo(
@@ -11813,13 +11909,45 @@ export default function App() {
             <div className="profile-ig-shell compact-scroll-list" onScroll={handleProfileShellScroll}>
               <div className="profile-ig-header">
                 <div className="profile-ig-avatar-wrap">
-                  <div className="profile-ig-avatar">{currentProfileMeta.avatar}</div>
+                  {currentProfileMeta.isOwner && profileEditMode ? (
+                    <>
+                      <button
+                        type="button"
+                        className={`profile-ig-avatar profile-ig-avatar-edit-trigger ${profileEditDraft.avatarUrl ? "has-image" : ""}`}
+                        onClick={() => profileAvatarInputRef.current?.click()}
+                        aria-label="프로필 사진 변경"
+                      >
+                        {profileEditDraft.avatarUrl ? <img src={profileEditDraft.avatarUrl} alt="프로필" loading="lazy" /> : <span>{(profileEditDraft.displayName.trim() || currentProfileMeta.name).slice(0, 1).toUpperCase()}</span>}
+                      </button>
+                      <input ref={profileAvatarInputRef} type="file" accept="image/*" className="sr-only" onChange={handleProfileAvatarFileChange} />
+                    </>
+                  ) : (
+                    <div className={`profile-ig-avatar ${currentProfileMeta.avatarUrl ? "has-image" : ""}`}>
+                      {currentProfileMeta.avatarUrl ? <img src={currentProfileMeta.avatarUrl} alt="프로필" loading="lazy" /> : currentProfileMeta.avatar}
+                    </div>
+                  )}
                 </div>
                 <div className="profile-ig-main">
                   <div className="profile-ig-topline">
-                    <strong className="profile-ig-username">{currentProfileMeta.name}</strong>
+                    {currentProfileMeta.isOwner && profileEditMode ? (
+                      <input
+                        className="profile-ig-edit-input profile-ig-edit-username"
+                        value={profileEditDraft.displayName}
+                        onChange={(event) => setProfileEditDraft((prev) => ({ ...prev, displayName: event.target.value }))}
+                        placeholder="표시 이름"
+                      />
+                    ) : (
+                      <strong className="profile-ig-username">{currentProfileMeta.name}</strong>
+                    )}
                     {currentProfileMeta.isOwner ? (
-                      <button type="button" className="ghost-btn profile-ig-mini-btn" onClick={() => setAuthStandaloneScreen("login")}>프로필 편집</button>
+                      profileEditMode ? (
+                        <div className="profile-inline-actions profile-inline-actions-edit">
+                          <button type="button" className="ghost-btn profile-ig-mini-btn" onClick={cancelProfileEditMode}>취소</button>
+                          <button type="button" className="feed-follow-btn profile-follow-btn active" onClick={saveProfileEditMode}>저장</button>
+                        </div>
+                      ) : (
+                        <button type="button" className="ghost-btn profile-ig-mini-btn" onClick={openProfileEditMode}>프로필 편집</button>
+                      )
                     ) : (
                       <div className="asked-question-toolbar asked-question-toolbar-inline profile-inline-actions">
                         <button type="button" className="feed-question-btn profile-contact-btn" onClick={openProfileChatRequest}>채팅</button>
@@ -11834,9 +11962,30 @@ export default function App() {
                     <div><b>{currentProfileMeta.followingCount.toLocaleString()}</b><span>팔로잉</span></div>
                   </div>
                   <div className="profile-ig-bio">
-                    <strong>{currentProfileMeta.name}</strong>
-                    <p>{currentProfileMeta.bio}</p>
-                    <span>{currentProfileMeta.hashtags.map((tag) => `#${tag}`).join(" ")}</span>
+                    {currentProfileMeta.isOwner && profileEditMode ? (
+                      <>
+                        <strong>{profileEditDraft.displayName.trim() || currentProfileMeta.name}</strong>
+                        <textarea
+                          className="profile-ig-edit-textarea"
+                          value={profileEditDraft.bio}
+                          onChange={(event) => setProfileEditDraft((prev) => ({ ...prev, bio: event.target.value }))}
+                          placeholder="프로필 소개를 입력하세요"
+                          rows={4}
+                        />
+                        <input
+                          className="profile-ig-edit-input"
+                          value={profileEditDraft.hashtags}
+                          onChange={(event) => setProfileEditDraft((prev) => ({ ...prev, hashtags: event.target.value }))}
+                          placeholder="#태그 공백 또는 쉼표로 구분"
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <strong>{currentProfileMeta.name}</strong>
+                        <p>{currentProfileMeta.bio}</p>
+                        <span>{currentProfileMeta.hashtags.map((tag) => `#${tag}`).join(" ")}</span>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -11851,7 +12000,7 @@ export default function App() {
 
               {profileSection === "게시물" ? (
                 <div className="profile-ig-grid">
-                  {allFeedItems.filter((item) => item.type === "image" && item.author === currentProfileMeta.name).slice(0, 12).map((item) => (
+                  {allFeedItems.filter((item) => item.type === "image" && currentProfileAuthorAliases.includes(item.author)).slice(0, 12).map((item) => (
                     <article key={item.id} className={`profile-ig-tile ${item.accent}`}>
                       <div className="profile-ig-tile-media">
                         <span>{item.category}</span>
@@ -11873,7 +12022,7 @@ export default function App() {
                         <div>
                           <div className="question-user-line">
                             <span className="community-chip">질문</span>
-                            <button type="button" className="feed-author-link" onClick={() => openProfileFromAuthor(currentProfileMeta.name)}>{currentProfileMeta.name}</button>
+                            <button type="button" className="feed-author-link" onClick={() => openProfileFromAuthor(currentProfileAuthor)}>{currentProfileMeta.name}</button>
                             <span className="community-meta">{item.meta}</span>
                           </div>
                           <div className="question-body">Q. {item.question}</div>

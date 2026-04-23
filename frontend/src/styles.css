@@ -3803,6 +3803,65 @@ pre,
   border: 2px solid rgba(255,255,255,0.16);
 }
 
+.profile-ig-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+.profile-ig-avatar-edit-trigger {
+  padding: 0;
+  cursor: pointer;
+  overflow: hidden;
+  background-image: none !important;
+  color: #fff !important;
+  font-size: 32px !important;
+  text-indent: 0 !important;
+}
+
+.profile-ig-edit-input,
+.profile-ig-edit-textarea {
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: #f5f7fa;
+  font: inherit;
+  padding: 10px 12px;
+  box-sizing: border-box;
+}
+
+.profile-ig-edit-username {
+  max-width: 240px;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.profile-ig-edit-textarea {
+  min-height: 96px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.profile-inline-actions-edit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .profile-ig-main,
 .profile-ig-bio {
   display: grid;
@@ -9112,6 +9171,14 @@ body {
 .profile-ig-avatar,
 .profile-avatar {
   background-size: 102% 102% !important;
+}
+
+.profile-ig-avatar.has-image,
+.profile-ig-avatar-edit-trigger.has-image {
+  background-image: none !important;
+  color: inherit !important;
+  font-size: inherit !important;
+  text-indent: 0 !important;
 }
 
 .story-mini-avatar,
