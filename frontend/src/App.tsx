@@ -9154,8 +9154,8 @@ export default function App() {
       const allProductsSelected = sellerProducts.length > 0 && desktopProductSelectedIds.length === sellerProducts.length;
       const editorTitle = desktopProductEditId ? '상품 수정' : '상품 등록';
       const editorDescription = desktopProductEditId
-        ? '선택한 상품의 상세 수정 화면입니다. 저장 후 목록으로 돌아가 다시 조회할 수 있습니다.'
-        : '상품 등록 화면입니다.';
+        ? '선택한 상품 정보를 수정할 수 있습니다.'
+        : '신규 상품 정보를 입력할 수 있습니다.';
       const currentStatusLabel = desktopProductEditId
         ? sellerProducts.find((item) => item.id === desktopProductEditId)?.status ?? 'draft'
         : 'new';
@@ -9285,7 +9285,6 @@ export default function App() {
                 <article className="desktop-product-section-card">
                   <div className="desktop-product-section-headline">
                     <strong>기본 정보</strong>
-                    <span>카테고리, 상품명, 상세 설명, 가격, 재고를 입력합니다.</span>
                   </div>
                   <div className="desktop-product-form-grid desktop-product-form-grid-detailed">
                     <label>
@@ -9297,11 +9296,11 @@ export default function App() {
                     </label>
                     <label>
                       <span>등록상품명</span>
-                      <input value={productRegistrationDraft.name} onChange={(event) => setProductRegistrationDraft((prev) => ({ ...prev, name: event.target.value }))} placeholder="등록상품명" />
+                      <input value={productRegistrationDraft.name} onChange={(event) => setProductRegistrationDraft((prev) => ({ ...prev, name: event.target.value }))} placeholder="등록상품명 입력" />
                     </label>
                     <label className="wide">
                       <span>상세 설명</span>
-                      <textarea value={productRegistrationDraft.description} onChange={(event) => setProductRegistrationDraft((prev) => ({ ...prev, description: event.target.value }))} rows={6} placeholder="상세 설명" />
+                      <textarea value={productRegistrationDraft.description} onChange={(event) => setProductRegistrationDraft((prev) => ({ ...prev, description: event.target.value }))} rows={6} placeholder="상품 상세 설명 입력" />
                     </label>
                     <label>
                       <span>판매가</span>
@@ -9313,7 +9312,7 @@ export default function App() {
                     </label>
                     <label className="wide">
                       <span>상품코드(SKU)</span>
-                      <input value={productRegistrationDraft.skuCode} onChange={(event) => setProductRegistrationDraft((prev) => ({ ...prev, skuCode: event.target.value }))} placeholder="상품코드(SKU)" />
+                      <input value={productRegistrationDraft.skuCode} onChange={(event) => setProductRegistrationDraft((prev) => ({ ...prev, skuCode: event.target.value }))} placeholder="상품코드 입력" />
                     </label>
                   </div>
                 </article>
@@ -9321,7 +9320,6 @@ export default function App() {
                 <article className="desktop-product-section-card">
                   <div className="desktop-product-section-headline">
                     <strong>대표 이미지 / 추가 이미지</strong>
-                    <span>이미지 URL 기반으로 5개까지 입력할 수 있게 유지했습니다.</span>
                   </div>
                   <div className="desktop-product-form-grid desktop-product-photo-grid">
                     {productRegistrationDraft.imageUrls.map((item, index) => (
@@ -9344,32 +9342,23 @@ export default function App() {
                 <article className="desktop-product-section-card">
                   <div className="desktop-product-section-headline">
                     <strong>상품 운영 정보</strong>
-                    <span>등록 상태와 연결 정보를 한 번에 확인할 수 있습니다.</span>
                   </div>
                   <div className="desktop-product-support-grid">
-                    <article className="desktop-product-mini-card">
-                      <strong>옵션</strong>
-                      <p>카테고리 선택 후 옵션/규격 영역을 확장할 수 있도록 자리만 먼저 구성했습니다.</p>
-                    </article>
                     <article className="desktop-product-mini-card">
                       <strong>상품 주요 정보</strong>
                       <p>현재 상태: {currentStatusLabel} · 상품코드: {productRegistrationDraft.skuCode || '-'} · 카테고리: {productRegistrationDraft.category || '-'}</p>
                     </article>
                     <article className="desktop-product-mini-card">
-                      <strong>검색어 / 검색필터</strong>
-                      <p>상품명과 카테고리를 기준으로 기본 검색 노출 구조를 맞추고, 세부 필터는 후속 확장 가능합니다.</p>
-                    </article>
-                    <article className="desktop-product-mini-card">
                       <strong>상품정보제공고시 / 구비서류</strong>
-                      <p>카테고리 확정 후 필수 고시정보와 판매 증빙서류 업로드 영역을 붙일 수 있게 분리했습니다.</p>
+                      <p>카테고리 확정 후 필수 고시정보와 판매 증빙서류 업로드 영역을 연결할 수 있습니다.</p>
                     </article>
                     <article className="desktop-product-mini-card">
                       <strong>배송</strong>
-                      <p>익명포장, 기본 배송비, 출고리드타임 같은 배송정책을 붙일 수 있는 카드형 섹션입니다.</p>
+                      <p>익명포장, 배송비, 출고리드타임 정책을 연결할 수 있습니다.</p>
                     </article>
                     <article className="desktop-product-mini-card">
                       <strong>반품/교환</strong>
-                      <p>반품지, 교환 기준, 고객센터 안내 문구를 판매자센터형으로 연결할 수 있게 구성했습니다.</p>
+                      <p>반품지, 교환 기준, 고객센터 안내 문구를 연결할 수 있습니다.</p>
                     </article>
                   </div>
                 </article>
@@ -10916,12 +10905,12 @@ export default function App() {
                       <h3>상품 등록 화면</h3>
                       <div className="profile-form-grid">
                         <label><span>카테고리</span><select value={productRegistrationDraft.category} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, category: e.target.value }))}>{productCategoryOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-                        <label><span>상품명</span><input value={productRegistrationDraft.name} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, name: e.target.value }))} placeholder="상품명" /></label>
-                        <label><span>가격</span><input value={productRegistrationDraft.price} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, price: e.target.value }))} placeholder="10000" /></label>
-                        <label><span>개수</span><input value={productRegistrationDraft.stockQty} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, stockQty: e.target.value }))} placeholder="10" /></label>
-                        <label><span>상품 코드</span><input value={productRegistrationDraft.skuCode} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, skuCode: e.target.value }))} placeholder="SKU-0001" /></label>
-                        <label className="wide"><span>상품소개</span><textarea value={productRegistrationDraft.description} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, description: e.target.value }))} placeholder="상품 소개" /></label>
-                        <label className="wide"><span>사진 등록 (선택, 최대 5장 URL)</span><div className="photo-url-grid">{productRegistrationDraft.imageUrls.map((value, idx) => <input key={idx} value={value} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, imageUrls: prev.imageUrls.map((item, itemIdx) => itemIdx === idx ? e.target.value : item) }))} placeholder={`사진 ${idx + 1} URL`} />)}</div></label>
+                        <label><span>등록상품명</span><input value={productRegistrationDraft.name} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, name: e.target.value }))} placeholder="등록상품명 입력" /></label>
+                        <label><span>판매가</span><input value={productRegistrationDraft.price} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, price: e.target.value }))} placeholder="판매가" /></label>
+                        <label><span>재고수량</span><input value={productRegistrationDraft.stockQty} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, stockQty: e.target.value }))} placeholder="재고수량" /></label>
+                        <label><span>상품코드(SKU)</span><input value={productRegistrationDraft.skuCode} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, skuCode: e.target.value }))} placeholder="상품코드 입력" /></label>
+                        <label className="wide"><span>상세 설명</span><textarea value={productRegistrationDraft.description} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, description: e.target.value }))} placeholder="상품 상세 설명 입력" /></label>
+                        <label className="wide"><span>대표 이미지 / 추가 이미지</span><div className="photo-url-grid">{productRegistrationDraft.imageUrls.map((value, idx) => <input key={idx} value={value} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, imageUrls: prev.imageUrls.map((item, itemIdx) => itemIdx === idx ? e.target.value : item) }))} placeholder="https://example.com/image.jpg" />)}</div></label>
                       </div>
                       {!productDraftReady ? <p className="muted-mini">카테고리, 상품명, 가격, 개수, 상품 코드, 상품소개를 입력해야 등록할 수 있습니다. 사진 URL은 선택입니다.</p> : null}{reconsentWriteRestricted ? <p className="muted-mini">유예기간 없이 최신 필수 문서 재동의가 필요합니다. 먼저 필수 문서 안내 화면에서 최신 약관과 재동의 절차를 확인하세요.</p> : null}
                       <div className="copy-action-row">

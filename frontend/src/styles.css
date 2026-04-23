@@ -13295,3 +13295,48 @@ button.ghost-btn.danger { border-color:rgba(255,92,92,0.28); color:#ffb0b0; }
     width: 100%;
   }
 }
+
+
+/* ===== 2026-04-23 pc header/product refine ===== */
+.desktop-split-pane-head,
+.desktop-split-pane-head-label-only {
+  display: none !important;
+}
+
+@media (min-width: 1024px) {
+  .top-header {
+    min-height: calc(52px + env(safe-area-inset-top, 0px));
+  }
+
+  .topbar-row,
+  .topbar-search-row {
+    min-height: 52px !important;
+    padding: 5px 12px !important;
+    gap: 8px !important;
+  }
+
+  .topbar-inline-actions-right,
+  .topbar-search-trailing {
+    gap: 3px !important;
+  }
+
+  .top-header .header-toolbar-btn,
+  .top-header .header-icon-btn {
+    width: 27px !important;
+    min-width: 27px !important;
+    height: 27px !important;
+  }
+
+  .top-header .header-toolbar-btn svg,
+  .top-header .header-icon-btn svg {
+    width: 17px !important;
+    height: 17px !important;
+  }
+
+  .topbar-title-inline,
+  .topbar-search-trailing .topbar-title-inline {
+    font-size: 12px !important;
+    max-width: 88px;
+    margin-right: 1px;
+  }
+}
