@@ -11142,7 +11142,23 @@ function App() {
     { label: "추가 이미지 3", placeholder: "추가 이미지 3 URL 입력" },
     { label: "추가 이미지 4", placeholder: "추가 이미지 4 URL 입력" }
   ];
-  const handleProductCategoryChange = (nextCategory) => {
+  const productCategorySelectRef = reactExports.useRef(null);
+    const showProductCategoryRequiredAlert = reactExports.useCallback(() => {
+      window.alert("카테고리 선택을 먼저 진행해주세요");
+      window.setTimeout(() => {
+        var _a;
+        (_a = productCategorySelectRef.current) == null ? void 0 : _a.focus();
+      }, 0);
+    }, []);
+    const guardProductCategoryRequiredInteraction = reactExports.useCallback((event) => {
+      if (isProductCategorySelected) {
+        return false;
+      }
+      event == null ? void 0 : event.preventDefault == null ? void 0 : event.preventDefault();
+      showProductCategoryRequiredAlert();
+      return true;
+    }, [isProductCategorySelected, showProductCategoryRequiredAlert]);
+    const handleProductCategoryChange = (nextCategory) => {
     setProductRegistrationDraft((prev) => ({ ...prev, category: nextCategory }));
   };
   const handleProductNameChange = (nextName) => {
@@ -14994,14 +15010,14 @@ function App() {
                   /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: "", children: "카테고리 선택" }),
                   productCategoryOptions.map((item) => /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: item, children: item }, item))
                 ] }) }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("label", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("input", { value: productRegistrationDraft.name, onChange: (event) => handleProductNameChange(event.target.value), placeholder: "등록상품명 입력", maxLength: 29, disabled: !isProductCategorySelected }) }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "wide", children: /* @__PURE__ */ jsxRuntimeExports.jsx("textarea", { value: productRegistrationDraft.description, onChange: (event) => handleProductDescriptionChange(event.target.value), rows: 6, placeholder: "상세설명 입력", disabled: !isProductCategorySelected }) }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("label", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("input", { value: productRegistrationDraft.name, onChange: (event) => handleProductNameChange(event.target.value), onMouseDown: guardProductCategoryRequiredInteraction, onFocus: guardProductCategoryRequiredInteraction, placeholder: "등록상품명 입력", maxLength: 29, readOnly: !isProductCategorySelected, "aria-disabled": !isProductCategorySelected }) }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "wide", children: /* @__PURE__ */ jsxRuntimeExports.jsx("textarea", { value: productRegistrationDraft.description, onChange: (event) => handleProductDescriptionChange(event.target.value), onMouseDown: guardProductCategoryRequiredInteraction, onFocus: guardProductCategoryRequiredInteraction, rows: 6, placeholder: "상세설명 입력", readOnly: !isProductCategorySelected, "aria-disabled": !isProductCategorySelected }) }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("label", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: `desktop-product-inline-affix${!isProductCategorySelected ? " disabled" : ""}`, children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("input", { inputMode: "numeric", value: productRegistrationDraft.price, onChange: (event) => handleProductPriceChange(event.target.value), placeholder: "판매가 입력", disabled: !isProductCategorySelected }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("input", { inputMode: "numeric", value: productRegistrationDraft.price, onChange: (event) => handleProductPriceChange(event.target.value), onMouseDown: guardProductCategoryRequiredInteraction, onFocus: guardProductCategoryRequiredInteraction, placeholder: "판매가 입력", readOnly: !isProductCategorySelected, "aria-disabled": !isProductCategorySelected }),
                   /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "원" })
                 ] }) }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("label", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("input", { inputMode: "numeric", value: productRegistrationDraft.stockQty, onChange: (event) => handleProductStockQtyChange(event.target.value), placeholder: "재고수량 입력", disabled: !isProductCategorySelected }) }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "wide", children: /* @__PURE__ */ jsxRuntimeExports.jsx("input", { value: productRegistrationDraft.skuCode, onChange: (event) => handleProductSkuCodeChange(event.target.value), placeholder: "상품코드 SKU 입력", disabled: !isProductCategorySelected }) })
+                /* @__PURE__ */ jsxRuntimeExports.jsx("label", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("input", { inputMode: "numeric", value: productRegistrationDraft.stockQty, onChange: (event) => handleProductStockQtyChange(event.target.value), onMouseDown: guardProductCategoryRequiredInteraction, onFocus: guardProductCategoryRequiredInteraction, placeholder: "재고수량 입력", readOnly: !isProductCategorySelected, "aria-disabled": !isProductCategorySelected }) }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "wide", children: /* @__PURE__ */ jsxRuntimeExports.jsx("input", { value: productRegistrationDraft.skuCode, onChange: (event) => handleProductSkuCodeChange(event.target.value), onMouseDown: guardProductCategoryRequiredInteraction, onFocus: guardProductCategoryRequiredInteraction, placeholder: "상품코드 SKU 입력", readOnly: !isProductCategorySelected, "aria-disabled": !isProductCategorySelected }) })
               ] })
             ] }),
             /* @__PURE__ */ jsxRuntimeExports.jsxs("article", { className: "desktop-product-section-card", children: [
@@ -16854,23 +16870,23 @@ function App() {
               ] }),
               /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "등록상품명" }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("input", { value: productRegistrationDraft.name, onChange: (e) => handleProductNameChange(e.target.value), placeholder: "등록상품명 입력", maxLength: 29, disabled: !isProductCategorySelected })
+                /* @__PURE__ */ jsxRuntimeExports.jsx("input", { value: productRegistrationDraft.name, onChange: (e) => handleProductNameChange(e.target.value), onMouseDown: guardProductCategoryRequiredInteraction, onFocus: guardProductCategoryRequiredInteraction, placeholder: "등록상품명 입력", maxLength: 29, readOnly: !isProductCategorySelected, "aria-disabled": !isProductCategorySelected })
               ] }),
               /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "판매가" }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("input", { value: productRegistrationDraft.price, onChange: (e) => handleProductPriceChange(e.target.value), placeholder: "판매가 입력", inputMode: "numeric", disabled: !isProductCategorySelected })
+                /* @__PURE__ */ jsxRuntimeExports.jsx("input", { value: productRegistrationDraft.price, onChange: (e) => handleProductPriceChange(e.target.value), onMouseDown: guardProductCategoryRequiredInteraction, onFocus: guardProductCategoryRequiredInteraction, placeholder: "판매가 입력", inputMode: "numeric", readOnly: !isProductCategorySelected, "aria-disabled": !isProductCategorySelected })
               ] }),
               /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "재고수량" }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("input", { value: productRegistrationDraft.stockQty, onChange: (e) => handleProductStockQtyChange(e.target.value), placeholder: "재고수량 입력", inputMode: "numeric", disabled: !isProductCategorySelected })
+                /* @__PURE__ */ jsxRuntimeExports.jsx("input", { value: productRegistrationDraft.stockQty, onChange: (e) => handleProductStockQtyChange(e.target.value), onMouseDown: guardProductCategoryRequiredInteraction, onFocus: guardProductCategoryRequiredInteraction, placeholder: "재고수량 입력", inputMode: "numeric", readOnly: !isProductCategorySelected, "aria-disabled": !isProductCategorySelected })
               ] }),
               /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "상품코드(SKU)" }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("input", { value: productRegistrationDraft.skuCode, onChange: (e) => handleProductSkuCodeChange(e.target.value), placeholder: "상품코드 SKU 입력", disabled: !isProductCategorySelected })
+                /* @__PURE__ */ jsxRuntimeExports.jsx("input", { value: productRegistrationDraft.skuCode, onChange: (e) => handleProductSkuCodeChange(e.target.value), onMouseDown: guardProductCategoryRequiredInteraction, onFocus: guardProductCategoryRequiredInteraction, placeholder: "상품코드 SKU 입력", readOnly: !isProductCategorySelected, "aria-disabled": !isProductCategorySelected })
               ] }),
               /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "wide", children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "상세 설명" }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("textarea", { value: productRegistrationDraft.description, onChange: (e) => handleProductDescriptionChange(e.target.value), placeholder: "상세설명 입력", disabled: !isProductCategorySelected })
+                /* @__PURE__ */ jsxRuntimeExports.jsx("textarea", { value: productRegistrationDraft.description, onChange: (e) => handleProductDescriptionChange(e.target.value), onMouseDown: guardProductCategoryRequiredInteraction, onFocus: guardProductCategoryRequiredInteraction, placeholder: "상세설명 입력", readOnly: !isProductCategorySelected, "aria-disabled": !isProductCategorySelected })
               ] }),
               /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "wide", children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: isChatEmoticonCategory ? "대표 이미지 / 미리보기 이미지" : "대표 이미지 / 추가 이미지" }),

@@ -5262,6 +5262,21 @@ export default function App() {
         { label: "추가 이미지 3", placeholder: "추가 이미지 3 URL 입력" },
         { label: "추가 이미지 4", placeholder: "추가 이미지 4 URL 입력" },
       ];
+  const productCategorySelectRef = useRef<HTMLSelectElement | null>(null);
+  const showProductCategoryRequiredAlert = useCallback(() => {
+    window.alert('카테고리 선택을 먼저 진행해주세요');
+    window.setTimeout(() => {
+      productCategorySelectRef.current?.focus();
+    }, 0);
+  }, []);
+  const guardProductCategoryRequiredInteraction = useCallback((event?: { preventDefault?: () => void }) => {
+    if (isProductCategorySelected) {
+      return false;
+    }
+    event?.preventDefault?.();
+    showProductCategoryRequiredAlert();
+    return true;
+  }, [isProductCategorySelected, showProductCategoryRequiredAlert]);
   const handleProductCategoryChange = (nextCategory: string) => {
     setProductRegistrationDraft((prev) => ({ ...prev, category: nextCategory }));
   };
@@ -9623,28 +9638,28 @@ export default function App() {
                   </div>
                   <div className="desktop-product-form-grid desktop-product-form-grid-detailed desktop-product-form-grid-labelless">
                     <label>
-                      <select value={productRegistrationDraft.category} onChange={(event) => handleProductCategoryChange(event.target.value)}>
+                      <select ref={productCategorySelectRef} value={productRegistrationDraft.category} onChange={(event) => handleProductCategoryChange(event.target.value)}>
                         <option value="">카테고리 선택</option>
                         {productCategoryOptions.map((item) => <option key={item} value={item}>{item}</option>)}
                       </select>
                     </label>
                     <label>
-                      <input value={productRegistrationDraft.name} onChange={(event) => handleProductNameChange(event.target.value)} placeholder="등록상품명 입력" maxLength={29} disabled={!isProductCategorySelected} />
+                      <input value={productRegistrationDraft.name} onChange={(event) => handleProductNameChange(event.target.value)} onMouseDown={guardProductCategoryRequiredInteraction} onFocus={guardProductCategoryRequiredInteraction} placeholder="등록상품명 입력" maxLength={29} readOnly={!isProductCategorySelected} aria-disabled={!isProductCategorySelected} />
                     </label>
                     <label className="wide">
-                      <textarea value={productRegistrationDraft.description} onChange={(event) => handleProductDescriptionChange(event.target.value)} rows={6} placeholder="상세설명 입력" disabled={!isProductCategorySelected} />
+                      <textarea value={productRegistrationDraft.description} onChange={(event) => handleProductDescriptionChange(event.target.value)} onMouseDown={guardProductCategoryRequiredInteraction} onFocus={guardProductCategoryRequiredInteraction} rows={6} placeholder="상세설명 입력" readOnly={!isProductCategorySelected} aria-disabled={!isProductCategorySelected} />
                     </label>
                     <label>
                       <div className={`desktop-product-inline-affix${!isProductCategorySelected ? ' disabled' : ''}`}>
-                        <input inputMode="numeric" value={productRegistrationDraft.price} onChange={(event) => handleProductPriceChange(event.target.value)} placeholder="판매가 입력" disabled={!isProductCategorySelected} />
+                        <input inputMode="numeric" value={productRegistrationDraft.price} onChange={(event) => handleProductPriceChange(event.target.value)} onMouseDown={guardProductCategoryRequiredInteraction} onFocus={guardProductCategoryRequiredInteraction} placeholder="판매가 입력" readOnly={!isProductCategorySelected} aria-disabled={!isProductCategorySelected} />
                         <span>원</span>
                       </div>
                     </label>
                     <label>
-                      <input inputMode="numeric" value={productRegistrationDraft.stockQty} onChange={(event) => handleProductStockQtyChange(event.target.value)} placeholder="재고수량 입력" disabled={!isProductCategorySelected} />
+                      <input inputMode="numeric" value={productRegistrationDraft.stockQty} onChange={(event) => handleProductStockQtyChange(event.target.value)} onMouseDown={guardProductCategoryRequiredInteraction} onFocus={guardProductCategoryRequiredInteraction} placeholder="재고수량 입력" readOnly={!isProductCategorySelected} aria-disabled={!isProductCategorySelected} />
                     </label>
                     <label className="wide">
-                      <input value={productRegistrationDraft.skuCode} onChange={(event) => handleProductSkuCodeChange(event.target.value)} placeholder="상품코드 SKU 입력" disabled={!isProductCategorySelected} />
+                      <input value={productRegistrationDraft.skuCode} onChange={(event) => handleProductSkuCodeChange(event.target.value)} onMouseDown={guardProductCategoryRequiredInteraction} onFocus={guardProductCategoryRequiredInteraction} placeholder="상품코드 SKU 입력" readOnly={!isProductCategorySelected} aria-disabled={!isProductCategorySelected} />
                     </label>
                   </div>
                 </article>
@@ -9664,7 +9679,10 @@ export default function App() {
                             setProductRegistrationDraft((prev) => ({ ...prev, imageUrls: next }));
                           }}
                           placeholder={meta.placeholder}
-                          disabled={!isProductCategorySelected}
+                          onMouseDown={guardProductCategoryRequiredInteraction}
+                          onFocus={guardProductCategoryRequiredInteraction}
+                          readOnly={!isProductCategorySelected}
+                          aria-disabled={!isProductCategorySelected}
                         />
                       </label>
                     ))}
@@ -11275,13 +11293,13 @@ export default function App() {
                     <div className="legacy-box compact">
                       <h3>상품 등록 화면</h3>
                       <div className="profile-form-grid">
-                        <label><span>카테고리</span><select value={productRegistrationDraft.category} onChange={(e) => handleProductCategoryChange(e.target.value)}><option value="">카테고리 선택</option>{productCategoryOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-                        <label><span>등록상품명</span><input value={productRegistrationDraft.name} onChange={(e) => handleProductNameChange(e.target.value)} placeholder="등록상품명 입력" maxLength={29} disabled={!isProductCategorySelected} /></label>
-                        <label><span>판매가</span><input value={productRegistrationDraft.price} onChange={(e) => handleProductPriceChange(e.target.value)} placeholder="판매가 입력" inputMode="numeric" disabled={!isProductCategorySelected} /></label>
-                        <label><span>재고수량</span><input value={productRegistrationDraft.stockQty} onChange={(e) => handleProductStockQtyChange(e.target.value)} placeholder="재고수량 입력" inputMode="numeric" disabled={!isProductCategorySelected} /></label>
-                        <label><span>상품코드(SKU)</span><input value={productRegistrationDraft.skuCode} onChange={(e) => handleProductSkuCodeChange(e.target.value)} placeholder="상품코드 SKU 입력" disabled={!isProductCategorySelected} /></label>
-                        <label className="wide"><span>상세 설명</span><textarea value={productRegistrationDraft.description} onChange={(e) => handleProductDescriptionChange(e.target.value)} placeholder="상세설명 입력" disabled={!isProductCategorySelected} /></label>
-                        <label className="wide"><span>{isChatEmoticonCategory ? '대표 이미지 / 미리보기 이미지' : '대표 이미지 / 추가 이미지'}</span><div className="photo-url-grid">{productImageInputMeta.map((meta, idx) => <input key={idx} value={productRegistrationDraft.imageUrls[idx] ?? ''} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, imageUrls: prev.imageUrls.map((item, itemIdx) => itemIdx === idx ? e.target.value : item) }))} placeholder={meta.placeholder} disabled={!isProductCategorySelected} />)}</div></label>
+                        <label><span>카테고리</span><select ref={productCategorySelectRef} value={productRegistrationDraft.category} onChange={(e) => handleProductCategoryChange(e.target.value)}><option value="">카테고리 선택</option>{productCategoryOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+                        <label><span>등록상품명</span><input value={productRegistrationDraft.name} onChange={(e) => handleProductNameChange(e.target.value)} onMouseDown={guardProductCategoryRequiredInteraction} onFocus={guardProductCategoryRequiredInteraction} placeholder="등록상품명 입력" maxLength={29} readOnly={!isProductCategorySelected} aria-disabled={!isProductCategorySelected} /></label>
+                        <label><span>판매가</span><input value={productRegistrationDraft.price} onChange={(e) => handleProductPriceChange(e.target.value)} onMouseDown={guardProductCategoryRequiredInteraction} onFocus={guardProductCategoryRequiredInteraction} placeholder="판매가 입력" inputMode="numeric" readOnly={!isProductCategorySelected} aria-disabled={!isProductCategorySelected} /></label>
+                        <label><span>재고수량</span><input value={productRegistrationDraft.stockQty} onChange={(e) => handleProductStockQtyChange(e.target.value)} onMouseDown={guardProductCategoryRequiredInteraction} onFocus={guardProductCategoryRequiredInteraction} placeholder="재고수량 입력" inputMode="numeric" readOnly={!isProductCategorySelected} aria-disabled={!isProductCategorySelected} /></label>
+                        <label><span>상품코드(SKU)</span><input value={productRegistrationDraft.skuCode} onChange={(e) => handleProductSkuCodeChange(e.target.value)} onMouseDown={guardProductCategoryRequiredInteraction} onFocus={guardProductCategoryRequiredInteraction} placeholder="상품코드 SKU 입력" readOnly={!isProductCategorySelected} aria-disabled={!isProductCategorySelected} /></label>
+                        <label className="wide"><span>상세 설명</span><textarea value={productRegistrationDraft.description} onChange={(e) => handleProductDescriptionChange(e.target.value)} onMouseDown={guardProductCategoryRequiredInteraction} onFocus={guardProductCategoryRequiredInteraction} placeholder="상세설명 입력" readOnly={!isProductCategorySelected} aria-disabled={!isProductCategorySelected} /></label>
+                        <label className="wide"><span>{isChatEmoticonCategory ? '대표 이미지 / 미리보기 이미지' : '대표 이미지 / 추가 이미지'}</span><div className="photo-url-grid">{productImageInputMeta.map((meta, idx) => <input key={idx} value={productRegistrationDraft.imageUrls[idx] ?? ''} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, imageUrls: prev.imageUrls.map((item, itemIdx) => itemIdx === idx ? e.target.value : item) }))} onMouseDown={guardProductCategoryRequiredInteraction} onFocus={guardProductCategoryRequiredInteraction} placeholder={meta.placeholder} readOnly={!isProductCategorySelected} aria-disabled={!isProductCategorySelected} />)}</div></label>
                       </div>
                       {!productDraftReady ? <p className="muted-mini">카테고리, 상품명, 가격, 개수, 상품 코드, 상품소개를 입력해야 등록할 수 있습니다. 사진 URL은 선택입니다.</p> : null}{reconsentWriteRestricted ? <p className="muted-mini">유예기간 없이 최신 필수 문서 재동의가 필요합니다. 먼저 필수 문서 안내 화면에서 최신 약관과 재동의 절차를 확인하세요.</p> : null}
                       <div className="copy-action-row">
