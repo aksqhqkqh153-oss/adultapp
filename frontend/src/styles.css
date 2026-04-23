@@ -3775,7 +3775,7 @@ pre,
 .profile-ig-shell {
   display: grid;
   gap: 18px;
-  padding: 5px 0 0;
+  padding: 5px 0 0 !important;
 }
 
 .profile-ig-header {
@@ -4059,7 +4059,7 @@ pre,
 
 @media (max-width: 640px) {
   .profile-ig-shell {
-    padding: 5px 0 0;
+    padding: 5px 0 0 !important;
     gap: 14px;
   }
 
@@ -8757,6 +8757,9 @@ body {
 .tab-pane.fill-pane.chat-tab-pane .kakao-chat-list,
 .profile-ig-shell.compact-scroll-list {
   background: #000 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  padding-bottom: 0 !important;
 }
 
 .feed-card.history-feed-card.violet {

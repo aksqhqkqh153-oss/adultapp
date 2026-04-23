@@ -9697,6 +9697,9 @@ body {
 .tab-pane.fill-pane.chat-tab-pane .kakao-chat-list,
 .profile-ig-shell.compact-scroll-list {
   background: #000 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  padding-bottom: 0 !important;
 }
 
 .feed-card.history-feed-card.violet {
