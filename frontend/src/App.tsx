@@ -1310,18 +1310,12 @@ function DesktopSplitShell() {
 
           <div className="desktop-split-grid">
             <section className="desktop-split-pane">
-              <div className="desktop-split-pane-head desktop-split-pane-head-label-only">
-                <span>{getDesktopPaneSelectionLabel(leftSelection)}</span>
-              </div>
               <div className="desktop-split-device-frame">
                 {iframeReady ? <iframe key={leftFrameUrl} className="desktop-split-iframe" src={leftFrameUrl} title="adultapp-left-pane" loading="eager" /> : <div className="desktop-split-fallback">화면을 준비 중입니다.</div>}
               </div>
             </section>
 
             <section className="desktop-split-pane">
-              <div className="desktop-split-pane-head desktop-split-pane-head-label-only">
-                <span>{getDesktopPaneSelectionLabel(rightSelection)}</span>
-              </div>
               <div className="desktop-split-device-frame">
                 {iframeReady ? <iframe key={rightFrameUrl} className="desktop-split-iframe" src={rightFrameUrl} title="adultapp-right-pane" loading="eager" /> : <div className="desktop-split-fallback">화면을 준비 중입니다.</div>}
               </div>
@@ -4698,7 +4692,6 @@ export default function App() {
   const [desktopProductEditId, setDesktopProductEditId] = useState<number | null>(null);
   const [desktopProductEditorOpen, setDesktopProductEditorOpen] = useState(false);
   const [desktopProductSelectedIds, setDesktopProductSelectedIds] = useState<number[]>([]);
-  const [desktopProductFulfillmentMode, setDesktopProductFulfillmentMode] = useState<"seller_delivery" | "rocket_growth">("seller_delivery");
   const [desktopProductCrudMessage, setDesktopProductCrudMessage] = useState("");
   const [desktopProductCrudBusy, setDesktopProductCrudBusy] = useState(false);
   const [desktopOrderStageFilter, setDesktopOrderStageFilter] = useState<DesktopOrderProgressFilter>("전체");
@@ -9047,7 +9040,7 @@ export default function App() {
   const resetDesktopProductDraft = () => {
     setDesktopProductEditId(null);
     setDesktopProductEditorOpen(true);
-    setDesktopProductCrudMessage('신규 상품 작성 모드로 전환했습니다.');
+    setDesktopProductCrudMessage('');
     setProductRegistrationDraft(createEmptyProductDraft());
   };
   const closeDesktopProductEditor = () => {
@@ -9162,7 +9155,7 @@ export default function App() {
       const editorTitle = desktopProductEditId ? '상품 수정' : '상품 등록';
       const editorDescription = desktopProductEditId
         ? '선택한 상품의 상세 수정 화면입니다. 저장 후 목록으로 돌아가 다시 조회할 수 있습니다.'
-        : '판매자센터형 등록 화면입니다. 기본정보, 이미지, 상세설명, 배송/반품 정책 구역을 나누어 구성했습니다.';
+        : '상품 등록 화면입니다.';
       const currentStatusLabel = desktopProductEditId
         ? sellerProducts.find((item) => item.id === desktopProductEditId)?.status ?? 'draft'
         : 'new';
@@ -9172,7 +9165,7 @@ export default function App() {
           <header className="desktop-business-header">
             <div>
               <strong>{meta.title}</strong>
-              <p>{desktopProductEditorOpen ? '상품 등록/수정 화면 전체 전환 상태입니다.' : meta.description}</p>
+              <p>{meta.description}</p>
             </div>
             <div className="desktop-business-chip-row">
               <span className="desktop-business-chip">전체 {productStatusSummary.total}</span>
@@ -9291,35 +9284,24 @@ export default function App() {
               <div className="desktop-product-section-grid">
                 <article className="desktop-product-section-card">
                   <div className="desktop-product-section-headline">
-                    <strong>판매방식 선택</strong>
-                    <span>쿠팡 스타일 등록 화면처럼 상단에서 판매방식을 먼저 고를 수 있게 구성했습니다.</span>
-                  </div>
-                  <div className="desktop-product-choice-row">
-                    <button type="button" className={`desktop-product-choice-btn ${desktopProductFulfillmentMode === 'seller_delivery' ? 'active' : ''}`} onClick={() => setDesktopProductFulfillmentMode('seller_delivery')}>판매자배송</button>
-                    <button type="button" className={`desktop-product-choice-btn ${desktopProductFulfillmentMode === 'rocket_growth' ? 'active' : ''}`} onClick={() => setDesktopProductFulfillmentMode('rocket_growth')}>로켓그로스(쿠팡풀필먼트서비스 배송)</button>
-                  </div>
-                  <p className="muted-mini">현재 저장 데이터는 기본 상품정보 중심이며, 상세 물류옵션은 후속 단계에서 확장할 수 있게 레이아웃만 먼저 반영했습니다.</p>
-                </article>
-
-                <article className="desktop-product-section-card">
-                  <div className="desktop-product-section-headline">
                     <strong>기본 정보</strong>
-                    <span>노출상품명, 등록상품명, 카테고리, 가격, 재고를 중심으로 입력합니다.</span>
+                    <span>카테고리, 상품명, 상세 설명, 가격, 재고를 입력합니다.</span>
                   </div>
                   <div className="desktop-product-form-grid desktop-product-form-grid-detailed">
                     <label>
                       <span>카테고리</span>
                       <select value={productRegistrationDraft.category} onChange={(event) => setProductRegistrationDraft((prev) => ({ ...prev, category: event.target.value }))}>
-                        {productCategoryOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+                        <option value="위생/보관">위생/보관</option>
+                        {productCategoryOptions.filter((item) => item !== "위생/보관").map((item) => <option key={item} value={item}>{item}</option>)}
                       </select>
                     </label>
                     <label>
                       <span>등록상품명</span>
-                      <input value={productRegistrationDraft.name} onChange={(event) => setProductRegistrationDraft((prev) => ({ ...prev, name: event.target.value }))} placeholder="등록상품명 입력" />
+                      <input value={productRegistrationDraft.name} onChange={(event) => setProductRegistrationDraft((prev) => ({ ...prev, name: event.target.value }))} placeholder="등록상품명" />
                     </label>
                     <label className="wide">
                       <span>상세 설명</span>
-                      <textarea value={productRegistrationDraft.description} onChange={(event) => setProductRegistrationDraft((prev) => ({ ...prev, description: event.target.value }))} rows={6} placeholder="상품 상세 설명 입력" />
+                      <textarea value={productRegistrationDraft.description} onChange={(event) => setProductRegistrationDraft((prev) => ({ ...prev, description: event.target.value }))} rows={6} placeholder="상세 설명" />
                     </label>
                     <label>
                       <span>판매가</span>
@@ -9331,7 +9313,7 @@ export default function App() {
                     </label>
                     <label className="wide">
                       <span>상품코드(SKU)</span>
-                      <input value={productRegistrationDraft.skuCode} onChange={(event) => setProductRegistrationDraft((prev) => ({ ...prev, skuCode: event.target.value }))} placeholder="상품코드 입력" />
+                      <input value={productRegistrationDraft.skuCode} onChange={(event) => setProductRegistrationDraft((prev) => ({ ...prev, skuCode: event.target.value }))} placeholder="상품코드(SKU)" />
                     </label>
                   </div>
                 </article>
@@ -9394,7 +9376,7 @@ export default function App() {
               </div>
 
               {!sellerApprovalReady ? <p className="muted-mini">사업자 인증 승인 후 상품 관리가 가능합니다.</p> : null}
-              {!productDraftReady ? <p className="muted-mini">카테고리, 노출상품명, 판매가, 재고수량, 등록상품명, 상세설명을 모두 입력해야 저장할 수 있습니다.</p> : null}
+              {!productDraftReady ? <p className="muted-mini">카테고리, 등록상품명, 상세 설명, 판매가, 재고수량을 모두 입력해야 저장할 수 있습니다.</p> : null}
 
               <div className="copy-action-row desktop-product-submit-actions">
                 <button type="button" className="ghost-btn" onClick={closeDesktopProductEditor}>취소</button>
