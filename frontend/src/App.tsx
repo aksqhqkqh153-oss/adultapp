@@ -2558,6 +2558,14 @@ const createThreadRoomSeed = (thread: ThreadItem): ChatRoomMessage[] => {
     ];
   }
 
+  if (thread.status === "요청받음") {
+    return [
+      { id: thread.id * 100 + 1, threadId: thread.id, author: "system", text: baseLead, meta: "안내", system: true, createdAt: now - 6 * 60000 },
+      { id: thread.id * 100 + 2, threadId: thread.id, author: "system", text: "상대방이 먼저 보낸 요청입니다. 이 방에서 첫 메시지를 보내면 채팅이 수락되고 일반 채팅 목록으로 이동합니다.", meta: "요청 도착", system: true, createdAt: now - 4 * 60000 },
+      { id: thread.id * 100 + 3, threadId: thread.id, author: thread.name, text: thread.preview, meta: thread.time, mine: false, createdAt: now - 2 * 60000, contentKind: "text" },
+    ];
+  }
+
   const supportLine = thread.kind === "단체"
     ? `${thread.purpose} 주제로 최근 대화가 상단부터 정렬됩니다.`
     : `${thread.purpose} 기준으로 연결된 채팅방이며, 필요한 경우 답장·공유·공지 기능을 이어서 사용할 수 있습니다.`;
@@ -6927,6 +6935,7 @@ export default function App() {
   const filteredThreads = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
     return threadItems.filter((thread) => {
+      if (thread.status === '요청받음') return false;
       const isOneToOne = thread.purpose.includes("상호수락 1:1");
       const isShoppingThread = ["상품/운영 문의", "정산/환불", "쇼핑 주문", "구매자 지원"].includes(thread.purpose);
       const categoryMatch = chatCategory === "전체"
@@ -7021,6 +7030,30 @@ export default function App() {
       setChatAttachmentSheetOpen(false);
       setChatEmojiSheetOpen(false);
       setChatLongPressHint('상대방이 아직 요청을 수락하지 않아 답장은 시작되지 않았습니다.');
+      return;
+    }
+
+    if (activeChatThread.status === '요청받음') {
+      const acceptedSystemMessage: ChatRoomMessage = {
+        id: now + 1,
+        threadId: activeChatThread.id,
+        author: 'system',
+        text: '첫 메시지를 보내 채팅 요청을 수락했습니다. 이제 일반 채팅 목록에서 이어서 대화할 수 있습니다.',
+        meta: '지금',
+        system: true,
+        createdAt: now + 1,
+      };
+      setChatMessagesByThread((prev) => ({
+        ...prev,
+        [activeChatThread.id]: [...(prev[activeChatThread.id] ?? []), myMessage, acceptedSystemMessage],
+      }));
+      setThreadItems((prev) => prev.map((item) => item.id === activeChatThread.id ? { ...item, preview: previewText, time: '방금', unread: 0, status: '수락완료' } : item));
+      setChatRequestItems((prev) => prev.filter((item) => item.id !== activeChatThread.id));
+      setChatReplyTarget(null);
+      setChatRoomDraft('');
+      setChatAttachmentSheetOpen(false);
+      setChatEmojiSheetOpen(false);
+      setChatLongPressHint('첫 메시지 전송으로 채팅 요청이 수락되었습니다.');
       return;
     }
 
@@ -7141,6 +7174,65 @@ export default function App() {
     setChatShareMessage(null);
     setChatShareKeyword('');
   }, []);
+
+  const openIncomingChatRequest = useCallback((request: ChatRequestItem) => {
+    const existing = threadItems.find((item) => item.name === request.name && item.purpose === '상호수락 1:1');
+
+    if (existing && existing.status !== '요청받음') {
+      openChatThread(existing);
+      setChatTab('채팅');
+      setActiveTab('채팅');
+      return;
+    }
+
+    const pendingThread: ThreadItem = existing
+      ? { ...existing, preview: request.requestText, time: request.time, unread: 0, favorite: true, status: '요청받음' }
+      : {
+          id: request.id,
+          name: request.name,
+          purpose: '상호수락 1:1',
+          preview: request.requestText,
+          time: request.time,
+          unread: 0,
+          avatar: request.avatar,
+          avatarUrl: request.avatarUrl ?? buildChatAvatarDataUri(request.name),
+          kind: '개인',
+          favorite: true,
+          status: '요청받음',
+        };
+
+    setThreadItems((prev) => existing ? prev.map((item) => item.id === existing.id ? pendingThread : item) : [pendingThread, ...prev]);
+    setChatMessagesByThread((prev) => prev[pendingThread.id] ? prev : { ...prev, [pendingThread.id]: createThreadRoomSeed(pendingThread) });
+    openChatThread(pendingThread);
+    setChatTab('채팅');
+    setActiveTab('채팅');
+  }, [openChatThread, setActiveTab, setChatTab, threadItems]);
+
+  const deleteChatRequest = useCallback((request: ChatRequestItem) => {
+    setChatRequestItems((prev) => prev.filter((item) => item.id !== request.id));
+    setThreadItems((prev) => prev.filter((item) => item.id !== request.id));
+    setChatMessagesByThread((prev) => {
+      if (!(request.id in prev)) return prev;
+      const next = { ...prev };
+      delete next[request.id];
+      return next;
+    });
+    if (activeChatThreadId === request.id) {
+      setActiveChatThreadId(null);
+      setChatRoomDraft('');
+      setChatAttachmentSheetOpen(false);
+      setChatEmojiSheetOpen(false);
+      setChatContextMessage(null);
+      setChatReplyTarget(null);
+      setChatEditableMessageId(null);
+      setChatSelectableMessageId(null);
+      setChatShareMessage(null);
+      setChatShareKeyword('');
+      setChatCopiedSelection('');
+      setChatListMode('requests');
+    }
+    setChatLongPressHint(`${request.name} 님 요청을 삭제했습니다.`);
+  }, [activeChatThreadId]);
 
   const openProfileChatRequest = useCallback(() => {
     if (currentProfileMeta.isOwner) return;
@@ -11624,38 +11716,24 @@ export default function App() {
                   </div>
                   {chatListMode === 'requests' ? (
                     <div className="chat-request-pane compact-scroll-list">
-                      {selectedChatRequest ? (
-                        <div className="chat-request-detail-card">
-                          <div className="chat-request-detail-head">
-                            <div className="avatar-circle kakao-avatar"><img src={selectedChatRequest.avatarUrl ?? buildChatAvatarDataUri(selectedChatRequest.name)} alt="" loading="lazy" /></div>
-                            <div>
-                              <strong>{selectedChatRequest.name}</strong>
-                              <span>{selectedChatRequest.time} · {selectedChatRequest.purpose}</span>
-                            </div>
-                          </div>
-                          <p>{selectedChatRequest.requestText}</p>
-                          <div className="copy-action-row chat-request-detail-actions">
-                            <button type="button" onClick={() => acceptChatRequest(selectedChatRequest)}>수락</button>
-                          </div>
-                        </div>
-                      ) : (
+                      {!chatRequestItems.length ? (
                         <div className="legacy-box compact chat-request-empty-box">
                           <strong>받은 채팅 요청이 없습니다.</strong>
-                          <p>새 요청이 오면 이 목록에 먼저 쌓이고, 수락해야 일반 채팅 목록으로 이동합니다.</p>
+                          <p>요청 목록에서 상대를 선택한 뒤, 채팅방에서 첫 메시지를 보내면 일반 채팅으로 전환됩니다.</p>
                         </div>
-                      )}
+                      ) : null}
                       <div className="chat-request-list">
                         {chatRequestItems.map((request) => (
                           <article
                             key={request.id}
-                            className={`chat-request-row ${selectedChatRequest?.id === request.id ? 'active' : ''}`}
-                            onClick={() => setSelectedChatRequestId(request.id)}
+                            className="chat-request-row"
+                            onClick={() => openIncomingChatRequest(request)}
                             role="button"
                             tabIndex={0}
                             onKeyDown={(event) => {
                               if (event.key === 'Enter' || event.key === ' ') {
                                 event.preventDefault();
-                                setSelectedChatRequestId(request.id);
+                                openIncomingChatRequest(request);
                               }
                             }}
                           >
@@ -11665,18 +11743,20 @@ export default function App() {
                                 <strong>{request.name}</strong>
                                 <span>{request.time}</span>
                               </div>
-                              <p>{request.preview}</p>
+                              <p>{request.requestText}</p>
                             </div>
-                            <button
-                              type="button"
-                              className="ghost-btn chat-request-accept-btn"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                acceptChatRequest(request);
-                              }}
-                            >
-                              수락
-                            </button>
+                            <div className="chat-request-actions">
+                              <button
+                                type="button"
+                                className="ghost-btn chat-request-delete-btn"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  deleteChatRequest(request);
+                                }}
+                              >
+                                삭제
+                              </button>
+                            </div>
                           </article>
                         ))}
                       </div>

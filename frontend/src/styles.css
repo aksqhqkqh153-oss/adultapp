@@ -13193,7 +13193,8 @@ button.ghost-btn.danger { border-color:rgba(255,92,92,0.28); color:#ffb0b0; }
 }
 
 .chat-request-toggle.active {
-  border-color: rgba(255,255,255,0.22);
+  border-color: #ff5ea9;
+  background: #ff5ea9;
   color: #fff;
 }
 
@@ -13248,6 +13249,12 @@ button.ghost-btn.danger { border-color:rgba(255,92,92,0.28); color:#ffb0b0; }
   gap: 10px;
 }
 
+.chat-request-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
 .chat-request-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -13257,8 +13264,8 @@ button.ghost-btn.danger { border-color:rgba(255,92,92,0.28); color:#ffb0b0; }
   cursor: pointer;
 }
 
-.chat-request-row.active {
-  border-color: rgba(255,255,255,0.18);
+.chat-request-row:hover {
+  border-color: rgba(255,255,255,0.16);
   background: rgba(255,255,255,0.05);
 }
 
@@ -13281,9 +13288,10 @@ button.ghost-btn.danger { border-color:rgba(255,92,92,0.28); color:#ffb0b0; }
   line-height: 1.45;
 }
 
-.chat-request-accept-btn {
+.chat-request-delete-btn {
   min-width: 64px;
   white-space: nowrap;
+  color: #ffb7d2;
 }
 
 .chat-request-empty-box strong {
@@ -13295,8 +13303,12 @@ button.ghost-btn.danger { border-color:rgba(255,92,92,0.28); color:#ffb0b0; }
     grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .chat-request-accept-btn {
+  .chat-request-actions {
     grid-column: 1 / -1;
+    justify-content: stretch;
+  }
+
+  .chat-request-delete-btn {
     width: 100%;
   }
 }
