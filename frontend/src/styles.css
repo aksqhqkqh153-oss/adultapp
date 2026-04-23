@@ -12191,12 +12191,12 @@ body {
 }
 .desktop-side-menu-list-item {
   display: grid;
-  gap: 6px;
-  padding: 10px;
+  gap: 5px;
+  padding: 8px 9px;
   border: 1px solid rgba(255,255,255,0.08);
   background: rgba(255,255,255,0.03);
   color: #f5f5f5;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
 }
 .desktop-side-menu-sublist {
@@ -12218,13 +12218,13 @@ body {
   top: 0;
 }
 .desktop-side-menu-tab-btn {
-  min-height: 38px;
-  padding: 0 10px;
-  border-radius: 10px;
+  min-height: 32px;
+  padding: 0 8px;
+  border-radius: 9px;
   border: 1px solid rgba(255,255,255,0.1);
   background: rgba(255,255,255,0.04);
   color: #f5f5f5;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -12261,20 +12261,20 @@ body {
   gap: 10px;
 }
 .desktop-top-control-card {
-  padding: 10px;
+  padding: 8px 10px;
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 .desktop-top-control-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
 }
 .desktop-top-control-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
 }
 .desktop-split-grid {
   min-height: 0;
@@ -12294,9 +12294,15 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 10px 12px;
+  padding: 7px 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(0,0,0,0.5);
+}
+.desktop-split-pane-head-label-only {
+  justify-content: flex-end;
+}
+.desktop-split-pane-head-label-only span {
+  margin: 0;
 }
 .desktop-split-device-frame {
   min-height: 0;
@@ -12322,8 +12328,8 @@ body {
 .desktop-side-menu-item-title-row { display:grid; gap:4px; }
 .desktop-side-menu-item-title-row small { color:rgba(255,255,255,0.52); font-size:11px; }
 .desktop-side-menu-item-actions { display:inline-flex; align-items:center; gap:6px; }
-.desktop-side-menu-open-btn { min-width:34px; height:30px; padding:0 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.16); background:rgba(255,255,255,0.06); color:#fff; font-size:12px; font-weight:700; }
-.desktop-business-shell { display:grid; gap:14px; padding:14px; }
+.desktop-side-menu-open-btn { min-width:30px; height:26px; padding:0 8px; border-radius:9px; border:1px solid rgba(255,255,255,0.16); background:rgba(255,255,255,0.06); color:#fff; font-size:11px; font-weight:700; }
+.desktop-business-shell { display:grid; gap:14px; padding:12px; height:100dvh; min-height:100dvh; overflow-y:auto; align-content:start; }
 .desktop-business-header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:14px; border:1px solid rgba(255,255,255,0.08); background:rgba(0,0,0,0.38); }
 .desktop-business-header strong { font-size:18px; font-weight:800; }
 .desktop-business-header p { margin:6px 0 0; color:rgba(255,255,255,0.72); font-size:12px; }
@@ -12349,6 +12355,18 @@ body {
 .desktop-business-list-row > div { display:flex; align-items:center; justify-content:space-between; gap:12px; }
 .desktop-business-list-row span { color:rgba(255,255,255,0.62); font-size:12px; }
 .desktop-business-list-row p, .desktop-business-empty { margin:0; color:rgba(255,255,255,0.72); font-size:13px; }
+.desktop-settlement-period-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.desktop-settlement-period-btn { min-height: 38px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); color: #f5f5f5; font-size: 12px; font-weight: 700; }
+.desktop-settlement-period-btn.active { border-color: rgba(255,79,154,0.45); background: rgba(255,79,154,0.16); color: #ff9acb; }
+.desktop-settlement-summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.desktop-settlement-summary-card { display: grid; gap: 8px; padding: 14px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); }
+.desktop-settlement-summary-card span { color: rgba(255,255,255,0.66); font-size: 12px; }
+.desktop-settlement-summary-card strong { font-size: 18px; line-height: 1.4; }
+.desktop-settlement-month-strip { display: flex; flex-wrap: wrap; gap: 8px; }
+.desktop-settlement-month-chip { padding: 7px 12px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.84); font-size: 12px; }
+.desktop-settlement-month-chip.active { border-color: rgba(255,79,154,0.45); background: rgba(255,79,154,0.16); color: #ffb2d3; }
+.desktop-settlement-table { min-width: 720px; }
+.desktop-settlement-table th, .desktop-settlement-table td { white-space: nowrap; }
 .desktop-shell-header.desktop-shell-header-actions-only { justify-content: flex-end; }
 .desktop-product-toolbar-actions { flex-wrap: wrap; justify-content: flex-end; }
 .desktop-product-table-clickable th:first-child,
@@ -12356,6 +12374,9 @@ body {
 .desktop-product-table-clickable tbody tr.active { background: rgba(255, 79, 154, 0.08); }
 .desktop-product-row-link { width: 100%; display: grid; gap: 4px; text-align: left; padding: 0; border: 0; background: transparent; color: #fff; cursor: pointer; }
 .desktop-product-row-link strong { font-size: 14px; }
+.desktop-product-editor-topbar { display: flex; justify-content: flex-start; }
+.desktop-product-back-btn { min-height: 34px; padding: 0 12px; }
+.desktop-business-section-head-editor { align-items: center; }
 .desktop-product-detail-card { gap: 16px; }
 .desktop-product-manual-strip { display: flex; flex-wrap: wrap; gap: 8px; }
 .desktop-product-manual-chip { padding: 8px 12px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.88); font-size: 12px; font-weight: 700; }
@@ -12400,7 +12421,7 @@ body {
 .desktop-order-status-chip-done { background: rgba(255, 79, 154, 0.16); color: #ffbad7; border-color: rgba(255, 79, 154, 0.28); }
 .desktop-order-status-chip-direct { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.86); border-color: rgba(255,255,255,0.16); }
 button.ghost-btn.danger { border-color:rgba(255,92,92,0.28); color:#ffb0b0; }
-@media (max-width:1360px) { .desktop-product-form-grid, .desktop-product-form-grid-detailed, .desktop-product-section-grid, .desktop-product-support-grid, .desktop-product-choice-row, .desktop-product-photo-grid { grid-template-columns:minmax(0,1fr); } .desktop-order-stage-row { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width:1360px) { .desktop-product-form-grid, .desktop-product-form-grid-detailed, .desktop-product-section-grid, .desktop-product-support-grid, .desktop-product-choice-row, .desktop-product-photo-grid, .desktop-settlement-summary-grid { grid-template-columns:minmax(0,1fr); } .desktop-order-stage-row, .desktop-settlement-period-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 1440px) {
   .desktop-split-shell.sidebar-open {
     --desktop-side-menu-width: clamp(232px, 17vw, 280px);

@@ -767,6 +767,7 @@ type DesktopBusinessMenuSection = { title: string; items: DesktopBusinessMenuIte
 type DesktopOrderProgressFilter = "전체" | "주문접수" | "상품준비중" | "배송지시" | "배송중" | "배송완료";
 type DesktopOrderDeliveryFilter = "전체" | "결제완료" | "상품준비중" | "배송지시" | "배송중" | "배송완료" | "업체 직접 배송";
 type DesktopOrderSearchField = "주문번호" | "주문자명" | "수취인명";
+type DesktopSettlementPeriod = "1년" | "반기" | "분기" | "월";
 type DesktopOrderAdminRow = {
   id: string;
   orderedAt: string;
@@ -994,6 +995,19 @@ function buildDesktopOrderAdminRows(orders: ApiOrder[], sellerProducts: SellerPr
       progressStatus: statusInfo.progressStatus,
     } satisfies DesktopOrderAdminRow;
   });
+}
+
+
+function shiftDesktopOrderIsoMonth(orderedDateIso: string, deltaMonths: number) {
+  const [year, month, day] = orderedDateIso.split("-").map((item) => Number(item));
+  const date = new Date(year, (month || 1) - 1, day || 1);
+  date.setMonth(date.getMonth() + deltaMonths);
+  return formatDesktopOrderIsoDate(date);
+}
+
+function formatDesktopSettlementMonthLabel(monthKey: string) {
+  const [year, month] = monthKey.split("-");
+  return `${year}.${month}`;
 }
 
 function DesktopSplitShell() {
@@ -1296,22 +1310,20 @@ function DesktopSplitShell() {
 
           <div className="desktop-split-grid">
             <section className="desktop-split-pane">
-              <div className="desktop-split-pane-head">
-                <strong>좌측 화면</strong>
+              <div className="desktop-split-pane-head desktop-split-pane-head-label-only">
                 <span>{getDesktopPaneSelectionLabel(leftSelection)}</span>
               </div>
               <div className="desktop-split-device-frame">
-                {iframeReady ? <iframe key={leftFrameUrl} className="desktop-split-iframe" src={leftFrameUrl} title="adultapp-left-pane" loading="eager" /> : <div className="desktop-split-fallback">좌측 화면을 준비 중입니다.</div>}
+                {iframeReady ? <iframe key={leftFrameUrl} className="desktop-split-iframe" src={leftFrameUrl} title="adultapp-left-pane" loading="eager" /> : <div className="desktop-split-fallback">화면을 준비 중입니다.</div>}
               </div>
             </section>
 
             <section className="desktop-split-pane">
-              <div className="desktop-split-pane-head">
-                <strong>우측 화면</strong>
+              <div className="desktop-split-pane-head desktop-split-pane-head-label-only">
                 <span>{getDesktopPaneSelectionLabel(rightSelection)}</span>
               </div>
               <div className="desktop-split-device-frame">
-                {iframeReady ? <iframe key={rightFrameUrl} className="desktop-split-iframe" src={rightFrameUrl} title="adultapp-right-pane" loading="eager" /> : <div className="desktop-split-fallback">우측 화면을 준비 중입니다.</div>}
+                {iframeReady ? <iframe key={rightFrameUrl} className="desktop-split-iframe" src={rightFrameUrl} title="adultapp-right-pane" loading="eager" /> : <div className="desktop-split-fallback">화면을 준비 중입니다.</div>}
               </div>
             </section>
           </div>
@@ -4698,6 +4710,7 @@ export default function App() {
   const [desktopOrderSearchInput, setDesktopOrderSearchInput] = useState("");
   const [desktopOrderSearchKeyword, setDesktopOrderSearchKeyword] = useState("");
   const [desktopOrderSelectedNos, setDesktopOrderSelectedNos] = useState<string[]>([]);
+  const [desktopSettlementPeriod, setDesktopSettlementPeriod] = useState<DesktopSettlementPeriod>("월");
   const [submittedProducts, setSubmittedProducts] = useState<ProductRegistrationDraft[]>(() => []);
   const [sellerApprovalQueue, setSellerApprovalQueue] = useState<SellerApprovalItem[]>([]);
   const [productApprovalQueue, setProductApprovalQueue] = useState<ProductApprovalItem[]>([]);
@@ -9148,7 +9161,7 @@ export default function App() {
       const allProductsSelected = sellerProducts.length > 0 && desktopProductSelectedIds.length === sellerProducts.length;
       const editorTitle = desktopProductEditId ? '상품 수정' : '상품 등록';
       const editorDescription = desktopProductEditId
-        ? '목록에서 선택한 상품 상세 화면입니다. 저장 후 즉시 목록으로 돌아가 다시 조회할 수 있습니다.'
+        ? '선택한 상품의 상세 수정 화면입니다. 저장 후 목록으로 돌아가 다시 조회할 수 있습니다.'
         : '판매자센터형 등록 화면입니다. 기본정보, 이미지, 상세설명, 배송/반품 정책 구역을 나누어 구성했습니다.';
       const currentStatusLabel = desktopProductEditId
         ? sellerProducts.find((item) => item.id === desktopProductEditId)?.status ?? 'draft'
@@ -9159,7 +9172,7 @@ export default function App() {
           <header className="desktop-business-header">
             <div>
               <strong>{meta.title}</strong>
-              <p>{meta.description}</p>
+              <p>{desktopProductEditorOpen ? '상품 등록/수정 화면 전체 전환 상태입니다.' : meta.description}</p>
             </div>
             <div className="desktop-business-chip-row">
               <span className="desktop-business-chip">전체 {productStatusSummary.total}</span>
@@ -9169,96 +9182,103 @@ export default function App() {
             </div>
           </header>
 
-          <section className="desktop-business-card">
-            <div className="desktop-business-section-head">
-              <div>
-                <h2>상품 목록</h2>
-                <p>첫 화면은 조회 중심으로 구성하고, 목록에서 상품을 클릭하면 상세 등록/수정 화면으로 들어가도록 변경했습니다.</p>
+          {!desktopProductEditorOpen ? (
+            <section className="desktop-business-card">
+              <div className="desktop-business-section-head">
+                <div>
+                  <h2>상품 목록</h2>
+                  <p>첫 화면은 조회 중심으로 유지하고, 상품 등록/상세 수정은 전체 등록 화면으로 전환되도록 변경했습니다.</p>
+                </div>
+                <div className="copy-action-row desktop-product-toolbar-actions">
+                  <button type="button" className="ghost-btn" onClick={resetDesktopProductDraft} disabled={desktopProductCrudBusy}>상품 등록</button>
+                  <button type="button" className="ghost-btn danger" onClick={deleteSelectedDesktopProducts} disabled={desktopProductCrudBusy || !desktopProductSelectedIds.length}>선택 삭제</button>
+                </div>
               </div>
-              <div className="copy-action-row desktop-product-toolbar-actions">
-                <button type="button" className="ghost-btn" onClick={resetDesktopProductDraft} disabled={desktopProductCrudBusy}>상품 등록</button>
-                <button type="button" className="ghost-btn danger" onClick={deleteSelectedDesktopProducts} disabled={desktopProductCrudBusy || !desktopProductSelectedIds.length}>선택 삭제</button>
-              </div>
-            </div>
 
-            {desktopProductCrudMessage ? <p className="muted-mini">{desktopProductCrudMessage}</p> : null}
+              {desktopProductCrudMessage ? <p className="muted-mini">{desktopProductCrudMessage}</p> : null}
 
-            <div className="desktop-product-table-wrap">
-              <table className="desktop-product-table desktop-product-table-clickable">
-                <thead>
-                  <tr>
-                    <th>
-                      <input
-                        type="checkbox"
-                        checked={allProductsSelected}
-                        onChange={() => setDesktopProductSelectedIds(allProductsSelected ? [] : sellerProducts.map((item) => item.id))}
-                        aria-label="전체 상품 선택"
-                      />
-                    </th>
-                    <th>상품명</th>
-                    <th>카테고리</th>
-                    <th>상태</th>
-                    <th>가격</th>
-                    <th>재고</th>
-                    <th>수정일</th>
-                    <th>관리</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sellerProducts.length ? sellerProducts.map((item) => {
-                    const checked = desktopProductSelectedIds.includes(item.id);
-                    return (
-                      <tr key={item.id} className={desktopProductEditId === item.id && desktopProductEditorOpen ? 'active' : ''}>
-                        <td>
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => setDesktopProductSelectedIds((prev) => prev.includes(item.id) ? prev.filter((id) => id !== item.id) : [...prev, item.id])}
-                            aria-label={`${item.name} 선택`}
-                          />
-                        </td>
-                        <td>
-                          <button type="button" className="desktop-product-row-link" onClick={() => loadDesktopProductForEdit(item.id)} disabled={desktopProductCrudBusy}>
-                            <strong>{item.name}</strong>
-                            <div className="desktop-product-table-sub">{item.sku_code}</div>
-                          </button>
-                        </td>
-                        <td>{item.category}</td>
-                        <td>{item.status}</td>
-                        <td>₩{item.price.toLocaleString()}</td>
-                        <td>{item.stock_qty}</td>
-                        <td>{item.updated_at ?? '-'}</td>
-                        <td>
-                          <div className="desktop-product-table-actions">
-                            <button type="button" className="ghost-btn" onClick={() => loadDesktopProductForEdit(item.id)} disabled={desktopProductCrudBusy}>상세/수정</button>
-                            <button type="button" className="ghost-btn" onClick={() => submitProductForReview(item.id)} disabled={desktopProductCrudBusy || item.status === 'approved'}>승인대기</button>
-                            <button type="button" className="ghost-btn danger" onClick={() => deleteDesktopProduct(item.id)} disabled={desktopProductCrudBusy}>삭제</button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  }) : (
+              <div className="desktop-product-table-wrap">
+                <table className="desktop-product-table desktop-product-table-clickable">
+                  <thead>
                     <tr>
-                      <td colSpan={8} className="desktop-product-table-empty">등록된 상품이 없습니다. 상단의 상품 등록 버튼으로 새 상품을 추가하세요.</td>
+                      <th>
+                        <input
+                          type="checkbox"
+                          checked={allProductsSelected}
+                          onChange={() => setDesktopProductSelectedIds(allProductsSelected ? [] : sellerProducts.map((item) => item.id))}
+                          aria-label="전체 상품 선택"
+                        />
+                      </th>
+                      <th>상품명</th>
+                      <th>카테고리</th>
+                      <th>상태</th>
+                      <th>가격</th>
+                      <th>재고</th>
+                      <th>수정일</th>
+                      <th>관리</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
+                  </thead>
+                  <tbody>
+                    {sellerProducts.length ? sellerProducts.map((item) => {
+                      const checked = desktopProductSelectedIds.includes(item.id);
+                      return (
+                        <tr key={item.id} className={desktopProductEditId === item.id && desktopProductEditorOpen ? 'active' : ''}>
+                          <td>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => setDesktopProductSelectedIds((prev) => prev.includes(item.id) ? prev.filter((id) => id !== item.id) : [...prev, item.id])}
+                              aria-label={`${item.name} 선택`}
+                            />
+                          </td>
+                          <td>
+                            <button type="button" className="desktop-product-row-link" onClick={() => loadDesktopProductForEdit(item.id)} disabled={desktopProductCrudBusy}>
+                              <strong>{item.name}</strong>
+                              <div className="desktop-product-table-sub">{item.sku_code}</div>
+                            </button>
+                          </td>
+                          <td>{item.category}</td>
+                          <td>{item.status}</td>
+                          <td>₩{item.price.toLocaleString()}</td>
+                          <td>{item.stock_qty}</td>
+                          <td>{item.updated_at ?? '-'}</td>
+                          <td>
+                            <div className="desktop-product-table-actions">
+                              <button type="button" className="ghost-btn" onClick={() => loadDesktopProductForEdit(item.id)} disabled={desktopProductCrudBusy}>상세/수정</button>
+                              <button type="button" className="ghost-btn" onClick={() => submitProductForReview(item.id)} disabled={desktopProductCrudBusy || item.status === 'approved'}>승인대기</button>
+                              <button type="button" className="ghost-btn danger" onClick={() => deleteDesktopProduct(item.id)} disabled={desktopProductCrudBusy}>삭제</button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }) : (
+                      <tr>
+                        <td colSpan={8} className="desktop-product-table-empty">등록된 상품이 없습니다. 상단의 상품 등록 버튼으로 새 상품을 추가하세요.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null}
 
           {desktopProductEditorOpen ? (
             <section className="desktop-business-card desktop-product-crud-card desktop-product-detail-card">
-              <div className="desktop-business-section-head">
+              <div className="desktop-product-editor-topbar">
+                <button type="button" className="ghost-btn desktop-product-back-btn" onClick={closeDesktopProductEditor}>← 뒤로가기</button>
+              </div>
+
+              <div className="desktop-business-section-head desktop-business-section-head-editor">
                 <div>
                   <h2>{editorTitle}</h2>
                   <p>{editorDescription}</p>
                 </div>
                 <div className="copy-action-row desktop-product-toolbar-actions">
-                  <button type="button" className="ghost-btn" onClick={closeDesktopProductEditor}>목록으로</button>
                   <button type="button" className="ghost-btn" onClick={resetDesktopProductDraft}>신규 작성</button>
                 </div>
               </div>
+
+              {desktopProductCrudMessage ? <p className="muted-mini">{desktopProductCrudMessage}</p> : null}
 
               <div className="desktop-product-manual-strip">
                 <span className="desktop-product-manual-chip">상품 등록 필수항목</span>
@@ -9284,88 +9304,92 @@ export default function App() {
                 <article className="desktop-product-section-card">
                   <div className="desktop-product-section-headline">
                     <strong>기본 정보</strong>
-                    <span>노출상품명, 등록상품명, 카테고리, 가격, 재고를 한 카드에 묶었습니다.</span>
+                    <span>노출상품명, 등록상품명, 카테고리, 가격, 재고를 중심으로 입력합니다.</span>
                   </div>
                   <div className="desktop-product-form-grid desktop-product-form-grid-detailed">
                     <label>
-                      <span>브랜드</span>
-                      <input value={productRegistrationDraft.category ? `${productRegistrationDraft.category} 브랜드` : ''} readOnly placeholder="브랜드 없음(또는 자체제작)" />
-                    </label>
-                    <label>
-                      <span>노출상품명</span>
-                      <input value={productRegistrationDraft.name} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, name: e.target.value }))} placeholder="상품 모델 + 상품 유형 + 핵심 특징" />
-                    </label>
-                    <label>
-                      <span>등록상품명(판매자관리용)</span>
-                      <input value={productRegistrationDraft.skuCode} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, skuCode: e.target.value }))} placeholder="SKU-0001 / 내부 관리명" />
-                    </label>
-                    <label>
                       <span>카테고리</span>
-                      <select value={productRegistrationDraft.category} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, category: e.target.value }))}>
+                      <select value={productRegistrationDraft.category} onChange={(event) => setProductRegistrationDraft((prev) => ({ ...prev, category: event.target.value }))}>
                         {productCategoryOptions.map((item) => <option key={item} value={item}>{item}</option>)}
                       </select>
                     </label>
                     <label>
+                      <span>등록상품명</span>
+                      <input value={productRegistrationDraft.name} onChange={(event) => setProductRegistrationDraft((prev) => ({ ...prev, name: event.target.value }))} placeholder="등록상품명 입력" />
+                    </label>
+                    <label className="wide">
+                      <span>상세 설명</span>
+                      <textarea value={productRegistrationDraft.description} onChange={(event) => setProductRegistrationDraft((prev) => ({ ...prev, description: event.target.value }))} rows={6} placeholder="상품 상세 설명 입력" />
+                    </label>
+                    <label>
                       <span>판매가</span>
-                      <input value={productRegistrationDraft.price} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, price: e.target.value }))} placeholder="10000" />
+                      <input type="number" value={productRegistrationDraft.price} onChange={(event) => setProductRegistrationDraft((prev) => ({ ...prev, price: event.target.value }))} placeholder="판매가" />
                     </label>
                     <label>
                       <span>재고수량</span>
-                      <input value={productRegistrationDraft.stockQty} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, stockQty: e.target.value }))} placeholder="10" />
+                      <input type="number" value={productRegistrationDraft.stockQty} onChange={(event) => setProductRegistrationDraft((prev) => ({ ...prev, stockQty: event.target.value }))} placeholder="재고수량" />
+                    </label>
+                    <label className="wide">
+                      <span>상품코드(SKU)</span>
+                      <input value={productRegistrationDraft.skuCode} onChange={(event) => setProductRegistrationDraft((prev) => ({ ...prev, skuCode: event.target.value }))} placeholder="상품코드 입력" />
                     </label>
                   </div>
                 </article>
 
                 <article className="desktop-product-section-card">
                   <div className="desktop-product-section-headline">
-                    <strong>상품이미지</strong>
-                    <span>대표/상세 이미지 URL을 등록하면 실제 상품 상세에 연결됩니다.</span>
+                    <strong>대표 이미지 / 추가 이미지</strong>
+                    <span>이미지 URL 기반으로 5개까지 입력할 수 있게 유지했습니다.</span>
                   </div>
-                  <div className="photo-url-grid desktop-product-photo-grid">
-                    {productRegistrationDraft.imageUrls.map((value, idx) => (
-                      <input
-                        key={idx}
-                        value={value}
-                        onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, imageUrls: prev.imageUrls.map((item, itemIdx) => itemIdx === idx ? e.target.value : item) }))}
-                        placeholder={`사진 ${idx + 1} URL`}
-                      />
+                  <div className="desktop-product-form-grid desktop-product-photo-grid">
+                    {productRegistrationDraft.imageUrls.map((item, index) => (
+                      <label key={`product-image-${index}`} className={index === 0 ? 'wide' : undefined}>
+                        <span>{index === 0 ? '대표 이미지 URL' : `추가 이미지 ${index} URL`}</span>
+                        <input
+                          value={item}
+                          onChange={(event) => {
+                            const next = [...productRegistrationDraft.imageUrls];
+                            next[index] = event.target.value;
+                            setProductRegistrationDraft((prev) => ({ ...prev, imageUrls: next }));
+                          }}
+                          placeholder="https://example.com/image.jpg"
+                        />
+                      </label>
                     ))}
                   </div>
                 </article>
 
                 <article className="desktop-product-section-card">
                   <div className="desktop-product-section-headline">
-                    <strong>상세설명</strong>
-                    <span>상품 소개, 사용 포인트, 주의사항을 이 영역에서 정리합니다.</span>
+                    <strong>상품 운영 정보</strong>
+                    <span>등록 상태와 연결 정보를 한 번에 확인할 수 있습니다.</span>
                   </div>
-                  <textarea value={productRegistrationDraft.description} onChange={(e) => setProductRegistrationDraft((prev) => ({ ...prev, description: e.target.value }))} placeholder="상세설명" rows={7} />
-                </article>
-              </div>
-
-              <div className="desktop-product-support-grid">
-                <article className="desktop-product-mini-card">
-                  <strong>옵션</strong>
-                  <p>카테고리 선택 후 옵션/규격 영역을 확장할 수 있도록 자리만 먼저 구성했습니다.</p>
-                </article>
-                <article className="desktop-product-mini-card">
-                  <strong>상품 주요 정보</strong>
-                  <p>현재 상태: {currentStatusLabel} · 상품코드: {productRegistrationDraft.skuCode || '-'} · 카테고리: {productRegistrationDraft.category || '-'}</p>
-                </article>
-                <article className="desktop-product-mini-card">
-                  <strong>검색어 / 검색필터</strong>
-                  <p>상품명과 카테고리를 기준으로 기본 검색 노출 구조를 맞추고, 세부 필터는 후속 확장 가능합니다.</p>
-                </article>
-                <article className="desktop-product-mini-card">
-                  <strong>상품정보제공고시 / 구비서류</strong>
-                  <p>카테고리 확정 후 필수 고시정보와 판매 증빙서류 업로드 영역을 붙일 수 있게 분리했습니다.</p>
-                </article>
-                <article className="desktop-product-mini-card">
-                  <strong>배송</strong>
-                  <p>익명포장, 기본 배송비, 출고리드타임 같은 배송정책을 붙일 수 있는 카드형 섹션입니다.</p>
-                </article>
-                <article className="desktop-product-mini-card">
-                  <strong>반품/교환</strong>
-                  <p>반품지, 교환 기준, 고객센터 안내 문구를 판매자센터형으로 연결할 수 있게 구성했습니다.</p>
+                  <div className="desktop-product-support-grid">
+                    <article className="desktop-product-mini-card">
+                      <strong>옵션</strong>
+                      <p>카테고리 선택 후 옵션/규격 영역을 확장할 수 있도록 자리만 먼저 구성했습니다.</p>
+                    </article>
+                    <article className="desktop-product-mini-card">
+                      <strong>상품 주요 정보</strong>
+                      <p>현재 상태: {currentStatusLabel} · 상품코드: {productRegistrationDraft.skuCode || '-'} · 카테고리: {productRegistrationDraft.category || '-'}</p>
+                    </article>
+                    <article className="desktop-product-mini-card">
+                      <strong>검색어 / 검색필터</strong>
+                      <p>상품명과 카테고리를 기준으로 기본 검색 노출 구조를 맞추고, 세부 필터는 후속 확장 가능합니다.</p>
+                    </article>
+                    <article className="desktop-product-mini-card">
+                      <strong>상품정보제공고시 / 구비서류</strong>
+                      <p>카테고리 확정 후 필수 고시정보와 판매 증빙서류 업로드 영역을 붙일 수 있게 분리했습니다.</p>
+                    </article>
+                    <article className="desktop-product-mini-card">
+                      <strong>배송</strong>
+                      <p>익명포장, 기본 배송비, 출고리드타임 같은 배송정책을 붙일 수 있는 카드형 섹션입니다.</p>
+                    </article>
+                    <article className="desktop-product-mini-card">
+                      <strong>반품/교환</strong>
+                      <p>반품지, 교환 기준, 고객센터 안내 문구를 판매자센터형으로 연결할 수 있게 구성했습니다.</p>
+                    </article>
+                  </div>
                 </article>
               </div>
 
@@ -9524,13 +9548,135 @@ export default function App() {
       );
     }
 
+    if (businessViewId === 'settlement') {
+      const priceByCode = new Map(sellerProducts.map((item) => [item.sku_code, Number(item.price ?? 0)]));
+      const latestSettlementDateIso = desktopOrderRows.length
+        ? desktopOrderRows.reduce((latest, item) => item.orderedDateIso > latest ? item.orderedDateIso : latest, desktopOrderRows[0].orderedDateIso)
+        : formatDesktopOrderIsoDate(new Date());
+      const settlementRangeStartIso = desktopSettlementPeriod === '1년'
+        ? shiftDesktopOrderIsoMonth(latestSettlementDateIso, -11)
+        : desktopSettlementPeriod === '반기'
+          ? shiftDesktopOrderIsoMonth(latestSettlementDateIso, -5)
+          : desktopSettlementPeriod === '분기'
+            ? shiftDesktopOrderIsoMonth(latestSettlementDateIso, -2)
+            : `${latestSettlementDateIso.slice(0, 7)}-01`;
+      const settlementRows = desktopOrderRows
+        .filter((item) => item.orderedDateIso >= settlementRangeStartIso && item.orderedDateIso <= latestSettlementDateIso)
+        .map((item) => {
+          const unitPrice = priceByCode.get(item.productCode) ?? 0;
+          const salesAmount = unitPrice * item.quantity;
+          return {
+            ...item,
+            salesAmount,
+            monthKey: item.orderedDateIso.slice(0, 7),
+          };
+        })
+        .sort((a, b) => b.orderedDateIso.localeCompare(a.orderedDateIso) || b.orderNo.localeCompare(a.orderNo));
+      const monthlyTotals = settlementRows.reduce<Record<string, number>>((acc, item) => {
+        acc[item.monthKey] = (acc[item.monthKey] ?? 0) + item.salesAmount;
+        return acc;
+      }, {});
+      const monthKeys = Object.keys(monthlyTotals).sort((a, b) => b.localeCompare(a));
+      const latestMonthKey = monthKeys[0] ?? latestSettlementDateIso.slice(0, 7);
+      const monthSalesTotal = monthlyTotals[latestMonthKey] ?? 0;
+      const grossSalesTotal = settlementRows.reduce((sum, item) => sum + item.salesAmount, 0);
+      const totalQuantity = settlementRows.reduce((sum, item) => sum + item.quantity, 0);
+      const estimatedNetProfit = Math.round(grossSalesTotal * 0.82);
+
+      return (
+        <div className="desktop-business-shell">
+          <header className="desktop-business-header">
+            <div>
+              <strong>{meta.title}</strong>
+              <p>기간 선택에 따라 월 총 매출과 판매 상세 내역을 동시에 볼 수 있게 구성했습니다.</p>
+            </div>
+            <div className="desktop-business-chip-row">
+              <span className="desktop-business-chip">기준 기간 {desktopSettlementPeriod}</span>
+              <span className="desktop-business-chip">판매 건수 {settlementRows.length}</span>
+              <span className="desktop-business-chip">판매 수량 {totalQuantity}</span>
+            </div>
+          </header>
+
+          <section className="desktop-business-card">
+            <div className="desktop-business-section-head">
+              <div>
+                <h2>매출 / 순이익</h2>
+                <p>상단 기간 버튼으로 범위를 바꾸면 월 총 매출과 하단 상세 목록이 함께 갱신됩니다.</p>
+              </div>
+            </div>
+
+            <div className="desktop-settlement-period-row">
+              {(['1년', '반기', '분기', '월'] as DesktopSettlementPeriod[]).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  className={`desktop-settlement-period-btn ${desktopSettlementPeriod === item ? 'active' : ''}`}
+                  onClick={() => setDesktopSettlementPeriod(item)}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+
+            <div className="desktop-settlement-summary-grid">
+              <article className="desktop-settlement-summary-card">
+                <span>월 총 매출</span>
+                <strong>{formatDesktopSettlementMonthLabel(latestMonthKey)} · ₩{monthSalesTotal.toLocaleString()}</strong>
+              </article>
+              <article className="desktop-settlement-summary-card">
+                <span>선택 기간 총 매출</span>
+                <strong>₩{grossSalesTotal.toLocaleString()}</strong>
+              </article>
+              <article className="desktop-settlement-summary-card">
+                <span>선택 기간 순이익</span>
+                <strong>₩{estimatedNetProfit.toLocaleString()}</strong>
+              </article>
+            </div>
+
+            <div className="desktop-settlement-month-strip">
+              {monthKeys.length ? monthKeys.map((item) => (
+                <span key={item} className={`desktop-settlement-month-chip ${item === latestMonthKey ? 'active' : ''}`}>
+                  {formatDesktopSettlementMonthLabel(item)} · ₩{monthlyTotals[item].toLocaleString()}
+                </span>
+              )) : <span className="desktop-settlement-month-chip">매출 데이터 없음</span>}
+            </div>
+
+            <div className="desktop-product-table-wrap">
+              <table className="desktop-product-table desktop-settlement-table">
+                <thead>
+                  <tr>
+                    <th>판매날짜</th>
+                    <th>상품명</th>
+                    <th>상품개수</th>
+                    <th>판매매출</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {settlementRows.length ? settlementRows.map((item) => (
+                    <tr key={`settlement-${item.id}`}>
+                      <td>{item.orderedDateIso}</td>
+                      <td>{item.productName}</td>
+                      <td>{item.quantity}</td>
+                      <td>₩{item.salesAmount.toLocaleString()}</td>
+                    </tr>
+                  )) : (
+                    <tr>
+                      <td colSpan={4} className="desktop-product-table-empty">표시할 판매 데이터가 없습니다.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      );
+    }
+
     const genericRows: Array<{ title: string; meta: string; body: string }> = businessViewId === 'shipping'
       ? recentOrderRows.map((item) => ({ title: item.order_no, meta: `${item.status} · 정산 ${item.settlement_status}`, body: `출고 처리 대상 주문 · 결제 ${item.payment_pg}` }))
         : businessViewId === 'returns'
           ? recentOrderRows.map((item) => ({ title: item.order_no, meta: `${item.status} · 정산 ${item.settlement_status}`, body: `취소/반품 검토 대상 주문 · 결제금액 ₩${Number(item.total_amount ?? 0).toLocaleString()}` }))
-          : businessViewId === 'settlement'
-            ? (settlementPreview?.items ?? []).map((item) => ({ title: item.order_no, meta: `${item.product}`, body: `판매자 정산 ${Number(item.seller_receivable ?? 0).toLocaleString()}원 · 플랫폼 수수료 ${Number(item.platform_fee ?? 0).toLocaleString()}원` }))
-            : businessViewId === 'reviews'
+          : businessViewId === 'reviews'
               ? shopCatalogItems.slice(0, 6).map((item) => ({ title: item.name, meta: `${item.category} · 리뷰 ${item.reviewCount ?? 0}건`, body: item.subtitle }))
               : businessViewId === 'chat'
                 ? recentThreadRows.map((item) => ({ title: item.name, meta: `${item.kind} · ${item.time}`, body: item.preview }))
