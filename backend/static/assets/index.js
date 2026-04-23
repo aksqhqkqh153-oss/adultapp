@@ -13952,6 +13952,16 @@ function App() {
     });
     setCheckoutStage("cart");
   };
+  const updateCartItemQuantity = (productId, delta) => {
+    setCartItems((prev) => prev.flatMap((item) => {
+      if (item.productId !== productId) return [item];
+      const nextQty = Math.max(0, item.qty + delta);
+      return nextQty > 0 ? [{ ...item, qty: nextQty }] : [];
+    }));
+  };
+  const removeCartItem = (productId) => {
+    setCartItems((prev) => prev.filter((item) => item.productId !== productId));
+  };
   const addProductToCartFromSearch = (productId) => {
     setCartItems((prev) => {
       const found = prev.find((item) => item.productId === productId);
@@ -16202,7 +16212,7 @@ function App() {
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "product-card-actions", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", onClick: () => addToCart(product.id), children: "장바구니 담기" }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", className: "ghost-btn", onClick: () => openProductDetail(product.id), children: "상세보기" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", className: "ghost-btn", onClick: () => toggleSavedProduct(product.id), children: savedProductIds.includes(product.id) ? "보관해제" : "보관함" })
+              /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", className: `ghost-btn ${cartItems.some((item) => item.productId === product.id) ? "active" : ""}`, onClick: () => toggleProductCartFavorite(product.id), children: cartItems.some((item) => item.productId === product.id) ? "좋아요 취소" : "좋아요" })
             ] })
           ] }, product.id)) })
         ] }) : null,
@@ -16214,7 +16224,7 @@ function App() {
               setShoppingTab("홈");
             }, "aria-label": "뒤로가기", children: /* @__PURE__ */ jsxRuntimeExports.jsx(BackArrowIcon, {}) }),
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "shop-product-detail-topbar-title", children: "상품 상세" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", className: `header-inline-btn header-icon-btn ${savedProductIds.includes(productDetail.product.id) ? "active" : ""}`, onClick: () => toggleSavedProduct(productDetail.product.id), "aria-label": "보관함", children: /* @__PURE__ */ jsxRuntimeExports.jsx(BookmarkIcon, { filled: savedProductIds.includes(productDetail.product.id) }) })
+            /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", className: `header-inline-btn header-icon-btn ${cartItems.some((item) => item.productId === productDetail.product.id) ? "active" : ""}`, onClick: () => toggleProductCartFavorite(productDetail.product.id), "aria-label": "좋아요", children: /* @__PURE__ */ jsxRuntimeExports.jsx(HeartIcon, { filled: cartItems.some((item) => item.productId === productDetail.product.id) }) })
           ] }),
           /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { className: "shop-product-detail-hero", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "shop-product-detail-gallery", children: [
@@ -16324,7 +16334,7 @@ function App() {
                 ] })
               ] }),
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "shop-product-detail-cta-row", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", className: "ghost-btn shop-detail-secondary-btn", onClick: () => toggleSavedProduct(productDetail.product.id), children: savedProductIds.includes(productDetail.product.id) ? "보관해제" : "보관함" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", className: `ghost-btn shop-detail-secondary-btn ${cartItems.some((item) => item.productId === productDetail.product.id) ? "active" : ""}`, onClick: () => toggleProductCartFavorite(productDetail.product.id), children: cartItems.some((item) => item.productId === productDetail.product.id) ? "좋아요 취소" : "좋아요" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", className: "ghost-btn shop-detail-secondary-btn", onClick: addSelectedProductToCart, children: "장바구니" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", className: "shop-detail-primary-btn", onClick: createOrderForSelectedProduct, children: "바로구매" })
               ] })
@@ -16666,89 +16676,50 @@ function App() {
             ] }, item.order_no)) : /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "로그인 후 주문을 생성하면 이곳에 표시됩니다." }) })
           ] })
         ] }) : null,
-        shoppingTab === "바구니" ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "cart-box compact-scroll-list stack-gap", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "checkout-stepper", children: checkoutStepMeta.map((item, index) => /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: `checkout-step-chip ${index <= checkoutStageIndex ? "active" : ""}`, children: [
-            index + 1,
-            ". ",
-            item.label
-          ] }, item.key)) }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "legacy-box compact legal-disclosure-card", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: "성인 전용 접근 안내" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "본 서비스는 만 19세 이상만 이용 가능합니다." }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "인증 방식: PASS / NICE / Danal 등 본인확인 결과 연동 예정" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "인증 미완료 시 상품/결제/채팅/커뮤니티 접근이 차단됩니다." })
-          ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "legacy-box compact legal-disclosure-card", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: "플랫폼 결제 및 재정산 안내" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "결제는 플랫폼이 중립 명칭의 체크아웃 화면에서 수취합니다." }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "판매자 정산은 주문 확정 후 레저 기준으로 계산되어 계좌이체로 분배됩니다." }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "환불 요청 시 플랫폼 PG 환불 후 판매자 정산 금액에서 차감될 수 있습니다." })
-          ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "legacy-box compact", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { children: "1. 장바구니" }),
-            cartDetailedItems.length ? cartDetailedItems.map((item) => /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "cart-row", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: item.product.name }),
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
-                  item.product.category,
-                  " · 수량 ",
-                  item.qty
-                ] })
+        shoppingTab === "바구니" ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "saved-home-pane home-feed-pane home-feed-pane-feed-scroll shop-cart-pane", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "chat-toolbar kakao-toolbar compact-only-toolbar feed-compose-launch-toolbar saved-home-favorites-toolbar", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "chat-category-scroll", role: "tablist", "aria-label": "장바구니 보기 필터", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { type: "button", className: "category-chip active", role: "tab", "aria-selected": true, children: ["담은 상품 ", cartDetailedItems.length] }) }) }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "shop-cart-list compact-scroll-list", children: cartDetailedItems.length ? cartDetailedItems.map((item) => /* @__PURE__ */ jsxRuntimeExports.jsxs("article", { className: "shop-cart-item-card", role: "button", tabIndex: 0, onClick: () => openProductDetail(item.product.id), onKeyDown: (event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              openProductDetail(item.product.id);
+            }
+          }, children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "shop-cart-item-thumb-wrap", children: item.product.thumbnail_url ? /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: item.product.thumbnail_url, alt: item.product.name, className: "shop-cart-item-thumb" }) : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `shop-cart-item-thumb shop-cart-item-thumb-placeholder hero-tone-${item.product.id % 3 + 1}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: item.product.category || "SHOP" }) }) }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "shop-cart-item-body", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "shop-cart-item-head", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: item.product.name }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { children: [item.product.category, " · 배송비 ₩", Number(item.product.shipping_fee || 0).toLocaleString()] })
+                ] }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", className: "shop-cart-remove-btn", onClick: (event) => {
+                  event.stopPropagation();
+                  removeCartItem(item.productId);
+                }, "aria-label": "장바구니에서 삭제", children: "삭제" })
               ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("b", { children: [
-                "₩",
-                (Number(item.product.price || 0) * item.qty).toLocaleString()
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "shop-cart-item-foot", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "shop-cart-qty-control", onClick: (event) => event.stopPropagation(), children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", onClick: () => updateCartItemQuantity(item.productId, -1), children: "-" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: item.qty }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", onClick: () => updateCartItemQuantity(item.productId, 1), children: "+" })
+                ] }),
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("b", { children: ["₩", (Number(item.product.price || 0) * item.qty).toLocaleString()] })
               ] })
-            ] }, item.productId)) : cartSeed.map((item) => /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "cart-row", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: item.name }),
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
-                  item.option,
-                  " · 수량 ",
-                  item.qty
-                ] })
-              ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("b", { children: item.price })
-            ] }, item.id)),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "cart-summary", children: [
+            ] })
+          ] }, item.productId)) : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "legacy-box compact saved-home-empty-box", children: /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "장바구니에 담긴 상품이 없습니다." }) }) }),
+          orderMessage ? /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "muted-mini", children: orderMessage }) : null,
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "shop-cart-summary-bar", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "총 결제 예정" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: cartDetailedItems.length ? `₩${cartTotalAmount.toLocaleString()}` : "₩112,500" })
+              /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: `₩${cartTotalAmount.toLocaleString()}` })
             ] }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "product-card-actions", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", onClick: () => setCheckoutStage("order_form"), children: "주문서 작성" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", className: "ghost-btn", onClick: () => {
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "shop-cart-summary-actions", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", className: "ghost-btn", onClick: () => setShoppingTab("목록"), children: "쇼핑 계속" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", onClick: () => {
                 setCheckoutStage("payment_request");
                 createOrderFromCart();
-              }, children: "주문하기" })
+              }, disabled: !cartDetailedItems.length, children: "주문하기" })
             ] })
-          ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "legacy-box compact", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { children: "2. 주문서 작성" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "profile-form-grid", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "수령인" }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("input", { value: checkoutDraft.recipientName, onChange: (e) => setCheckoutDraft((prev) => ({ ...prev, recipientName: e.target.value })) })
-              ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "연락처" }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("input", { value: checkoutDraft.phone, onChange: (e) => setCheckoutDraft((prev) => ({ ...prev, phone: e.target.value })) })
-              ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "wide", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "이메일" }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("input", { value: checkoutDraft.email, onChange: (e) => setCheckoutDraft((prev) => ({ ...prev, email: e.target.value })) })
-              ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "wide", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "주소" }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("input", { value: checkoutDraft.address, onChange: (e) => setCheckoutDraft((prev) => ({ ...prev, address: e.target.value })) })
-              ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "wide", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "배송 요청사항" }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("input", { value: checkoutDraft.requestNote, onChange: (e) => setCheckoutDraft((prev) => ({ ...prev, requestNote: e.target.value })) })
-              ] })
-            ] }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "notification-policy-links legal-link-row", children: legalQuickLinks.map((item) => /* @__PURE__ */ jsxRuntimeExports.jsx("a", { className: "ghost-link-btn", href: item.href, target: "_blank", rel: "noreferrer", children: item.label }, item.key)) })
-          ] }),
-          orderMessage ? /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "muted-mini", children: orderMessage }) : null
+          ] })
         ] }) : null
       ] }) : null,
       shoppingTab === "사업자인증" ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "stack-gap compact-scroll-list", children: [
