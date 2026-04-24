@@ -13497,3 +13497,51 @@ button.ghost-btn.danger { border-color:rgba(255,92,92,0.28); color:#ffb0b0; }
 .x-chat-room-send-btn {
   min-width: 56px;
 }
+
+
+/* === 2026-04-24 request: chat room final notice/composer positioning === */
+.chat-request-toggle.active {
+  border-color: #ff5ea9 !important;
+  background: #ff5ea9 !important;
+  color: #ffffff !important;
+}
+
+.chat-request-toggle.active b {
+  background: rgba(255,255,255,0.22) !important;
+  color: #ffffff !important;
+}
+
+.x-chat-room-shell {
+  position: relative;
+  grid-template-rows: 56px minmax(0, 1fr) auto;
+  height: 100%;
+  min-height: 0;
+}
+
+.x-chat-room-message-list {
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 12px !important;
+}
+
+.x-chat-room-composer-wrap {
+  position: sticky !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  z-index: 20 !important;
+  padding: 0 0 env(safe-area-inset-bottom, 0px) !important;
+  background: #000000 !important;
+  border-top: 1px solid rgba(255,255,255,0.08) !important;
+}
+
+.x-chat-room-composer {
+  grid-template-columns: 42px minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 8px 10px !important;
+  border-radius: 0 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  background: #000000 !important;
+}

@@ -2568,10 +2568,14 @@ const createThreadRoomSeed = (thread: ThreadItem): ChatRoomMessage[] => {
     ? `${thread.name} 방에 연결된 채팅방입니다.`
     : `${thread.name}님과 연결된 채팅방입니다.`;
   const now = Date.now();
+  const baseNoticeText = [
+    "외부 연락처 교환은 지양하며, 사진 / 영상 전송은 제한됩니다.",
+    "금전 거래를 통한 만남, 음란물 유포는 절대금지입니다.",
+  ];
+  const requestReceivedText = "상대방이 먼저 보낸 요청입니다. 이 방에서 첫 메시지를 보내면 채팅이 수락되고 일반 채팅 목록으로 이동합니다.";
   const noticeMessages: ChatRoomMessage[] = [
-    { id: thread.id * 100 + 1, threadId: thread.id, author: "system", text: "외부 연락처 교환은 지양하며, 사진 / 영상 전송은 제한됩니다.", meta: "안내", system: true, createdAt: now - 8 * 60000 },
-    { id: thread.id * 100 + 2, threadId: thread.id, author: "system", text: "금전 거래를 통한 만남, 음란물 유포는 절대금지입니다.", meta: "안내", system: true, createdAt: now - 7 * 60000 },
-    { id: thread.id * 100 + 3, threadId: thread.id, author: "system", text: connectionLead, meta: "연결 안내", system: true, createdAt: now - 6 * 60000 },
+    { id: thread.id * 100 + 1, threadId: thread.id, author: "system", text: baseNoticeText.join("\n"), meta: "안내사항", system: true, createdAt: now - 8 * 60000 },
+    { id: thread.id * 100 + 2, threadId: thread.id, author: "system", text: connectionLead, meta: "", system: true, createdAt: now - 6 * 60000 },
   ];
 
   if (thread.status === "요청전송") {
@@ -2584,8 +2588,8 @@ const createThreadRoomSeed = (thread: ThreadItem): ChatRoomMessage[] => {
 
   if (thread.status === "요청받음") {
     return [
-      ...noticeMessages,
-      { id: thread.id * 100 + 4, threadId: thread.id, author: "system", text: "상대방이 먼저 보낸 요청입니다. 이 방에서 첫 메시지를 보내면 채팅이 수락되고 일반 채팅 목록으로 이동합니다.", meta: "요청 도착", system: true, createdAt: now - 4 * 60000 },
+      { ...noticeMessages[0], text: [...baseNoticeText, requestReceivedText].join("\n") },
+      noticeMessages[1],
       { id: thread.id * 100 + 5, threadId: thread.id, author: thread.name, text: thread.preview, meta: thread.time, mine: false, createdAt: now - 2 * 60000, contentKind: "text" },
     ];
   }
@@ -11744,7 +11748,7 @@ export default function App() {
                           {message.system ? (
                             <>
                               <div className={`x-chat-room-message-bubble${isSelectionTarget ? " selection-enabled" : ""}`}>{message.text}</div>
-                              <div className="x-chat-room-message-meta">{message.meta}</div>
+                              {message.meta ? <div className="x-chat-room-message-meta">{message.meta}</div> : null}
                             </>
                           ) : (
                             <div className={`x-chat-room-message-row${message.mine ? " mine" : ""}`}>
