@@ -13666,3 +13666,197 @@ button.ghost-btn.danger { border-color:rgba(255,92,92,0.28); color:#ffb0b0; }
 .feed-quote-compose-sheet strong { color: #fff; }
 .feed-quote-compose-sheet textarea { min-height: 104px; resize: vertical; border-radius: 14px; }
 .feed-quote-compose-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+/* === 2026-04-25 UI structure refresh === */
+@media (min-width: 1180px) {
+  .desktop-split-grid {
+    grid-template-columns: repeat(2, minmax(390px, 430px));
+    justify-content: center;
+    align-items: stretch;
+  }
+  .desktop-split-pane {
+    max-width: 430px;
+    width: 100%;
+    justify-self: center;
+  }
+  .desktop-split-device-frame {
+    padding: 0;
+    display: grid;
+    place-items: stretch;
+    background: #000;
+  }
+  .desktop-split-iframe,
+  .desktop-split-fallback {
+    width: 100%;
+    max-width: 430px;
+    margin: 0 auto;
+  }
+}
+
+.bottom-nav {
+  min-height: 46px !important;
+  padding: 2px 0 3px !important;
+}
+.bottom-nav-btn {
+  min-height: 41px !important;
+  padding: 3px 0 4px !important;
+  gap: 2px !important;
+}
+.bottom-nav-icon svg {
+  width: 23px !important;
+  height: 23px !important;
+}
+.bottom-nav-label {
+  font-size: 10px !important;
+}
+
+.profile-ig-tabbar.profile-ig-action-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.story-home-pane {
+  padding: 0 0 76px;
+  background: #000;
+}
+.story-home-toolbar,
+.shop-home-sort-toolbar,
+.chat-toolbar-with-request,
+.community-simple-category-row {
+  min-height: 49px !important;
+  height: 49px !important;
+  padding: 0 !important;
+  align-items: center !important;
+  border-radius: 0 !important;
+}
+.story-card-list {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+.story-card {
+  display: grid;
+  grid-template-columns: 66px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.035);
+}
+.story-avatar-ring {
+  width: 66px;
+  height: 66px;
+  border-radius: 50%;
+  padding: 3px;
+  display: grid;
+  place-items: center;
+  border: 2px solid #ff4f9a;
+}
+.story-avatar-ring span {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #111;
+  color: #fff;
+  font-weight: 800;
+}
+.story-card-copy { display: grid; gap: 4px; min-width: 0; }
+.story-card-copy strong { font-size: 14px; }
+.story-card-copy span { color: #ff9acb; font-size: 12px; }
+.story-card-copy p { margin: 0; color: rgba(255,255,255,0.68); font-size: 12px; line-height: 1.45; }
+.maptory-panel { display: grid; gap: 12px; padding: 12px; }
+.maptory-map {
+  position: relative;
+  height: 520px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background:
+    linear-gradient(90deg, rgba(255,255,255,0.045) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255,255,255,0.045) 1px, transparent 1px),
+    radial-gradient(circle at 40% 32%, rgba(255,79,154,0.22), transparent 20%),
+    #080808;
+  background-size: 48px 48px, 48px 48px, auto, auto;
+  overflow: hidden;
+}
+.maptory-pin {
+  position: absolute;
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: #ff4f9a;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow: 0 8px 24px rgba(255,79,154,0.28);
+}
+.maptory-pin-one { left: 46%; top: 34%; }
+.maptory-pin-two { left: 26%; top: 46%; }
+.maptory-pin-three { left: 54%; top: 58%; }
+.maptory-note { padding: 12px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.035); }
+.maptory-note p { margin: 6px 0 0; color: rgba(255,255,255,0.7); font-size: 12px; line-height: 1.55; }
+
+.saved-home-pane .chat-category-scroll {
+  justify-content: flex-start !important;
+}
+.saved-home-pane .chat-category-scroll .category-chip {
+  flex: 0 0 auto !important;
+}
+
+.shop-order-page { display: grid; gap: 12px; padding: 12px 12px 86px; background: #000; }
+.shop-order-page-head { display: grid; gap: 4px; padding: 4px 0; }
+.shop-order-page-head strong { font-size: 18px; font-weight: 800; }
+.shop-order-page-head span { color: rgba(255,255,255,0.64); font-size: 12px; }
+.shop-order-filter-row { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+.shop-order-filter-row::-webkit-scrollbar { display: none; }
+.shop-order-filter-row button { flex: 0 0 auto; min-height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); color: #fff; font-size: 12px; font-weight: 700; }
+.shop-order-filter-row button.active { border-color: rgba(255,79,154,0.45); background: rgba(255,79,154,0.16); color: #ffb0d0; }
+.shop-order-list { display: grid; gap: 10px; }
+.shop-order-card, .shop-order-detail-card, .shop-order-empty { display: grid; gap: 10px; padding: 13px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.035); }
+.shop-order-card-top, .shop-order-card-body, .shop-order-actions { display: flex; align-items: center; gap: 10px; }
+.shop-order-card-top { justify-content: space-between; }
+.shop-order-card-top div, .shop-order-info { display: grid; gap: 4px; min-width: 0; }
+.shop-order-card-top span, .shop-order-info span, .shop-order-info p, .shop-order-detail-card span, .shop-order-detail-card p, .shop-order-empty p { margin: 0; color: rgba(255,255,255,0.66); font-size: 12px; }
+.shop-order-card-top b { color: #ff9acb; font-size: 12px; }
+.shop-order-thumb { width: 64px; height: 64px; display: grid; place-items: center; flex: 0 0 auto; background: rgba(255,255,255,0.07); color: #fff; font-weight: 800; }
+.shop-order-actions { justify-content: flex-end; flex-wrap: wrap; }
+.shop-order-actions button { min-height: 34px; }
+
+.community-simple-list,
+.community-simple-item,
+.community-simple-item-button,
+.community-simple-board,
+.community-simple-category-row,
+.community-simple-chip,
+.forum-simple-list,
+.forum-simple-category-row {
+  border-radius: 0 !important;
+}
+.community-simple-chip,
+.category-chip,
+.feed-filter-tab,
+.chat-request-toggle {
+  position: relative;
+  border-radius: 0 !important;
+}
+.community-simple-chip.active,
+.category-chip.active,
+.feed-filter-tab.active,
+.chat-request-toggle.active {
+  color: #ff9acb !important;
+}
+.community-simple-chip.active::after,
+.category-chip.active::after,
+.feed-filter-tab.active::after,
+.chat-request-toggle.active::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 0;
+  height: 2px;
+  background: #ff4f9a;
+}
+.chat-toolbar-with-request .chat-category-scroll,
+.shop-home-sort-toolbar .feed-filter-tabs,
+.community-simple-category-row {
+  align-items: center !important;
+}
