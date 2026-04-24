@@ -692,8 +692,7 @@ const defaultDemoProfile: DemoProfileState = {
 
 const PROFILE_KEYWORD_TAG_LIMIT = 20;
 const normalizeProfileKeywordTags = (value: string) => value
-  .split(/[
-,\s#]+/)
+  .split(/[\n,\s#]+/)
   .map((item) => item.trim())
   .filter(Boolean)
   .slice(0, PROFILE_KEYWORD_TAG_LIMIT);
@@ -2565,32 +2564,29 @@ const incomingChatRequestSeed: ChatRequestItem[] = [
 ];
 
 const createThreadRoomSeed = (thread: ThreadItem): ChatRoomMessage[] => {
-  const baseLead = thread.kind === "단체"
-    ? `${thread.name} 방에 연결된 채팅방입니다.
-ㅡㅡㅡ주의사항ㅡㅡㅡ
-- 외부 연락처 교환은 지양하며, 사진 / 영상 전송은 제한됩니다.
-- 금전 거래를 통한 만남, 음란물 유포는 절대금지입니다.
-- 마약, 총기류 등 불법 거래는 절대금지입니다.`
-    : `${thread.name}님과 연결된 채팅방입니다.
-ㅡㅡㅡ주의사항ㅡㅡㅡ
-- 외부 연락처 교환은 지양하며, 사진 / 영상 전송은 제한됩니다.
-- 금전 거래를 통한 만남, 음란물 유포는 절대금지입니다.
-- 마약, 총기류 등 불법 거래는 절대금지입니다.`;
+  const connectionLead = thread.kind === "단체"
+    ? `${thread.name} 방에 연결된 채팅방입니다.`
+    : `${thread.name}님과 연결된 채팅방입니다.`;
   const now = Date.now();
+  const noticeMessages: ChatRoomMessage[] = [
+    { id: thread.id * 100 + 1, threadId: thread.id, author: "system", text: "외부 연락처 교환은 지양하며, 사진 / 영상 전송은 제한됩니다.", meta: "안내", system: true, createdAt: now - 8 * 60000 },
+    { id: thread.id * 100 + 2, threadId: thread.id, author: "system", text: "금전 거래를 통한 만남, 음란물 유포는 절대금지입니다.", meta: "안내", system: true, createdAt: now - 7 * 60000 },
+    { id: thread.id * 100 + 3, threadId: thread.id, author: "system", text: connectionLead, meta: "연결 안내", system: true, createdAt: now - 6 * 60000 },
+  ];
 
   if (thread.status === "요청전송") {
     return [
-      { id: thread.id * 100 + 1, threadId: thread.id, author: "system", text: baseLead, meta: "안내", system: true, createdAt: now - 6 * 60000 },
-      { id: thread.id * 100 + 2, threadId: thread.id, author: "system", text: "채팅 요청을 먼저 보낸 상태입니다. 상대방이 수락해야 답변이 가능합니다.", meta: "요청 대기", system: true, createdAt: now - 4 * 60000 },
-      { id: thread.id * 100 + 3, threadId: thread.id, author: "나", text: thread.preview, meta: thread.time, mine: true, createdAt: now - 2 * 60000, contentKind: "text" },
+      ...noticeMessages,
+      { id: thread.id * 100 + 4, threadId: thread.id, author: "system", text: "채팅 요청을 먼저 보낸 상태입니다. 상대방이 수락해야 답변이 가능합니다.", meta: "요청 대기", system: true, createdAt: now - 4 * 60000 },
+      { id: thread.id * 100 + 5, threadId: thread.id, author: "나", text: thread.preview, meta: thread.time, mine: true, createdAt: now - 2 * 60000, contentKind: "text" },
     ];
   }
 
   if (thread.status === "요청받음") {
     return [
-      { id: thread.id * 100 + 1, threadId: thread.id, author: "system", text: baseLead, meta: "안내", system: true, createdAt: now - 6 * 60000 },
-      { id: thread.id * 100 + 2, threadId: thread.id, author: "system", text: "상대방이 먼저 보낸 요청입니다. 이 방에서 첫 메시지를 보내면 채팅이 수락되고 일반 채팅 목록으로 이동합니다.", meta: "요청 도착", system: true, createdAt: now - 4 * 60000 },
-      { id: thread.id * 100 + 3, threadId: thread.id, author: thread.name, text: thread.preview, meta: thread.time, mine: false, createdAt: now - 2 * 60000, contentKind: "text" },
+      ...noticeMessages,
+      { id: thread.id * 100 + 4, threadId: thread.id, author: "system", text: "상대방이 먼저 보낸 요청입니다. 이 방에서 첫 메시지를 보내면 채팅이 수락되고 일반 채팅 목록으로 이동합니다.", meta: "요청 도착", system: true, createdAt: now - 4 * 60000 },
+      { id: thread.id * 100 + 5, threadId: thread.id, author: thread.name, text: thread.preview, meta: thread.time, mine: false, createdAt: now - 2 * 60000, contentKind: "text" },
     ];
   }
 
@@ -2599,9 +2595,9 @@ const createThreadRoomSeed = (thread: ThreadItem): ChatRoomMessage[] => {
     : `${thread.purpose} 기준으로 연결된 채팅방이며, 필요한 경우 답장·공유·공지 기능을 이어서 사용할 수 있습니다.`;
 
   return [
-    { id: thread.id * 100 + 1, threadId: thread.id, author: "system", text: baseLead, meta: "안내", system: true, createdAt: now - 6 * 60000 },
-    { id: thread.id * 100 + 2, threadId: thread.id, author: thread.name, text: thread.preview, meta: thread.time, mine: false, createdAt: now - 4 * 60000, contentKind: "text" },
-    { id: thread.id * 100 + 3, threadId: thread.id, author: "나", text: supportLine, meta: "지금", mine: true, createdAt: now - 2 * 60000, contentKind: "text" },
+    ...noticeMessages,
+    { id: thread.id * 100 + 4, threadId: thread.id, author: thread.name, text: thread.preview, meta: thread.time, mine: false, createdAt: now - 4 * 60000, contentKind: "text" },
+    { id: thread.id * 100 + 5, threadId: thread.id, author: "나", text: supportLine, meta: "지금", mine: true, createdAt: now - 2 * 60000, contentKind: "text" },
   ];
 };
 
@@ -8465,18 +8461,6 @@ export default function App() {
     setCheckoutStage("cart");
   };
 
-  const updateCartItemQuantity = (productId: number, delta: number) => {
-    setCartItems((prev) => prev.flatMap((item) => {
-      if (item.productId !== productId) return [item];
-      const nextQty = Math.max(0, item.qty + delta);
-      return nextQty > 0 ? [{ ...item, qty: nextQty }] : [];
-    }));
-  };
-
-  const removeCartItem = (productId: number) => {
-    setCartItems((prev) => prev.filter((item) => item.productId !== productId));
-  };
-
   const addProductToCartFromSearch = (productId: number) => {
     setCartItems((prev) => {
       const found = prev.find((item) => item.productId === productId);
@@ -10932,7 +10916,7 @@ export default function App() {
                       <div className="product-card-actions">
                         <button type="button" onClick={() => addToCart(product.id)}>장바구니 담기</button>
                         <button type="button" className="ghost-btn" onClick={() => openProductDetail(product.id)}>상세보기</button>
-                        <button type="button" className={`ghost-btn ${cartItems.some((item) => item.productId === product.id) ? "active" : ""}`} onClick={() => toggleProductCartFavorite(product.id)}>{cartItems.some((item) => item.productId === product.id) ? "좋아요 취소" : "좋아요"}</button>
+                        <button type="button" className="ghost-btn" onClick={() => toggleSavedProduct(product.id)}>{savedProductIds.includes(product.id) ? "보관해제" : "보관함"}</button>
                       </div>
                     </article>
                   ))}
@@ -10947,8 +10931,8 @@ export default function App() {
                     <div className="shop-product-detail-topbar shop-product-detail-topbar-coupang">
                       <button type="button" className="header-inline-btn header-icon-btn topbar-search-back" onClick={() => { setProductDetail(null); setSelectedProductId(null); setShoppingTab("홈"); }} aria-label="뒤로가기"><BackArrowIcon /></button>
                       <div className="shop-product-detail-topbar-title">상품 상세</div>
-                      <button type="button" className={`header-inline-btn header-icon-btn ${cartItems.some((item) => item.productId === productDetail.product.id) ? "active" : ""}`} onClick={() => toggleProductCartFavorite(productDetail.product.id)} aria-label="좋아요">
-                        <HeartIcon filled={cartItems.some((item) => item.productId === productDetail.product.id)} />
+                      <button type="button" className={`header-inline-btn header-icon-btn ${savedProductIds.includes(productDetail.product.id) ? "active" : ""}`} onClick={() => toggleSavedProduct(productDetail.product.id)} aria-label="보관함">
+                        <BookmarkIcon filled={savedProductIds.includes(productDetail.product.id)} />
                       </button>
                     </div>
 
@@ -11049,7 +11033,7 @@ export default function App() {
                         </div>
 
                         <div className="shop-product-detail-cta-row">
-                          <button type="button" className={`ghost-btn shop-detail-secondary-btn ${cartItems.some((item) => item.productId === productDetail.product.id) ? "active" : ""}`} onClick={() => toggleProductCartFavorite(productDetail.product.id)}>{cartItems.some((item) => item.productId === productDetail.product.id) ? "좋아요 취소" : "좋아요"}</button>
+                          <button type="button" className="ghost-btn shop-detail-secondary-btn" onClick={() => toggleSavedProduct(productDetail.product.id)}>{savedProductIds.includes(productDetail.product.id) ? "보관해제" : "보관함"}</button>
                           <button type="button" className="ghost-btn shop-detail-secondary-btn" onClick={addSelectedProductToCart}>장바구니</button>
                           <button type="button" className="shop-detail-primary-btn" onClick={createOrderForSelectedProduct}>바로구매</button>
                         </div>
@@ -11207,54 +11191,49 @@ export default function App() {
             ) : null}
 
             {shoppingTab === "바구니" ? (
-              <div className="saved-home-pane home-feed-pane home-feed-pane-feed-scroll shop-cart-pane">
-                <div className="chat-toolbar kakao-toolbar compact-only-toolbar feed-compose-launch-toolbar saved-home-favorites-toolbar">
-                  <div className="chat-category-scroll" role="tablist" aria-label="장바구니 보기 필터">
-                    <button type="button" className="category-chip active" role="tab" aria-selected={true}>담은 상품 {cartDetailedItems.length}</button>
+              <div className="cart-box compact-scroll-list stack-gap">
+                <div className="checkout-stepper">
+                  {checkoutStepMeta.map((item, index) => <div key={item.key} className={`checkout-step-chip ${index <= checkoutStageIndex ? 'active' : ''}`}>{index + 1}. {item.label}</div>)}
+                </div>
+                <div className="legacy-box compact legal-disclosure-card">
+                  <strong>성인 전용 접근 안내</strong>
+                  <span>본 서비스는 만 19세 이상만 이용 가능합니다.</span>
+                  <span>인증 방식: PASS / NICE / Danal 등 본인확인 결과 연동 예정</span>
+                  <span>인증 미완료 시 상품/결제/채팅/커뮤니티 접근이 차단됩니다.</span>
+                </div>
+                <div className="legacy-box compact legal-disclosure-card">
+                  <strong>플랫폼 결제 및 재정산 안내</strong>
+                  <span>결제는 플랫폼이 중립 명칭의 체크아웃 화면에서 수취합니다.</span>
+                  <span>판매자 정산은 주문 확정 후 레저 기준으로 계산되어 계좌이체로 분배됩니다.</span>
+                  <span>환불 요청 시 플랫폼 PG 환불 후 판매자 정산 금액에서 차감될 수 있습니다.</span>
+                </div>
+                <div className="legacy-box compact">
+                  <h3>1. 장바구니</h3>
+                  {cartDetailedItems.length ? cartDetailedItems.map((item) => (
+                    <div key={item.productId} className="cart-row"><div><strong>{item.product.name}</strong><span>{item.product.category} · 수량 {item.qty}</span></div><b>₩{(Number(item.product.price || 0) * item.qty).toLocaleString()}</b></div>
+                  )) : cartSeed.map((item) => (
+                    <div key={item.id} className="cart-row"><div><strong>{item.name}</strong><span>{item.option} · 수량 {item.qty}</span></div><b>{item.price}</b></div>
+                  ))}
+                  <div className="cart-summary"><span>총 결제 예정</span><strong>{cartDetailedItems.length ? `₩${cartTotalAmount.toLocaleString()}` : '₩112,500'}</strong></div>
+                  <div className="product-card-actions">
+                    <button type="button" onClick={() => setCheckoutStage('order_form')}>주문서 작성</button>
+                    <button type="button" className="ghost-btn" onClick={() => { setCheckoutStage('payment_request'); createOrderFromCart(); }}>주문하기</button>
                   </div>
                 </div>
-                <div className="shop-cart-list compact-scroll-list">
-                  {cartDetailedItems.length ? cartDetailedItems.map((item) => (
-                    <article key={item.productId} className="shop-cart-item-card" role="button" tabIndex={0} onClick={() => openProductDetail(item.product.id)} onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        openProductDetail(item.product.id);
-                      }
-                    }}>
-                      <div className="shop-cart-item-thumb-wrap">
-                        {item.product.thumbnail_url ? <img src={item.product.thumbnail_url} alt={item.product.name} className="shop-cart-item-thumb" /> : <div className={`shop-cart-item-thumb shop-cart-item-thumb-placeholder hero-tone-${(item.product.id % 3) + 1}`}><span>{item.product.category || "SHOP"}</span></div>}
-                      </div>
-                      <div className="shop-cart-item-body">
-                        <div className="shop-cart-item-head">
-                          <div>
-                            <strong>{item.product.name}</strong>
-                            <p>{item.product.category} · 배송비 ₩{Number(item.product.shipping_fee || 0).toLocaleString()}</p>
-                          </div>
-                          <button type="button" className="shop-cart-remove-btn" onClick={(event) => { event.stopPropagation(); removeCartItem(item.productId); }} aria-label="장바구니에서 삭제">삭제</button>
-                        </div>
-                        <div className="shop-cart-item-foot">
-                          <div className="shop-cart-qty-control" onClick={(event) => event.stopPropagation()}>
-                            <button type="button" onClick={() => updateCartItemQuantity(item.productId, -1)}>-</button>
-                            <span>{item.qty}</span>
-                            <button type="button" onClick={() => updateCartItemQuantity(item.productId, 1)}>+</button>
-                          </div>
-                          <b>₩{(Number(item.product.price || 0) * item.qty).toLocaleString()}</b>
-                        </div>
-                      </div>
-                    </article>
-                  )) : <div className="legacy-box compact saved-home-empty-box"><p>장바구니에 담긴 상품이 없습니다.</p></div>}
+                <div className="legacy-box compact">
+                  <h3>2. 주문서 작성</h3>
+                  <div className="profile-form-grid">
+                    <label><span>수령인</span><input value={checkoutDraft.recipientName} onChange={(e) => setCheckoutDraft((prev) => ({ ...prev, recipientName: e.target.value }))} /></label>
+                    <label><span>연락처</span><input value={checkoutDraft.phone} onChange={(e) => setCheckoutDraft((prev) => ({ ...prev, phone: e.target.value }))} /></label>
+                    <label className="wide"><span>이메일</span><input value={checkoutDraft.email} onChange={(e) => setCheckoutDraft((prev) => ({ ...prev, email: e.target.value }))} /></label>
+                    <label className="wide"><span>주소</span><input value={checkoutDraft.address} onChange={(e) => setCheckoutDraft((prev) => ({ ...prev, address: e.target.value }))} /></label>
+                    <label className="wide"><span>배송 요청사항</span><input value={checkoutDraft.requestNote} onChange={(e) => setCheckoutDraft((prev) => ({ ...prev, requestNote: e.target.value }))} /></label>
+                  </div>
+                  <div className="notification-policy-links legal-link-row">
+                    {legalQuickLinks.map((item) => <a key={item.key} className="ghost-link-btn" href={item.href} target="_blank" rel="noreferrer">{item.label}</a>)}
+                  </div>
                 </div>
                 {orderMessage ? <p className="muted-mini">{orderMessage}</p> : null}
-                <div className="shop-cart-summary-bar">
-                  <div>
-                    <span>총 결제 예정</span>
-                    <strong>{`₩${cartTotalAmount.toLocaleString()}`}</strong>
-                  </div>
-                  <div className="shop-cart-summary-actions">
-                    <button type="button" className="ghost-btn" onClick={() => setShoppingTab('목록')}>쇼핑 계속</button>
-                    <button type="button" onClick={() => { setCheckoutStage('payment_request'); createOrderFromCart(); }} disabled={!cartDetailedItems.length}>주문하기</button>
-                  </div>
-                </div>
               </div>
             ) : null}
           </section>
@@ -11725,9 +11704,7 @@ export default function App() {
                       <BookmarkIcon filled={!!activeChatThread.favorite} />
                     </button>
                   </div>
-                  <div ref={chatMessageListRef} className="x-chat-room-message-list compact-scroll-list">
-                    <div className="x-chat-room-rule-banner">채팅 입력창은 하단바 바로 위에 고정되며, 길게 눌러 이모지·복사·답장·공유·공지·수정·삭제 메뉴를 열 수 있습니다.</div>
-                    {activePinnedMessage ? (
+                  <div ref={chatMessageListRef} className="x-chat-room-message-list compact-scroll-list">                    {activePinnedMessage ? (
                       <div className="x-chat-room-pinned-banner">
                         <div>
                           <strong>공지</strong>
@@ -11848,7 +11825,7 @@ export default function App() {
                           setChatEmojiSheetOpen((prev) => !prev);
                         }}>☺</button>
                       </div>
-                      <button type="button" className="ghost-btn x-chat-room-send-btn" onClick={submitChatRoomMessage}>보내기</button>
+                      <button type="button" className="ghost-btn x-chat-room-send-btn" onClick={submitChatRoomMessage}>발송</button>
                     </div>
                   </div>
                 </div>

@@ -13428,162 +13428,72 @@ button.ghost-btn.danger { border-color:rgba(255,92,92,0.28); color:#ffb0b0; }
   }
 }
 
-
-/* === 2026-04-24 request: shopping cart savedbox layout === */
-.shop-cart-pane {
-  gap: 14px;
-  padding-bottom: 120px;
+/* === 2026-04-24 request: chat room composer and request UI refinement === */
+.chat-request-toggle.active {
+  border-color: #ff5ea9;
+  background: #ff5ea9;
+  color: #ffffff;
 }
 
-.shop-cart-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.chat-request-toggle.active b {
+  background: rgba(255,255,255,0.22);
+  color: #ffffff;
 }
 
-.shop-cart-item-card {
-  display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
-  gap: 14px;
+.x-chat-room-shell {
+  grid-template-rows: 56px minmax(0, 1fr) auto;
+}
+
+.x-chat-room-message-list {
+  padding-bottom: 10px;
+}
+
+.x-chat-room-message.system .x-chat-room-message-bubble {
+  text-align: left;
+  border-radius: 14px;
+  border: 1px solid rgba(236,72,153,0.18);
+  background: rgba(236,72,153,0.08);
+  color: rgba(255,255,255,0.84);
+}
+
+.x-chat-room-message.system .x-chat-room-message-meta {
+  justify-self: start;
+}
+
+.x-chat-room-composer-wrap {
+  position: relative;
+  bottom: auto;
+  padding: 0 0 env(safe-area-inset-bottom, 0px);
+  border-radius: 0;
+  background: #000000;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.x-chat-room-composer {
+  grid-template-columns: 42px minmax(0, 1fr) auto;
   align-items: center;
-  padding: 14px;
-  border-radius: 22px;
-  border: 1px solid rgba(255,255,255,0.08);
-  background: rgba(15, 23, 42, 0.72);
-  cursor: pointer;
-}
-
-.shop-cart-item-thumb-wrap {
-  width: 96px;
-  height: 96px;
-}
-
-.shop-cart-item-thumb {
-  width: 100%;
-  height: 100%;
-  border-radius: 18px;
-  object-fit: cover;
-  display: block;
-  background: linear-gradient(135deg, rgba(99,102,241,0.35), rgba(15,23,42,0.92));
-}
-
-.shop-cart-item-thumb-placeholder {
-  display: grid;
-  place-items: center;
-  color: rgba(255,255,255,0.82);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.shop-cart-item-body {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.shop-cart-item-head,
-.shop-cart-item-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.shop-cart-item-head strong {
-  display: block;
-  font-size: 15px;
-}
-
-.shop-cart-item-head p {
-  margin: 6px 0 0;
-  color: rgba(226,232,240,0.72);
-  font-size: 12px;
-}
-
-.shop-cart-remove-btn {
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 0;
   border: 0;
-  background: transparent;
-  color: rgba(248,113,113,0.92);
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
+  box-shadow: none;
+  background: #000000;
 }
 
-.shop-cart-qty-control {
+.x-chat-room-plus-btn {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: rgba(255,255,255,0.06);
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
 }
 
-.shop-cart-qty-control button {
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
+.x-chat-room-emoji-toggle {
   border: 0;
-  background: rgba(255,255,255,0.1);
-  color: #fff;
-  cursor: pointer;
+  background: transparent;
+  box-shadow: none;
 }
 
-.shop-cart-summary-bar {
-  position: sticky;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 16px 18px;
-  border-radius: 22px;
-  border: 1px solid rgba(255,255,255,0.08);
-  background: rgba(7, 10, 23, 0.94);
-  backdrop-filter: blur(18px);
-}
-
-.shop-cart-summary-bar span {
-  display: block;
-  color: rgba(226,232,240,0.72);
-  font-size: 12px;
-}
-
-.shop-cart-summary-bar strong {
-  display: block;
-  margin-top: 4px;
-  font-size: 20px;
-}
-
-.shop-cart-summary-actions {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-@media (max-width: 640px) {
-  .shop-cart-item-card {
-    grid-template-columns: 84px minmax(0, 1fr);
-    padding: 12px;
-  }
-
-  .shop-cart-item-thumb-wrap {
-    width: 84px;
-    height: 84px;
-  }
-
-  .shop-cart-item-head,
-  .shop-cart-item-foot,
-  .shop-cart-summary-bar {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .shop-cart-summary-actions {
-    width: 100%;
-  }
-
-  .shop-cart-summary-actions > * {
-    flex: 1 1 0;
-  }
+.x-chat-room-send-btn {
+  min-width: 56px;
 }
