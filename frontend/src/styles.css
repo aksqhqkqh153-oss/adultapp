@@ -13545,3 +13545,124 @@ button.ghost-btn.danger { border-color:rgba(255,92,92,0.28); color:#ffb0b0; }
   box-shadow: none !important;
   background: #000000 !important;
 }
+
+/* === 2026-04-24 request: bottom nav, chat list, my questions, repost/quote === */
+:root { --mobile-nav-height: 58px; }
+.bottom-nav {
+  height: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
+  min-height: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
+}
+.bottom-nav-btn {
+  height: 58px !important;
+  min-height: 58px !important;
+  padding: 2px 0 4px !important;
+  gap: 1px !important;
+  justify-content: flex-start !important;
+}
+.bottom-nav-icon { height: 27px !important; margin-top: 0 !important; }
+.bottom-nav-icon svg { width: 25px !important; height: 25px !important; }
+.bottom-nav-label { font-size: 9px !important; line-height: 1 !important; }
+
+.tab-pane.fill-pane.chat-tab-pane .chat-list.compact-scroll-list.kakao-chat-list {
+  display: block !important;
+  overflow-x: hidden !important;
+  contain: layout paint !important;
+}
+.tab-pane.fill-pane.chat-tab-pane .chat-list.compact-scroll-list.kakao-chat-list .kakao-chat-row {
+  width: 100% !important;
+  min-height: 68px !important;
+  height: 68px !important;
+  max-height: 68px !important;
+  grid-template-columns: 44px minmax(0, 1fr) 42px !important;
+  overflow: hidden !important;
+  border-bottom: 1px solid rgba(255,255,255,0.06) !important;
+}
+.tab-pane.fill-pane.chat-tab-pane .chat-list.compact-scroll-list.kakao-chat-list .kakao-chat-copy,
+.tab-pane.fill-pane.chat-tab-pane .chat-list.compact-scroll-list.kakao-chat-list .kakao-chat-head { min-width: 0 !important; overflow: hidden !important; }
+.tab-pane.fill-pane.chat-tab-pane .chat-list.compact-scroll-list.kakao-chat-list .muted-mini,
+.tab-pane.fill-pane.chat-tab-pane .chat-list.compact-scroll-list.kakao-chat-list .kakao-chat-badges span {
+  display: block !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  max-width: 100% !important;
+}
+.tab-pane.fill-pane.chat-tab-pane .chat-list.compact-scroll-list.kakao-chat-list .kakao-chat-meta {
+  width: 42px !important;
+  min-width: 42px !important;
+  overflow: hidden !important;
+  text-align: right !important;
+}
+
+.chat-question-pane-body { gap: 0 !important; padding-top: 0 !important; }
+.my-question-status-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  background: #000;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.my-question-status-head { display: grid; gap: 4px; }
+.my-question-status-head strong { color: #fff; font-size: 15px; }
+.my-question-status-head span { color: rgba(255,255,255,0.62); font-size: 12px; }
+.my-question-status-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.my-question-status-tabs button {
+  min-height: 36px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.72);
+  font-size: 12px;
+  font-weight: 800;
+}
+.my-question-status-tabs button.active { color: #fff; border-color: rgba(255,76,154,0.65); background: rgba(255,76,154,0.14); }
+.my-question-status-tabs b { color: inherit; font-size: 11px; }
+
+.feed-repost-label {
+  padding: 8px 14px 0;
+  color: rgba(255,255,255,0.62);
+  font-size: 12px;
+  font-weight: 800;
+}
+.feed-quote-user-text {
+  margin: 0 0 8px;
+  color: #fff;
+  font-size: 14px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+.feed-quoted-card {
+  display: grid;
+  gap: 5px;
+  margin-top: 10px;
+  padding: 11px 12px;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 14px;
+  background: rgba(255,255,255,0.04);
+  color: #fff;
+}
+.feed-quoted-card span { color: rgba(255,255,255,0.68); font-size: 12px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.feed-repost-choice-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 7000;
+  display: grid;
+  align-items: end;
+  background: rgba(0,0,0,0.62);
+}
+.feed-repost-choice-sheet,
+.feed-quote-compose-sheet {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 14px 14px calc(18px + env(safe-area-inset-bottom, 0px));
+  border-radius: 20px 20px 0 0;
+  background: #050505;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.feed-repost-choice-sheet button { min-height: 44px; border-radius: 14px; }
+.feed-quote-compose-sheet strong { color: #fff; }
+.feed-quote-compose-sheet textarea { min-height: 104px; resize: vertical; border-radius: 14px; }
+.feed-quote-compose-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }

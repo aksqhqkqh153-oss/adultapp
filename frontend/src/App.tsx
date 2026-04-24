@@ -15,6 +15,9 @@ type FeedItem = {
   views?: number;
   reposts?: number;
   postedAt?: string;
+  repostLabel?: string;
+  quoteText?: string;
+  quotedFeed?: { id: number; author: string; caption: string; title: string };
   videoUrl?: string;
   mediaUrl?: string;
   mediaName?: string;
@@ -3015,7 +3018,7 @@ const FeedCaption = memo(function FeedCaption({ caption, title }: { caption: str
   );
 });
 
-const FeedPoster = memo(function FeedPoster({ item, onAsk, saved, liked, reposted, commentsOpen, commentCount, onOpenComments, onToggleLike, onToggleRepost, onToggleSave, onShare, keywordTags = [], onOpenAuthorProfile, onPreviewAuthorAvatar, following, onToggleFollow }: { item: FeedItem; onAsk: (item: FeedItem) => void; saved: boolean; liked: boolean; reposted: boolean; commentsOpen: boolean; commentCount: number; onOpenComments: (item: FeedItem) => void; onToggleLike: (feedId: number) => void; onToggleRepost: (feedId: number) => void; onToggleSave: (feedId: number) => void; onShare: (item: FeedItem) => void; keywordTags?: string[]; onOpenAuthorProfile: (author: string) => void; onPreviewAuthorAvatar?: (item: FeedItem) => void; following: boolean; onToggleFollow: (author: string) => void }) {
+const FeedPoster = memo(function FeedPoster({ item, onAsk, saved, liked, reposted, commentsOpen, commentCount, onOpenComments, onToggleLike, onToggleRepost, onToggleSave, onShare, keywordTags = [], onOpenAuthorProfile, onPreviewAuthorAvatar, following, onToggleFollow }: { item: FeedItem; onAsk: (item: FeedItem) => void; saved: boolean; liked: boolean; reposted: boolean; commentsOpen: boolean; commentCount: number; onOpenComments: (item: FeedItem) => void; onToggleLike: (feedId: number) => void; onToggleRepost: (item: FeedItem) => void; onToggleSave: (feedId: number) => void; onShare: (item: FeedItem) => void; keywordTags?: string[]; onOpenAuthorProfile: (author: string) => void; onPreviewAuthorAvatar?: (item: FeedItem) => void; following: boolean; onToggleFollow: (author: string) => void }) {
   const postedLabel = formatFeedPostedAt(item.postedAt);
   const handlePreviewAuthorAvatar = () => {
     onPreviewAuthorAvatar?.(item);
@@ -3033,6 +3036,7 @@ const FeedPoster = memo(function FeedPoster({ item, onAsk, saved, liked, reposte
         "--feed-card-accent": FEED_CARD_PRESENTATION.accentColor,
       } as CSSProperties}
     >
+      {item.repostLabel ? <div className="feed-repost-label">↻ {item.repostLabel}</div> : null}
       <div className="history-feed-head">
         <div className="history-feed-profile">
           <button type="button" className="story-mini-avatar-button" onClick={handlePreviewAuthorAvatar} aria-label={`${item.author} 프로필 사진 크게 보기`}>
@@ -3067,13 +3071,20 @@ const FeedPoster = memo(function FeedPoster({ item, onAsk, saved, liked, reposte
       </div>
       <div className="feed-copy">
         <div>
-          <FeedCaption caption={item.caption} />
+          {item.quoteText ? <p className="feed-quote-user-text">{item.quoteText}</p> : null}
+          {item.caption ? <FeedCaption caption={item.caption} /> : null}
+          {item.quotedFeed ? (
+            <div className="feed-quoted-card">
+              <strong>@{item.quotedFeed.author}</strong>
+              <span>{item.quotedFeed.caption || item.quotedFeed.title}</span>
+            </div>
+          ) : null}
         </div>
       </div>
       <div className="history-feed-footer history-feed-footer-icons">
         <button type="button" className={`feed-action-btn feed-action-btn-count ${commentsOpen ? "active" : ""}`} aria-label="댓글" onClick={() => onOpenComments(item)}><span className="feed-action-icon"><CommentBubbleIcon /></span><b className="feed-action-count">{formatCompactSocialCount(commentCount)}</b></button>
         <button type="button" className={`feed-action-btn feed-action-btn-count ${liked ? "active" : ""}`} aria-label="좋아요" onClick={() => onToggleLike(item.id)}><span className="feed-action-icon"><HeartIcon filled={liked} /></span><b className="feed-action-count">{formatCompactSocialCount(likeCount)}</b></button>
-        <button type="button" className={`feed-action-btn feed-action-btn-count ${reposted ? "active" : ""}`} aria-label="재게시" onClick={() => onToggleRepost(item.id)}><span className="feed-action-icon"><RepostIcon /></span><b className="feed-action-count">{formatCompactSocialCount(repostCount)}</b></button>
+        <button type="button" className={`feed-action-btn feed-action-btn-count ${reposted ? "active" : ""}`} aria-label="재게시" onClick={() => onToggleRepost(item)}><span className="feed-action-icon"><RepostIcon /></span><b className="feed-action-count">{formatCompactSocialCount(repostCount)}</b></button>
         <button type="button" className="feed-action-btn feed-action-btn-count" aria-label="조회수"><span className="feed-action-icon"><ViewCountIcon /></span><b className="feed-action-count">{formatCompactSocialCount(viewCount)}</b></button>
         <button type="button" className={`feed-action-btn ${saved ? "active" : ""}`} aria-label="보관함" onClick={() => onToggleSave(item.id)}><span className="feed-action-icon"><BookmarkIcon filled={saved} /></span><b className="feed-action-count feed-action-count-empty" aria-hidden="true">{"\u00A0"}</b></button>
         <button type="button" className="feed-action-btn" aria-label="질문하기" onClick={() => onAsk(item)}><span className="feed-action-icon"><QuestionAnswerIcon /></span><b className="feed-action-count feed-action-count-empty" aria-hidden="true">{"\u00A0"}</b></button>
@@ -4869,6 +4880,9 @@ export default function App() {
   const [openFeedCommentItem, setOpenFeedCommentItem] = useState<FeedItem | null>(null);
   const [customFeedItems, setCustomFeedItems] = useState<FeedItem[]>([]);
   const [feedComposeOpen, setFeedComposeOpen] = useState(false);
+  const [repostMenuItem, setRepostMenuItem] = useState<FeedItem | null>(null);
+  const [quoteTargetItem, setQuoteTargetItem] = useState<FeedItem | null>(null);
+  const [quoteDraft, setQuoteDraft] = useState("");
   const [feedComposeLauncherOpen, setFeedComposeLauncherOpen] = useState(false);
   const [feedComposeMode, setFeedComposeMode] = useState<FeedComposeMode>("피드게시");
   const [homeFeedFilter, setHomeFeedFilter] = useState<HomeFeedFilter>("일반");
@@ -5679,8 +5693,53 @@ export default function App() {
     setLikedFeedIds((prev) => prev.includes(feedId) ? prev.filter((item) => item !== feedId) : [feedId, ...prev]);
   };
 
-  const toggleRepostedFeed = (feedId: number) => {
-    setRepostedFeedIds((prev) => prev.includes(feedId) ? prev.filter((item) => item !== feedId) : [feedId, ...prev]);
+  const toggleRepostedFeed = (item: FeedItem) => {
+    setRepostMenuItem(item);
+  };
+
+  const createRepostFeed = (item: FeedItem) => {
+    setRepostedFeedIds((prev) => prev.includes(item.id) ? prev : [item.id, ...prev]);
+    setCustomFeedItems((prev) => [{
+      ...item,
+      id: Date.now(),
+      repostLabel: "재게시물",
+      postedAt: new Date().toISOString(),
+      reposts: (item.reposts ?? 0) + 1,
+    }, ...prev]);
+    setRepostMenuItem(null);
+    setHomeTab("피드");
+    setHomeFeedFilter("일반");
+  };
+
+  const openQuoteComposer = (item: FeedItem) => {
+    setQuoteTargetItem(item);
+    setQuoteDraft("");
+    setRepostMenuItem(null);
+  };
+
+  const submitQuoteFeed = () => {
+    if (!quoteTargetItem) return;
+    const trimmed = quoteDraft.trim();
+    if (!trimmed) {
+      window.alert("인용 내용을 입력하세요.");
+      return;
+    }
+    setRepostedFeedIds((prev) => prev.includes(quoteTargetItem.id) ? prev : [quoteTargetItem.id, ...prev]);
+    setCustomFeedItems((prev) => [{
+      ...quoteTargetItem,
+      id: Date.now(),
+      title: `인용: ${quoteTargetItem.title}`,
+      caption: "",
+      quoteText: trimmed,
+      quotedFeed: { id: quoteTargetItem.id, author: quoteTargetItem.author, caption: quoteTargetItem.caption, title: quoteTargetItem.title },
+      repostLabel: "인용 게시물",
+      postedAt: new Date().toISOString(),
+      reposts: (quoteTargetItem.reposts ?? 0) + 1,
+    }, ...prev]);
+    setQuoteTargetItem(null);
+    setQuoteDraft("");
+    setHomeTab("피드");
+    setHomeFeedFilter("일반");
   };
 
   const openFeedComments = (item: FeedItem) => {
@@ -11630,37 +11689,15 @@ export default function App() {
           <section className={`tab-pane fill-pane chat-tab-pane ${chatTab === "질문" ? "chat-question-pane" : ""}`}>
             {chatTab === "질문" ? (
               <div className="chat-question-pane-body">
-                <section className="asked-question-profile-header">
-                  <div className="asked-question-profile-card asked-question-profile-card-inline">
-                    <div className="asked-question-avatar">{currentProfileMeta.name.slice(0, 1).toUpperCase()}</div>
-                    <div className="asked-question-copy">
-                      <div className="asked-question-copy-head">
-                        <div className="asked-question-copy-main">
-                          <button type="button" className="feed-author-link asked-profile-name-btn" onClick={() => openProfileFromAuthor(currentProfileMeta.name)}>{currentProfileMeta.name}</button>
-                          <span>{currentProfileMeta.headline}</span>
-                        </div>
-                        <div className="asked-question-toolbar asked-question-toolbar-inline">
-                          <button type="button" onClick={() => toggleFollowedFeedAuthor(currentProfileMeta.name)}>{followedFeedAuthors.includes(currentProfileMeta.name) ? "팔로잉" : "팔로우"}</button>
-                          <button type="button" className="ghost-btn">공유</button>
-                        </div>
-                      </div>
-                      <p>{currentProfileMeta.bio}</p>
-                    </div>
+                <section className="my-question-status-panel">
+                  <div className="my-question-status-head">
+                    <strong>내 질문 관리</strong>
+                    <span>답변이 필요한 질문을 상태별로 확인합니다.</span>
                   </div>
-                </section>
-
-                <section className="asked-question-form">
-                  <div className="asked-question-form-title-row">
-                    <label>질문 내용</label>
-                    <label className="asked-question-anonymous-toggle">
-                      <input type="checkbox" checked={chatQuestionAnonymous} onChange={(event) => setChatQuestionAnonymous(event.target.checked)} />
-                      <span>익명</span>
-                    </label>
-                  </div>
-                  <textarea value={chatQuestionDraft} onChange={(e) => setChatQuestionDraft(e.target.value)} placeholder="상대에게 남길 질문을 입력하세요." />
-                  <div className="asked-question-draft-note">작성 중인 질문은 임시저장됩니다.</div>
-                  <div className="asked-question-form-actions asked-question-form-actions-submit-only">
-                    <button type="button" className="ghost-btn" onClick={() => { setChatQuestionDraft(""); if (typeof window !== "undefined") window.localStorage.removeItem("adultapp_chat_question_draft"); window.alert(chatQuestionAnonymous ? "질문이 익명으로 등록되었습니다." : "질문이 등록되었습니다."); }}>질문 등록</button>
+                  <div className="my-question-status-tabs" role="tablist" aria-label="질문 상태 분류">
+                    <button type="button" className="active">미답변 <b>2</b></button>
+                    <button type="button">거절 <b>1</b></button>
+                    <button type="button">답변완료 <b>{filteredQuestions.length}</b></button>
                   </div>
                 </section>
 
@@ -12401,6 +12438,27 @@ export default function App() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {repostMenuItem ? (
+        <div className="feed-repost-choice-backdrop" onClick={() => setRepostMenuItem(null)}>
+          <div className="feed-repost-choice-sheet" onClick={(event) => event.stopPropagation()}>
+            <button type="button" onClick={() => createRepostFeed(repostMenuItem)}>재게시</button>
+            <button type="button" onClick={() => openQuoteComposer(repostMenuItem)}>인용</button>
+            <button type="button" className="ghost-btn" onClick={() => setRepostMenuItem(null)}>취소</button>
+          </div>
+        </div>
+      ) : null}
+
+      {quoteTargetItem ? (
+        <div className="feed-repost-choice-backdrop" onClick={() => setQuoteTargetItem(null)}>
+          <div className="feed-quote-compose-sheet" onClick={(event) => event.stopPropagation()}>
+            <strong>인용 작성</strong>
+            <textarea value={quoteDraft} onChange={(event) => setQuoteDraft(event.target.value)} placeholder="이 게시물에 대한 생각을 작성하세요." />
+            <div className="feed-quoted-card"><strong>@{quoteTargetItem.author}</strong><span>{quoteTargetItem.caption || quoteTargetItem.title}</span></div>
+            <div className="feed-quote-compose-actions"><button type="button" className="ghost-btn" onClick={() => setQuoteTargetItem(null)}>취소</button><button type="button" onClick={submitQuoteFeed}>인용 게시</button></div>
           </div>
         </div>
       ) : null}
