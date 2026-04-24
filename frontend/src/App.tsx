@@ -10818,15 +10818,15 @@ export default function App() {
                 </div>
                 {storyMode === "스토리" ? (
                   <div className="story-card-list">
-                    {feedAuthors.slice(0, 8).map((author, index) => (
-                      <article key={`story-${author.id}`} className="story-card">
+                    {generatedFeedAuthors.slice(0, 8).map((author, index) => (
+                      <article key={`story-${author}`} className="story-card">
                         <div className={`story-avatar-ring hero-tone-${(index % 3) + 1}`}>
-                          <span>{author.name.slice(0, 1).toUpperCase()}</span>
+                          <span>{author.slice(0, 1).toUpperCase()}</span>
                         </div>
                         <div className="story-card-copy">
-                          <strong>{author.name}</strong>
+                          <strong>{author}</strong>
                           <span>{index < 3 ? "방금 전 새 스토리" : `${index + 1}시간 전`}</span>
-                          <p>{author.role} 계정의 24시간 스토리 미리보기입니다.</p>
+                          <p>24시간 동안 표시되는 스토리 미리보기입니다.</p>
                         </div>
                       </article>
                     ))}
