@@ -655,7 +655,7 @@ const communityTabs = ["커뮤", "포럼", "후기", "이벤트"] as const;
 const chatTabs = ["채팅", "질문"] as const;
 const chatTabLabels: Record<ChatTab, string> = { "채팅": "채팅", "질문": "질문" };
 const profileTabs = ["내정보"] as const;
-const settingsCategories = ["일반", "계정", "알림", "보안", "배포", "운영", "관리자모드", "DB관리", "신고", "채팅", "기타", "HTML요소"] as const;
+const settingsCategories = ["일반", "계정설정", "알림", "보안", "배포", "운영", "관리자모드", "DB관리", "신고", "채팅", "기타", "HTML요소"] as const;
 const randomRoomCategories = ["전체", "관계역할/고민", "동의/경계설정", "안전수칙", "일상/취미", "자유대화"] as const;
 const forumBoardCategories = ["자유대화", "일상/취미", "고민", "관계/역할", "안전수칙", "동의/합의/계약"] as const;
 const chatCategories = ["전체", "즐겨찾기", "개인", "단체", "쇼핑"] as const;
@@ -4323,7 +4323,7 @@ function buildInspectorModalStyle(target: HTMLElement): CSSProperties {
   return { left: `${left}px`, top: `${top}px`, width: `${width}px`, maxHeight: `${maxHeight}px` };
 }
 
-function SettingSection({ category, isAdmin, legacySection, setLegacySection, projectStatus, deployGuide, legalDocuments, authSummary, businessInfo, releaseReadiness, paymentProviderStatus, minorPurgePreview, currentUserRole, adminModeTab, setAdminModeTab, adminDbManage, sellerApprovalQueue, productApprovalQueue, settlementPreview, htmlInspectorEnabled, setHtmlInspectorEnabled, adminDecideSeller, adminDecideProduct, accountPrivate, setAccountPrivate }: {
+function SettingSection({ category, isAdmin, legacySection, setLegacySection, projectStatus, deployGuide, legalDocuments, authSummary, businessInfo, releaseReadiness, paymentProviderStatus, minorPurgePreview, currentUserRole, adminModeTab, setAdminModeTab, adminDbManage, sellerApprovalQueue, productApprovalQueue, settlementPreview, htmlInspectorEnabled, setHtmlInspectorEnabled, adminDecideSeller, adminDecideProduct, accountPrivate, setAccountPrivate, profileFeedPublic, setProfileFeedPublic, profileShortsPublic, setProfileShortsPublic, profileQuestionPublic, setProfileQuestionPublic, profileTagPublic, setProfileTagPublic, profileProductPublic, setProfileProductPublic }: {
   category: SettingsCategory;
   isAdmin: boolean;
   legacySection: LegacyTab;
@@ -4349,33 +4349,71 @@ function SettingSection({ category, isAdmin, legacySection, setLegacySection, pr
   adminDecideProduct: (productId: number, decision: string) => void;
   accountPrivate: boolean;
   setAccountPrivate: (value: boolean | ((prev: boolean) => boolean)) => void;
+  profileFeedPublic: boolean;
+  setProfileFeedPublic: (value: boolean) => void;
+  profileShortsPublic: boolean;
+  setProfileShortsPublic: (value: boolean) => void;
+  profileQuestionPublic: boolean;
+  setProfileQuestionPublic: (value: boolean) => void;
+  profileTagPublic: boolean;
+  setProfileTagPublic: (value: boolean) => void;
+  profileProductPublic: boolean;
+  setProfileProductPublic: (value: boolean) => void;
 }) {
   if (category === "일반") {
     return (
-      <div className="settings-grid settings-two-col">
-        <div className="legacy-box compact"><h3>레이아웃</h3><p>상단/하단 높이를 축소하고 각 버튼 영역을 분리한 1줄 구조를 유지합니다.</p></div>
-        <div className="legacy-box compact"><h3>탭 구조</h3><p>홈/쇼핑/소통/채팅/프로필별 좌측 서브탭과 우측 검색·설정 구조를 통일했습니다.</p></div>
-        <div className="legacy-box compact"><h3>법정 문서</h3><p>이용약관 {legalDocuments?.items?.terms_of_service?.version ?? '-'} · 처리방침 {legalDocuments?.items?.privacy_policy?.version ?? '-'} · 청소년 보호 {legalDocuments?.items?.youth_policy?.version ?? '-'}</p><p>회원가입 화면과 고정 링크에서 항상 열람할 수 있도록 유지합니다.</p></div>
-        <div className="legacy-box compact"><h3>재동의 상태</h3><p>{authSummary?.reconsent_required || authSummary?.consent_status?.reconsent_required ? '필수 재동의 필요' : '최신 버전 동의 상태'}</p></div>
-        <div className="legacy-box compact"><h3>국내 출시 법적 준비</h3><p>{releaseReadiness?.status === 'blocked' ? '출시 차단 항목 존재' : releaseReadiness?.status === 'warning' ? '주의 항목 있음' : '핵심 차단 항목 없음'}</p><p>차단 {releaseReadiness?.blockers?.length ?? 0}건 · 주의 {releaseReadiness?.warnings?.length ?? 0}건</p></div>
-        <div className="legacy-box compact"><h3>사업자 표시 정보</h3><p>{businessInfo?.complete ? '사업자 고지 정보 확정' : '사업자/통신판매/청소년보호책임자 정보 보완 필요'}</p><p>누락: {businessInfo?.placeholder_fields?.length ? businessInfo.placeholder_fields.join(', ') : '없음'}</p><p>입력 소스: {businessInfo?.source ?? 'settings'} {businessInfo?.beta_db_override_enabled ? '· 베타 DB 연동 가능' : ''}</p></div>
-        <div className="legacy-box compact"><h3>PortOne/PASS 연동</h3><p>{paymentProviderStatus?.test_env_ready ? '테스트 설정 완료' : '테스트 설정 입력 필요'}</p><p>기본 PG: {paymentProviderStatus?.primary_provider ?? '-'} · webhook: {paymentProviderStatus?.webhook_paths?.payment ?? '-'}</p><p>SDK: {paymentProviderStatus?.portone_sdk_installed ? '설치됨' : '미설치'} · env 분리: {paymentProviderStatus?.payments_env_split_enabled ? '활성화' : '비활성화'}</p></div>
+      <div className="settings-common-shell">
+        <div className="settings-top-tab-row" aria-label="설정 상단 카테고리">
+          {mobileTabs.map((tab) => <span key={`settings-top-${tab}`} className="settings-top-tab-chip">{tab}</span>)}
+        </div>
+        <div className="settings-common-actions">
+          <button type="button" className="settings-common-action danger">로그아웃</button>
+          <button type="button" className="settings-common-action">계정전환</button>
+        </div>
+        <div className="settings-bottom-specific">
+          <strong>하단바별 개별설정</strong>
+          <p>홈, 쇼핑, 소통, 채팅, 프로필 하단바별로 검색, 알림, 메뉴, 노출 버튼을 따로 설정하는 영역입니다.</p>
+        </div>
       </div>
     );
   }
-  if (category === "계정") {
+  if (category === "계정설정") {
+    const privacyRows = [
+      { label: "피드공개", value: profileFeedPublic, setValue: setProfileFeedPublic, text: "피드 공개 범위를 선택합니다." },
+      { label: "쇼츠공개", value: profileShortsPublic, setValue: setProfileShortsPublic, text: "쇼츠 공개 범위를 선택합니다." },
+      { label: "질문공개", value: profileQuestionPublic, setValue: setProfileQuestionPublic, text: "질문 공개 범위를 선택합니다." },
+      { label: "태그공개", value: profileTagPublic, setValue: setProfileTagPublic, text: "태그 공개 범위를 선택합니다." },
+      { label: "상품공개", value: profileProductPublic, setValue: setProfileProductPublic, text: "상품 공개 범위를 선택합니다." },
+    ];
     return (
-      <div className="settings-grid settings-two-col">
-        <div className="legacy-box compact"><h3>현재 역할</h3><p>{currentUserRole}</p></div>
-        <div className="legacy-box compact"><h3>프로필 접근</h3><p>내정보, 작성 글, 업로드 상품, 통계 카드를 확인할 수 있습니다.</p></div>
-        <div className="legacy-box compact">
-          <h3>계정비공개</h3>
-          <p>ON으로 할 경우 상호 팔로잉한 계정 외에는 계정이 비공개됩니다.</p>
-          <div className="toggle-row">
-            <button type="button" className={`toggle-btn ${accountPrivate ? "active" : ""}`} onClick={() => setAccountPrivate(true)}>ON</button>
-            <button type="button" className={`toggle-btn ${!accountPrivate ? "active" : ""}`} onClick={() => setAccountPrivate(false)}>OFF</button>
+      <div className="account-setting-shell">
+        <div className="legacy-box compact account-lock-card">
+          <div className="split-row">
+            <div>
+              <h3>계정잠금</h3>
+              <p>서로 맞 팔로잉을 한 계정만 나의 프로필(피드, 쇼츠, 상품, 질문 등)을 볼 수 있습니다.</p>
+            </div>
+            <div className="toggle-row">
+              <button type="button" className={`toggle-btn ${accountPrivate ? "active" : ""}`} onClick={() => setAccountPrivate(true)}>ON</button>
+              <button type="button" className={`toggle-btn ${!accountPrivate ? "active" : ""}`} onClick={() => setAccountPrivate(false)}>OFF</button>
+            </div>
           </div>
-          <p className="muted-mini">현재 상태: {accountPrivate ? "상호 팔로잉 외 비공개" : "공개"}</p>
+        </div>
+        <div className="settings-grid settings-two-col">
+          {privacyRows.map((row) => (
+            <div key={row.label} className="legacy-box compact account-privacy-card">
+              <div className="split-row">
+                <div>
+                  <h3>{row.label}</h3>
+                  <p>{row.text} 세부설정으로 공개할 범위를 선택해주세요.</p>
+                </div>
+                <div className="toggle-row">
+                  <button type="button" className={`toggle-btn ${row.value ? "active" : ""}`} onClick={() => row.setValue(true)}>ON</button>
+                  <button type="button" className={`toggle-btn ${!row.value ? "active" : ""}`} onClick={() => row.setValue(false)}>OFF</button>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -4835,6 +4873,11 @@ export default function App() {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem("adultapp_account_private") === "1";
   });
+  const [profileFeedPublic, setProfileFeedPublic] = useState(true);
+  const [profileShortsPublic, setProfileShortsPublic] = useState(true);
+  const [profileQuestionPublic, setProfileQuestionPublic] = useState(true);
+  const [profileTagPublic, setProfileTagPublic] = useState(true);
+  const [profileProductPublic, setProfileProductPublic] = useState(true);
   const [headerFavorites, setHeaderFavorites] = useState<HeaderFavoriteMap>(() => {
     if (typeof window === "undefined") return defaultHeaderFavorites;
     try {
@@ -9020,7 +9063,7 @@ export default function App() {
     setNotificationView({ view: "section", section: sectionKey, item: null });
   }, []);
 
-  const settingsNavItems = useMemo<SettingsCategory[]>(() => settingsCategories.filter((item) => (["운영", "관리자모드", "DB관리", "신고", "채팅", "기타"].includes(item) ? isAdmin : true)), [isAdmin]);
+  const settingsNavItems = useMemo<SettingsCategory[]>(() => settingsCategories.filter((item) => item !== "계정설정" && (["운영", "관리자모드", "DB관리", "신고", "채팅", "기타"].includes(item) ? isAdmin : true)), [isAdmin]);
   const isAnyShortsViewerOpen = shortsViewerItemId !== null || savedShortsViewerItemId !== null;
   const visibleHeaderNavItems = overlayMode === null ? headerNavItems : [];
   const currentMenuItems = (activeTab === "홈" ? homeMenuItems : currentTabMenuItems.map((item) => ({ label: item.label, onClick: item.onClick }))).map((item) => ({ label: item.label, onClick: () => { item.onClick?.(); setOverlayMode(null); } }));
@@ -10260,6 +10303,10 @@ export default function App() {
 
             {overlayMode === "search" ? (
               <div className={`overlay-body stack-gap contextual-search-pane search-overlay-pane ${activeTab === "쇼핑" ? `search-overlay-pane-shop${shopSearchFilterPanelOpen ? " filter-open" : " filter-closed"}` : ""}`}>
+                <div className="search-overlay-header">
+                  <button type="button" className="header-inline-btn header-icon-btn topbar-search-back" onClick={() => setOverlayMode(null)} aria-label="뒤로가기" title="뒤로가기"><BackArrowIcon /></button>
+                  <strong>{activeTab} 검색</strong>
+                </div>
                 {activeTab !== "쇼핑" ? (
                   <div className="search-scope-row">
                     {currentSearchSections.map((item) => (
@@ -10610,14 +10657,27 @@ export default function App() {
             {overlayMode === "settings" ? (
               <div className="stack-gap">
                 <div className="settings-category-nav">
+                  <div className="settings-top-tab-row" aria-label="설정 상단 카테고리">
+                    {mobileTabs.map((tab) => <button key={`settings-nav-${tab}`} type="button" className={`settings-top-tab-chip ${activeTab === tab ? "active" : ""}`} onClick={() => { setActiveTab(tab); setSettingsCategory("일반"); }}>{tab}</button>)}
+                  </div>
+                  <button type="button" className="settings-category-btn settings-logout-btn" onClick={handleLogout}>
+                    <span>로그아웃</span>
+                  </button>
                   {canToggleAccountMode ? (
                     <button type="button" className="settings-category-btn settings-account-toggle-btn" onClick={handleAccountModeToggle}>
                       <span>{accountModeToggleLabel}</span>
                     </button>
+                  ) : (
+                    <button type="button" className="settings-category-btn settings-account-toggle-btn">
+                      <span>계정전환</span>
+                    </button>
+                  )}
+                  <div className="settings-individual-title">하단바별 개별설정</div>
+                  {activeTab === "프로필" ? (
+                    <button type="button" className={`settings-category-btn ${settingsCategory === "계정설정" ? "active" : ""}`} onClick={() => setSettingsCategory("계정설정")}>
+                      <span>계정설정</span>
+                    </button>
                   ) : null}
-                  <button type="button" className="settings-category-btn settings-logout-btn" onClick={handleLogout}>
-                    <span>로그아웃</span>
-                  </button>
                   {settingsNavItems.map((item) => {
                     const isHtmlToggle = item === "HTML요소";
                     return (
@@ -10661,6 +10721,16 @@ export default function App() {
                   adminDecideProduct={adminDecideProduct}
                   accountPrivate={accountPrivate}
                   setAccountPrivate={setAccountPrivate}
+                  profileFeedPublic={profileFeedPublic}
+                  setProfileFeedPublic={setProfileFeedPublic}
+                  profileShortsPublic={profileShortsPublic}
+                  setProfileShortsPublic={setProfileShortsPublic}
+                  profileQuestionPublic={profileQuestionPublic}
+                  setProfileQuestionPublic={setProfileQuestionPublic}
+                  profileTagPublic={profileTagPublic}
+                  setProfileTagPublic={setProfileTagPublic}
+                  profileProductPublic={profileProductPublic}
+                  setProfileProductPublic={setProfileProductPublic}
                 />
                 {isAdmin ? (
                   <div className="legacy-box compact company-mail-admin-shortcut">
@@ -10818,15 +10888,15 @@ export default function App() {
                 </div>
                 {storyMode === "스토리" ? (
                   <div className="story-card-list">
-                    {generatedFeedAuthors.slice(0, 8).map((author, index) => (
-                      <article key={`story-${author}`} className="story-card">
+                    {storySeed.slice(0, 8).map((author, index) => (
+                      <article key={`story-${author.id}`} className="story-card">
                         <div className={`story-avatar-ring hero-tone-${(index % 3) + 1}`}>
-                          <span>{author.slice(0, 1).toUpperCase()}</span>
+                          <span>{author.name.slice(0, 1).toUpperCase()}</span>
                         </div>
                         <div className="story-card-copy">
-                          <strong>{author}</strong>
+                          <strong>{author.name}</strong>
                           <span>{index < 3 ? "방금 전 새 스토리" : `${index + 1}시간 전`}</span>
-                          <p>24시간 동안 표시되는 스토리 미리보기입니다.</p>
+                          <p>{author.role} 계정의 24시간 스토리 미리보기입니다.</p>
                         </div>
                       </article>
                     ))}
@@ -10834,9 +10904,13 @@ export default function App() {
                 ) : (
                   <div className="maptory-panel">
                     <div className="maptory-map">
-                      <span className="maptory-pin maptory-pin-one">서울 강서구</span>
-                      <span className="maptory-pin maptory-pin-two">서울 마포구</span>
-                      <span className="maptory-pin maptory-pin-three">서울 영등포구</span>
+                      <div className="maptory-radar-core">내 주변</div>
+                      {storySeed.slice(0, 4).map((author, index) => (
+                        <button key={`maptory-${author.id}`} type="button" className={`maptory-profile-pin maptory-profile-pin-${index + 1}`}>
+                          <span className="maptory-profile-avatar">{author.name.slice(0, 1).toUpperCase()}</span>
+                          <span className="maptory-speech">서울 {index === 0 ? "강서구" : index === 1 ? "마포구" : index === 2 ? "영등포구" : "양천구"}</span>
+                        </button>
+                      ))}
                     </div>
                     <div className="maptory-note">
                       <strong>맵토리 위치 보호</strong>
