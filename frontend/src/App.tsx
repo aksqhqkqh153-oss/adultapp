@@ -8465,7 +8465,10 @@ export default function App() {
         review_count: 0,
       };
       setSellerProducts((prev) => [created, ...prev.filter((item) => item.id !== created.id)]);
-      setApiProducts((prev) => [publicProduct, ...prev.filter((item) => item.id !== created.id)]);
+      setApiProducts((prev) => {
+        const safePrev = Array.isArray(prev) ? prev : [];
+        return [publicProduct, ...safePrev.filter((item) => item.id !== created.id)];
+      });
       getJson<SellerProductItem[]>('/seller/products/mine').then(applySellerProducts).catch(() => applySellerProducts([]));
       getJson<ApiProduct[]>('/products').then((rows) => {
         const safeRows = Array.isArray(rows) ? rows : [];
@@ -12305,7 +12308,7 @@ export default function App() {
                 {showAppTabContent && activeTab === "프로필" ? (
           <section className={`tab-pane fill-pane profile-pane-instagram${currentProfileMeta.isOwner ? "" : " external-profile-pane"}`}>
             {!currentProfileMeta.isOwner ? (
-              <button type="button" className="profile-external-back-btn" onClick={() => { setActiveTab("채팅"); setChatTab("요청"); setViewedProfileAuthor(null); }} aria-label="채팅 요청으로 돌아가기"><BackArrowIcon /></button>
+              <button type="button" className="profile-external-back-btn" onClick={() => { setActiveTab("채팅"); setChatTab("채팅"); setChatListMode("requests"); setViewedProfileAuthor(null); }} aria-label="채팅 요청으로 돌아가기"><BackArrowIcon /></button>
             ) : null}
             <div className="profile-ig-shell compact-scroll-list" onScroll={handleProfileShellScroll}>
               <div className="profile-ig-header">
