@@ -126,6 +126,7 @@ type StoryItem = {
   caption?: string;
   postedAt?: string;
   mapEnabled?: boolean;
+  avatarUrl?: string;
 };
 
 type AskProfile = {
@@ -4980,6 +4981,7 @@ export default function App() {
   const [feedComposeMaptoryEnabled, setFeedComposeMaptoryEnabled] = useState(false);
   const [customStoryItems, setCustomStoryItems] = useState<StoryItem[]>([]);
   const [activeStoryViewer, setActiveStoryViewer] = useState<StoryItem | null>(null);
+  const [activeMaptoryLocationId, setActiveMaptoryLocationId] = useState<number | null>(null);
   const [feedCommentDrafts, setFeedCommentDrafts] = useState<Record<number, string>>(() => {
     if (typeof window === "undefined") return {};
     try { return JSON.parse(window.localStorage.getItem("adultapp_feed_comment_drafts") ?? "{}"); } catch { return {}; }
@@ -10988,16 +10990,30 @@ export default function App() {
                   </div>
                   <div className="maptory-map">
                     <div className="maptory-radar-core">내 주변</div>
-                    {allStoryItems.filter((item) => item.mapEnabled !== false).slice(0, 4).map((author, index) => (
-                      <button key={`maptory-${author.id}`} type="button" className={`maptory-profile-pin maptory-profile-pin-${index + 1}`} onClick={() => setActiveStoryViewer(author)}>
-                        <span className="maptory-profile-avatar">{author.name.slice(0, 1).toUpperCase()}</span>
-                        <span className="maptory-speech">서울 {index === 0 ? "강서구" : index === 1 ? "마포구" : index === 2 ? "영등포구" : "양천구"}</span>
-                      </button>
-                    ))}
-                  </div>
-                  <div className="maptory-note">
-                    <strong>맵토리 위치 보호</strong>
-                    <p>정확한 GPS 주소는 지도에 노출하지 않고, 예: 서울특별시 강서구 마곡중앙6로 10 → 서울 강서구 수준으로만 표시합니다.</p>
+                    {allStoryItems.filter((item) => item.mapEnabled !== false).slice(0, 4).map((author, index) => {
+                      const locationLabel = `서울 ${index === 0 ? "강서구" : index === 1 ? "마포구" : index === 2 ? "영등포구" : "양천구"}`;
+                      const locationVisible = activeMaptoryLocationId === author.id;
+                      return (
+                        <button
+                          key={`maptory-${author.id}`}
+                          type="button"
+                          className={`maptory-profile-pin maptory-profile-pin-${index + 1} ${locationVisible ? "location-visible" : ""}`}
+                          onMouseEnter={() => setActiveMaptoryLocationId(author.id)}
+                          onFocus={() => setActiveMaptoryLocationId(author.id)}
+                          onClick={() => {
+                            if (activeMaptoryLocationId === author.id) {
+                              setActiveStoryViewer(author);
+                              return;
+                            }
+                            setActiveMaptoryLocationId(author.id);
+                          }}
+                          aria-label={`${author.name} 맵토리 위치 보기`}
+                        >
+                          <span className="maptory-profile-avatar">{author.avatarUrl ? <img src={author.avatarUrl} alt="" loading="lazy" /> : author.name.slice(0, 1).toUpperCase()}</span>
+                          <span className="maptory-speech">{locationLabel}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>

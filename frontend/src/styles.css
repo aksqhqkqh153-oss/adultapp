@@ -14073,3 +14073,130 @@ button.ghost-btn.danger { border-color:rgba(255,92,92,0.28); color:#ffb0b0; }
 .chat-toolbar-with-request .chat-request-toggle.active::after {
   display: none !important;
 }
+
+/* === 2026-04-25 request: feed-style tabs, maptory reveal, profile bio layout === */
+.my-question-status-panel {
+  padding: 0 !important;
+  gap: 0 !important;
+  background: #000 !important;
+  border-bottom: 1px solid rgba(255,255,255,0.08) !important;
+}
+.my-question-status-head {
+  padding: 12px 14px 8px !important;
+}
+.my-question-status-tabs {
+  display: flex !important;
+  grid-template-columns: none !important;
+  gap: 0 !important;
+  min-height: 49px !important;
+  height: 49px !important;
+  padding: 0 !important;
+  overflow-x: auto;
+  scrollbar-width: none;
+  align-items: stretch !important;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+.my-question-status-tabs::-webkit-scrollbar { display: none; }
+.my-question-status-tabs button,
+.category-chip,
+.feed-filter-tab,
+.community-simple-chip,
+.chat-request-toggle,
+.profile-ig-tabbar.profile-ig-action-grid button {
+  position: relative !important;
+  min-height: 49px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: rgba(255,255,255,0.62) !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  box-shadow: none !important;
+}
+.my-question-status-tabs button {
+  flex: 1 0 0;
+  padding: 0 12px !important;
+}
+.my-question-status-tabs button.active,
+.category-chip.active,
+.feed-filter-tab.active,
+.community-simple-chip.active,
+.profile-ig-tabbar.profile-ig-action-grid button.active {
+  color: #ff4f9a !important;
+  background: transparent !important;
+}
+.my-question-status-tabs button.active::after,
+.category-chip.active::after,
+.feed-filter-tab.active::after,
+.community-simple-chip.active::after,
+.profile-ig-tabbar.profile-ig-action-grid button.active::after {
+  content: "" !important;
+  position: absolute !important;
+  left: 14px !important;
+  right: 14px !important;
+  bottom: 0 !important;
+  height: 2px !important;
+  border-radius: 999px !important;
+  background: #ff4f9a !important;
+}
+.chat-toolbar-with-request .chat-request-toggle.active {
+  border-radius: 999px !important;
+  background: #ff5ea9 !important;
+  color: #fff !important;
+}
+.chat-toolbar-with-request .chat-request-toggle.active::after { display: none !important; }
+
+.maptory-profile-avatar {
+  overflow: hidden;
+  font-size: 15px;
+}
+.maptory-profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: 50%;
+}
+.maptory-profile-pin .maptory-speech {
+  opacity: 0;
+  transform: translateX(-4px) scale(0.96);
+  pointer-events: none;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+.maptory-profile-pin:hover .maptory-speech,
+.maptory-profile-pin:focus-visible .maptory-speech,
+.maptory-profile-pin.location-visible .maptory-speech {
+  opacity: 1;
+  transform: translateX(0) scale(1);
+}
+
+.profile-ig-bio {
+  height: 100px !important;
+  min-height: 100px !important;
+  max-height: 100px !important;
+  overflow-y: auto !important;
+  align-content: start !important;
+}
+.profile-ig-bio p {
+  margin: 0 !important;
+  line-height: 1.45 !important;
+}
+.profile-ig-edit-textarea {
+  height: 72px !important;
+  min-height: 72px !important;
+  resize: none !important;
+}
+.profile-ig-tabbar.profile-ig-action-grid {
+  min-height: 49px !important;
+  height: 49px !important;
+  padding: 0 !important;
+  border-top: 1px solid rgba(255,255,255,0.08) !important;
+  border-bottom: 1px solid rgba(255,255,255,0.08) !important;
+  background: #000 !important;
+}
+.profile-ig-tabbar.profile-ig-action-grid button {
+  display: grid !important;
+  place-items: center !important;
+  height: 49px !important;
+  padding: 0 !important;
+}
