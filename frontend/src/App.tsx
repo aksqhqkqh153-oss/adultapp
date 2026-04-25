@@ -138,6 +138,7 @@ type AskProfile = {
 };
 
 type ProfileSection = "게시물" | "질문" | "쇼츠" | "태그됨" | "상품보기";
+type ProfileFollowListMode = "팔로잉" | "팔로워" | null;
 
 type ShopCategory = {
   group: string;
@@ -4993,6 +4994,7 @@ export default function App() {
   const [feedCommentAttachmentBusyId, setFeedCommentAttachmentBusyId] = useState<number | null>(null);
   const [viewedProfileAuthor, setViewedProfileAuthor] = useState<string | null>(null);
   const [profileSection, setProfileSection] = useState<ProfileSection>("게시물");
+  const [profileFollowListMode, setProfileFollowListMode] = useState<ProfileFollowListMode>(null);
   const [profileEditMode, setProfileEditMode] = useState(false);
   const [profileEditDraft, setProfileEditDraft] = useState<DemoProfileState>(defaultDemoProfile);
   const [profileNicknameEditUnlocked, setProfileNicknameEditUnlocked] = useState(false);
@@ -6761,14 +6763,16 @@ export default function App() {
     const askProfile = askProfiles.find((item) => item.name === currentProfileAuthor);
     const authorFeeds = allFeedItems.filter((item) => currentProfileAuthorAliases.includes(item.author));
     const firstFeed = authorFeeds[0];
-    const hash = deterministicHash(currentProfileAuthor);
-    const followerCount = 1200 + (hash % 4200);
-    const followingCount = 120 + (hash % 430);
     const postCount = Math.max(9, authorFeeds.length * 4 || 12);
     const isOwner = viewedProfileAuthor === null;
     const ownerDisplayName = demoProfile.displayName.trim() || signupForm.displayName.trim() || currentProfileAuthor;
     const ownerBio = demoProfile.bio.trim();
     const ownerHashtags = normalizeProfileKeywordTags(demoProfile.hashtags);
+    const ownerFollowingCount = followingUserIds.length;
+    const ownerFollowerCount = followerUserIds.length;
+    const viewedStarter = forumStarterUsers.find((item) => item.name === currentProfileAuthor);
+    const viewedFollowingCount = viewedStarter ? forumStarterUsers.filter((item) => item.id !== viewedStarter.id && ((item.id + viewedStarter.id) % 2 === 0)).length : 0;
+    const viewedFollowerCount = viewedStarter ? forumStarterUsers.filter((item) => item.id !== viewedStarter.id && (item.followsMe || item.id % 2 === viewedStarter.id % 2)).length : 0;
     return {
       name: isOwner ? ownerDisplayName : currentProfileAuthor,
       avatar: (isOwner ? ownerDisplayName : currentProfileAuthor).slice(0, 1).toUpperCase(),
@@ -6777,11 +6781,41 @@ export default function App() {
       bio: isOwner ? ownerBio : (askProfile?.intro ?? firstFeed?.caption ?? "피드와 질문, 쇼핑 정보를 함께 운영하는 계정입니다."),
       hashtags: isOwner && ownerHashtags.length ? ownerHashtags : getContentKeywordTags(firstFeed ?? allFeedItems[0] ?? feedSeed[0]),
       postCount,
-      followerCount,
-      followingCount,
+      followerCount: isOwner ? ownerFollowerCount : viewedFollowerCount,
+      followingCount: isOwner ? ownerFollowingCount : viewedFollowingCount,
       isOwner,
     };
-  }, [allFeedItems, askProfiles, currentProfileAuthor, currentProfileAuthorAliases, demoProfile.avatarUrl, demoProfile.bio, demoProfile.hashtags, demoProfile.displayName, signupForm.displayName, viewedProfileAuthor]);
+  }, [allFeedItems, askProfiles, currentProfileAuthor, currentProfileAuthorAliases, demoProfile.avatarUrl, demoProfile.bio, demoProfile.hashtags, demoProfile.displayName, followerUserIds, followingUserIds, signupForm.displayName, viewedProfileAuthor]);
+
+  const profileFollowingAccounts = useMemo(() => {
+    if (currentProfileMeta.isOwner) return forumStarterUsers.filter((item) => followingUserIds.includes(item.id));
+    const viewedStarter = forumStarterUsers.find((item) => item.name === currentProfileAuthor);
+    if (!viewedStarter) return [];
+    return forumStarterUsers.filter((item) => item.id !== viewedStarter.id && ((item.id + viewedStarter.id) % 2 === 0));
+  }, [currentProfileAuthor, currentProfileMeta.isOwner, followingUserIds]);
+
+  const profileFollowerAccounts = useMemo(() => {
+    if (currentProfileMeta.isOwner) return forumStarterUsers.filter((item) => followerUserIds.includes(item.id));
+    const viewedStarter = forumStarterUsers.find((item) => item.name === currentProfileAuthor);
+    if (!viewedStarter) return [];
+    return forumStarterUsers.filter((item) => item.id !== viewedStarter.id && (item.followsMe || item.id % 2 === viewedStarter.id % 2));
+  }, [currentProfileAuthor, currentProfileMeta.isOwner, followerUserIds]);
+
+  const profileFollowAccounts = profileFollowListMode === "팔로워" ? profileFollowerAccounts : profileFollowingAccounts;
+
+  const openProfileFollowList = useCallback((mode: Exclude<ProfileFollowListMode, null>) => {
+    setProfileFollowListMode(mode);
+  }, []);
+
+  const openProfileFollowAccount = useCallback((name: string) => {
+    setViewedProfileAuthor(name);
+    setProfileFollowListMode(null);
+    setProfileSection("게시물");
+  }, []);
+
+  useEffect(() => {
+    setProfileFollowListMode(null);
+  }, [currentProfileAuthor]);
 
   useEffect(() => {
     if (!currentProfileMeta.isOwner) {
@@ -12277,8 +12311,8 @@ export default function App() {
                   </div>
                   <div className="profile-ig-stats">
                     <div><b>{currentProfileMeta.postCount}</b><span>게시물</span></div>
-                    <div><b>{currentProfileMeta.followerCount.toLocaleString()}</b><span>팔로워</span></div>
-                    <div><b>{currentProfileMeta.followingCount.toLocaleString()}</b><span>팔로잉</span></div>
+                    <button type="button" className="profile-ig-stat-button" onClick={() => openProfileFollowList("팔로워")}><b>{currentProfileMeta.followerCount.toLocaleString()}</b><span>팔로워</span></button>
+                    <button type="button" className="profile-ig-stat-button" onClick={() => openProfileFollowList("팔로잉")}><b>{currentProfileMeta.followingCount.toLocaleString()}</b><span>팔로잉</span></button>
                   </div>
                   <div className="profile-ig-bio">
                     {currentProfileMeta.isOwner && profileEditMode ? (
@@ -12306,6 +12340,29 @@ export default function App() {
                 </div>
               </div>
 
+              {profileFollowListMode ? (
+                <div className="profile-follow-list-screen">
+                  <div className="profile-ig-tabbar profile-follow-tabbar" aria-label="팔로잉 팔로워 목록">
+                    <button type="button" className={profileFollowListMode === "팔로잉" ? "active" : ""} onClick={() => setProfileFollowListMode("팔로잉")}>팔로잉</button>
+                    <button type="button" className={profileFollowListMode === "팔로워" ? "active" : ""} onClick={() => setProfileFollowListMode("팔로워")}>팔로워</button>
+                  </div>
+                  <div className="profile-follow-list compact-scroll-list">
+                    {profileFollowAccounts.length ? profileFollowAccounts.map((account) => (
+                      <button type="button" key={`${profileFollowListMode}-${account.id}`} className="profile-follow-list-item" onClick={() => openProfileFollowAccount(account.name)}>
+                        <span className="profile-follow-avatar">{account.name.slice(0, 1).toUpperCase()}</span>
+                        <span className="profile-follow-body">
+                          <strong>{account.name}</strong>
+                          <small>{account.role} · {account.topic}</small>
+                        </span>
+                        <span className="profile-follow-open">프로필</span>
+                      </button>
+                    )) : (
+                      <div className="profile-follow-empty">표시할 {profileFollowListMode} 계정이 없습니다.</div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <>
               <div className="profile-ig-tabbar profile-ig-action-grid" aria-label="프로필 바로가기">
                 <button type="button" className={profileSection === "게시물" ? "active" : ""} onClick={() => setProfileSection("게시물")}>피드</button>
                 <button type="button" className={profileSection === "쇼츠" ? "active" : ""} onClick={() => setProfileSection("쇼츠")}>쇼츠</button>
@@ -12398,6 +12455,9 @@ export default function App() {
                   ))}
                 </div>
               ) : null}
+
+                </>
+              )}
 
               {profileSection === "쇼츠" && shortsViewerItemId !== null && profileShortItems.length ? (
                 <ShortsViewer
