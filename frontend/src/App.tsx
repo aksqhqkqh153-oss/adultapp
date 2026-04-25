@@ -12127,10 +12127,29 @@ export default function App() {
                               }
                             }}
                           >
-                            <div className="avatar-circle kakao-avatar"><img src={request.avatarUrl ?? buildChatAvatarDataUri(request.name)} alt="" loading="lazy" /></div>
+                            <button
+                              type="button"
+                              className="avatar-circle kakao-avatar chat-request-profile-trigger"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                openProfileFromAuthor(request.name);
+                              }}
+                              aria-label={`${request.name} 프로필 보기`}
+                            >
+                              <img src={request.avatarUrl ?? buildChatAvatarDataUri(request.name)} alt="" loading="lazy" />
+                            </button>
                             <div className="chat-request-copy">
                               <div className="chat-request-copy-head">
-                                <strong>{request.name}</strong>
+                                <button
+                                  type="button"
+                                  className="chat-request-name-link"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    openProfileFromAuthor(request.name);
+                                  }}
+                                >
+                                  {request.name}
+                                </button>
                                 <span>{request.time}</span>
                               </div>
                               <p>{request.requestText}</p>
@@ -12138,13 +12157,13 @@ export default function App() {
                             <div className="chat-request-actions">
                               <button
                                 type="button"
-                                className="ghost-btn chat-request-delete-btn"
+                                className="ghost-btn chat-request-chat-btn"
                                 onClick={(event) => {
                                   event.stopPropagation();
-                                  deleteChatRequest(request);
+                                  openIncomingChatRequest(request);
                                 }}
                               >
-                                삭제
+                                채팅
                               </button>
                             </div>
                           </article>

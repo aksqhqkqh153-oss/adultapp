@@ -14200,3 +14200,67 @@ button.ghost-btn.danger { border-color:rgba(255,92,92,0.28); color:#ffb0b0; }
   height: 49px !important;
   padding: 0 !important;
 }
+
+/* ===== 2026-04-25 request/profile/maptory refine ===== */
+.chat-request-profile-trigger {
+  border: 0 !important;
+  padding: 0 !important;
+  cursor: pointer;
+}
+.chat-request-name-link {
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-weight: 900;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+.chat-request-name-link:hover,
+.chat-request-profile-trigger:hover + .chat-request-copy .chat-request-name-link {
+  color: #ff4f9a;
+}
+.chat-request-chat-btn {
+  min-width: 64px;
+  white-space: nowrap;
+  color: #fff !important;
+  border-color: rgba(255,79,154,0.42) !important;
+  background: rgba(255,79,154,0.16) !important;
+}
+.chat-request-chat-btn:hover {
+  background: rgba(255,79,154,0.26) !important;
+}
+.profile-pane-instagram .profile-ig-shell.compact-scroll-list,
+.profile-pane-instagram .profile-ig-grid,
+.profile-pane-instagram .profile-ig-grid.profile-ig-grid-shorts,
+.profile-pane-instagram .profile-question-list,
+.profile-pane-instagram .profile-product-grid,
+.profile-pane-instagram .profile-tagged-grid {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+.profile-pane-instagram .profile-ig-shell.compact-scroll-list::-webkit-scrollbar,
+.profile-pane-instagram .profile-ig-grid::-webkit-scrollbar,
+.profile-pane-instagram .profile-ig-grid.profile-ig-grid-shorts::-webkit-scrollbar,
+.profile-pane-instagram .profile-question-list::-webkit-scrollbar,
+.profile-pane-instagram .profile-product-grid::-webkit-scrollbar,
+.profile-pane-instagram .profile-tagged-grid::-webkit-scrollbar {
+  display: none !important;
+}
+.profile-pane-instagram .profile-ig-grid {
+  align-content: start !important;
+  justify-content: stretch !important;
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+}
+.profile-pane-instagram .profile-ig-grid > *:first-child {
+  margin-top: 0 !important;
+}
+.maptory-profile-pin {
+  cursor: pointer;
+}
+.maptory-profile-pin.location-visible .maptory-profile-avatar {
+  outline: 3px solid rgba(255,79,154,0.42);
+  outline-offset: 3px;
+}
