@@ -48,7 +48,7 @@ type FeedComposerAttachment = {
   optimized?: boolean;
 };
 
-type FeedComposeMode = "피드게시" | "사진피드" | "쇼츠게시";
+type FeedComposeMode = "피드게시" | "사진피드" | "쇼츠게시" | "스토리게시";
 type HomeFeedFilter = "일반" | "추천" | "팔로잉";
 type ShopHomeSort = "신규" | "인기" | "판매량" | "추천" | "리뷰";
 
@@ -97,6 +97,14 @@ function getFeedComposeModeMeta(mode: FeedComposeMode) {
         attachLabel: "쇼츠 영상 첨부",
         helper: "최대 1개 첨부 · 쇼츠 영상은 최대 20초 / 30MB · 권장 MP4(H.264) 또는 WEBM",
       } as const;
+    case "스토리게시":
+      return {
+        title: "스토리게시",
+        description: "24시간 동안 보여줄 스토리를 등록합니다.",
+        accept: "image/*,video/*",
+        attachLabel: "스토리 사진/영상 첨부",
+        helper: "최대 1개 첨부 · 스토리/맵토리 동시 게시 가능 · 위치는 시/구 단위로만 표시",
+      } as const;
     default:
       return {
         title: "피드게시",
@@ -115,6 +123,9 @@ type StoryItem = {
   name: string;
   role: string;
   accent: string;
+  caption?: string;
+  postedAt?: string;
+  mapEnabled?: boolean;
 };
 
 type AskProfile = {
@@ -3649,14 +3660,17 @@ type FeedComposeScreenProps = {
   onChangeCaption: (value: string) => void;
   onAttachFile: (file: File | null) => void;
   onClearAttachment: () => void;
+  maptoryEnabled: boolean;
+  onChangeMaptoryEnabled: (value: boolean) => void;
   onSubmit: () => void;
   onClose: () => void;
 };
 
-function FeedComposeScreen({ mode, title, caption, attachment, busy, helperText, onChangeTitle, onChangeCaption, onAttachFile, onClearAttachment, onSubmit, onClose }: FeedComposeScreenProps) {
+function FeedComposeScreen({ mode, title, caption, attachment, busy, helperText, onChangeTitle, onChangeCaption, onAttachFile, onClearAttachment, maptoryEnabled, onChangeMaptoryEnabled, onSubmit, onClose }: FeedComposeScreenProps) {
   const canSubmit = Boolean(caption.trim() || attachment);
   const composeMeta = getFeedComposeModeMeta(mode);
   const isShortsMode = mode === "쇼츠게시";
+  const isStoryMode = mode === "스토리게시";
   const isFeedMode = mode === "피드게시";
   const feedMediaInputRef = useRef<HTMLInputElement | null>(null);
   const feedGalleryPlaceholders = [0, 1, 2, 3, 4];
@@ -3828,6 +3842,35 @@ function FeedComposeScreen({ mode, title, caption, attachment, busy, helperText,
                 <li>등록 후 홈 &gt; 쇼츠 탭에서 확인 가능</li>
               </ul>
             </div>
+          </section>
+        ) : isStoryMode ? (
+          <section className="feed-compose-card feed-compose-card-story">
+            <div className="feed-compose-profile-row">
+              <div className="feed-comment-composer-avatar" aria-hidden="true">S</div>
+              <div>
+                <strong>스토리게시</strong>
+                <span>인스타 스토리처럼 현재 하고 있는 일을 짧게 공유합니다.</span>
+              </div>
+            </div>
+            <div className="feed-compose-field">
+              <span>스토리 내용</span>
+              <textarea value={caption} onChange={(event) => onChangeCaption(event.target.value)} placeholder="지금 무엇을 하고 있는지 적어주세요." maxLength={240} />
+            </div>
+            <label className={`creator-launch-btn feed-compose-attach-btn${busy ? " is-busy" : ""}`}>
+              {busy ? "첨부 최적화 중" : composeMeta.attachLabel}
+              <input type="file" accept={composeMeta.accept} hidden disabled={busy} onChange={(event) => { onAttachFile(event.target.files?.[0] ?? null); event.currentTarget.value = ""; }} />
+            </label>
+            {attachment ? (
+              <div className="feed-compose-preview-card">
+                {attachment.type.startsWith("image/") ? <img src={attachment.previewUrl} alt={attachment.name} className="feed-compose-preview-media" loading="lazy" /> : <video src={attachment.previewUrl} className="feed-compose-preview-media" controls playsInline preload="metadata" />}
+                <div className="feed-compose-preview-copy"><strong>{attachment.name}</strong><span>{helperText}</span></div>
+                <button type="button" className="ghost-btn" onClick={onClearAttachment}>삭제</button>
+              </div>
+            ) : null}
+            <label className="story-maptory-check-row">
+              <input type="checkbox" checked={maptoryEnabled} onChange={(event) => { const checked = event.target.checked; if (checked) window.alert("맵토리는 위치 표시가 됩니다"); onChangeMaptoryEnabled(checked); }} />
+              <span><b>맵토리도 게시</b><small>체크하면 위치가 시/구 단위로 지도에 표시됩니다.</small></span>
+            </label>
           </section>
         ) : (
           <section className="feed-compose-card">
@@ -4934,6 +4977,9 @@ export default function App() {
   const [feedComposeAttachment, setFeedComposeAttachment] = useState<FeedComposerAttachment | null>(null);
   const [feedComposeBusy, setFeedComposeBusy] = useState(false);
   const [feedComposeHelperText, setFeedComposeHelperText] = useState("최대 1개 첨부 · 영상은 최대 20초 / 30MB · 권장 MP4(H.264) 또는 WEBM");
+  const [feedComposeMaptoryEnabled, setFeedComposeMaptoryEnabled] = useState(false);
+  const [customStoryItems, setCustomStoryItems] = useState<StoryItem[]>([]);
+  const [activeStoryViewer, setActiveStoryViewer] = useState<StoryItem | null>(null);
   const [feedCommentDrafts, setFeedCommentDrafts] = useState<Record<number, string>>(() => {
     if (typeof window === "undefined") return {};
     try { return JSON.parse(window.localStorage.getItem("adultapp_feed_comment_drafts") ?? "{}"); } catch { return {}; }
@@ -4958,6 +5004,7 @@ export default function App() {
   });
   const [savedTab, setSavedTab] = useState<"피드" | "쇼츠">("피드");
   const [storyMode, setStoryMode] = useState<"스토리" | "맵토리">("스토리");
+  const allStoryItems = useMemo(() => [...customStoryItems, ...storySeed], [customStoryItems]);
   const [shortsVisibleCount, setShortsVisibleCount] = useState(10);
   const [profileShortsVisibleCount, setProfileShortsVisibleCount] = useState(10);
   const [homeFeedVisibleCount, setHomeFeedVisibleCount] = useState(() => {
@@ -6086,6 +6133,7 @@ export default function App() {
     setFeedComposeCaption("");
     setFeedComposeBusy(false);
     setFeedComposeMode(mode);
+    setFeedComposeMaptoryEnabled(false);
     setFeedComposeHelperText(getFeedComposeModeMeta(mode).helper);
     setFeedComposeLauncherOpen(false);
     setFeedComposeOpen(true);
@@ -6108,6 +6156,28 @@ export default function App() {
     }
     if (feedComposeMode === "사진피드" && !feedComposeAttachment?.type.startsWith("image/")) {
       window.alert("사진피드에는 사진 첨부가 필요합니다.");
+      return;
+    }
+    if (feedComposeMode === "스토리게시") {
+      const nextStory: StoryItem = {
+        id: Date.now(),
+        name: viewedProfileAuthor ?? currentProfileMeta.name ?? "me",
+        role: feedComposeMaptoryEnabled ? "맵토리 스토리" : "일상 스토리",
+        accent: "sunrise",
+        caption: feedComposeCaption.trim() || feedComposeTitle.trim() || "방금 등록한 스토리입니다.",
+        postedAt: "방금 전",
+        mapEnabled: feedComposeMaptoryEnabled,
+      };
+      setCustomStoryItems((prev) => [nextStory, ...prev]);
+      setFeedComposeTitle("");
+      setFeedComposeCaption("");
+      setFeedComposeAttachment(null);
+      setFeedComposeMaptoryEnabled(false);
+      setFeedComposeBusy(false);
+      setFeedComposeHelperText(getFeedComposeModeMeta(feedComposeMode).helper);
+      setFeedComposeOpen(false);
+      setActiveTab("홈");
+      setHomeTab("스토리");
       return;
     }
     const nextId = Math.max(...allFeedItems.map((item) => item.id), 0) + 1;
@@ -6136,6 +6206,7 @@ export default function App() {
     setFeedComposeTitle("");
     setFeedComposeCaption("");
     setFeedComposeAttachment(null);
+    setFeedComposeMaptoryEnabled(false);
     setFeedComposeBusy(false);
     setFeedComposeHelperText(getFeedComposeModeMeta(feedComposeMode).helper);
     setFeedComposeOpen(false);
@@ -10890,54 +10961,45 @@ export default function App() {
               </>
             ) : homeTab === "스토리" ? (
               <div className="story-home-pane compact-scroll-list">
-                <div className="chat-toolbar kakao-toolbar compact-only-toolbar feed-compose-launch-toolbar story-home-toolbar">
-                  <div className="feed-filter-tabs" role="tablist" aria-label="스토리 보기 필터">
-                    {(["스토리", "맵토리"] as const).map((filter) => (
-                      <button
-                        key={`story-mode-${filter}`}
-                        type="button"
-                        className={`feed-filter-tab ${storyMode === filter ? "active" : ""}`}
-                        onClick={() => setStoryMode(filter)}
-                        role="tab"
-                        aria-selected={storyMode === filter}
-                      >
-                        {filter}
-                      </button>
-                    ))}
+                <div className="story-horizontal-section">
+                  <div className="story-section-head">
+                    <strong>스토리</strong>
+                    <span>친구들이 지금 올린 24시간 스토리</span>
                   </div>
-                </div>
-                {storyMode === "스토리" ? (
-                  <div className="story-card-list">
-                    {storySeed.slice(0, 8).map((author, index) => (
-                      <article key={`story-${author.id}`} className="story-card">
+                  <div className="story-card-list story-card-list-horizontal" role="list" aria-label="스토리 가로 목록">
+                    {allStoryItems.slice(0, 16).map((author, index) => (
+                      <button key={`story-${author.id}`} type="button" className="story-card story-card-horizontal" onClick={() => setActiveStoryViewer(author)} role="listitem">
                         <div className={`story-avatar-ring hero-tone-${(index % 3) + 1}`}>
                           <span>{author.name.slice(0, 1).toUpperCase()}</span>
                         </div>
                         <div className="story-card-copy">
                           <strong>{author.name}</strong>
-                          <span>{index < 3 ? "방금 전 새 스토리" : `${index + 1}시간 전`}</span>
-                          <p>{author.role} 계정의 24시간 스토리 미리보기입니다.</p>
+                          <span>{author.postedAt ?? (index < 3 ? "방금 전 새 스토리" : `${index + 1}시간 전`)}</span>
+                          <p>{author.caption ?? `${author.role} 계정의 24시간 스토리 미리보기입니다.`}</p>
                         </div>
-                      </article>
+                      </button>
                     ))}
                   </div>
-                ) : (
-                  <div className="maptory-panel">
-                    <div className="maptory-map">
-                      <div className="maptory-radar-core">내 주변</div>
-                      {storySeed.slice(0, 4).map((author, index) => (
-                        <button key={`maptory-${author.id}`} type="button" className={`maptory-profile-pin maptory-profile-pin-${index + 1}`}>
-                          <span className="maptory-profile-avatar">{author.name.slice(0, 1).toUpperCase()}</span>
-                          <span className="maptory-speech">서울 {index === 0 ? "강서구" : index === 1 ? "마포구" : index === 2 ? "영등포구" : "양천구"}</span>
-                        </button>
-                      ))}
-                    </div>
-                    <div className="maptory-note">
-                      <strong>맵토리 위치 보호</strong>
-                      <p>맞팔로잉 친구 중 즐겨찾기 등록 계정의 1시간 이내 스토리만 표시하며, GPS 상세주소는 지도에 노출하지 않고 시/구 단위로만 보여줍니다.</p>
-                    </div>
+                </div>
+                <div className="maptory-panel story-integrated-maptory">
+                  <div className="story-section-head">
+                    <strong>맵토리</strong>
+                    <span>맞팔 친구의 1시간 이내 스토리 · 시/구 단위 표시</span>
                   </div>
-                )}
+                  <div className="maptory-map">
+                    <div className="maptory-radar-core">내 주변</div>
+                    {allStoryItems.filter((item) => item.mapEnabled !== false).slice(0, 4).map((author, index) => (
+                      <button key={`maptory-${author.id}`} type="button" className={`maptory-profile-pin maptory-profile-pin-${index + 1}`} onClick={() => setActiveStoryViewer(author)}>
+                        <span className="maptory-profile-avatar">{author.name.slice(0, 1).toUpperCase()}</span>
+                        <span className="maptory-speech">서울 {index === 0 ? "강서구" : index === 1 ? "마포구" : index === 2 ? "영등포구" : "양천구"}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="maptory-note">
+                    <strong>맵토리 위치 보호</strong>
+                    <p>정확한 GPS 주소는 지도에 노출하지 않고, 예: 서울특별시 강서구 마곡중앙6로 10 → 서울 강서구 수준으로만 표시합니다.</p>
+                  </div>
+                </div>
               </div>
             ) : (
               <div className="saved-home-pane home-feed-pane home-feed-pane-feed-scroll">
@@ -11824,9 +11886,9 @@ export default function App() {
                     <span>답변이 필요한 질문을 상태별로 확인합니다.</span>
                   </div>
                   <div className="my-question-status-tabs" role="tablist" aria-label="질문 상태 분류">
-                    <button type="button" className="active">미답변 <b>2</b></button>
+                    <button type="button" className="active">답변완료 <b>{filteredQuestions.length}</b></button>
+                    <button type="button">미답변 <b>2</b></button>
                     <button type="button">거절 <b>1</b></button>
-                    <button type="button">답변완료 <b>{filteredQuestions.length}</b></button>
                   </div>
                 </section>
 
@@ -12523,6 +12585,7 @@ export default function App() {
             {feedComposeLauncherOpen ? (
               <div className="feed-create-options" aria-hidden={false}>
                 {([
+                  { mode: "스토리게시" as const, label: "스토리게시", icon: <PhotoImageIcon /> },
                   { mode: "쇼츠게시" as const, label: "쇼츠게시", icon: <ShortsCameraIcon /> },
                   { mode: "피드게시" as const, label: "피드게시", icon: <PaperDocumentIcon /> },
                 ]).map((item) => (
@@ -12592,6 +12655,25 @@ export default function App() {
         </div>
       ) : null}
 
+
+      {activeStoryViewer ? (
+        <div className="story-viewer-backdrop" onClick={() => setActiveStoryViewer(null)}>
+          <section className="story-viewer-card" onClick={(event) => event.stopPropagation()}>
+            <div className="story-viewer-progress"><span /></div>
+            <div className="story-viewer-head">
+              <div className="story-mini-avatar">{activeStoryViewer.name.slice(0, 1).toUpperCase()}</div>
+              <div><strong>{activeStoryViewer.name}</strong><span>{activeStoryViewer.postedAt ?? "방금 전"}</span></div>
+              <button type="button" className="ghost-btn" onClick={() => setActiveStoryViewer(null)}>닫기</button>
+            </div>
+            <div className="story-viewer-body">
+              <strong>{activeStoryViewer.role}</strong>
+              <p>{activeStoryViewer.caption ?? storyPreviewText[activeStoryViewer.name] ?? "현재 올린 스토리 내용을 확인합니다."}</p>
+              {activeStoryViewer.mapEnabled ? <span className="story-viewer-location">맵토리 · 서울 강서구</span> : null}
+            </div>
+          </section>
+        </div>
+      ) : null}
+
       {feedComposeOpen ? (
         <FeedComposeScreen
           mode={feedComposeMode}
@@ -12604,6 +12686,8 @@ export default function App() {
           onChangeCaption={setFeedComposeCaption}
           onAttachFile={handleFeedComposeAttach}
           onClearAttachment={clearFeedComposeAttachment}
+          maptoryEnabled={feedComposeMaptoryEnabled}
+          onChangeMaptoryEnabled={setFeedComposeMaptoryEnabled}
           onSubmit={submitFeedCompose}
           onClose={closeFeedCompose}
         />
