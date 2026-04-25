@@ -137,7 +137,7 @@ type AskProfile = {
   highlight: string;
 };
 
-type ProfileSection = "게시물" | "질문" | "쇼츠" | "태그됨" | "상품보기";
+type ProfileSection = "게시물" | "질문" | "쇼츠" | "사진" | "태그됨" | "상품보기";
 type ProfileFollowListMode = "팔로잉" | "팔로워" | null;
 
 type ShopCategory = {
@@ -4972,6 +4972,8 @@ export default function App() {
   const [quoteTargetItem, setQuoteTargetItem] = useState<FeedItem | null>(null);
   const [quoteDraft, setQuoteDraft] = useState("");
   const [feedComposeLauncherOpen, setFeedComposeLauncherOpen] = useState(false);
+  const [profilePhotoLauncherOpen, setProfilePhotoLauncherOpen] = useState(false);
+  const [shopCreateLauncherOpen, setShopCreateLauncherOpen] = useState(false);
   const [feedComposeMode, setFeedComposeMode] = useState<FeedComposeMode>("피드게시");
   const [homeFeedFilter, setHomeFeedFilter] = useState<HomeFeedFilter>("일반");
   const [feedComposeTitle, setFeedComposeTitle] = useState("");
@@ -6776,7 +6778,7 @@ export default function App() {
     return {
       name: isOwner ? ownerDisplayName : currentProfileAuthor,
       avatar: (isOwner ? ownerDisplayName : currentProfileAuthor).slice(0, 1).toUpperCase(),
-      avatarUrl: isOwner ? demoProfile.avatarUrl.trim() : undefined,
+      avatarUrl: isOwner ? demoProfile.avatarUrl.trim() : (firstFeed?.mediaUrl ?? buildChatAvatarDataUri(currentProfileAuthor)),
       headline: askProfile?.headline ?? firstFeed?.category ?? "프로필",
       bio: isOwner ? ownerBio : (askProfile?.intro ?? firstFeed?.caption ?? "피드와 질문, 쇼핑 정보를 함께 운영하는 계정입니다."),
       hashtags: isOwner && ownerHashtags.length ? ownerHashtags : getContentKeywordTags(firstFeed ?? allFeedItems[0] ?? feedSeed[0]),
@@ -12014,7 +12016,29 @@ export default function App() {
                           onTouchEnd={clearChatMessageHold}
                           onTouchCancel={clearChatMessageHold}
                         >
-                          {!message.mine && !message.system ? <div className="x-chat-room-message-author">{message.author}</div> : null}
+                          {!message.mine && !message.system ? (
+                            <div className="x-chat-room-message-head">
+                              <button
+                                type="button"
+                                className="x-chat-room-message-avatar-btn"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  const avatarUrl = activeChatThread.avatarUrl ?? buildChatAvatarDataUri(message.author);
+                                  setFeedAvatarPreviewItem({ id: -910 - message.id, author: message.author, title: message.author, caption: activeChatThread.purpose, category: "채팅", likes: 0, comments: 0, type: "image", accent: "neutral", mediaUrl: avatarUrl } as FeedItem);
+                                }}
+                                aria-label={`${message.author} 프로필 사진 크게 보기`}
+                              >
+                                <img src={activeChatThread.avatarUrl ?? buildChatAvatarDataUri(message.author)} alt="" loading="lazy" />
+                              </button>
+                              <button
+                                type="button"
+                                className="x-chat-room-message-author"
+                                onClick={(event) => { event.stopPropagation(); openProfileFromAuthor(message.author); }}
+                              >
+                                {message.author}
+                              </button>
+                            </div>
+                          ) : null}
                           {message.replyTo ? (
                             <div className="x-chat-room-message-reply-ref">
                               <strong>{message.replyTo.author}</strong>
@@ -12366,6 +12390,7 @@ export default function App() {
               <div className="profile-ig-tabbar profile-ig-action-grid" aria-label="프로필 바로가기">
                 <button type="button" className={profileSection === "게시물" ? "active" : ""} onClick={() => setProfileSection("게시물")}><span>피드</span><small>{allFeedItems.filter((item) => item.type === "image" && currentProfileAuthorAliases.includes(item.author)).length}</small></button>
                 <button type="button" className={profileSection === "쇼츠" ? "active" : ""} onClick={() => setProfileSection("쇼츠")}><span>쇼츠</span><small>{profileShortItems.length}</small></button>
+                <button type="button" className={profileSection === "사진" ? "active" : ""} onClick={() => setProfileSection("사진")}><span>사진</span><small>{allFeedItems.filter((item) => item.type === "image" && currentProfileAuthorAliases.includes(item.author)).length}</small></button>
                 <button type="button" className={profileSection === "상품보기" ? "active" : ""} onClick={() => setProfileSection("상품보기")}><span>상품</span><small>{currentProfileProducts.length}</small></button>
                 <button type="button" className={profileSection === "질문" ? "active" : ""} onClick={() => setProfileSection("질문")}><span>질문</span><small>{questionSeed.length}</small></button>
                 <button type="button" className={profileSection === "태그됨" ? "active" : ""} onClick={() => setProfileSection("태그됨")}><span>태그</span><small>{allFeedItems.filter((item) => item.type === "image").slice(12, 21).length}</small></button>
@@ -12421,6 +12446,22 @@ export default function App() {
                     />
                   )) : <div className="legacy-box compact"><p>올린 쇼츠가 없습니다.</p></div>}
                   {pagedProfileShorts.length < profileShortItems.length ? <div className="shorts-loading-row">쇼츠 10개 단위로 추가 로딩 중</div> : null}
+                </div>
+              ) : null}
+
+              {profileSection === "사진" ? (
+                <div className="profile-ig-grid profile-photo-grid">
+                  {allFeedItems.filter((item) => item.type === "image" && currentProfileAuthorAliases.includes(item.author)).slice(0, 15).map((item) => (
+                    <article key={`profile-photo-${item.id}`} className={`profile-ig-tile ${item.accent}`}>
+                      <div className="profile-ig-tile-media profile-photo-tile-media">
+                        {item.mediaUrl ? <img src={item.mediaUrl} alt={item.title} loading="lazy" /> : <span>사진</span>}
+                      </div>
+                      <div className="profile-ig-tile-meta">
+                        <strong>{item.title}</strong>
+                        <span>{item.postedAt ?? "오늘"} · ♥ {item.likes}</span>
+                      </div>
+                    </article>
+                  ))}
                 </div>
               ) : null}
 
@@ -12673,6 +12714,51 @@ export default function App() {
         <div className="app-back-hint-toast app-list-end-toast" role="status" aria-live="polite">{listEndToast}</div>
       ) : null}
 
+      {showAppTabContent && activeTab === "프로필" && currentProfileMeta.isOwner && profileTab === "내정보" && !profileEditMode && !profileFollowListMode ? (
+        <>
+          {profilePhotoLauncherOpen ? <button type="button" className="feed-create-backdrop" aria-label="프로필 사진 메뉴 닫기" onClick={() => setProfilePhotoLauncherOpen(false)} /> : null}
+          <input ref={profileAvatarInputRef} type="file" accept="image/*" className="sr-only" onChange={handleProfileAvatarFileChange} />
+          <div className={`feed-create-dock profile-photo-create-dock${profilePhotoLauncherOpen ? " open" : ""}`}>
+            {profilePhotoLauncherOpen ? (
+              <div className="feed-create-options" aria-hidden={false}>
+                {["프로필사진", "배경사진"].map((label) => (
+                  <button key={label} type="button" className="feed-create-option" onClick={() => {
+                    setProfilePhotoLauncherOpen(false);
+                    if (label === "프로필사진") profileAvatarInputRef.current?.click();
+                    else window.alert("배경사진 첨부 기능 준비 중입니다.");
+                  }}>
+                    <span className="feed-create-option-label">{label}</span>
+                    <span className="feed-create-option-icon" aria-hidden="true"><PhotoImageIcon /></span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            <button type="button" className={`feed-create-fab${profilePhotoLauncherOpen ? " open" : ""}`} onClick={() => setProfilePhotoLauncherOpen((prev) => !prev)} aria-label={profilePhotoLauncherOpen ? "프로필 사진 메뉴 닫기" : "프로필 사진 메뉴 열기"}>
+              <span className="feed-create-fab-icon"><PlusIcon /></span>
+            </button>
+          </div>
+        </>
+      ) : null}
+
+      {showAppTabContent && activeTab === "쇼핑" && shoppingTab === "홈" ? (
+        <>
+          {shopCreateLauncherOpen ? <button type="button" className="feed-create-backdrop" aria-label="쇼핑 등록 메뉴 닫기" onClick={() => setShopCreateLauncherOpen(false)} /> : null}
+          <div className={`feed-create-dock shop-create-dock${shopCreateLauncherOpen ? " open" : ""}`}>
+            {shopCreateLauncherOpen ? (
+              <div className="feed-create-options" aria-hidden={false}>
+                <button type="button" className="feed-create-option" onClick={() => { setShopCreateLauncherOpen(false); openProductRegistrationTab(); }}>
+                  <span className="feed-create-option-label">상품등록</span>
+                  <span className="feed-create-option-icon" aria-hidden="true"><ShoppingBagIcon /></span>
+                </button>
+              </div>
+            ) : null}
+            <button type="button" className={`feed-create-fab${shopCreateLauncherOpen ? " open" : ""}`} onClick={() => setShopCreateLauncherOpen((prev) => !prev)} aria-label={shopCreateLauncherOpen ? "상품등록 메뉴 닫기" : "상품등록 메뉴 열기"}>
+              <span className="feed-create-fab-icon"><PlusIcon /></span>
+            </button>
+          </div>
+        </>
+      ) : null}
+
       {showAppTabContent && activeTab === "홈" && homeTab === "피드" && !feedComposeOpen && !openFeedCommentItem && !selectedAskProfile ? (
         <>
           {feedComposeLauncherOpen ? <button type="button" className="feed-create-backdrop" aria-label="피드 작성 메뉴 닫기" onClick={() => setFeedComposeLauncherOpen(false)} /> : null}
@@ -12719,10 +12805,14 @@ export default function App() {
           <div className="feed-avatar-preview-sheet" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="프로필 사진 미리보기">
             <div className={`feed-avatar-preview-stage ${feedAvatarPreviewItem.accent}`}>
               <div className="feed-avatar-preview-square">
-                <div className="feed-avatar-preview-silhouette" aria-hidden="true">
-                  <span className="feed-avatar-preview-head" />
-                  <span className="feed-avatar-preview-body" />
-                </div>
+                {feedAvatarPreviewItem.mediaUrl ? (
+                  <img className="feed-avatar-preview-image" src={feedAvatarPreviewItem.mediaUrl} alt={feedAvatarPreviewItem.author} />
+                ) : (
+                  <div className="feed-avatar-preview-silhouette" aria-hidden="true">
+                    <span className="feed-avatar-preview-head" />
+                    <span className="feed-avatar-preview-body" />
+                  </div>
+                )}
               </div>
             </div>
           </div>
