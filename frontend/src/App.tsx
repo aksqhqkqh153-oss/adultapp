@@ -6531,7 +6531,7 @@ export default function App() {
   const shopCatalogItems = useMemo<ProductCard[]>(() => {
     const source = apiProducts.length
       ? apiProducts
-          .filter((item) => (item.status ?? "published") === "published")
+          .filter((item) => ["published", "approved", "active", "판매중"].includes(String(item.status ?? "published")))
           .map((item, index) => withProductMetrics({
             id: item.id,
             category: item.category ?? "기타",
@@ -6541,7 +6541,7 @@ export default function App() {
             badge: item.stock_qty && item.stock_qty > 0 ? "판매중" : "재고확인",
             reviewCount: Number((item as { review_count?: number }).review_count ?? 0) || undefined,
             stock_qty: item.stock_qty,
-            thumbnailUrl: null,
+            thumbnailUrl: item.thumbnail_url ?? null,
             isPremium: /프리미엄|premium|고급/.test(`${item.name} ${item.description ?? ""}`.toLowerCase()),
           }, index))
       : productsSeed.map((item, index) => withProductMetrics(item, index));
@@ -8315,8 +8315,28 @@ export default function App() {
     setDesktopProductCrudMessage("");
     try {
       const created = await postJson<SellerProductItem>('/products', payload);
+      const publicProduct: ApiProduct = {
+        id: created.id,
+        seller_id: created.seller_id,
+        category: created.category,
+        name: created.name,
+        description: created.description ?? productRegistrationDraft.description,
+        price: Number(created.price ?? payload.price ?? 0),
+        shipping_fee: 3000,
+        status: submitMode === 'publish' ? 'approved' : created.status,
+        sku_code: created.sku_code ?? payload.sku_code,
+        stock_qty: Number(created.stock_qty ?? payload.stock_qty ?? 0),
+        thumbnail_url: created.thumbnail_url ?? productRegistrationDraft.imageUrls.find(Boolean) ?? null,
+        review_count: 0,
+      };
+      setSellerProducts((prev) => [created, ...prev.filter((item) => item.id !== created.id)]);
+      setApiProducts((prev) => [publicProduct, ...prev.filter((item) => item.id !== created.id)]);
       getJson<SellerProductItem[]>('/seller/products/mine').then(setSellerProducts).catch(() => null);
-      getJson<ApiProduct[]>('/products').then(setApiProducts).catch(() => null);
+      getJson<ApiProduct[]>('/products').then((rows) => setApiProducts((prev) => {
+        const merged = [...rows];
+        if (!merged.some((item) => item.id === publicProduct.id)) merged.unshift(publicProduct);
+        return merged.length ? merged : prev;
+      })).catch(() => null);
       if (isAdmin) getJson<{ items: ProductApprovalItem[] }>('/admin/product-approvals').then((res) => setProductApprovalQueue(res.items ?? [])).catch(() => null);
       setOrderMessage(`${submitMode === 'publish' ? (desktopProductEditId ? '상품수정 반영' : '상품등록') : (desktopProductEditId ? '상품수정 저장' : '상품 임시저장')} 완료: ${created.name} · ${created.status ?? 'draft'}`);
       setDesktopProductCrudMessage(`${desktopProductEditId ? '상품 수정' : '상품 등록'}이 완료되었습니다.`);
