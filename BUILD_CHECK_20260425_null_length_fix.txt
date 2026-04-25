@@ -1,0 +1,4 @@
+2026-04-25 null length runtime fix
+- API array responses are normalized before being stored in React state.
+- Frontend dist bundle includes a runtime guard for product list null responses.
+- No temp folder is required when expanding the ZIP into the project root.

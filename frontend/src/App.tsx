@@ -5070,9 +5070,11 @@ export default function App() {
   const [authPassword, setAuthPassword] = useState("customer1234");
   const [authMessage, setAuthMessage] = useState("");
   const [authGatePopupOpen, setAuthGatePopupOpen] = useState(false);
-  const [apiProducts, setApiProducts] = useState<ApiProduct[]>([]);
+  const [apiProductsRaw, setApiProducts] = useState<ApiProduct[] | null>([]);
+  const apiProducts = Array.isArray(apiProductsRaw) ? apiProductsRaw : [];
   const [cartItems, setCartItems] = useState<Array<{ productId: number; qty: number }>>([]);
-  const [orders, setOrders] = useState<ApiOrder[]>([]);
+  const [ordersRaw, setOrders] = useState<ApiOrder[] | null>([]);
+  const orders = Array.isArray(ordersRaw) ? ordersRaw : [];
   const [selectedOrderNo, setSelectedOrderNo] = useState("");
   const [orderDetail, setOrderDetail] = useState<ApiOrderDetail | null>(null);
   const [orderMessage, setOrderMessage] = useState("");
@@ -5085,6 +5087,16 @@ export default function App() {
     address: "배송지 입력 필요",
     requestNote: "익명 포장 요청",
   });
+
+  const applyApiProducts = useCallback((rows: ApiProduct[] | null | undefined) => {
+    setApiProducts(Array.isArray(rows) ? rows : []);
+  }, []);
+  const applyOrders = useCallback((rows: ApiOrder[] | null | undefined) => {
+    setOrders(Array.isArray(rows) ? rows : []);
+  }, []);
+  const applySellerProducts = useCallback((rows: SellerProductItem[] | null | undefined) => {
+    setSellerProducts(Array.isArray(rows) ? rows : []);
+  }, []);
 
   const isAdmin = ["ADMIN", "1", "GRADE_1"].includes(currentUserRole);
   const companyMailHostLocked = useMemo(() => isCompanyMailHostLocked(), []);
@@ -5500,7 +5512,7 @@ export default function App() {
     getJson<PaymentProviderStatusResponse>("/payments/provider-status").then(setPaymentProviderStatus).catch(() => null);
     getJson<UiCategoryGroupResponse>("/ui/category-groups").then((res) => setUiCategoryGroups(res.items ?? [])).catch(() => null);
     getJson<SkuPolicyResponse>("/sku-policy").then(setSkuPolicy).catch(() => null);
-    getJson<ApiProduct[]>("/products").then(setApiProducts).catch(() => null);
+    getJson<ApiProduct[]>("/products").then(applyApiProducts).catch(() => applyApiProducts([]));
 
     (async () => {
       try {
@@ -5521,8 +5533,8 @@ export default function App() {
         if (typeof window !== "undefined") window.localStorage.setItem("adultapp_demo_role", nextRole);
         setIdentityVerified(Boolean(me.identity_verified));
         setAdultVerified(Boolean(me.adult_verified));
-        getJson<ApiOrder[]>("/orders").then(setOrders).catch(() => null);
-        getJson<SellerProductItem[]>("/seller/products/mine").then(setSellerProducts).catch(() => null);
+        getJson<ApiOrder[]>("/orders").then(applyOrders).catch(() => applyOrders([]));
+        getJson<SellerProductItem[]>("/seller/products/mine").then(applySellerProducts).catch(() => applySellerProducts([]));
         if (["ADMIN", "1", "GRADE_1"].includes(nextRole)) {
           getJson<MinorPurgePreview>("/ops/minor-purge/preview").then(setMinorPurgePreview).catch(() => null);
           getJson<{ items: SellerApprovalItem[] }>("/admin/seller-approvals").then((res) => setSellerApprovalQueue(res.items ?? [])).catch(() => null);
@@ -8454,12 +8466,15 @@ export default function App() {
       };
       setSellerProducts((prev) => [created, ...prev.filter((item) => item.id !== created.id)]);
       setApiProducts((prev) => [publicProduct, ...prev.filter((item) => item.id !== created.id)]);
-      getJson<SellerProductItem[]>('/seller/products/mine').then(setSellerProducts).catch(() => null);
-      getJson<ApiProduct[]>('/products').then((rows) => setApiProducts((prev) => {
-        const merged = [...rows];
-        if (!merged.some((item) => item.id === publicProduct.id)) merged.unshift(publicProduct);
-        return merged.length ? merged : prev;
-      })).catch(() => null);
+      getJson<SellerProductItem[]>('/seller/products/mine').then(applySellerProducts).catch(() => applySellerProducts([]));
+      getJson<ApiProduct[]>('/products').then((rows) => {
+        const safeRows = Array.isArray(rows) ? rows : [];
+        setApiProducts((prev) => {
+          const merged = [...safeRows];
+          if (!merged.some((item) => item.id === publicProduct.id)) merged.unshift(publicProduct);
+          return merged.length ? merged : prev;
+        });
+      }).catch(() => null);
       if (isAdmin) getJson<{ items: ProductApprovalItem[] }>('/admin/product-approvals').then((res) => setProductApprovalQueue(res.items ?? [])).catch(() => null);
       setOrderMessage(`${submitMode === 'publish' ? (desktopProductEditId ? '상품수정 반영' : '상품등록') : (desktopProductEditId ? '상품수정 저장' : '상품 임시저장')} 완료: ${created.name} · ${created.status ?? 'draft'}`);
       setDesktopProductCrudMessage(`${desktopProductEditId ? '상품 수정' : '상품 등록'}이 완료되었습니다.`);
@@ -8482,7 +8497,7 @@ export default function App() {
     setDesktopProductCrudMessage("");
     try {
       await postJson(`/products/${productId}/submit-review`, { note: '승인대기 제출' });
-      getJson<SellerProductItem[]>('/seller/products/mine').then(setSellerProducts).catch(() => null);
+      getJson<SellerProductItem[]>('/seller/products/mine').then(applySellerProducts).catch(() => applySellerProducts([]));
       if (isAdmin) getJson<{ items: ProductApprovalItem[] }>('/admin/product-approvals').then((res) => setProductApprovalQueue(res.items ?? [])).catch(() => null);
       setDesktopProductCrudMessage('승인대기 상태로 전환했습니다.');
     } catch (error) {
@@ -9636,8 +9651,8 @@ export default function App() {
     setDesktopProductCrudMessage("");
     try {
       await postJson(`/products/${productId}/delete`, { note: 'desktop delete' });
-      getJson<SellerProductItem[]>('/seller/products/mine').then(setSellerProducts).catch(() => null);
-      getJson<ApiProduct[]>('/products').then(setApiProducts).catch(() => null);
+      getJson<SellerProductItem[]>('/seller/products/mine').then(applySellerProducts).catch(() => applySellerProducts([]));
+      getJson<ApiProduct[]>('/products').then(applyApiProducts).catch(() => applyApiProducts([]));
       setDesktopProductSelectedIds((prev) => prev.filter((id) => id !== productId));
       if (desktopProductEditId === productId) {
         setDesktopProductEditId(null);
@@ -9659,8 +9674,8 @@ export default function App() {
       for (const productId of desktopProductSelectedIds) {
         await postJson(`/products/${productId}/delete`, { note: 'desktop bulk delete' });
       }
-      getJson<SellerProductItem[]>('/seller/products/mine').then(setSellerProducts).catch(() => null);
-      getJson<ApiProduct[]>('/products').then(setApiProducts).catch(() => null);
+      getJson<SellerProductItem[]>('/seller/products/mine').then(applySellerProducts).catch(() => applySellerProducts([]));
+      getJson<ApiProduct[]>('/products').then(applyApiProducts).catch(() => applyApiProducts([]));
       if (desktopProductEditId && desktopProductSelectedIds.includes(desktopProductEditId)) {
         setDesktopProductEditId(null);
         setDesktopProductEditorOpen(false);
