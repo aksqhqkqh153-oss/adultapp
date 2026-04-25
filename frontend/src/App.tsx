@@ -707,11 +707,25 @@ const defaultDemoProfile: DemoProfileState = {
 };
 
 const PROFILE_KEYWORD_TAG_LIMIT = 20;
-const normalizeProfileKeywordTags = (value: string) => value
+const normalizeProfileKeywordTags = (value: string | null | undefined) => String(value ?? "")
   .split(/[\n,\s#]+/)
   .map((item) => item.trim())
   .filter(Boolean)
   .slice(0, PROFILE_KEYWORD_TAG_LIMIT);
+const sanitizeDemoProfileState = (value: Partial<DemoProfileState> | null | undefined): DemoProfileState => ({
+  ...defaultDemoProfile,
+  ...(value ?? {}),
+  gender: typeof value?.gender === "string" ? value.gender : defaultDemoProfile.gender,
+  ageBand: typeof value?.ageBand === "string" ? value.ageBand : defaultDemoProfile.ageBand,
+  regionCode: typeof value?.regionCode === "string" ? value.regionCode : defaultDemoProfile.regionCode,
+  interests: Array.isArray(value?.interests) ? value.interests.filter((item): item is string => typeof item === "string") : [],
+  marketingOptIn: Boolean(value?.marketingOptIn),
+  displayName: typeof value?.displayName === "string" ? value.displayName : "",
+  bio: typeof value?.bio === "string" ? value.bio : "",
+  hashtags: typeof value?.hashtags === "string" ? value.hashtags : "",
+  avatarUrl: typeof value?.avatarUrl === "string" ? value.avatarUrl : "",
+});
+
 const defaultSellerVerification: SellerVerificationState = {
   companyName: "",
   representativeName: "",
@@ -4874,7 +4888,7 @@ export default function App() {
     if (typeof window === "undefined") return defaultDemoProfile;
     const raw = window.localStorage.getItem("adultapp_demo_profile");
     if (!raw) return defaultDemoProfile;
-    try { return { ...defaultDemoProfile, ...JSON.parse(raw) }; } catch { return defaultDemoProfile; }
+    try { return sanitizeDemoProfileState(JSON.parse(raw)); } catch { return defaultDemoProfile; }
   });
   const [sellerVerification, setSellerVerification] = useState<SellerVerificationState>(() => {
     if (typeof window === "undefined") return defaultSellerVerification;
