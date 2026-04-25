@@ -8941,7 +8941,9 @@ export default function App() {
       ? `${activeTab}설정`
       : overlayMode === "notifications"
         ? `${activeTab}알림`
-        : activeTab;
+        : activeTab === "프로필" && !currentProfileMeta.isOwner
+          ? "정보"
+          : activeTab;
 
   const openOverlay = (mode: Exclude<OverlayMode, null>) => {
     setOverlayMode((prev) => (prev === mode ? null : mode));
@@ -10360,7 +10362,6 @@ export default function App() {
               />
             </div>
             <div className="topbar-search-trailing">
-              <div className="topbar-title-inline" aria-live="polite">{activeTab === "쇼핑" ? "쇼핑검색" : currentScreenTitle}</div>
               <button className="header-inline-btn header-icon-btn header-toolbar-btn active" onClick={() => openOverlay("search")} aria-label={`${activeTab}검색`} title={`${activeTab}검색`}><SearchIcon /></button>
               <button className="header-inline-btn header-icon-btn header-notification-btn header-toolbar-btn" onClick={() => openOverlay("notifications")} aria-label={`${activeTab}알림`} title={`${activeTab}알림`}><BellIcon />{unreadNotificationCount > 0 ? <span className="header-badge">{unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}</span> : null}</button>
               <button className="header-inline-btn header-icon-btn header-toolbar-btn" onClick={() => openOverlay("settings")} aria-label={`${activeTab}설정`} title={`${activeTab}설정`}><SettingsIcon /></button>
@@ -10430,10 +10431,7 @@ export default function App() {
 
             {overlayMode === "search" ? (
               <div className={`overlay-body stack-gap contextual-search-pane search-overlay-pane ${activeTab === "쇼핑" ? `search-overlay-pane-shop${shopSearchFilterPanelOpen ? " filter-open" : " filter-closed"}` : ""}`}>
-                <div className="search-overlay-header">
-                  <button type="button" className="header-inline-btn header-icon-btn topbar-search-back" onClick={() => setOverlayMode(null)} aria-label="뒤로가기" title="뒤로가기"><BackArrowIcon /></button>
-                  <strong>{activeTab} 검색</strong>
-                </div>
+                <div className="search-overlay-header search-overlay-header-list-only" aria-hidden="true"></div>
                 {activeTab !== "쇼핑" ? (
                   <div className="search-scope-row">
                     {currentSearchSections.map((item) => (
@@ -11000,13 +10998,13 @@ export default function App() {
                 <div className="story-horizontal-section">
                   <div className="story-section-head">
                     <strong>스토리</strong>
-                    <span>친구들이 지금 올린 24시간 스토리</span>
+                    
                   </div>
                   <div className="story-card-list story-card-list-horizontal" role="list" aria-label="스토리 가로 목록">
                     {allStoryItems.slice(0, 16).map((author, index) => (
                       <button key={`story-${author.id}`} type="button" className="story-card story-card-horizontal" onClick={() => setActiveStoryViewer(author)} role="listitem">
-                        <div className={`story-avatar-ring hero-tone-${(index % 3) + 1}`}>
-                          <span>{author.name.slice(0, 1).toUpperCase()}</span>
+                        <div className={`story-avatar-ring ${author.avatarUrl ? "has-image" : "anonymous-profile-icon"}`}>
+                          <span>{author.avatarUrl ? <img src={author.avatarUrl} alt="" loading="lazy" /> : null}</span>
                         </div>
                         <div className="story-card-copy">
                           <strong>{author.name}</strong>
@@ -11020,7 +11018,7 @@ export default function App() {
                 <div className="maptory-panel story-integrated-maptory">
                   <div className="story-section-head">
                     <strong>맵토리</strong>
-                    <span>맞팔 친구의 1시간 이내 스토리 · 시/구 단위 표시</span>
+                    
                   </div>
                   <div className="maptory-map">
                     <div className="maptory-radar-core">내 주변</div>
@@ -11043,7 +11041,7 @@ export default function App() {
                           }}
                           aria-label={`${author.name} 맵토리 위치 보기`}
                         >
-                          <span className="maptory-profile-avatar">{author.avatarUrl ? <img src={author.avatarUrl} alt="" loading="lazy" /> : author.name.slice(0, 1).toUpperCase()}</span>
+                          <span className={`maptory-profile-avatar ${author.avatarUrl ? "has-image" : "anonymous-profile-icon"}`}>{author.avatarUrl ? <img src={author.avatarUrl} alt="" loading="lazy" /> : null}</span>
                           <span className="maptory-speech">{locationLabel}</span>
                         </button>
                       );
@@ -12186,19 +12184,19 @@ export default function App() {
                                 </button>
                                 <span>{request.time}</span>
                               </div>
-                              <p>{request.requestText}</p>
-                            </div>
-                            <div className="chat-request-actions">
-                              <button
-                                type="button"
-                                className="ghost-btn chat-request-chat-btn"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  openIncomingChatRequest(request);
-                                }}
-                              >
-                                채팅
-                              </button>
+                              <div className="chat-request-message-row">
+                                <p>{request.requestText}</p>
+                                <button
+                                  type="button"
+                                  className="ghost-btn chat-request-chat-btn"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    openIncomingChatRequest(request);
+                                  }}
+                                >
+                                  채팅
+                                </button>
+                              </div>
                             </div>
                           </article>
                         ))}
@@ -12252,7 +12250,10 @@ export default function App() {
         ) : null}
 
                 {showAppTabContent && activeTab === "프로필" ? (
-          <section className="tab-pane fill-pane profile-pane-instagram">
+          <section className={`tab-pane fill-pane profile-pane-instagram${currentProfileMeta.isOwner ? "" : " external-profile-pane"}`}>
+            {!currentProfileMeta.isOwner ? (
+              <button type="button" className="profile-external-back-btn" onClick={() => { setActiveTab("채팅"); setChatTab("요청"); setViewedProfileAuthor(null); }} aria-label="채팅 요청으로 돌아가기"><BackArrowIcon /></button>
+            ) : null}
             <div className="profile-ig-shell compact-scroll-list" onScroll={handleProfileShellScroll}>
               <div className="profile-ig-header">
                 <div className="profile-ig-avatar-wrap">
@@ -12269,9 +12270,9 @@ export default function App() {
                       <input ref={profileAvatarInputRef} type="file" accept="image/*" className="sr-only" onChange={handleProfileAvatarFileChange} />
                     </>
                   ) : (
-                    <div className={`profile-ig-avatar ${currentProfileMeta.avatarUrl ? "has-image" : ""}`}>
-                      {currentProfileMeta.avatarUrl ? <img src={currentProfileMeta.avatarUrl} alt="프로필" loading="lazy" /> : currentProfileMeta.avatar}
-                    </div>
+                    <button type="button" className={`profile-ig-avatar profile-avatar-preview-trigger ${currentProfileMeta.avatarUrl ? "has-image" : "anonymous-profile-icon"}`} onClick={() => setFeedAvatarPreviewItem({ id: -900, author: currentProfileMeta.name, title: currentProfileMeta.name, caption: currentProfileMeta.bio, category: "프로필", likes: 0, comments: 0, type: "image", accent: "neutral" } as FeedItem)} aria-label="프로필 사진 크게 보기">
+                      {currentProfileMeta.avatarUrl ? <img src={currentProfileMeta.avatarUrl} alt="프로필" loading="lazy" /> : null}
+                    </button>
                   )}
                 </div>
                 <div className="profile-ig-main">
@@ -12302,15 +12303,14 @@ export default function App() {
                         <button type="button" className="ghost-btn profile-ig-mini-btn" onClick={openProfileEditMode}>프로필 편집</button>
                       )
                     ) : (
-                      <div className="asked-question-toolbar asked-question-toolbar-inline profile-inline-actions">
-                        <button type="button" className="feed-question-btn profile-contact-btn" onClick={openProfileChatRequest}>채팅</button>
-                        <button type="button" className={`feed-follow-btn profile-follow-btn ${followedFeedAuthors.includes(currentProfileMeta.name) ? "active" : ""}`} onClick={() => toggleFollowedFeedAuthor(currentProfileMeta.name)}>{followedFeedAuthors.includes(currentProfileMeta.name) ? "팔로잉" : "팔로우"}</button>
-                        <button type="button" className="ghost-btn">공유</button>
+                      <div className="asked-question-toolbar asked-question-toolbar-inline profile-inline-actions profile-text-action-row">
+                        <button type="button" className="profile-text-action-btn" onClick={openProfileChatRequest}>채팅</button>
+                        <button type="button" className={`profile-text-action-btn ${followedFeedAuthors.includes(currentProfileMeta.name) ? "active" : ""}`} onClick={() => toggleFollowedFeedAuthor(currentProfileMeta.name)}>{followedFeedAuthors.includes(currentProfileMeta.name) ? "팔로잉" : "팔로우"}</button>
+                        <button type="button" className="profile-text-action-btn">공유</button>
                       </div>
                     )}
                   </div>
-                  <div className="profile-ig-stats">
-                    <div><b>{currentProfileMeta.postCount}</b><span>게시물</span></div>
+                  <div className="profile-ig-stats profile-ig-stats-follow-only">
                     <button type="button" className="profile-ig-stat-button" onClick={() => openProfileFollowList("팔로워")}><b>{currentProfileMeta.followerCount.toLocaleString()}</b><span>팔로워</span></button>
                     <button type="button" className="profile-ig-stat-button" onClick={() => openProfileFollowList("팔로잉")}><b>{currentProfileMeta.followingCount.toLocaleString()}</b><span>팔로잉</span></button>
                   </div>
@@ -12364,11 +12364,11 @@ export default function App() {
               ) : (
                 <>
               <div className="profile-ig-tabbar profile-ig-action-grid" aria-label="프로필 바로가기">
-                <button type="button" className={profileSection === "게시물" ? "active" : ""} onClick={() => setProfileSection("게시물")}>피드</button>
-                <button type="button" className={profileSection === "쇼츠" ? "active" : ""} onClick={() => setProfileSection("쇼츠")}>쇼츠</button>
-                <button type="button" className={profileSection === "상품보기" ? "active" : ""} onClick={() => setProfileSection("상품보기")}>상품</button>
-                <button type="button" className={profileSection === "질문" ? "active" : ""} onClick={() => setProfileSection("질문")}>질문</button>
-                <button type="button" className={profileSection === "태그됨" ? "active" : ""} onClick={() => setProfileSection("태그됨")}>태그</button>
+                <button type="button" className={profileSection === "게시물" ? "active" : ""} onClick={() => setProfileSection("게시물")}><span>피드</span><small>{allFeedItems.filter((item) => item.type === "image" && currentProfileAuthorAliases.includes(item.author)).length}</small></button>
+                <button type="button" className={profileSection === "쇼츠" ? "active" : ""} onClick={() => setProfileSection("쇼츠")}><span>쇼츠</span><small>{profileShortItems.length}</small></button>
+                <button type="button" className={profileSection === "상품보기" ? "active" : ""} onClick={() => setProfileSection("상품보기")}><span>상품</span><small>{currentProfileProducts.length}</small></button>
+                <button type="button" className={profileSection === "질문" ? "active" : ""} onClick={() => setProfileSection("질문")}><span>질문</span><small>{questionSeed.length}</small></button>
+                <button type="button" className={profileSection === "태그됨" ? "active" : ""} onClick={() => setProfileSection("태그됨")}><span>태그</span><small>{allFeedItems.filter((item) => item.type === "image").slice(12, 21).length}</small></button>
               </div>
 
               {profileSection === "게시물" ? (
