@@ -13,7 +13,7 @@ from .database import create_db_and_tables, engine
 from .models import DirectMessage, DirectMessageThread, User, UserBlock
 from .routers.api import router as api_router, validate_exchange_text
 from .services.realtime import thread_connection_manager
-from .seed_db import seed_database
+from .seed_db import ensure_launch_admin_accounts, seed_database
 
 logger = logging.getLogger(__name__)
 app = FastAPI(title=settings.app_name)
@@ -83,6 +83,11 @@ def on_startup() -> None:
             create_db_and_tables()
         except Exception as exc:
             logger.exception("startup_db_init_failed: %s", exc)
+    try:
+        with Session(engine) as session:
+            ensure_launch_admin_accounts(session)
+    except Exception as exc:
+        logger.exception("startup_launch_admin_seed_failed: %s", exc)
     if settings.startup_seed_enabled:
         try:
             with Session(engine) as session:

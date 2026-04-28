@@ -45,7 +45,7 @@ let refreshToken = localStorage.getItem("adultapp_refresh_token") ?? "";
 let refreshPromise: Promise<boolean> | null = null;
 
 function timeoutForPath(path: string) {
-  if (path.startsWith("/auth/login")) return 12000;
+  if (path.startsWith("/auth/login")) return 25000;
   if (path.startsWith("/auth/me")) return 8000;
   if (path.startsWith("/auth/refresh")) return 8000;
   return DEFAULT_TIMEOUT_MS;

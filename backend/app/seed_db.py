@@ -148,7 +148,10 @@ def ensure_test_accounts(session: Session) -> None:
         if not user:
             user = User(email=email, name=preset["name"], password_hash=hash_password(preset["password"]))
         else:
-            user.password_hash = hash_password(preset["password"])
+            # 기존 테스트 계정 로그인 때마다 Argon2 재해시를 반복하면 /auth/login 이 12초 제한을 넘길 수 있다.
+            # 비밀번호가 비어 있는 예외 상태에서만 보정하고, 정상 계정은 이름/권한만 갱신한다.
+            if not user.password_hash:
+                user.password_hash = hash_password(preset["password"])
             user.name = preset["name"]
         user.grade = preset["grade"]
         user.adult_verified = preset["adult_verified"]
