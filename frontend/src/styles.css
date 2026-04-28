@@ -15124,3 +15124,82 @@ button.ghost-btn.danger { border-color:rgba(255,92,92,0.28); color:#ffb0b0; }
     max-width: 96px !important;
   }
 }
+
+/* === 2026-04-29 request: chat anonymous avatars, FAB backdrop/nav visibility, feed active underline === */
+.feed-create-backdrop {
+  background: rgba(0, 0, 0, 0.30) !important;
+  backdrop-filter: blur(3px) !important;
+  -webkit-backdrop-filter: blur(3px) !important;
+  z-index: 3000 !important;
+}
+
+.bottom-nav {
+  position: fixed !important;
+  z-index: 2995 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.feed-create-dock,
+.feed-create-dock.shop-create-dock,
+.feed-create-dock.profile-photo-create-dock,
+.feed-create-dock.chat-create-dock,
+.feed-create-dock.community-create-dock {
+  z-index: 3020 !important;
+}
+
+.feed-create-dock .feed-create-fab,
+.feed-create-dock .feed-create-options,
+.feed-create-dock .feed-create-option,
+.feed-create-dock .feed-create-option-label,
+.feed-create-dock .feed-create-option-icon {
+  z-index: 3030 !important;
+}
+
+.chat-row .kakao-avatar.anonymous-chat-avatar,
+.chat-request-profile-trigger.anonymous-chat-avatar,
+.chat-discovery-avatar.anonymous-chat-avatar {
+  background: rgba(255, 255, 255, 0.07) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: none !important;
+  color: transparent !important;
+}
+
+.chat-row .kakao-avatar.anonymous-chat-avatar img,
+.chat-request-profile-trigger.anonymous-chat-avatar img,
+.chat-discovery-avatar.anonymous-chat-avatar img {
+  display: none !important;
+}
+
+.chat-row .kakao-avatar.anonymous-chat-avatar .chat-discovery-anon-profile,
+.chat-request-profile-trigger.anonymous-chat-avatar .chat-discovery-anon-profile,
+.chat-discovery-avatar.anonymous-chat-avatar .chat-discovery-anon-profile {
+  position: relative !important;
+  display: block !important;
+  width: 20px !important;
+  height: 22px !important;
+  margin: 0 auto !important;
+}
+
+.feed-compose-launch-toolbar .feed-filter-tabs {
+  align-items: stretch !important;
+}
+
+.feed-compose-launch-toolbar .feed-filter-tab {
+  position: relative !important;
+  border-radius: 0 !important;
+}
+
+.feed-compose-launch-toolbar .feed-filter-tab.active::after {
+  content: "" !important;
+  display: block !important;
+  position: absolute !important;
+  left: 16px !important;
+  right: 16px !important;
+  bottom: 0 !important;
+  height: 2px !important;
+  border-radius: 999px !important;
+  background: #ff4c8d !important;
+  opacity: 1 !important;
+  transform: none !important;
+}

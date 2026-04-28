@@ -9616,6 +9616,12 @@ export default function App() {
         setSelectedProductId(null);
         setShoppingTab("홈");
       }
+      if (tab === "채팅") {
+        setActiveChatThreadId(null);
+        setChatTab("채팅");
+        setChatDiscoveryOpen(false);
+        setChatListMode("threads");
+      }
       return;
     }
     setSelectedAskProfile(null);
@@ -9624,6 +9630,12 @@ export default function App() {
     setFeedComposeLauncherOpen(false);
     setActiveTab(tab);
     if (tab === "홈") setHomeTab((prev) => prev || "피드");
+    if (tab === "채팅") {
+      setActiveChatThreadId(null);
+      setChatTab("채팅");
+      setChatDiscoveryOpen(false);
+      setChatListMode("threads");
+    }
     if (tab === "프로필") {
       setViewedProfileAuthor(null);
       setProfileSection("게시물");
@@ -12608,14 +12620,14 @@ export default function App() {
                           >
                             <button
                               type="button"
-                              className="avatar-circle kakao-avatar chat-request-profile-trigger"
+                              className={`avatar-circle kakao-avatar chat-request-profile-trigger${request.avatarUrl ? "" : " anonymous-chat-avatar"}`}
                               onClick={(event) => {
                                 event.stopPropagation();
                                 openProfileFromAuthor(request.name);
                               }}
                               aria-label={`${request.name} 프로필 보기`}
                             >
-                              <img src={request.avatarUrl ?? buildChatAvatarDataUri(request.name)} alt="" loading="lazy" />
+                              {request.avatarUrl ? <img src={request.avatarUrl} alt="" loading="lazy" /> : <span className="chat-discovery-anon-profile" aria-hidden="true" />}
                             </button>
                             <div className="chat-request-copy">
                               <div className="chat-request-copy-head">
@@ -12658,7 +12670,7 @@ export default function App() {
                             openChatThread(thread);
                           }
                         }}>
-                          <div className="avatar-circle kakao-avatar"><img src={thread.avatarUrl ?? buildChatAvatarDataUri(thread.name)} alt="" loading="lazy" /></div>
+                          <div className={`avatar-circle kakao-avatar${thread.avatarUrl ? "" : " anonymous-chat-avatar"}`}>{thread.avatarUrl ? <img src={thread.avatarUrl} alt="" loading="lazy" /> : <span className="chat-discovery-anon-profile" aria-hidden="true" />}</div>
                           <div className="chat-copy kakao-chat-copy">
                             <div className="kakao-chat-head">
                               <strong>{thread.name}</strong>
