@@ -86,7 +86,7 @@ TEST_ACCOUNT_PRESETS = {
 LAUNCH_ADMIN_ACCOUNT_PRESETS = {
     "aksqhqkqh3@naver.com": {
         "name": "관리자1",
-        "password_hash": "$argon2id$v=19$m=65536,t=2,p=2$W/6nRx6RLGLR+HLuxQ1rTQ$NRISUW11ZqU2ty5GFY4qyBovYFvCNUNhJcdXtnGgBYo",
+        "password_hash": "pbkdf2_sha256$260000$YWR1bHRhcHAtYWRtaW4tYWtzcWhxa3FoMy0yMDI2MDQyOA$TL5BQL1C9MhKZueO3gg_CeL6gcxeunmvfvf6Fms2WJQ",
         "grade": MemberGrade.ADMIN,
         "adult_verified": True,
         "identity_verified": True,

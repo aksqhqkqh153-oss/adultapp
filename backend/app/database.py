@@ -195,6 +195,39 @@ SQLITE_MIGRATIONS = {
 }
 
 POSTGRES_MIGRATIONS = {
+
+    'user': {
+        'password_changed_at': 'ALTER TABLE "user" ADD COLUMN password_changed_at TIMESTAMP',
+        'reset_required': 'ALTER TABLE "user" ADD COLUMN reset_required BOOLEAN DEFAULT FALSE',
+        'gender': 'ALTER TABLE "user" ADD COLUMN gender VARCHAR',
+        'age_band': 'ALTER TABLE "user" ADD COLUMN age_band VARCHAR',
+        'region_code': 'ALTER TABLE "user" ADD COLUMN region_code VARCHAR',
+        'latitude': 'ALTER TABLE "user" ADD COLUMN latitude DOUBLE PRECISION',
+        'longitude': 'ALTER TABLE "user" ADD COLUMN longitude DOUBLE PRECISION',
+        'false_report_count': 'ALTER TABLE "user" ADD COLUMN false_report_count INTEGER DEFAULT 0',
+        'false_report_score': 'ALTER TABLE "user" ADD COLUMN false_report_score INTEGER DEFAULT 0',
+        'random_chat_cooldown_until': 'ALTER TABLE "user" ADD COLUMN random_chat_cooldown_until TIMESTAMP',
+        'identity_verified': 'ALTER TABLE "user" ADD COLUMN identity_verified BOOLEAN DEFAULT FALSE',
+        'login_provider': 'ALTER TABLE "user" ADD COLUMN login_provider VARCHAR',
+        'identity_verification_method': 'ALTER TABLE "user" ADD COLUMN identity_verification_method VARCHAR',
+        'identity_verification_token': 'ALTER TABLE "user" ADD COLUMN identity_verification_token VARCHAR',
+        'identity_verified_at': 'ALTER TABLE "user" ADD COLUMN identity_verified_at TIMESTAMP',
+        'adult_verified_at': 'ALTER TABLE "user" ADD COLUMN adult_verified_at TIMESTAMP',
+        'adult_verification_status': "ALTER TABLE \"user\" ADD COLUMN adult_verification_status VARCHAR DEFAULT 'pending'",
+        'adult_verification_provider': 'ALTER TABLE "user" ADD COLUMN adult_verification_provider VARCHAR',
+        'adult_verification_tx_id': 'ALTER TABLE "user" ADD COLUMN adult_verification_tx_id VARCHAR',
+        'adult_verification_fail_count': 'ALTER TABLE "user" ADD COLUMN adult_verification_fail_count INTEGER DEFAULT 0',
+        'adult_verification_locked_until': 'ALTER TABLE "user" ADD COLUMN adult_verification_locked_until TIMESTAMP',
+        'seller_onboarding_status': 'ALTER TABLE "user" ADD COLUMN seller_onboarding_status VARCHAR',
+        'admin_2fa_secret': 'ALTER TABLE "user" ADD COLUMN admin_2fa_secret VARCHAR',
+        'admin_2fa_confirmed': 'ALTER TABLE "user" ADD COLUMN admin_2fa_confirmed BOOLEAN DEFAULT FALSE',
+        'admin_backup_codes': 'ALTER TABLE "user" ADD COLUMN admin_backup_codes VARCHAR',
+        'failed_login_count': 'ALTER TABLE "user" ADD COLUMN failed_login_count INTEGER DEFAULT 0',
+        'locked_until': 'ALTER TABLE "user" ADD COLUMN locked_until TIMESTAMP',
+        'last_failed_login_at': 'ALTER TABLE "user" ADD COLUMN last_failed_login_at TIMESTAMP',
+        'last_login_at': 'ALTER TABLE "user" ADD COLUMN last_login_at TIMESTAMP',
+        'member_status': "ALTER TABLE \"user\" ADD COLUMN member_status VARCHAR DEFAULT 'active'",
+    },
     'product': {
         'description': 'ALTER TABLE product ADD COLUMN description VARCHAR',
         'price': 'ALTER TABLE product ADD COLUMN price INTEGER DEFAULT 0',
@@ -265,8 +298,6 @@ def _run_sqlite_migrations() -> None:
 def _run_postgres_migrations() -> None:
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())
-    if 'order' not in existing_tables and 'orderitem' not in existing_tables and 'product' not in existing_tables:
-        return
     with engine.begin() as conn:
         for table_name, alters in POSTGRES_MIGRATIONS.items():
             if table_name not in existing_tables:

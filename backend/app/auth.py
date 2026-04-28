@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+import base64
 import hashlib
+import hmac
 import json
 import secrets
 from ipaddress import ip_address, ip_network
@@ -25,14 +27,52 @@ def utcnow() -> datetime:
     return datetime.utcnow()
 
 
+PBKDF2_SCHEME = "pbkdf2_sha256"
+PBKDF2_DEFAULT_ITERATIONS = 260000
+
+
+def _b64encode_no_padding(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).decode("ascii").rstrip("=")
+
+
+def _b64decode_no_padding(value: str) -> bytes:
+    padding = "=" * (-len(value) % 4)
+    return base64.urlsafe_b64decode((value + padding).encode("ascii"))
+
+
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
+
+
+def hash_password_pbkdf2(password: str, salt: str | None = None, iterations: int = PBKDF2_DEFAULT_ITERATIONS) -> str:
+    salt_bytes = (salt or secrets.token_urlsafe(24)).encode("utf-8")
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt_bytes, iterations)
+    return f"{PBKDF2_SCHEME}${iterations}${_b64encode_no_padding(salt_bytes)}${_b64encode_no_padding(digest)}"
+
+
+def _verify_password_pbkdf2(password: str, password_hash: str) -> bool:
+    try:
+        scheme, iterations_raw, salt_raw, digest_raw = password_hash.split("$", 3)
+        if scheme != PBKDF2_SCHEME:
+            return False
+        iterations = int(iterations_raw)
+        salt = _b64decode_no_padding(salt_raw)
+        expected = _b64decode_no_padding(digest_raw)
+        actual = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
+        return hmac.compare_digest(actual, expected)
+    except Exception:
+        return False
 
 
 def verify_password(password: str, password_hash: str) -> bool:
     if not password_hash:
         return False
-    return pwd_context.verify(password, password_hash)
+    if password_hash.startswith(f"{PBKDF2_SCHEME}$"):
+        return _verify_password_pbkdf2(password, password_hash)
+    try:
+        return pwd_context.verify(password, password_hash)
+    except Exception:
+        return False
 
 
 def _hash_refresh_token(raw_token: str) -> str:

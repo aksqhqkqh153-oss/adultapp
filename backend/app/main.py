@@ -9,7 +9,7 @@ from sqlmodel import Session, select
 
 from .auth import decode_token
 from .config import settings
-from .database import create_db_and_tables, engine
+from .database import create_db_and_tables, engine, run_migrations
 from .models import DirectMessage, DirectMessageThread, User, UserBlock
 from .routers.api import router as api_router, validate_exchange_text
 from .services.realtime import thread_connection_manager
@@ -78,11 +78,13 @@ def on_startup() -> None:
     if str(settings.app_env).lower() in {"production", "prod"} and str(settings.jwt_secret_key).startswith("change-me"):
         raise RuntimeError("jwt secret is not configured for production")
     media_dir.mkdir(parents=True, exist_ok=True)
-    if settings.startup_db_init_enabled:
-        try:
+    try:
+        if settings.startup_db_init_enabled:
             create_db_and_tables()
-        except Exception as exc:
-            logger.exception("startup_db_init_failed: %s", exc)
+        else:
+            run_migrations()
+    except Exception as exc:
+        logger.exception("startup_db_schema_prepare_failed: %s", exc)
     try:
         with Session(engine) as session:
             ensure_launch_admin_accounts(session)
