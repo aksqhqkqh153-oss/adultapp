@@ -1,0 +1,4 @@
+2026-04-29 syntax fix
+- frontend/dist/assets/index.js was truncated and caused Unexpected end of input.
+- Replaced frontend dist bundle with valid backend/static bundle.
+- Verified node --check for frontend/dist/assets/index.js and backend/static/assets/index.js.
