@@ -1,2 +1,162 @@
 @import url('/assets/index.css');
 .feed-compose-launch-chip{display:inline-flex!important;align-items:center!important;justify-content:center!important;text-align:center!important;padding:0 6px!important}.feed-card.history-feed-card.sunrise{border-width:0!important;border:0!important}.feed-compose-launch-toolbar{margin:0!important}.community-simple-category-row{justify-content:flex-start!important}.community-simple-chip{display:inline-flex!important;align-items:center!important;justify-content:center!important;text-align:center!important}.chat-toolbar.kakao-toolbar.compact-only-toolbar .chat-category-scroll .category-chip{display:inline-flex!important;align-items:center!important;justify-content:center!important;text-align:center!important}
+/* === 2026-04-29 request: FAB label text-only, chat discovery toolbar, profile fixed scroll === */
+.feed-create-dock.community-create-dock,
+.feed-create-dock.chat-create-dock,
+.feed-create-dock.shop-create-dock,
+.feed-create-dock.profile-photo-create-dock {
+  z-index: 3010 !important;
+}
+
+.feed-create-option-label {
+  min-width: auto !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  color: #ffffff !important;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.72) !important;
+}
+
+.feed-create-option {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.chat-discovery-topbar {
+  display: grid !important;
+  grid-template-columns: 40px minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+.chat-discovery-back-btn {
+  width: 34px !important;
+  height: 34px !important;
+  padding: 0 !important;
+  display: inline-grid !important;
+  place-items: center !important;
+  color: rgba(255, 255, 255, 0.88) !important;
+}
+
+.chat-discovery-tab-scroll {
+  min-width: 0 !important;
+}
+
+.chat-discovery-screen {
+  grid-template-rows: minmax(0, 1fr) !important;
+}
+
+.chat-discovery-categorybar {
+  display: none !important;
+}
+
+.chat-discovery-row {
+  grid-template-columns: 42px minmax(0, 1fr) !important;
+  align-items: center !important;
+}
+
+.chat-discovery-head {
+  display: grid !important;
+  grid-template-columns: minmax(0, max-content) auto minmax(78px, 1fr) !important;
+  width: 100% !important;
+  justify-content: stretch !important;
+}
+
+.chat-discovery-request-btn {
+  justify-self: end !important;
+  min-width: 74px !important;
+}
+
+.chat-discovery-avatar.anonymous-chat-avatar {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: none !important;
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.chat-discovery-avatar.anonymous-chat-avatar img {
+  display: none !important;
+}
+
+.chat-discovery-anon-profile {
+  position: relative !important;
+  display: block !important;
+  width: 20px !important;
+  height: 22px !important;
+  margin: 0 auto !important;
+}
+
+.chat-discovery-anon-profile::before,
+.chat-discovery-anon-profile::after {
+  content: "" !important;
+  position: absolute !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  background: rgba(255, 255, 255, 0.42) !important;
+}
+
+.chat-discovery-anon-profile::before {
+  top: 1px !important;
+  width: 9px !important;
+  height: 9px !important;
+  border-radius: 999px !important;
+}
+
+.chat-discovery-anon-profile::after {
+  bottom: 1px !important;
+  width: 18px !important;
+  height: 10px !important;
+  border-radius: 999px 999px 6px 6px !important;
+}
+
+.profile-pane-instagram .profile-ig-shell {
+  height: 100% !important;
+  min-height: 0 !important;
+  display: grid !important;
+  grid-template-rows: 250px auto minmax(0, 1fr) !important;
+  overflow: hidden !important;
+}
+
+.profile-pane-instagram .profile-ig-header {
+  height: 250px !important;
+  min-height: 250px !important;
+  max-height: 250px !important;
+  flex: 0 0 250px !important;
+  overflow: hidden !important;
+}
+
+.profile-pane-instagram .profile-ig-tabbar.profile-ig-action-grid {
+  flex: 0 0 auto !important;
+}
+
+.profile-pane-instagram .profile-ig-grid,
+.profile-pane-instagram .profile-ig-grid.profile-photo-grid,
+.profile-pane-instagram .profile-ig-grid.profile-ig-grid-shorts,
+.profile-pane-instagram .question-list.profile-question-list {
+  min-height: 0 !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+.profile-pane-instagram .profile-ig-grid::-webkit-scrollbar,
+.profile-pane-instagram .profile-ig-grid.profile-photo-grid::-webkit-scrollbar,
+.profile-pane-instagram .profile-ig-grid.profile-ig-grid-shorts::-webkit-scrollbar,
+.profile-pane-instagram .question-list.profile-question-list::-webkit-scrollbar {
+  display: none !important;
+}
+
+@media (max-width: 640px) {
+  .chat-discovery-head {
+    grid-template-columns: minmax(0, max-content) auto minmax(72px, 1fr) !important;
+    gap: 6px !important;
+  }
+  .chat-discovery-name {
+    max-width: 96px !important;
+  }
+}

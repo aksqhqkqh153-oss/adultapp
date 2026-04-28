@@ -1,0 +1,4 @@
+2026-04-29 chat/profile/community FAB UI update
+- Source updated: frontend/src/App.tsx
+- Style updated: frontend/src/styles.css
+- Dist CSS patched: frontend/dist/assets, backend/static/assets

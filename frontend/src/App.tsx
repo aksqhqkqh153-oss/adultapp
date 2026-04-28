@@ -5190,6 +5190,7 @@ export default function App() {
   const [feedComposeLauncherOpen, setFeedComposeLauncherOpen] = useState(false);
   const [profilePhotoLauncherOpen, setProfilePhotoLauncherOpen] = useState(false);
   const [shopCreateLauncherOpen, setShopCreateLauncherOpen] = useState(false);
+  const [communityCreateLauncherOpen, setCommunityCreateLauncherOpen] = useState(false);
   const [feedComposeMode, setFeedComposeMode] = useState<FeedComposeMode>("피드게시");
   const [homeFeedFilter, setHomeFeedFilter] = useState<HomeFeedFilter>("일반");
   const [feedComposeTitle, setFeedComposeTitle] = useState("");
@@ -12501,56 +12502,69 @@ export default function App() {
                 </div>
               ) : (
                 <>
-                  <div className="chat-toolbar kakao-toolbar compact-only-toolbar chat-toolbar-with-request">
-                    <button
-                      type="button"
-                      className={`chat-request-toggle ${chatListMode === 'requests' ? 'active' : ''}`}
-                      onClick={() => { setChatDiscoveryOpen(false); setChatListMode('requests'); }}
-                    >
-                      요청
-                      {chatRequestItems.length ? <b>{chatRequestItems.length}</b> : null}
-                    </button>
-                    <div className="chat-category-scroll">
-                      {chatCategories.map((category) => (
-                        <button
-                          key={category}
-                          type="button"
-                          className={`category-chip ${chatListMode === 'threads' && chatCategory === category ? "active" : ""}`}
-                          onClick={() => {
-                            setChatListMode('threads');
-                            setChatDiscoveryOpen(false);
-                            setChatCategory(category);
-                          }}
-                        >
-                          {category}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
                   {chatDiscoveryOpen ? (
-                    <div className="chat-discovery-screen">
-                      <div className="chat-discovery-categorybar" role="tablist" aria-label="채팅 상대 추천 분류">
+                    <div className="chat-toolbar kakao-toolbar compact-only-toolbar chat-discovery-topbar">
+                      <button
+                        type="button"
+                        className="header-inline-btn header-icon-btn chat-discovery-back-btn"
+                        onClick={() => { setChatDiscoveryOpen(false); setChatListMode('threads'); }}
+                        aria-label="채팅 목록으로 돌아가기"
+                      >
+                        <BackArrowIcon />
+                      </button>
+                      <div className="chat-category-scroll chat-discovery-tab-scroll" role="tablist" aria-label="채팅 상대 추천 분류">
                         {chatDiscoveryCategories.map((category) => (
                           <button
                             key={category}
                             type="button"
-                            className={chatDiscoveryCategory === category ? "active" : ""}
+                            className={`category-chip ${chatDiscoveryCategory === category ? "active" : ""}`}
                             onClick={() => setChatDiscoveryCategory(category)}
                           >
                             {category}
                           </button>
                         ))}
                       </div>
+                    </div>
+                  ) : (
+                    <div className="chat-toolbar kakao-toolbar compact-only-toolbar chat-toolbar-with-request">
+                      <button
+                        type="button"
+                        className={`chat-request-toggle ${chatListMode === 'requests' ? 'active' : ''}`}
+                        onClick={() => { setChatDiscoveryOpen(false); setChatListMode('requests'); }}
+                      >
+                        요청
+                        {chatRequestItems.length ? <b>{chatRequestItems.length}</b> : null}
+                      </button>
+                      <div className="chat-category-scroll">
+                        {chatCategories.map((category) => (
+                          <button
+                            key={category}
+                            type="button"
+                            className={`category-chip ${chatListMode === 'threads' && chatCategory === category ? "active" : ""}`}
+                            onClick={() => {
+                              setChatListMode('threads');
+                              setChatDiscoveryOpen(false);
+                              setChatCategory(category);
+                            }}
+                          >
+                            {category}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {chatDiscoveryOpen ? (
+                    <div className="chat-discovery-screen">
                       <div className="chat-discovery-list compact-scroll-list">
                         {chatDiscoveryCandidates.length ? chatDiscoveryCandidates.map((candidate) => (
                           <article key={candidate.id} className="chat-discovery-row">
                             <button
                               type="button"
-                              className="avatar-circle kakao-avatar chat-discovery-avatar"
+                              className={`avatar-circle kakao-avatar chat-discovery-avatar${candidate.avatarUrl ? "" : " anonymous-chat-avatar"}`}
                               onClick={() => openProfileFromAuthor(candidate.name)}
                               aria-label={`${candidate.name} 프로필 보기`}
                             >
-                              <img src={candidate.avatarUrl ?? buildChatAvatarDataUri(candidate.name)} alt="" loading="lazy" />
+                              {candidate.avatarUrl ? <img src={candidate.avatarUrl} alt="" loading="lazy" /> : <span className="chat-discovery-anon-profile" aria-hidden="true" />}
                             </button>
                             <div className="chat-discovery-copy">
                               <div className="chat-discovery-head">
@@ -13182,10 +13196,11 @@ export default function App() {
               <div className="feed-create-options" aria-hidden={false}>
                 <button type="button" className="feed-create-option" onClick={() => {
                   setChatCreateLauncherOpen(false);
-                  setChatDiscoveryOpen(true);
+                  setChatDiscoveryOpen(false);
                   setChatListMode('threads');
+                  setChatTab('채팅');
                 }}>
-                  <span className="feed-create-option-label">채팅하기</span>
+                  <span className="feed-create-option-label">채팅목록</span>
                   <span className="feed-create-option-icon" aria-hidden="true"><ChatIcon /></span>
                 </button>
                 <button type="button" className="feed-create-option" onClick={() => {
@@ -13196,9 +13211,45 @@ export default function App() {
                   <span className="feed-create-option-label">질문하기</span>
                   <span className="feed-create-option-icon" aria-hidden="true"><CommentBubbleIcon /></span>
                 </button>
+                <button type="button" className="feed-create-option" onClick={() => {
+                  setChatCreateLauncherOpen(false);
+                  setChatDiscoveryOpen(true);
+                  setChatListMode('threads');
+                  setChatTab('채팅');
+                }}>
+                  <span className="feed-create-option-label">채팅하기</span>
+                  <span className="feed-create-option-icon" aria-hidden="true"><ChatIcon /></span>
+                </button>
               </div>
             ) : null}
             <button type="button" className={`feed-create-fab${chatCreateLauncherOpen ? " open" : ""}`} onClick={() => setChatCreateLauncherOpen((prev) => !prev)} aria-label={chatCreateLauncherOpen ? "채팅 생성 메뉴 닫기" : "채팅 생성 메뉴 열기"}>
+              <span className="feed-create-fab-icon"><PlusIcon /></span>
+            </button>
+          </div>
+        </>
+      ) : null}
+
+      {showAppTabContent && activeTab === "소통" && !activeForumRoom && communityExplorerStage === "list" ? (
+        <>
+          {communityCreateLauncherOpen ? <button type="button" className="feed-create-backdrop" aria-label="소통 작성 메뉴 닫기" onClick={() => setCommunityCreateLauncherOpen(false)} /> : null}
+          <div className={`feed-create-dock community-create-dock${communityCreateLauncherOpen ? " open" : ""}`}>
+            {communityCreateLauncherOpen ? (
+              <div className="feed-create-options" aria-hidden={false}>
+                <button type="button" className="feed-create-option" onClick={() => { setCommunityCreateLauncherOpen(false); setCommunityTab("후기"); setCommunityExplorerStage("list"); }}>
+                  <span className="feed-create-option-label">후기작성</span>
+                  <span className="feed-create-option-icon" aria-hidden="true"><PaperDocumentIcon /></span>
+                </button>
+                <button type="button" className="feed-create-option" onClick={() => { setCommunityCreateLauncherOpen(false); setCommunityTab("포럼"); setCommunityExplorerStage("list"); }}>
+                  <span className="feed-create-option-label">포럼작성</span>
+                  <span className="feed-create-option-icon" aria-hidden="true"><ChatIcon /></span>
+                </button>
+                <button type="button" className="feed-create-option" onClick={() => { setCommunityCreateLauncherOpen(false); setCommunityTab("커뮤"); setCommunityExplorerStage("list"); }}>
+                  <span className="feed-create-option-label">게시글작성</span>
+                  <span className="feed-create-option-icon" aria-hidden="true"><CommentBubbleIcon /></span>
+                </button>
+              </div>
+            ) : null}
+            <button type="button" className={`feed-create-fab${communityCreateLauncherOpen ? " open" : ""}`} onClick={() => setCommunityCreateLauncherOpen((prev) => !prev)} aria-label={communityCreateLauncherOpen ? "소통 작성 메뉴 닫기" : "소통 작성 메뉴 열기"}>
               <span className="feed-create-fab-icon"><PlusIcon /></span>
             </button>
           </div>
