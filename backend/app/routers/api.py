@@ -328,6 +328,12 @@ LEGAL_DOC_RELEASED_AT = {
     "commerce_terms": datetime(2026, 4, 28),
     "community_policy": datetime(2026, 4, 28),
     "location_ads_notice": datetime(2026, 4, 28),
+    "privacy_policy_guideline": datetime(2026, 4, 29),
+    "legal_terms_pack": datetime(2026, 4, 29),
+    "seller_review_terms": datetime(2026, 4, 29),
+    "peer_trade_policy": datetime(2026, 4, 29),
+    "adult_product_review_criteria": datetime(2026, 4, 29),
+    "ugc_moderation_sla": datetime(2026, 4, 29),
 }
 LEGAL_TEMPLATE_FILES = {
     "terms_of_service": Path("docs/legal_templates/terms_of_service_final.md"),
@@ -345,6 +351,12 @@ ADMIN_LEGAL_DOCUMENT_DEFINITIONS = {
     "seller_terms": {"label": "판매자 이용약관", "required": "사업자 전환, 상품등록, 정산, 금지상품"},
     "community_policy": {"label": "커뮤니티 운영정책", "required": "신고, 차단, 제재, 금지 콘텐츠"},
     "location_ads_notice": {"label": "위치/광고/알림 동의", "required": "해당 기능 사용 시 별도 동의"},
+    "privacy_policy_guideline": {"label": "개인정보처리방침 작성지침", "required": "수집항목, 이용목적, 보관기간, 제3자 제공, 위탁, 파기 기준"},
+    "legal_terms_pack": {"label": "이용약관, 청소년보호정책, 전자상거래 약관", "required": "회원 의무, 청소년 접근 차단, 주문/결제/배송/취소/환불 기준"},
+    "seller_review_terms": {"label": "판매자 이용약관 및 사업자 심사 기준", "required": "사업자 전환, 입점 심사, 정산계좌, 금지상품, 권한 회수"},
+    "peer_trade_policy": {"label": "개인 간 일반거래 허용/금지 품목 정책", "required": "허용 품목, 금지 품목, 개봉상품 제한, 신고/차단 기준"},
+    "adult_product_review_criteria": {"label": "성인용품 상품 검수 기준표", "required": "카테고리별 허용/제한/금지, 이미지·문구 검수, 관리자 승인 기준"},
+    "ugc_moderation_sla": {"label": "UGC 신고/차단/숨김/제재 운영 SLA", "required": "신고 접수, 임시 숨김, 처리기한, 제재 단계, 증거보존"},
 }
 VERIFICATION_ALLOWED_PROVIDERS = [item.strip() for item in settings.adult_verification_allowed_providers.split(",") if item.strip()]
 

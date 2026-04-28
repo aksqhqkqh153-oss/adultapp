@@ -15332,3 +15332,58 @@ button.ghost-btn.danger { border-color:rgba(255,92,92,0.28); color:#ffb0b0; }
   bottom: calc(var(--mobile-nav-height, 58px) + 16px + env(safe-area-inset-bottom, 0px)) !important;
   z-index: 3020 !important;
 }
+
+/* === 2026-04-29 request: bottom nav centered black active + admin policy editor === */
+.bottom-nav {
+  background: #000000 !important;
+  justify-items: stretch !important;
+}
+.bottom-nav-btn,
+.bottom-nav-btn.active,
+.bottom-nav-btn:hover,
+.bottom-nav-btn:focus,
+.bottom-nav-btn:focus-visible {
+  display: grid !important;
+  grid-template-rows: 30px 14px !important;
+  place-items: center !important;
+  justify-items: center !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  background: #000000 !important;
+  background-color: #000000 !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  transform: none !important;
+  border-radius: 0 !important;
+}
+.bottom-nav-btn.active {
+  color: #ffffff !important;
+}
+.bottom-nav-btn::before,
+.bottom-nav-btn::after,
+.bottom-nav-btn.active::before,
+.bottom-nav-btn.active::after {
+  display: none !important;
+  content: none !important;
+}
+.bottom-nav-icon,
+.bottom-nav-label {
+  width: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  margin: 0 auto !important;
+}
+.bottom-nav-icon svg {
+  margin: 0 auto !important;
+}
+.admin-policy-editor-shell .admin-policy-editor-card {
+  gap: 12px !important;
+}
+.admin-policy-textarea {
+  min-height: 280px !important;
+  line-height: 1.55 !important;
+  white-space: pre-wrap !important;
+}
