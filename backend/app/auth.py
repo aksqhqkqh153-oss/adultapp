@@ -140,6 +140,60 @@ def try_demo_login(email: str, password: str):
         "two_factor_required": False,
     }
 
+
+LAUNCH_ADMIN_TEST_ACCOUNT = {
+    "email": "aksqhqkqh3@naver.com",
+    "password": "329tjdrb@2a",
+    "role": MemberGrade.ADMIN,
+    "user_id": -9001,
+    "name": "관리자1",
+    "adult_verified": True,
+    "identity_verified": True,
+    "member_status": "active",
+}
+
+
+def build_launch_admin_test_access_token() -> str:
+    expire = utcnow() + timedelta(minutes=settings.jwt_access_token_expire_minutes)
+    payload = {
+        "sub": str(LAUNCH_ADMIN_TEST_ACCOUNT["user_id"]),
+        "email": LAUNCH_ADMIN_TEST_ACCOUNT["email"],
+        "role": LAUNCH_ADMIN_TEST_ACCOUNT["role"],
+        "type": "access",
+        "device_session_id": None,
+        "exp": expire,
+        "iat": utcnow(),
+        "demo_account": True,
+        "launch_admin_test_account": True,
+        "name": LAUNCH_ADMIN_TEST_ACCOUNT["name"],
+        "adult_verified": LAUNCH_ADMIN_TEST_ACCOUNT["adult_verified"],
+        "identity_verified": LAUNCH_ADMIN_TEST_ACCOUNT["identity_verified"],
+        "member_status": LAUNCH_ADMIN_TEST_ACCOUNT["member_status"],
+    }
+    return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+
+
+def try_launch_admin_test_login(email: str, password: str):
+    """Fast fallback login for the requested primary admin test account.
+
+    This bypasses DB writes and password rehashing, preventing Railway /auth/login 500s
+    caused by production schema drift or slow hash verification. Remove this before a
+    public production launch if a permanent admin account is managed in the DB.
+    """
+    normalized_email = (email or "").strip().lower()
+    if normalized_email != LAUNCH_ADMIN_TEST_ACCOUNT["email"]:
+        return None
+    if password != LAUNCH_ADMIN_TEST_ACCOUNT["password"]:
+        return None
+    return {
+        "access_token": build_launch_admin_test_access_token(),
+        "refresh_token": "",
+        "role": LAUNCH_ADMIN_TEST_ACCOUNT["role"],
+        "user_id": LAUNCH_ADMIN_TEST_ACCOUNT["user_id"],
+        "two_factor_required": False,
+    }
+
+
 def build_demo_user_from_payload(payload: dict) -> User:
     return User(
         id=int(payload.get("sub", 0)),

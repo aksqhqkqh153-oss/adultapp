@@ -9657,6 +9657,13 @@ export default function App() {
                   <button type="button" onClick={loginWithCredentials}>로그인</button>
                   <button type="button" className="ghost-btn" onClick={() => { setSignupStep("consent"); setAuthStandaloneScreen("signup"); }}>회원가입</button>
                 </div>
+                <button
+                  type="button"
+                  className="ghost-btn admin-test-login-btn"
+                  onClick={() => loginWithTestAccount("aksqhqkqh3@naver.com", "329tjdrb@2a")}
+                >
+                  관리자용 계정 테스트 접속
+                </button>
                 {authMessage ? <p className="auth-message-line">{authMessage}</p> : null}
               </div>
             ) : (

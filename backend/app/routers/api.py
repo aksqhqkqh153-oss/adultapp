@@ -35,6 +35,7 @@ from ..auth import (
     consume_password_reset_token,
     create_access_token,
     try_demo_login,
+    try_launch_admin_test_login,
     decode_token,
     create_device_session,
     create_password_reset_token,
@@ -2344,6 +2345,9 @@ def moderation_check_text(payload: ModerationTextRequest):
 
 @router.post("/auth/login", response_model=TokenResponse)
 def login(payload: LoginRequest, request: Request, session: Session = Depends(get_session)) -> TokenResponse:
+    launch_admin_tokens = try_launch_admin_test_login(payload.email, payload.password)
+    if launch_admin_tokens:
+        return TokenResponse(**launch_admin_tokens)
     demo_tokens = try_demo_login(payload.email, payload.password)
     if demo_tokens:
         return TokenResponse(**demo_tokens)
