@@ -83,6 +83,64 @@ TEST_ACCOUNT_PRESETS = {
     },
 }
 
+LAUNCH_ADMIN_ACCOUNT_PRESETS = {
+    "aksqhqkqh3@naver.com": {
+        "name": "관리자1",
+        "password_hash": "$argon2id$v=19$m=65536,t=2,p=2$W/6nRx6RLGLR+HLuxQ1rTQ$NRISUW11ZqU2ty5GFY4qyBovYFvCNUNhJcdXtnGgBYo",
+        "grade": MemberGrade.ADMIN,
+        "adult_verified": True,
+        "identity_verified": True,
+        "seller_onboarding_status": SellerOnboardingStatus.ACTIVE,
+        "member_status": "active",
+        "gender": None,
+        "age_band": None,
+        "region_code": None,
+    },
+}
+
+
+def ensure_launch_admin_accounts(session: Session) -> None:
+    """Ensure required production admin accounts exist without exposing plaintext passwords."""
+    now = datetime.utcnow()
+    for email, preset in LAUNCH_ADMIN_ACCOUNT_PRESETS.items():
+        user = session.exec(select(User).where(User.email == email)).first()
+        if not user:
+            user = User(email=email, name=preset["name"], password_hash=preset["password_hash"])
+        else:
+            user.name = preset["name"]
+            user.password_hash = preset["password_hash"]
+
+        user.grade = preset["grade"]
+        user.adult_verified = preset["adult_verified"]
+        user.identity_verified = preset["identity_verified"]
+        user.member_status = preset["member_status"]
+        user.seller_onboarding_status = preset["seller_onboarding_status"]
+        user.gender = preset["gender"]
+        user.age_band = preset["age_band"]
+        user.region_code = preset["region_code"]
+        user.login_provider = "email"
+        user.identity_verification_method = "admin_seed"
+        user.identity_verification_token = f"seed_admin_{email}"
+        user.identity_verified_at = user.identity_verified_at or now
+        user.adult_verified_at = user.adult_verified_at or now
+        user.adult_verification_status = "verified_adult"
+        user.adult_verification_provider = "admin_seed"
+        user.adult_verification_tx_id = user.adult_verification_tx_id or f"admin_seed_{email}"
+        user.adult_verification_fail_count = 0
+        user.adult_verification_locked_until = None
+        user.failed_login_count = 0
+        user.locked_until = None
+        user.last_failed_login_at = None
+        user.reset_required = False
+        user.admin_2fa_secret = None
+        user.admin_2fa_confirmed = False
+        user.admin_backup_codes = None
+        user.password_changed_at = user.password_changed_at or now
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+
+
 
 def ensure_test_accounts(session: Session) -> None:
     for email, preset in TEST_ACCOUNT_PRESETS.items():
@@ -118,6 +176,8 @@ def ensure_test_accounts(session: Session) -> None:
 
         # 로그인 경로에서는 User 레코드만 안전하게 보정한다.
         # SellerProfile/기타 운영 테이블은 시드 전용 단계에서만 생성한다.
+
+    ensure_launch_admin_accounts(session)
 
 
 def seed_database(session: Session) -> None:

