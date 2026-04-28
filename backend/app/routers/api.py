@@ -868,7 +868,7 @@ def health() -> dict[str, str]:
 
 
 @router.get("/seed")
-def read_seed() -> dict[str, Any]:
+def read_seed(current_user: User = Depends(require_grade(MemberGrade.ADMIN))) -> dict[str, Any]:
     return load_seed()
 
 
@@ -1113,7 +1113,7 @@ def _extract_portone_signature(request: Request, payload: dict[str, Any]) -> str
 
 def _verify_portone_webhook_signature(raw_body: bytes, signature: str, secret: str, request: Request) -> bool:
     if not secret or secret.startswith("change-me"):
-        return True
+        return False
     if settings.portone_sdk_enabled and portone_sdk is not None:
         if _portone_sdk_verify_webhook(raw_body, secret, request):
             return True
@@ -1195,6 +1195,8 @@ def _portone_webhook_effective_status(payload: dict[str, Any], provider_payment:
 
 
 def _should_allow_unverified_portone_test_webhook(payload: dict[str, Any], request: Request, mode: str) -> bool:
+    if not getattr(settings, "allow_unverified_test_webhooks", False):
+        return False
     if mode != "test":
         return False
     data = _portone_webhook_data(payload)
@@ -1279,6 +1281,22 @@ def _apply_payment_status(order: Order, provider_status: str) -> str:
     return next_status
 
 
+
+
+def _decrement_stock_for_paid_order(session: Session, order: Order, record: dict[str, Any]) -> None:
+    if record.get("stock_decremented") or order.order_status != "paid":
+        return
+    items = session.exec(select(OrderItem).where(OrderItem.order_id == (order.id or 0))).all()
+    for item in items:
+        product = session.get(Product, item.product_id)
+        if not product:
+            continue
+        product.stock_qty = max(0, int(product.stock_qty or 0) - int(item.qty or 0))
+        product.updated_at = utcnow()
+        session.add(product)
+    record["stock_decremented"] = True
+
+
 def _payment_record(session: Session, order_no: str) -> dict[str, Any]:
     return _app_asset_json(session, "payment_tx", order_no) or {}
 
@@ -1337,6 +1355,27 @@ def _verotel_signature(payload: dict[str, Any]) -> str:
     ]
     raw = '|'.join(parts + [key])
     return hashlib.sha256(raw.encode('utf-8')).hexdigest()
+
+
+
+
+def _verify_verotel_callback_signature(payload: dict[str, Any]) -> bool:
+    key = str(settings.verotel_signature_key or '').strip()
+    if not key or key == 'change-me-verotel-signature-key':
+        return False
+    provided = str(payload.get('signature') or payload.get('Signature') or payload.get('hash') or payload.get('checksum') or '').strip().lower()
+    if not provided:
+        return False
+    candidates = []
+    for field_set in (
+        ['saleID', 'referenceID', 'status'],
+        ['referenceID', 'saleID', 'status'],
+        ['referenceID', 'priceAmount', 'currencyCode'],
+    ):
+        raw = '|'.join([str(payload.get(k) or '') for k in field_set] + [key])
+        candidates.append(hashlib.sha256(raw.encode('utf-8')).hexdigest().lower())
+        candidates.append(hmac.new(key.encode('utf-8'), '|'.join(str(payload.get(k) or '') for k in field_set).encode('utf-8'), hashlib.sha256).hexdigest().lower())
+    return any(hmac.compare_digest(provided, candidate) for candidate in candidates)
 
 
 def _verotel_config_snapshot() -> dict[str, Any]:
@@ -1607,6 +1646,17 @@ def legal_release_readiness(session: Session = Depends(get_session)):
     warnings: list[dict[str, Any]] = []
     ready_items: list[dict[str, Any]] = []
 
+    if settings.app_review_mode:
+        blockers.append({"key": "review_mode_enabled", "title": "APP_REVIEW_MODE 활성화 상태", "action": "운영 배포 전 APP_REVIEW_MODE=false로 전환"})
+    if settings.jwt_secret_key.startswith("change-me"):
+        blockers.append({"key": "jwt_secret_default", "title": "JWT 기본 시크릿 사용 중", "action": "Railway 환경변수 JWT_SECRET_KEY에 강한 랜덤값 입력"})
+    if getattr(settings, "demo_login_enabled", False):
+        blockers.append({"key": "demo_login_enabled", "title": "데모 로그인 활성화", "action": "운영 배포 전 DEMO_LOGIN_ENABLED=false 유지"})
+    if not getattr(settings, "payment_confirm_requires_provider_requery", True):
+        blockers.append({"key": "payment_client_confirm", "title": "클라이언트 결제확정 허용", "action": "PG 서버 재조회 또는 서명검증 webhook으로만 paid 처리"})
+    if getattr(settings, "object_storage_required", True) and getattr(settings, "local_uploads_allowed", False):
+        warnings.append({"key": "local_uploads", "title": "로컬 업로드 저장 허용", "action": "Cloudflare R2/S3 등 외부 오브젝트 스토리지로 전환"})
+
     if settings.adult_verification_test_mode or not settings.adult_verification_prod_enabled or settings.adult_verification_client_id == "change-me":
         blockers.append({"key": "adult_verification_live", "title": "성인/본인확인 운영 연동 미완료", "action": "PortOne PASS 운영키, 콜백 검증, webhook secret, 오류코드 매핑 완료 후 공개 출시"})
     else:
@@ -1871,7 +1921,14 @@ async def payments_webhook_pg(payload: dict[str, Any], request: Request, session
         })
         return {"ok": True, "message": "order not found; ignored", "order_no": merchant_uid}
 
+    if getattr(settings, "payment_confirm_requires_provider_requery", True) and provider_status in {"Paid", "paid"} and not provider_payment:
+        raise HTTPException(status_code=409, detail="provider payment requery required before paid webhook")
     next_status = _apply_payment_status(order, provider_status)
+    record = _payment_record(session, order.order_no)
+    if next_status == "paid":
+        record.update({"confirmed": True, "payment_id": payment_id or merchant_uid, "paid_amount": int(order.total_amount or 0), "latest_status": next_status})
+        _decrement_stock_for_paid_order(session, order, record)
+        _save_payment_record(session, order.order_no, record, status=next_status)
     session.add(order)
     session.commit()
     _mark_payment_event_seen(session, event_id, event_type, payment_id or merchant_uid, {
@@ -2310,7 +2367,7 @@ def request_password_reset(payload: PasswordResetRequest, session: Session = Dep
         return {"ok": True, "message": "If account exists, reset queued."}
     reset_token = create_password_reset_token(user, session)
     delivery = deliver_password_reset_token(user, reset_token)
-    return {"ok": True, "reset_token": reset_token, **delivery, "note": "파일 outbox 기반 전달. 운영에서는 메일/SMS 공급사로 전환."}
+    return {"ok": True, **delivery, "note": "재설정 링크/토큰은 등록된 전달 채널로만 발송됩니다."}
 
 
 @router.post("/auth/password/reset/confirm")
@@ -2769,7 +2826,7 @@ def seller_me_verification_status(current_user: User = Depends(get_current_user)
 
 
 @router.post("/seller/verification/apply")
-def seller_verification_apply(payload: SellerVerificationRequest, SellerApprovalDecisionRequest, ProductApprovalDecisionRequest, ProductSubmitReviewRequest, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+def seller_verification_apply(payload: SellerVerificationRequest, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     _enforce_route_rate_limit(request, "seller_verification_apply", session)
     _assert_can_access_adult(current_user)
     profile = session.exec(select(SellerProfile).where(SellerProfile.user_id == (current_user.id or 0))).first()
@@ -3049,9 +3106,10 @@ def upsert_product(payload: ProductUpsertRequest, request: Request, current_user
     elif classification.get("review_status") == "manual_review":
         product.status = "pending_review"
         product.is_active = False
-    elif wants_publish:
-        product.status = "approved"
-        product.is_active = True
+    elif wants_publish or getattr(settings, "seller_product_preapproval_required", True):
+        # Seller submissions never become public immediately. Admin approval is mandatory.
+        product.status = "pending_review" if wants_publish else "draft"
+        product.is_active = False
     else:
         product.status = "draft"
         product.is_active = False
@@ -3460,9 +3518,11 @@ def create_order(payload: OrderCreateRequest, request: Request, current_user: Us
     _assert_reconsent_write_allowed(current_user, session)
     _assert_can_access_adult(current_user)
     product = session.get(Product, payload.product_id)
-    if not product:
+    if not product or not _product_publicly_visible(product):
         raise HTTPException(status_code=404, detail="product not found")
     qty = max(1, payload.qty)
+    if int(product.stock_qty or 0) < qty:
+        raise HTTPException(status_code=409, detail="insufficient stock")
     unit_price = int(product.price or 0)
     total_amount = unit_price * qty
     supply_amount = int(round(total_amount / 1.1)) if total_amount else 0
@@ -3487,6 +3547,7 @@ def create_order(payload: OrderCreateRequest, request: Request, current_user: Us
     item = OrderItem(
         order_id=order.id or 0,
         product_id=product.id or 0,
+        seller_id=product.seller_id,
         sku_code=product.sku_code,
         qty=qty,
         unit_price=unit_price,
@@ -3576,6 +3637,8 @@ async def payments_webhook_verotel(request: Request, session: Session = Depends(
             payload = await request.json()
         except Exception:
             payload = {}
+    if not _verify_verotel_callback_signature(payload):
+        raise HTTPException(status_code=400, detail="invalid verotel webhook signature")
     reference_id = str(payload.get('referenceID') or payload.get('reference_id') or '')
     sale_id = str(payload.get('saleID') or payload.get('sale_id') or '')
     status = str(payload.get('status') or payload.get('transactionStatus') or payload.get('paymentStatus') or 'approved').lower()
@@ -3598,6 +3661,7 @@ async def payments_webhook_verotel(request: Request, session: Session = Depends(
         session.add(order)
         session.commit()
         record.update({'confirmed': True, 'payment_id': sale_id or reference_id, 'provider': 'verotel', 'method': 'card', 'paid_amount': int(order.total_amount or 0), 'latest_status': 'paid', 'callback_provider': 'verotel'})
+        _decrement_stock_for_paid_order(session, order, record)
         _append_payment_history(record, 'verotel_paid', {'action':'approved','sale_id':sale_id or reference_id})
     else:
         record.update({'provider': 'verotel', 'latest_status': status, 'callback_provider': 'verotel'})
@@ -3666,21 +3730,36 @@ def payments_confirm(payload: PaymentConfirmRequest, request: Request, current_u
     record = _payment_record(session, order.order_no)
     if record.get("confirmed") and str(record.get("payment_id")) != str(payload.payment_id):
         raise HTTPException(status_code=409, detail="order already confirmed with different payment")
-    provider_status = payload.status or "Paid"
+    provider_payment = _portone_fetch_payment(str(payload.payment_id or "")) if str(payload.provider or "").lower().startswith("portone") or settings.pg_primary_provider.lower().startswith("portone") else None
+    if getattr(settings, "payment_confirm_requires_provider_requery", True) and not provider_payment:
+        record.update({
+            "confirmed": False,
+            "payment_id": payload.payment_id,
+            "provider": payload.provider,
+            "method": payload.method,
+            "paid_amount": 0,
+            "latest_status": "pending_provider_verification",
+        })
+        _append_payment_history(record, "payment_confirm_rejected_client_only", {"payment_id": payload.payment_id, "amount": int(payload.amount or 0)})
+        _save_payment_record(session, order.order_no, record, status="pending_provider_verification")
+        raise HTTPException(status_code=409, detail="provider payment requery required before confirmation")
+    provider_status = _portone_webhook_effective_status({"status": payload.status or "Paid"}, provider_payment)
     next_status = _apply_payment_status(order, provider_status)
-    session.add(order)
-    session.commit()
     record.update({
-        "confirmed": True,
+        "confirmed": next_status == "paid",
         "payment_id": payload.payment_id,
         "provider": payload.provider,
         "method": payload.method,
-        "paid_amount": int(payload.amount or 0),
+        "paid_amount": int(payload.amount or 0) if next_status == "paid" else 0,
         "cancelled_amount": int(record.get("cancelled_amount") or 0),
         "refunded_amount": int(record.get("refunded_amount") or 0),
         "latest_status": next_status,
+        "verified_by_requery": bool(provider_payment),
     })
-    _append_payment_history(record, "payment_confirmed", {"payment_id": payload.payment_id, "status": next_status, "amount": int(payload.amount or 0)})
+    _decrement_stock_for_paid_order(session, order, record)
+    session.add(order)
+    session.commit()
+    _append_payment_history(record, "payment_confirmed", {"payment_id": payload.payment_id, "status": next_status, "amount": int(payload.amount or 0), "verified_by_requery": bool(provider_payment)})
     _save_payment_record(session, order.order_no, record, status=next_status)
     write_admin_log(session, current_user, "payment_confirm", "order", str(order.id or 0), f"결제 확인 {order.order_no}", after_state=next_status, ip=request.client.host if request.client else "127.0.0.1", device=request.headers.get("user-agent"))
     return {"ok": True, "order_no": order.order_no, "status": next_status, "payment_id": payload.payment_id, "record": record}

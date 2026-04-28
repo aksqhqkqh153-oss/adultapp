@@ -563,6 +563,14 @@ type SellerVerificationState = {
   status: "draft" | "pending" | "approved";
 };
 
+type SellerVerificationStatusResponse = {
+  seller_onboarding_status?: string | null;
+  eligible_for_product_registration?: boolean;
+  reason?: string;
+  profile?: Record<string, unknown>;
+};
+
+
 type SellerApprovalItem = {
   user_id: number;
   email: string;
@@ -5535,6 +5543,9 @@ export default function App() {
         setAdultVerified(Boolean(me.adult_verified));
         getJson<ApiOrder[]>("/orders").then(applyOrders).catch(() => applyOrders([]));
         getJson<SellerProductItem[]>("/seller/products/mine").then(applySellerProducts).catch(() => applySellerProducts([]));
+        getJson<SellerVerificationStatusResponse>("/seller/me/verification-status").then((res) => {
+          setSellerVerification((prev) => ({ ...prev, status: res.eligible_for_product_registration ? "approved" : (res.seller_onboarding_status === "pending" ? "pending" : prev.status) }));
+        }).catch(() => null);
         if (["ADMIN", "1", "GRADE_1"].includes(nextRole)) {
           getJson<MinorPurgePreview>("/ops/minor-purge/preview").then(setMinorPurgePreview).catch(() => null);
           getJson<{ items: SellerApprovalItem[] }>("/admin/seller-approvals").then((res) => setSellerApprovalQueue(res.items ?? [])).catch(() => null);
@@ -8441,7 +8452,7 @@ export default function App() {
       price: Number(productRegistrationDraft.price || '0'),
       stock_qty: Number(productRegistrationDraft.stockQty || '0'),
       image_urls: productRegistrationDraft.imageUrls.filter(Boolean),
-      status: submitMode === 'publish' ? 'approved' : 'draft',
+      status: submitMode === 'publish' ? 'pending_review' : 'draft',
       submit_mode: submitMode,
       payment_scope: 'card_transfer',
       risk_grade: 'A',
@@ -8458,7 +8469,7 @@ export default function App() {
         description: created.description ?? productRegistrationDraft.description,
         price: Number(created.price ?? payload.price ?? 0),
         shipping_fee: 3000,
-        status: submitMode === 'publish' ? 'approved' : created.status,
+        status: created.status ?? (submitMode === 'publish' ? 'pending_review' : 'draft'),
         sku_code: created.sku_code ?? payload.sku_code,
         stock_qty: Number(created.stock_qty ?? payload.stock_qty ?? 0),
         thumbnail_url: created.thumbnail_url ?? productRegistrationDraft.imageUrls.find(Boolean) ?? null,
@@ -9463,16 +9474,7 @@ export default function App() {
                   <button type="button" onClick={loginWithCredentials}>로그인</button>
                   <button type="button" className="ghost-btn" onClick={() => { setSignupStep("consent"); setAuthStandaloneScreen("signup"); }}>회원가입</button>
                 </div>
-                <div className="legacy-box compact auth-summary-box">
-                  <h3>테스트 계정</h3>
-                  <div className="chip-checklist auth-account-chiplist">
-                    <button type="button" className="chip-check" onClick={() => loginWithTestAccount("customer@example.com", "customer1234")}>회원</button>
-                    <button type="button" className="chip-check" onClick={() => loginWithTestAccount("admin@example.com", "admin1234")}>관리자</button>
-                    <button type="button" className="chip-check" onClick={() => loginWithTestAccount("seller@example.com", "seller1234")}>판매자</button>
-                    <button type="button" className="chip-check" onClick={() => loginWithTestAccount("general@example.com", "general1234")}>일반회원</button>
-                  </div>
-                  {authMessage ? <p>{authMessage}</p> : <p>테스트 계정을 누르면 바로 로그인합니다.</p>}
-                </div>
+                {authMessage ? <p className="auth-message-line">{authMessage}</p> : null}
               </div>
             ) : (
               <div className="auth-standalone-body stack-gap signup-screen-body">

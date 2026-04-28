@@ -86,6 +86,9 @@ def build_demo_access_token(email: str) -> str:
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
 def try_demo_login(email: str, password: str):
+    # Demo accounts are disabled by default for launch safety.
+    if not getattr(settings, "demo_login_enabled", False):
+        return None
     demo = DEMO_ACCOUNT_DEFS.get(email)
     if not demo or demo["password"] != password:
         return None

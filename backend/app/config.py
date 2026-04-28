@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     app_name: str = "Adult Commerce Platform API"
     app_env: str = "development"
-    app_review_mode: bool = True
+    app_review_mode: bool = False
     database_url: str = "sqlite:///./adult_platform.db"
     cors_origins: str = "http://localhost:5173,http://localhost:8000,https://adultapp.pages.dev"
     cors_origin_regex: str = r"https://.*\.adultapp\.pages\.dev"
@@ -74,8 +74,8 @@ class Settings(BaseSettings):
     adult_verification_callback_app: str = "adultapp://auth/adult/callback"
     adult_verification_callback_identity_web: str = "https://example.com/auth/identity/callback"
     adult_verification_callback_identity_app: str = "adultapp://auth/identity/callback"
-    adult_verification_test_mode: bool = True
-    adult_verification_prod_enabled: bool = False
+    adult_verification_test_mode: bool = False
+    adult_verification_prod_enabled: bool = True
     adult_verification_allowed_providers: str = "PASS,휴대폰"
     adult_verification_rollout_strategy: str = "1차는 PortOne 기반 PASS 통합 연동으로 시작하고, 운영 안정화 후 NICE 또는 Danal 직접 전환 여부를 검토"
 
@@ -146,7 +146,7 @@ class Settings(BaseSettings):
     test_stage_sku_expansion_phase: str = "PG 사전상담 피드백 전까지 보수 유지, 승인 후 단계적으로 확장"
     test_stage_premium_sla_upgrade_phase: str = "운영 안정화 이후 목표형에서 보장형 전환 검토"
     test_stage_next_actions: str = "PortOne 테스트 webhook secret/Store ID/channel key/API Secret 발급,backend/.env에 test 값만 입력,결제·취소·부분취소·환불·webhook 재전송 테스트,판매자 필수 입력 누락 차단 확인,허용 SKU만 공개해 PG 사전상담,live merchant/MID/live webhook secret은 마지막 단계에서만 입력"
-    launch_stage_mode: str = "prelive"
+    launch_stage_mode: str = "production_guarded"
     product_review_visibility_policy: str = "승인 전 비공개"
     product_review_editable_statuses: str = "draft,pending_review,rejected"
     settlement_cycle_policy: str = "환불 리스크와 CS 처리 안정화 후 주별 정산"
@@ -177,6 +177,13 @@ class Settings(BaseSettings):
     password_reset_outbox_dir: str = "./outbox/password-reset"
     alembic_config_path: str = "./alembic.ini"
     mobile_web_fallback_url: str = "https://m.example.com/safe"
+
+    # Launch safety gates
+    demo_login_enabled: bool = False
+    allow_unverified_test_webhooks: bool = False
+    payment_confirm_requires_provider_requery: bool = True
+    local_uploads_allowed: bool = False
+    object_storage_required: bool = True
 
     startup_db_init_enabled: bool = True
     startup_seed_enabled: bool = False

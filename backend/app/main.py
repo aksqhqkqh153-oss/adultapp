@@ -47,6 +47,19 @@ def _is_allowed_origin(origin: str | None) -> bool:
 
 
 @app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    response.headers.setdefault("Content-Security-Policy", "default-src 'self'; img-src 'self' data: https:; media-src 'self' https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https: wss:; frame-ancestors 'none'")
+    if str(settings.app_env).lower() in {"production", "prod"}:
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload")
+    return response
+
+
+@app.middleware("http")
 async def unhandled_exception_to_json(request: Request, call_next):
     try:
         return await call_next(request)
@@ -62,6 +75,8 @@ async def unhandled_exception_to_json(request: Request, call_next):
 
 @app.on_event("startup")
 def on_startup() -> None:
+    if str(settings.app_env).lower() in {"production", "prod"} and str(settings.jwt_secret_key).startswith("change-me"):
+        raise RuntimeError("jwt secret is not configured for production")
     media_dir.mkdir(parents=True, exist_ok=True)
     if settings.startup_db_init_enabled:
         try:
