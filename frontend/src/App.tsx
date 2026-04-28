@@ -681,7 +681,7 @@ type AdminDbManage = {
 const mobileTabs = ["홈", "쇼핑", "소통", "채팅", "프로필"] as const;
 const legacyMenu = ["운영현황", "주문관리", "보안", "앱심사", "포럼 분리 정책", "배포가이드"] as const;
 const homeTabs = ["피드", "쇼츠", "스토리", "보관함"] as const;
-const shoppingTabs = ["홈", "목록", "상품", "주문", "바구니", "사업자인증", "상품등록"] as const;
+const shoppingTabs = ["홈", "목록", "상품", "주문", "바구니", "사업자인증", "상품등록", "일반거래"] as const;
 const communityTabs = ["커뮤", "포럼", "후기", "이벤트"] as const;
 const chatTabs = ["채팅", "질문"] as const;
 const chatTabLabels: Record<ChatTab, string> = { "채팅": "채팅", "질문": "질문" };
@@ -8365,7 +8365,7 @@ export default function App() {
   const shouldForceAuthStandalone = authBootstrapDone && blockedByIdentity;
 
   useEffect(() => {
-    if (!(showAppTabContent && activeTab === "홈" && homeTab === "피드") || feedComposeOpen || openFeedCommentItem || selectedAskProfile) {
+    if (!(showAppTabContent && activeTab === "홈" && ["피드", "쇼츠", "스토리"].includes(homeTab)) || feedComposeOpen || openFeedCommentItem || selectedAskProfile) {
       setFeedComposeLauncherOpen(false);
     }
   }, [showAppTabContent, activeTab, homeTab, feedComposeOpen, openFeedCommentItem, selectedAskProfile]);
@@ -8498,6 +8498,7 @@ export default function App() {
   const sellerApprovalReady = isAdmin || sellerVerification.status === "approved";
   const openBusinessVerificationTab = () => setShoppingTab("사업자인증");
   const openProductRegistrationTab = () => setShoppingTab(isAdmin || sellerApprovalReady ? "상품등록" : "사업자인증");
+  const openGeneralTradeRegistrationTab = () => setShoppingTab("일반거래");
   const sellerApplicationComplete = Boolean(
     sellerVerification.companyName.trim()
     && sellerVerification.representativeName.trim()
@@ -11809,6 +11810,29 @@ export default function App() {
               </div>
             ) : null}
 
+            {shoppingTab === "일반거래" ? (
+              <div className="stack-gap compact-scroll-list">
+                <div className="section-head compact-head"><div><h2>일반거래</h2><p>일반 회원도 중고/간편 거래 등록을 준비할 수 있는 화면입니다.</p></div></div>
+                {reconsentWriteRestricted ? <div className="legacy-box compact"><p>최신 필수 문서 재동의가 필요합니다. 먼저 필수 문서 안내 화면에서 재동의 정보를 확인하세요.</p></div> : null}
+                <div className="legacy-box compact">
+                  <h3>일반거래 등록</h3>
+                  <div className="profile-form-grid">
+                    <label><span>거래 제목</span><input placeholder="거래 제목 입력" /></label>
+                    <label><span>거래 희망가</span><input placeholder="희망가 입력" inputMode="numeric" /></label>
+                    <label><span>거래 지역</span><input placeholder="시/구 단위 입력" /></label>
+                    <label><span>상품 상태</span><select defaultValue=""><option value="">상태 선택</option><option>미개봉</option><option>새상품급</option><option>사용감 있음</option></select></label>
+                    <label className="wide"><span>거래 설명</span><textarea placeholder="상태, 구성품, 거래 조건을 입력하세요" /></label>
+                    <label className="wide"><span>사진 URL</span><input placeholder="사진 URL 입력" /></label>
+                  </div>
+                  <div className="copy-action-row">
+                    <button type="button" disabled={reconsentWriteRestricted}>일반거래 등록 준비</button>
+                    <button type="button" className="ghost-btn" onClick={() => setShoppingTab("홈")}>쇼핑 홈으로</button>
+                  </div>
+                  <p className="muted-mini">일반거래는 일반 회원도 접근 가능하며, 실제 등록/노출 정책은 관리자 검수 기준에 맞춰 후속 연결됩니다.</p>
+                </div>
+              </div>
+            ) : null}
+
             {shoppingTab === "상품등록" ? (
               <div className="stack-gap compact-scroll-list">
                 <div className="section-head compact-head"><div><h2>상품등록</h2>{!sellerApprovalReady ? <p>사업자 미인증 계정은 먼저 사업자인증 탭에서 인증 신청과 승인 절차를 완료해야 합니다.</p> : null}</div></div>
@@ -12556,7 +12580,10 @@ export default function App() {
                           <button type="button" className="feed-follow-btn profile-follow-btn active" onClick={saveProfileEditMode}>저장</button>
                         </div>
                       ) : (
-                        <button type="button" className="ghost-btn profile-ig-mini-btn" onClick={openProfileEditMode}>프로필 편집</button>
+                        <div className="profile-ig-stats profile-ig-stats-inline" aria-label="프로필 팔로워 팔로잉 수">
+                          <button type="button" className="profile-ig-stat-button" onClick={() => openProfileFollowList("팔로워")}><b>{currentProfileMeta.followerCount.toLocaleString()}</b><span>팔로워</span></button>
+                          <button type="button" className="profile-ig-stat-button" onClick={() => openProfileFollowList("팔로잉")}><b>{currentProfileMeta.followingCount.toLocaleString()}</b><span>팔로잉</span></button>
+                        </div>
                       )
                     ) : (
                       <div className="asked-question-toolbar asked-question-toolbar-inline profile-inline-actions profile-text-action-row">
@@ -12566,10 +12593,12 @@ export default function App() {
                       </div>
                     )}
                   </div>
-                  <div className="profile-ig-stats profile-ig-stats-follow-only">
-                    <button type="button" className="profile-ig-stat-button" onClick={() => openProfileFollowList("팔로워")}><b>{currentProfileMeta.followerCount.toLocaleString()}</b><span>팔로워</span></button>
-                    <button type="button" className="profile-ig-stat-button" onClick={() => openProfileFollowList("팔로잉")}><b>{currentProfileMeta.followingCount.toLocaleString()}</b><span>팔로잉</span></button>
-                  </div>
+                  {(!currentProfileMeta.isOwner || profileEditMode) ? (
+                    <div className="profile-ig-stats profile-ig-stats-follow-only">
+                      <button type="button" className="profile-ig-stat-button" onClick={() => openProfileFollowList("팔로워")}><b>{currentProfileMeta.followerCount.toLocaleString()}</b><span>팔로워</span></button>
+                      <button type="button" className="profile-ig-stat-button" onClick={() => openProfileFollowList("팔로잉")}><b>{currentProfileMeta.followingCount.toLocaleString()}</b><span>팔로잉</span></button>
+                    </div>
+                  ) : null}
                   <div className="profile-ig-bio">
                     {currentProfileMeta.isOwner && profileEditMode ? (
                       <>
@@ -12953,16 +12982,13 @@ export default function App() {
           <div className={`feed-create-dock profile-photo-create-dock${profilePhotoLauncherOpen ? " open" : ""}`}>
             {profilePhotoLauncherOpen ? (
               <div className="feed-create-options" aria-hidden={false}>
-                {["프로필사진", "배경사진"].map((label) => (
-                  <button key={label} type="button" className="feed-create-option" onClick={() => {
-                    setProfilePhotoLauncherOpen(false);
-                    if (label === "프로필사진") profileAvatarInputRef.current?.click();
-                    else window.alert("배경사진 첨부 기능 준비 중입니다.");
-                  }}>
-                    <span className="feed-create-option-label">{label}</span>
-                    <span className="feed-create-option-icon" aria-hidden="true"><PhotoImageIcon /></span>
-                  </button>
-                ))}
+                <button type="button" className="feed-create-option" onClick={() => {
+                  setProfilePhotoLauncherOpen(false);
+                  openProfileEditMode();
+                }}>
+                  <span className="feed-create-option-label">프로필편집</span>
+                  <span className="feed-create-option-icon" aria-hidden="true"><PhotoImageIcon /></span>
+                </button>
               </div>
             ) : null}
             <button type="button" className={`feed-create-fab${profilePhotoLauncherOpen ? " open" : ""}`} onClick={() => setProfilePhotoLauncherOpen((prev) => !prev)} aria-label={profilePhotoLauncherOpen ? "프로필 사진 메뉴 닫기" : "프로필 사진 메뉴 열기"}>
@@ -12982,6 +13008,10 @@ export default function App() {
                   <span className="feed-create-option-label">상품등록</span>
                   <span className="feed-create-option-icon" aria-hidden="true"><ShoppingBagIcon /></span>
                 </button>
+                <button type="button" className="feed-create-option" onClick={() => { setShopCreateLauncherOpen(false); openGeneralTradeRegistrationTab(); }}>
+                  <span className="feed-create-option-label">일반거래</span>
+                  <span className="feed-create-option-icon" aria-hidden="true"><PaperDocumentIcon /></span>
+                </button>
               </div>
             ) : null}
             <button type="button" className={`feed-create-fab${shopCreateLauncherOpen ? " open" : ""}`} onClick={() => setShopCreateLauncherOpen((prev) => !prev)} aria-label={shopCreateLauncherOpen ? "상품등록 메뉴 닫기" : "상품등록 메뉴 열기"}>
@@ -12991,7 +13021,7 @@ export default function App() {
         </>
       ) : null}
 
-      {showAppTabContent && activeTab === "홈" && homeTab === "피드" && !feedComposeOpen && !openFeedCommentItem && !selectedAskProfile ? (
+      {showAppTabContent && activeTab === "홈" && ["피드", "쇼츠", "스토리"].includes(homeTab) && !feedComposeOpen && !openFeedCommentItem && !selectedAskProfile ? (
         <>
           {feedComposeLauncherOpen ? <button type="button" className="feed-create-backdrop" aria-label="피드 작성 메뉴 닫기" onClick={() => setFeedComposeLauncherOpen(false)} /> : null}
           <div className={`feed-create-dock${feedComposeLauncherOpen ? " open" : ""}`}>

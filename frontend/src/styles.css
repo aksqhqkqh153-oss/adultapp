@@ -14698,3 +14698,112 @@ button.ghost-btn.danger { border-color:rgba(255,92,92,0.28); color:#ffb0b0; }
     min-height: 220px;
   }
 }
+
+
+/* === 2026-04-28 request: shop/profile/chat FAB and layout refinement === */
+.profile-ig-header {
+  height: 250px !important;
+  min-height: 250px !important;
+  max-height: 250px !important;
+  overflow: hidden !important;
+}
+
+.profile-ig-topline {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+}
+
+.profile-ig-stats.profile-ig-stats-inline {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  margin-left: auto !important;
+  min-width: max-content !important;
+}
+
+.profile-ig-stats.profile-ig-stats-inline .profile-ig-stat-button {
+  min-width: 48px !important;
+  padding: 2px 4px !important;
+}
+
+.profile-ig-stats.profile-ig-stats-inline .profile-ig-stat-button b {
+  font-size: 13px !important;
+}
+
+.profile-ig-stats.profile-ig-stats-inline .profile-ig-stat-button span {
+  font-size: 10px !important;
+}
+
+.profile-ig-tabbar.profile-ig-action-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+  overflow-x: hidden !important;
+}
+
+.profile-ig-tabbar.profile-ig-action-grid button {
+  min-width: 0 !important;
+  padding: 0 4px !important;
+  white-space: nowrap !important;
+}
+
+.profile-ig-tabbar.profile-ig-action-grid button span,
+.profile-ig-tabbar.profile-ig-action-grid button small {
+  white-space: nowrap !important;
+}
+
+.chat-toolbar-with-request .chat-request-toggle,
+.chat-toolbar-with-request .chat-request-toggle.active {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.chat-toolbar-with-request .chat-request-toggle.active {
+  border-color: transparent !important;
+  color: #ff4f9a !important;
+}
+
+.chat-toolbar-with-request .chat-request-toggle.active::after {
+  display: none !important;
+  content: none !important;
+}
+
+.chat-toolbar-with-request .chat-request-toggle b,
+.chat-toolbar-with-request .chat-request-toggle.active b {
+  min-width: 18px !important;
+  height: 18px !important;
+  padding: 0 5px !important;
+  border-radius: 999px !important;
+  border: 1px solid #ff304f !important;
+  background: #ff304f !important;
+  color: #ffffff !important;
+  font-size: 11px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+}
+
+@media (max-width: 640px) {
+  .profile-ig-header {
+    height: 250px !important;
+    min-height: 250px !important;
+    max-height: 250px !important;
+  }
+
+  .profile-ig-tabbar.profile-ig-action-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+  }
+
+  .profile-ig-tabbar.profile-ig-action-grid button {
+    font-size: 11px !important;
+    padding: 0 2px !important;
+  }
+
+  .profile-ig-tabbar.profile-ig-action-grid button small {
+    font-size: 9px !important;
+  }
+
+  .profile-ig-stats.profile-ig-stats-inline {
+    gap: 4px !important;
+  }
+}
