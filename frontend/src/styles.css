@@ -14807,3 +14807,159 @@ button.ghost-btn.danger { border-color:rgba(255,92,92,0.28); color:#ffb0b0; }
     gap: 4px !important;
   }
 }
+
+/* === 2026-04-28 request: FAB click layer fix + chat discovery list === */
+.feed-create-backdrop {
+  z-index: 3000 !important;
+}
+.feed-create-dock,
+.feed-create-dock.shop-create-dock,
+.feed-create-dock.profile-photo-create-dock,
+.feed-create-dock.chat-create-dock {
+  z-index: 3010 !important;
+  pointer-events: none !important;
+}
+.feed-create-dock .feed-create-fab,
+.feed-create-dock .feed-create-options,
+.feed-create-dock .feed-create-option,
+.feed-create-dock .feed-create-option-label,
+.feed-create-dock .feed-create-option-icon {
+  position: relative !important;
+  z-index: 3020 !important;
+  pointer-events: auto !important;
+}
+.feed-create-dock.open .feed-create-options {
+  pointer-events: auto !important;
+}
+.feed-create-option {
+  cursor: pointer !important;
+}
+.feed-create-option-label {
+  min-width: 88px !important;
+  padding: 10px 14px !important;
+  border-radius: 999px !important;
+  background: rgba(12, 12, 14, 0.96) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: #ffffff !important;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.34) !important;
+}
+.feed-create-option-icon {
+  display: inline-grid !important;
+  place-items: center !important;
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 999px !important;
+  background: #ff5ea9 !important;
+  color: #ffffff !important;
+  padding: 0 !important;
+}
+
+.chat-discovery-screen {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  height: 100%;
+  background: rgba(5, 6, 8, 0.96);
+}
+.chat-discovery-categorybar {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(10, 11, 14, 0.92);
+}
+.chat-discovery-categorybar button {
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 13px;
+  font-weight: 800;
+}
+.chat-discovery-categorybar button.active {
+  border-color: rgba(255, 94, 169, 0.58);
+  background: rgba(255, 94, 169, 0.14);
+  color: #ff5ea9;
+}
+.chat-discovery-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 12px calc(96px + env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+}
+.chat-discovery-row {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.045);
+}
+.chat-discovery-avatar {
+  width: 38px !important;
+  height: 38px !important;
+  border: 0 !important;
+  padding: 0 !important;
+}
+.chat-discovery-copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.chat-discovery-head {
+  display: grid;
+  grid-template-columns: minmax(0, auto) auto auto;
+  align-items: center;
+  justify-content: start;
+  gap: 8px;
+  min-width: 0;
+}
+.chat-discovery-name {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 900;
+  max-width: 118px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+.chat-discovery-kind {
+  display: inline-grid;
+  place-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 11px;
+  font-weight: 800;
+}
+.chat-discovery-request-btn {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 94, 169, 0.58);
+  background: rgba(255, 94, 169, 0.16);
+  color: #ff70b4;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.chat-discovery-copy p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.chat-discovery-empty-box {
+  margin: 10px 0;
+}

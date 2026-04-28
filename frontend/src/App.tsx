@@ -217,6 +217,17 @@ type ChatRequestItem = {
   avatarUrl?: string;
 };
 
+type ChatDiscoveryCategory = "최근" | "추천" | "자유";
+
+type ChatDiscoveryCandidate = {
+  id: string;
+  name: string;
+  kind: "피드" | "쇼츠" | "소통" | "질문";
+  description: string;
+  sourceTitle: string;
+  avatarUrl?: string;
+};
+
 type ChatRoomReactionKey = "heart" | "like" | "check" | "smile" | "surprised" | "sad";
 type ChatPickerMode = "이모티콘" | "스티커" | "GIF";
 
@@ -684,6 +695,7 @@ const homeTabs = ["피드", "쇼츠", "스토리", "보관함"] as const;
 const shoppingTabs = ["홈", "목록", "상품", "주문", "바구니", "사업자인증", "상품등록", "일반거래"] as const;
 const communityTabs = ["커뮤", "포럼", "후기", "이벤트"] as const;
 const chatTabs = ["채팅", "질문"] as const;
+const chatDiscoveryCategories = ["최근", "추천", "자유"] as const;
 const chatTabLabels: Record<ChatTab, string> = { "채팅": "채팅", "질문": "질문" };
 const profileTabs = ["내정보"] as const;
 const settingsCategories = ["일반", "계정설정", "알림", "보안", "배포", "운영", "관리자모드", "DB관리", "신고", "채팅", "기타", "HTML요소"] as const;
@@ -5108,6 +5120,9 @@ export default function App() {
   const [ledgerOverview, setLedgerOverview] = useState<LedgerOverviewResponse | null>(null);
   const [threadItems, setThreadItems] = useState<ThreadItem[]>([...threadSeed, ...archivedThreadSeed]);
   const [chatListMode, setChatListMode] = useState<"threads" | "requests">("threads");
+  const [chatCreateLauncherOpen, setChatCreateLauncherOpen] = useState(false);
+  const [chatDiscoveryOpen, setChatDiscoveryOpen] = useState(false);
+  const [chatDiscoveryCategory, setChatDiscoveryCategory] = useState<ChatDiscoveryCategory>("최근");
   const [chatRequestItems, setChatRequestItems] = useState<ChatRequestItem[]>(incomingChatRequestSeed);
   const [selectedChatRequestId, setSelectedChatRequestId] = useState<number | null>(incomingChatRequestSeed[0]?.id ?? null);
   const [forumTopic, setForumTopic] = useState<(typeof forumStarterTopics)[number]>("제품 이야기");
@@ -7530,6 +7545,72 @@ export default function App() {
     return Array.from({ length: rowCount }, (_, index) => pagedThreads[index] ?? null);
   }, [pagedThreads]);
 
+  const chatDiscoveryCandidates = useMemo<ChatDiscoveryCandidate[]>(() => {
+    const byName = new Map<string, ChatDiscoveryCandidate>();
+    const pushCandidate = (candidate: ChatDiscoveryCandidate) => {
+      const key = `${candidate.name}-${candidate.kind}-${candidate.sourceTitle}`;
+      if (!candidate.name || candidate.name === currentProfileMeta.name || byName.has(key)) return;
+      byName.set(key, candidate);
+    };
+
+    allFeedItems
+      .filter((item) => item.type === "image")
+      .slice(0, 8)
+      .forEach((item) => pushCandidate({
+        id: `feed-${item.id}`,
+        name: item.author,
+        kind: "피드",
+        sourceTitle: item.title,
+        description: `${item.title || item.category} 주제로 피드를 올린 회원`,
+        avatarUrl: buildChatAvatarDataUri(item.author),
+      }));
+
+    shortsFeedItems
+      .slice(0, 8)
+      .forEach((item) => pushCandidate({
+        id: `shorts-${item.id}`,
+        name: item.author,
+        kind: "쇼츠",
+        sourceTitle: item.title,
+        description: `${item.title || item.category} 제목으로 쇼츠를 올린 회원`,
+        avatarUrl: buildChatAvatarDataUri(item.author),
+      }));
+
+    communitySeed
+      .slice(0, 8)
+      .forEach((item) => {
+        const author = (item.meta.split("·")[0] || "community_user").trim();
+        pushCandidate({
+          id: `community-${item.id}`,
+          name: author,
+          kind: "소통",
+          sourceTitle: item.title,
+          description: `${item.title} 게시판 제목으로 올린 회원`,
+          avatarUrl: buildChatAvatarDataUri(author),
+        });
+      });
+
+    questionSeed
+      .slice(0, 8)
+      .forEach((item) => pushCandidate({
+        id: `question-${item.id}`,
+        name: item.author,
+        kind: "질문",
+        sourceTitle: item.question,
+        description: `${item.question.slice(0, 22)}${item.question.length > 22 ? "..." : ""} 질문을 나에게 한 회원`,
+        avatarUrl: buildChatAvatarDataUri(item.author),
+      }));
+
+    const base = Array.from(byName.values());
+    if (chatDiscoveryCategory === "추천") {
+      return base.filter((item) => item.kind === "피드" || item.kind === "쇼츠").slice(0, 20);
+    }
+    if (chatDiscoveryCategory === "자유") {
+      return base.filter((item) => item.kind === "소통" || item.kind === "질문").slice(0, 20);
+    }
+    return base.slice(0, 20);
+  }, [allFeedItems, chatDiscoveryCategory, currentProfileMeta.name, shortsFeedItems]);
+
   const activeChatThread = useMemo(() => threadItems.find((item) => item.id === activeChatThreadId) ?? null, [threadItems, activeChatThreadId]);
   const activeChatMessages = activeChatThread ? (chatMessagesByThread[activeChatThread.id] ?? []) : [];
   const activePinnedMessage = useMemo(() => {
@@ -7778,6 +7859,35 @@ export default function App() {
     openChatThread(pendingThread);
     setChatTab('채팅');
     setActiveTab('채팅');
+  }, [openChatThread, setActiveTab, setChatTab, threadItems]);
+
+  const requestChatFromDiscoveryCandidate = useCallback((candidate: ChatDiscoveryCandidate) => {
+    const existing = threadItems.find((item) => item.name === candidate.name && item.purpose === '상호수락 1:1');
+    const preview = `${candidate.kind}에서 본 회원에게 채팅 요청을 보냈습니다.`;
+    const nextThread: ThreadItem = existing
+      ? { ...existing, preview, time: '방금', unread: 0, favorite: true, status: existing.status === '수락완료' ? existing.status : '요청전송' }
+      : {
+          id: Date.now(),
+          name: candidate.name,
+          purpose: '상호수락 1:1',
+          preview,
+          time: '방금',
+          unread: 0,
+          avatar: candidate.name.slice(0, 1).toUpperCase(),
+          avatarUrl: candidate.avatarUrl ?? buildChatAvatarDataUri(candidate.name),
+          kind: '개인',
+          favorite: true,
+          status: '요청전송',
+        };
+
+    setThreadItems((prev) => existing ? prev.map((item) => item.id === existing.id ? nextThread : item) : [nextThread, ...prev]);
+    setChatMessagesByThread((prev) => prev[nextThread.id] ? prev : { ...prev, [nextThread.id]: createThreadRoomSeed(nextThread) });
+    setChatDiscoveryOpen(false);
+    setChatCreateLauncherOpen(false);
+    setChatTab('채팅');
+    setActiveTab('채팅');
+    openChatThread(nextThread);
+    setChatLongPressHint(`${candidate.name} 님에게 채팅 요청을 보냈습니다.`);
   }, [openChatThread, setActiveTab, setChatTab, threadItems]);
 
   const deleteChatRequest = useCallback((request: ChatRequestItem) => {
@@ -12395,7 +12505,7 @@ export default function App() {
                     <button
                       type="button"
                       className={`chat-request-toggle ${chatListMode === 'requests' ? 'active' : ''}`}
-                      onClick={() => setChatListMode('requests')}
+                      onClick={() => { setChatDiscoveryOpen(false); setChatListMode('requests'); }}
                     >
                       요청
                       {chatRequestItems.length ? <b>{chatRequestItems.length}</b> : null}
@@ -12408,6 +12518,7 @@ export default function App() {
                           className={`category-chip ${chatListMode === 'threads' && chatCategory === category ? "active" : ""}`}
                           onClick={() => {
                             setChatListMode('threads');
+                            setChatDiscoveryOpen(false);
                             setChatCategory(category);
                           }}
                         >
@@ -12416,7 +12527,49 @@ export default function App() {
                       ))}
                     </div>
                   </div>
-                  {chatListMode === 'requests' ? (
+                  {chatDiscoveryOpen ? (
+                    <div className="chat-discovery-screen">
+                      <div className="chat-discovery-categorybar" role="tablist" aria-label="채팅 상대 추천 분류">
+                        {chatDiscoveryCategories.map((category) => (
+                          <button
+                            key={category}
+                            type="button"
+                            className={chatDiscoveryCategory === category ? "active" : ""}
+                            onClick={() => setChatDiscoveryCategory(category)}
+                          >
+                            {category}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="chat-discovery-list compact-scroll-list">
+                        {chatDiscoveryCandidates.length ? chatDiscoveryCandidates.map((candidate) => (
+                          <article key={candidate.id} className="chat-discovery-row">
+                            <button
+                              type="button"
+                              className="avatar-circle kakao-avatar chat-discovery-avatar"
+                              onClick={() => openProfileFromAuthor(candidate.name)}
+                              aria-label={`${candidate.name} 프로필 보기`}
+                            >
+                              <img src={candidate.avatarUrl ?? buildChatAvatarDataUri(candidate.name)} alt="" loading="lazy" />
+                            </button>
+                            <div className="chat-discovery-copy">
+                              <div className="chat-discovery-head">
+                                <button type="button" className="chat-discovery-name" onClick={() => openProfileFromAuthor(candidate.name)}>{candidate.name}</button>
+                                <span className={`chat-discovery-kind kind-${candidate.kind}`}>{candidate.kind}</span>
+                                <button type="button" className="chat-discovery-request-btn" onClick={() => requestChatFromDiscoveryCandidate(candidate)}>채팅신청</button>
+                              </div>
+                              <p>{candidate.description}</p>
+                            </div>
+                          </article>
+                        )) : (
+                          <div className="legacy-box compact chat-discovery-empty-box">
+                            <strong>표시할 추천 계정이 없습니다.</strong>
+                            <p>피드, 쇼츠, 소통 게시글, 질문 활동이 쌓이면 최근 목록에 계정이 표시됩니다.</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : chatListMode === 'requests' ? (
                     <div className="chat-request-pane compact-scroll-list">
                       {!chatRequestItems.length ? (
                         <div className="legacy-box compact chat-request-empty-box">
@@ -13015,6 +13168,37 @@ export default function App() {
               </div>
             ) : null}
             <button type="button" className={`feed-create-fab${shopCreateLauncherOpen ? " open" : ""}`} onClick={() => setShopCreateLauncherOpen((prev) => !prev)} aria-label={shopCreateLauncherOpen ? "상품등록 메뉴 닫기" : "상품등록 메뉴 열기"}>
+              <span className="feed-create-fab-icon"><PlusIcon /></span>
+            </button>
+          </div>
+        </>
+      ) : null}
+
+      {showAppTabContent && activeTab === "채팅" && chatTab === "채팅" && !activeChatThread ? (
+        <>
+          {chatCreateLauncherOpen ? <button type="button" className="feed-create-backdrop" aria-label="채팅 생성 메뉴 닫기" onClick={() => setChatCreateLauncherOpen(false)} /> : null}
+          <div className={`feed-create-dock chat-create-dock${chatCreateLauncherOpen ? " open" : ""}`}>
+            {chatCreateLauncherOpen ? (
+              <div className="feed-create-options" aria-hidden={false}>
+                <button type="button" className="feed-create-option" onClick={() => {
+                  setChatCreateLauncherOpen(false);
+                  setChatDiscoveryOpen(true);
+                  setChatListMode('threads');
+                }}>
+                  <span className="feed-create-option-label">채팅하기</span>
+                  <span className="feed-create-option-icon" aria-hidden="true"><ChatIcon /></span>
+                </button>
+                <button type="button" className="feed-create-option" onClick={() => {
+                  setChatCreateLauncherOpen(false);
+                  setChatDiscoveryOpen(false);
+                  setChatTab('질문');
+                }}>
+                  <span className="feed-create-option-label">질문하기</span>
+                  <span className="feed-create-option-icon" aria-hidden="true"><CommentBubbleIcon /></span>
+                </button>
+              </div>
+            ) : null}
+            <button type="button" className={`feed-create-fab${chatCreateLauncherOpen ? " open" : ""}`} onClick={() => setChatCreateLauncherOpen((prev) => !prev)} aria-label={chatCreateLauncherOpen ? "채팅 생성 메뉴 닫기" : "채팅 생성 메뉴 열기"}>
               <span className="feed-create-fab-icon"><PlusIcon /></span>
             </button>
           </div>
