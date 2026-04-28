@@ -15230,3 +15230,105 @@ button.ghost-btn.danger { border-color:rgba(255,92,92,0.28); color:#ffb0b0; }
   justify-content: center;
   text-decoration: none;
 }
+
+
+/* === 2026-04-29 request: restore true bottom navigation position === */
+:root {
+  --mobile-nav-height: 58px;
+}
+
+.mobile-app-shell {
+  position: relative !important;
+  grid-template-rows: auto minmax(0, 1fr) auto !important;
+  padding-bottom: 0 !important;
+}
+
+.mobile-main {
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  padding-bottom: 0 !important;
+}
+
+.bottom-nav {
+  position: fixed !important;
+  left: 50% !important;
+  right: auto !important;
+  top: auto !important;
+  bottom: 0 !important;
+  transform: translateX(-50%) !important;
+  width: min(100vw, 1380px) !important;
+  max-width: 1380px !important;
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  align-items: stretch !important;
+  height: calc(var(--mobile-nav-height, 58px) + env(safe-area-inset-bottom, 0px)) !important;
+  min-height: calc(var(--mobile-nav-height, 58px) + env(safe-area-inset-bottom, 0px)) !important;
+  padding: 0 0 env(safe-area-inset-bottom, 0px) !important;
+  margin: 0 !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-left: 0 !important;
+  border-right: 0 !important;
+  border-bottom: 0 !important;
+  border-radius: 0 !important;
+  background: rgba(0, 0, 0, 0.96) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  z-index: 2995 !important;
+}
+
+.bottom-nav-btn {
+  display: inline-grid !important;
+  place-items: center !important;
+  align-content: center !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  height: var(--mobile-nav-height, 58px) !important;
+  min-height: var(--mobile-nav-height, 58px) !important;
+  padding: 3px 0 4px !important;
+  margin: 0 !important;
+  gap: 1px !important;
+  border: 0 !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: rgba(255, 255, 255, 0.72) !important;
+  pointer-events: auto !important;
+}
+
+.bottom-nav-btn:last-child {
+  border-right: 0 !important;
+}
+
+.bottom-nav-btn.active {
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+.bottom-nav-icon,
+.bottom-nav-label {
+  pointer-events: none !important;
+}
+
+/* 설정창 상단에 홈/쇼핑/소통/채팅/프로필이 올라와 보이는 중복 UI 제거 */
+.settings-category-nav .settings-top-tab-row {
+  display: none !important;
+}
+
+/* FAB 메뉴 배경은 흐리게 두되, 하단바는 UI상 계속 남아 보이도록 분리 */
+.feed-create-backdrop {
+  bottom: calc(var(--mobile-nav-height, 58px) + env(safe-area-inset-bottom, 0px)) !important;
+  z-index: 2900 !important;
+}
+
+.feed-create-dock,
+.feed-create-dock.shop-create-dock,
+.feed-create-dock.profile-photo-create-dock,
+.feed-create-dock.chat-create-dock,
+.feed-create-dock.community-create-dock {
+  bottom: calc(var(--mobile-nav-height, 58px) + 16px + env(safe-area-inset-bottom, 0px)) !important;
+  z-index: 3020 !important;
+}
