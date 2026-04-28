@@ -302,6 +302,9 @@ LEGAL_DOC_VERSIONS = {
     "refund_policy": "2026-04-16.v1",
     "age_verification_policy": "2026-04-16.v1",
     "seller_terms": "2026-04-11.v1",
+    "commerce_terms": "2026-04-28.v1",
+    "community_policy": "2026-04-28.v1",
+    "location_ads_notice": "2026-04-28.v1",
 }
 REQUIRED_SIGNUP_CONSENT_TYPES = ["terms_of_service", "privacy_policy", "adult_service_notice", "identity_notice"]
 LEGAL_DOC_RELEASED_AT = {
@@ -315,6 +318,9 @@ LEGAL_DOC_RELEASED_AT = {
     "refund_policy": datetime(2026, 4, 16),
     "age_verification_policy": datetime(2026, 4, 16),
     "seller_terms": datetime(2026, 4, 11),
+    "commerce_terms": datetime(2026, 4, 28),
+    "community_policy": datetime(2026, 4, 28),
+    "location_ads_notice": datetime(2026, 4, 28),
 }
 LEGAL_TEMPLATE_FILES = {
     "terms_of_service": Path("docs/legal_templates/terms_of_service_final.md"),
@@ -323,6 +329,15 @@ LEGAL_TEMPLATE_FILES = {
     "refund_policy": Path("docs/legal_templates/refund_policy_final.md"),
     "age_verification_policy": Path("docs/legal_templates/age_verification_policy_final.md"),
     "seller_terms": Path("docs/legal_templates/seller_terms_final.md"),
+}
+ADMIN_LEGAL_DOCUMENT_DEFINITIONS = {
+    "terms_of_service": {"label": "이용약관", "required": "회원가입, 계정정지, 금지행위, 탈퇴, 책임 제한"},
+    "privacy_policy": {"label": "개인정보처리방침", "required": "수집항목, 목적, 보관기간, 제3자 제공, 위탁사"},
+    "youth_policy": {"label": "청소년보호정책", "required": "성인인증, 청소년 접근 차단, 책임자 정보"},
+    "commerce_terms": {"label": "전자상거래 약관", "required": "주문, 결제, 배송, 취소, 환불, 교환"},
+    "seller_terms": {"label": "판매자 이용약관", "required": "사업자 전환, 상품등록, 정산, 금지상품"},
+    "community_policy": {"label": "커뮤니티 운영정책", "required": "신고, 차단, 제재, 금지 콘텐츠"},
+    "location_ads_notice": {"label": "위치/광고/알림 동의", "required": "해당 기능 사용 시 별도 동의"},
 }
 VERIFICATION_ALLOWED_PROVIDERS = [item.strip() for item in settings.adult_verification_allowed_providers.split(",") if item.strip()]
 
@@ -370,6 +385,9 @@ def _verification_provider_payload(provider: str) -> dict[str, Any]:
 def _read_legal_markdown(doc_key: str) -> str:
     path = LEGAL_TEMPLATE_FILES.get(doc_key)
     if not path:
+        meta = ADMIN_LEGAL_DOCUMENT_DEFINITIONS.get(doc_key)
+        if meta:
+            return f"# {meta['label']}\n\n필수 내용: {meta['required']}\n\n- "
         raise HTTPException(status_code=404, detail="legal document not found")
     if not path.exists():
         return f"# {doc_key}\n\n문서 파일이 아직 배치되지 않았습니다."
@@ -901,6 +919,22 @@ def _save_app_asset_json(session: Session, store: str, asset_name: str, payload:
     session.commit()
     session.refresh(row)
     return row
+
+
+def _admin_legal_documents_payload(session: Session) -> dict[str, Any]:
+    stored = _app_asset_json(session, "admin_legal_documents", "current") or {}
+    items: dict[str, Any] = {}
+    for key, meta in ADMIN_LEGAL_DOCUMENT_DEFINITIONS.items():
+        row = stored.get(key) if isinstance(stored.get(key), dict) else {}
+        content = str(row.get("content") or _read_legal_markdown(key))
+        items[key] = {
+            "key": key,
+            "label": row.get("label") or meta["label"],
+            "required": row.get("required") or meta["required"],
+            "version": row.get("version") or LEGAL_DOC_VERSIONS.get(key, "2026-04-28.v1"),
+            "content": content,
+        }
+    return {"items": items, "source": "db" if stored else "template"}
 
 
 
@@ -1638,6 +1672,42 @@ def admin_business_info_update(payload: dict[str, Any], request: Request, curren
     write_admin_log(session, current_user, "business_info_update", "app_asset", str(row.id or 0), "베타 사업자 표시정보 업데이트", ip=request.client.host if request.client else "127.0.0.1", device=request.headers.get("user-agent"))
     business_info, placeholder_fields, complete, source = _business_info_payload(session)
     return {"ok": True, "business_info": business_info, "placeholder_fields": placeholder_fields, "complete": complete, "source": source}
+
+
+@router.get("/admin/legal-documents")
+def admin_legal_documents(current_user: User = Depends(require_grade(MemberGrade.ADMIN)), session: Session = Depends(get_session)):
+    return _admin_legal_documents_payload(session)
+
+
+@router.post("/admin/legal-documents")
+def admin_legal_documents_update(payload: dict[str, Any], request: Request, current_user: User = Depends(require_grade(MemberGrade.ADMIN)), session: Session = Depends(get_session)):
+    raw_documents = payload.get("documents") if isinstance(payload, dict) else None
+    if not isinstance(raw_documents, list):
+        raise HTTPException(status_code=400, detail="documents must be a list")
+    normalized: dict[str, Any] = {}
+    for row in raw_documents:
+        if not isinstance(row, dict):
+            continue
+        key = str(row.get("key") or "").strip()
+        if key not in ADMIN_LEGAL_DOCUMENT_DEFINITIONS:
+            continue
+        meta = ADMIN_LEGAL_DOCUMENT_DEFINITIONS[key]
+        content = str(row.get("content") or "").strip()
+        if not content:
+            content = _read_legal_markdown(key)
+        normalized[key] = {
+            "label": str(row.get("label") or meta["label"]).strip(),
+            "required": str(row.get("required") or meta["required"]).strip(),
+            "version": LEGAL_DOC_VERSIONS.get(key, "2026-04-28.v1"),
+            "content": content,
+            "updated_at": utcnow().isoformat(),
+            "updated_by": current_user.email,
+        }
+    if not normalized:
+        raise HTTPException(status_code=400, detail="no valid documents")
+    row = _save_app_asset_json(session, "admin_legal_documents", "current", normalized, status="configured")
+    write_admin_log(session, current_user, "legal_documents_update", "app_asset", str(row.id or 0), "관리자 문서 수정", ip=request.client.host if request.client else "127.0.0.1", device=request.headers.get("user-agent"))
+    return {"ok": True, **_admin_legal_documents_payload(session)}
 
 
 @router.get("/legal/release-readiness")

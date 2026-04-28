@@ -14648,3 +14648,53 @@ button.ghost-btn.danger { border-color:rgba(255,92,92,0.28); color:#ffb0b0; }
   object-fit: cover;
   border-radius: 28px;
 }
+
+/* Admin mode / legal document editor */
+.settings-admin-mode-entry {
+  border-color: rgba(255, 79, 154, 0.42);
+  background: rgba(255, 79, 154, 0.12);
+}
+.settings-admin-mode-entry b {
+  color: #ffb2d2;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+.admin-mode-dashboard-grid .legacy-box,
+.admin-document-editor-card,
+.admin-document-editor-head {
+  min-width: 0;
+}
+.admin-document-editor-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.admin-document-textarea {
+  width: 100%;
+  min-height: 180px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.24);
+  color: #fff;
+  padding: 12px;
+  line-height: 1.55;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.admin-document-textarea:focus {
+  outline: none;
+  border-color: rgba(255, 79, 154, 0.5);
+  box-shadow: 0 0 0 3px rgba(255, 79, 154, 0.1);
+}
+@media (max-width: 720px) {
+  .admin-document-editor-title-row,
+  .admin-document-editor-head .split-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .admin-document-textarea {
+    min-height: 220px;
+  }
+}

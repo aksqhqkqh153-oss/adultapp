@@ -362,6 +362,16 @@ type LegalDocumentsResponse = {
   required_signup_consents: string[];
 };
 
+type AdminLegalDocumentsResponse = {
+  items?: Record<string, { content?: string; version?: string; label?: string; required?: string }>;
+  source?: string;
+};
+
+type AdminLegalDocumentsSaveResponse = {
+  ok?: boolean;
+  items?: Record<string, { content?: string; version?: string; label?: string; required?: string }>;
+};
+
 type BusinessInfoResponse = {
   business_info: Record<string, string>;
   placeholder_fields: string[];
@@ -684,7 +694,22 @@ const oneToOneRandomCategories = ["고민상담", "자유수다", "아무말대�
 const randomGenderOptions = ["무관", "남", "여", "기타"] as const;
 const randomRegionOptions = ["무관", "같은 지역 우선", "거리기반"] as const;
 const randomEntryTabs = ["시작", "목록"] as const;
-const adminModeTabs = ["승인", "정산", "DB관리", "신고", "채팅", "기타"] as const;
+const adminModeTabs = ["계정관리", "운영현황", "계정권한", "문서", "승인", "정산", "DB관리", "신고", "채팅", "기타"] as const;
+const adminLegalDocumentDefinitions = [
+  { key: "terms_of_service", label: "이용약관", required: "회원가입, 계정정지, 금지행위, 탈퇴, 책임 제한" },
+  { key: "privacy_policy", label: "개인정보처리방침", required: "수집항목, 목적, 보관기간, 제3자 제공, 위탁사" },
+  { key: "youth_policy", label: "청소년보호정책", required: "성인인증, 청소년 접근 차단, 책임자 정보" },
+  { key: "commerce_terms", label: "전자상거래 약관", required: "주문, 결제, 배송, 취소, 환불, 교환" },
+  { key: "seller_terms", label: "판매자 이용약관", required: "사업자 전환, 상품등록, 정산, 금지상품" },
+  { key: "community_policy", label: "커뮤니티 운영정책", required: "신고, 차단, 제재, 금지 콘텐츠" },
+  { key: "location_ads_notice", label: "위치/광고/알림 동의", required: "해당 기능 사용 시 별도 동의" },
+] as const;
+type AdminLegalDocumentKey = (typeof adminLegalDocumentDefinitions)[number]["key"];
+type AdminLegalDocumentDrafts = Record<AdminLegalDocumentKey, string>;
+const createDefaultAdminDocumentDrafts = (): AdminLegalDocumentDrafts => adminLegalDocumentDefinitions.reduce((acc, item) => {
+  acc[item.key] = `# ${item.label}\n\n필수 내용: ${item.required}\n\n- `;
+  return acc;
+}, {} as AdminLegalDocumentDrafts);
 const consentVersionMap = { terms: "terms_v1", privacy: "privacy_v1", adultNotice: "adult_notice_v1", identityNotice: "identity_notice_v1", marketing: "marketing_v1", profileOptional: "profile_optional_v1" } as const;
 const requiredConsentKeys: ConsentKey[] = ["terms", "privacy", "adultNotice", "identityNotice"];
 const profileGenderOptions = ["", "남성", "여성", "기타", "응답 안 함"] as const;
@@ -1152,6 +1177,8 @@ function DesktopSplitShell() {
   const iframeReady = Boolean(leftFrameUrl && rightFrameUrl);
   const desktopSearchIndex = useMemo(() => buildDesktopGlobalSearchIndex(), []);
   const unreadDesktopNotificationCount = useMemo(() => notificationSeed.filter((item) => item.unread).length, []);
+  const desktopCurrentRole = useMemo(() => (typeof window === "undefined" ? "GUEST" : (window.localStorage.getItem("adultapp_demo_role") ?? "GUEST").toUpperCase()), []);
+  const desktopIsAdmin = ["ADMIN", "1", "GRADE_1"].includes(desktopCurrentRole);
 
   const selectPaneTab = useCallback((slot: DesktopPaneSlot, tab: MobileTab) => {
     const nextSelection: DesktopPaneSelection = { mode: "tab", tab };
@@ -1423,15 +1450,34 @@ function DesktopSplitShell() {
 
               {desktopOverlayMode === "settings" ? (
                 <div className="desktop-utility-overlay-body desktop-settings-placeholder">
-                  <div className="desktop-settings-placeholder-card">
-                    <strong>설정 준비중</strong>
-                    <p>설정 버튼은 상단에 먼저 배치했고, 세부 항목은 추후 연결할 수 있도록 자리만 열어두었습니다.</p>
-                    <div className="desktop-utility-chip-row">
-                      <span className="desktop-placeholder-pill">계정</span>
-                      <span className="desktop-placeholder-pill">알림</span>
-                      <span className="desktop-placeholder-pill">보안</span>
+                  {desktopIsAdmin ? (
+                    <>
+                      <div className="desktop-settings-placeholder-card settings-admin-mode-entry">
+                        <strong>관리자모드</strong>
+                        <p>관리자 계정에서만 표시됩니다. 모바일 프로필/홈/쇼핑/소통/채팅 화면의 우측 상단 설정에서도 동일하게 접근할 수 있습니다.</p>
+                        <div className="desktop-utility-chip-row">
+                          <span className="desktop-placeholder-pill">계정관리</span>
+                          <span className="desktop-placeholder-pill">운영현황</span>
+                          <span className="desktop-placeholder-pill">계정권한</span>
+                          <span className="desktop-placeholder-pill">문서</span>
+                        </div>
+                      </div>
+                      <div className="desktop-settings-placeholder-card">
+                        <strong>문서 관리</strong>
+                        <p>계정권한 하위의 문서 탭에서 이용약관, 개인정보처리방침, 청소년보호정책, 전자상거래 약관, 판매자 이용약관, 커뮤니티 운영정책, 위치/광고/알림 동의를 작성합니다.</p>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="desktop-settings-placeholder-card">
+                      <strong>설정</strong>
+                      <p>관리자모드는 관리자 계정에서만 표시됩니다.</p>
+                      <div className="desktop-utility-chip-row">
+                        <span className="desktop-placeholder-pill">계정</span>
+                        <span className="desktop-placeholder-pill">알림</span>
+                        <span className="desktop-placeholder-pill">보안</span>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               ) : null}
             </div>
@@ -4390,7 +4436,7 @@ function buildInspectorModalStyle(target: HTMLElement): CSSProperties {
   return { left: `${left}px`, top: `${top}px`, width: `${width}px`, maxHeight: `${maxHeight}px` };
 }
 
-function SettingSection({ category, isAdmin, legacySection, setLegacySection, projectStatus, deployGuide, legalDocuments, authSummary, businessInfo, releaseReadiness, paymentProviderStatus, minorPurgePreview, currentUserRole, adminModeTab, setAdminModeTab, adminDbManage, sellerApprovalQueue, productApprovalQueue, settlementPreview, htmlInspectorEnabled, setHtmlInspectorEnabled, adminDecideSeller, adminDecideProduct, accountPrivate, setAccountPrivate, profileFeedPublic, setProfileFeedPublic, profileShortsPublic, setProfileShortsPublic, profileQuestionPublic, setProfileQuestionPublic, profileTagPublic, setProfileTagPublic, profileProductPublic, setProfileProductPublic }: {
+function SettingSection({ category, isAdmin, legacySection, setLegacySection, projectStatus, deployGuide, legalDocuments, adminLegalDocuments, refreshAdminLegalDocuments, authSummary, businessInfo, releaseReadiness, paymentProviderStatus, minorPurgePreview, currentUserRole, adminModeTab, setAdminModeTab, adminDbManage, sellerApprovalQueue, productApprovalQueue, settlementPreview, htmlInspectorEnabled, setHtmlInspectorEnabled, adminDecideSeller, adminDecideProduct, accountPrivate, setAccountPrivate, profileFeedPublic, setProfileFeedPublic, profileShortsPublic, setProfileShortsPublic, profileQuestionPublic, setProfileQuestionPublic, profileTagPublic, setProfileTagPublic, profileProductPublic, setProfileProductPublic }: {
   category: SettingsCategory;
   isAdmin: boolean;
   legacySection: LegacyTab;
@@ -4398,6 +4444,8 @@ function SettingSection({ category, isAdmin, legacySection, setLegacySection, pr
   projectStatus: ProjectStatus | null;
   deployGuide: DeployGuide | null;
   legalDocuments: LegalDocumentsResponse | null;
+  adminLegalDocuments: AdminLegalDocumentsResponse | null;
+  refreshAdminLegalDocuments: () => void;
   authSummary: AuthSummary | null;
   businessInfo: BusinessInfoResponse | null;
   releaseReadiness: ReleaseReadinessResponse | null;
@@ -4427,6 +4475,59 @@ function SettingSection({ category, isAdmin, legacySection, setLegacySection, pr
   profileProductPublic: boolean;
   setProfileProductPublic: (value: boolean) => void;
 }) {
+  const [documentDrafts, setDocumentDrafts] = useState<AdminLegalDocumentDrafts>(() => {
+    const defaults = createDefaultAdminDocumentDrafts();
+    if (typeof window === "undefined") return defaults;
+    try {
+      const stored = JSON.parse(window.localStorage.getItem("adultapp_admin_legal_document_drafts") ?? "null");
+      return { ...defaults, ...(stored && typeof stored === "object" ? stored : {}) };
+    } catch {
+      return defaults;
+    }
+  });
+  const [documentSaveMessage, setDocumentSaveMessage] = useState("");
+
+  useEffect(() => {
+    const serverItems = adminLegalDocuments?.items ?? legalDocuments?.items ?? {};
+    setDocumentDrafts((prev) => {
+      const defaults = createDefaultAdminDocumentDrafts();
+      const next = { ...defaults, ...prev };
+      adminLegalDocumentDefinitions.forEach((item) => {
+        const serverContent = serverItems[item.key]?.content;
+        if (typeof serverContent === "string" && serverContent.trim() && (!prev[item.key] || prev[item.key] === defaults[item.key])) {
+          next[item.key] = serverContent;
+        }
+      });
+      return next;
+    });
+  }, [adminLegalDocuments, legalDocuments]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_admin_legal_document_drafts", JSON.stringify(documentDrafts));
+  }, [documentDrafts]);
+
+  const updateDocumentDraft = useCallback((key: AdminLegalDocumentKey, value: string) => {
+    setDocumentDrafts((prev) => ({ ...prev, [key]: value }));
+  }, []);
+
+  const saveAdminDocuments = useCallback(async () => {
+    const documents = adminLegalDocumentDefinitions.map((item) => ({
+      key: item.key,
+      label: item.label,
+      required: item.required,
+      content: documentDrafts[item.key] ?? "",
+    }));
+    setDocumentSaveMessage("문서 저장 중...");
+    try {
+      await postJson<AdminLegalDocumentsSaveResponse>("/admin/legal-documents", { documents });
+      setDocumentSaveMessage("문서 저장 완료");
+      refreshAdminLegalDocuments();
+    } catch (error) {
+      setDocumentSaveMessage(error instanceof Error ? `서버 저장 실패 · 임시저장 완료: ${error.message}` : "서버 저장 실패 · 임시저장 완료");
+    }
+  }, [documentDrafts, refreshAdminLegalDocuments]);
+
   if (category === "일반") {
     return (
       <div className="settings-common-shell">
@@ -4524,6 +4625,83 @@ function SettingSection({ category, isAdmin, legacySection, setLegacySection, pr
             <button key={item} className={`legacy-nav-btn ${normalizedAdminMode === item ? "active" : ""}`} onClick={() => setAdminModeTab(item)}>{item}</button>
           ))}
         </div>
+        {normalizedAdminMode === "계정관리" ? (
+          <div className="settings-grid settings-two-col admin-mode-dashboard-grid">
+            <div className="legacy-box compact admin-mode-summary-card">
+              <h3>계정관리</h3>
+              <p>현재 권한: {currentUserRole} · 관리자 접근 {isAdmin ? "허용" : "차단"}</p>
+              <p>판매자 승인대기 {sellerApprovalQueue.length}건 · 상품 승인대기 {productApprovalQueue.length}건</p>
+            </div>
+            <div className="legacy-box compact admin-mode-summary-card">
+              <h3>계정 상태 관리</h3>
+              <p>회원 정지, 성인인증 상태, 판매자 승인/보류/반려 처리를 한 화면에서 확인하는 관리자용 진입점입니다.</p>
+              <div className="compact-scroll-list">
+                {sellerApprovalQueue.slice(0, 5).map((item) => (
+                  <div key={`account-admin-${item.user_id}`} className="simple-list-row multi-line">
+                    <div><b>{item.name}</b><span>{item.email}</span><span>{item.status} · 사업자번호 {item.business_number ?? "미입력"}</span></div>
+                  </div>
+                ))}
+                {!sellerApprovalQueue.length ? <div className="simple-list-row">승인 대기 계정이 없습니다.</div> : null}
+              </div>
+            </div>
+            <div className="legacy-box compact admin-mode-summary-card">
+              <h3>계정 처리 항목</h3>
+              <p>계정 잠금, 성인인증 재확인, 판매자 권한 회수, 신고 이력 검토를 관리자모드에서 연결합니다.</p>
+            </div>
+            <div className="legacy-box compact admin-mode-summary-card">
+              <h3>최근 관리자 로그</h3>
+              <div className="compact-scroll-list">
+                {(adminDbManage?.other?.recent_logs ?? []).slice(0, 6).map((item) => (
+                  <div key={`account-admin-log-${item.id}`} className="simple-list-row">#{item.id} · {item.action_type} · {item.target_type}:{item.target_id}</div>
+                ))}
+                {!(adminDbManage?.other?.recent_logs ?? []).length ? <div className="simple-list-row">최근 로그 데이터가 없습니다.</div> : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
+        {normalizedAdminMode === "운영현황" ? (
+          <div className="settings-grid settings-two-col admin-mode-dashboard-grid">
+            <div className="legacy-box compact admin-mode-summary-card"><h3>출시 준비 상태</h3><p>{releaseReadiness?.status ?? "데이터 로딩중"}</p><p>차단 항목 {releaseReadiness?.blockers?.length ?? 0}건</p></div>
+            <div className="legacy-box compact admin-mode-summary-card"><h3>운영 진행도</h3><p>{projectStatus?.overall?.status ?? "진행도 데이터 로딩중"}</p></div>
+            <div className="legacy-box compact admin-mode-summary-card"><h3>결제/PG 상태</h3><p>Primary {paymentProviderStatus?.primary_provider ?? "미설정"} · SDK {paymentProviderStatus?.portone_sdk_enabled ? "활성" : "비활성"}</p></div>
+            <div className="legacy-box compact admin-mode-summary-card"><h3>정산 현황</h3><p>주문 {settlementPreview?.summary?.count ?? 0}건 · 예상 정산 {(settlementPreview?.summary?.seller_receivable_total ?? 0).toLocaleString()}원</p></div>
+            <div className="legacy-box compact admin-mode-summary-card"><h3>신고/채팅 현황</h3><p>신고 {adminDbManage?.report?.total ?? 0}건 · 채팅 스레드 {adminDbManage?.chat?.total_threads ?? 0}개</p></div>
+            <div className="legacy-box compact admin-mode-summary-card"><h3>사업자정보 고지</h3><p>{businessInfo?.complete ? "완료" : "미완료"} · 미입력 {businessInfo?.placeholder_fields?.length ?? 0}개</p></div>
+          </div>
+        ) : null}
+        {normalizedAdminMode === "계정권한" ? (
+          <div className="settings-grid settings-two-col admin-mode-dashboard-grid">
+            <div className="legacy-box compact admin-mode-summary-card"><h3>관리자 권한</h3><p>현재 계정은 관리자모드 접근 권한을 보유하고 있습니다.</p><p>권한값: {currentUserRole}</p></div>
+            <div className="legacy-box compact admin-mode-summary-card"><h3>사업자 권한</h3><p>사업자 상품등록은 서버 승인 상태와 정산계좌/사업자정보 검증을 기준으로 처리합니다.</p></div>
+            <div className="legacy-box compact admin-mode-summary-card"><h3>권한별 접근</h3><ul><li>계정관리: 관리자 전용</li><li>운영현황: 관리자 전용</li><li>문서: 관리자 전용 작성/수정</li><li>상품등록: 승인 사업자/관리자</li></ul></div>
+            <div className="legacy-box compact admin-mode-summary-card"><h3>문서 관리</h3><p>계정권한 하위 문서 관리 화면에서 필수 약관·정책 문서를 항목별로 작성합니다.</p><button type="button" className="ghost-btn" onClick={() => setAdminModeTab("문서")}>문서 열기</button></div>
+          </div>
+        ) : null}
+        {normalizedAdminMode === "문서" ? (
+          <div className="stack-gap admin-document-editor-shell">
+            <div className="legacy-box compact admin-document-editor-head">
+              <div className="split-row">
+                <div><h3>문서 작성/수정</h3><p>계정권한 카테고리 하위 문서입니다. 각 항목별 필수 내용을 기준으로 운영 문서를 작성합니다.</p></div>
+                <button type="button" onClick={saveAdminDocuments}>전체 저장</button>
+              </div>
+              {documentSaveMessage ? <p className="muted-mini">{documentSaveMessage}</p> : null}
+            </div>
+            {adminLegalDocumentDefinitions.map((item) => (
+              <div key={item.key} className="legacy-box compact admin-document-editor-card">
+                <div className="admin-document-editor-title-row">
+                  <div><h3>{item.label}</h3><p>필수 내용: {item.required}</p></div>
+                  <span className="desktop-placeholder-pill">{adminLegalDocuments?.items?.[item.key]?.version ?? legalDocuments?.items?.[item.key]?.version ?? "draft"}</span>
+                </div>
+                <textarea
+                  className="admin-document-textarea"
+                  value={documentDrafts[item.key] ?? ""}
+                  onChange={(event) => updateDocumentDraft(item.key, event.target.value)}
+                  placeholder={`${item.label} 내용을 입력하세요. 필수 내용: ${item.required}`}
+                />
+              </div>
+            ))}
+          </div>
+        ) : null}
         {normalizedAdminMode === "승인" ? (
           <div className="settings-grid settings-two-col">
             <div className="legacy-box compact">
@@ -4816,6 +4994,7 @@ export default function App() {
   const [projectStatus, setProjectStatus] = useState<ProjectStatus | null>(null);
   const [deployGuide, setDeployGuide] = useState<DeployGuide | null>(null);
   const [legalDocuments, setLegalDocuments] = useState<LegalDocumentsResponse | null>(null);
+  const [adminLegalDocuments, setAdminLegalDocuments] = useState<AdminLegalDocumentsResponse | null>(null);
   const [businessInfo, setBusinessInfo] = useState<BusinessInfoResponse | null>(null);
   const [releaseReadiness, setReleaseReadiness] = useState<ReleaseReadinessResponse | null>(null);
   const [paymentProviderStatus, setPaymentProviderStatus] = useState<PaymentProviderStatusResponse | null>(null);
@@ -5107,6 +5286,9 @@ export default function App() {
   }, []);
 
   const isAdmin = ["ADMIN", "1", "GRADE_1"].includes(currentUserRole);
+  const refreshAdminLegalDocuments = useCallback(() => {
+    getJson<AdminLegalDocumentsResponse>("/admin/legal-documents").then(setAdminLegalDocuments).catch(() => null);
+  }, []);
   const companyMailHostLocked = useMemo(() => isCompanyMailHostLocked(), []);
   const [companyMailPreviewOpen, setCompanyMailPreviewOpen] = useState(() => isCompanyMailRouteActive());
   const companyMailMode = companyMailHostLocked || companyMailPreviewOpen;
@@ -5553,6 +5735,7 @@ export default function App() {
           getJson<SettlementPreviewResponse>("/settlements/preview").then(setSettlementPreview).catch(() => null);
           getJson<PaymentReviewReadyResponse>("/payments/review-ready").then(setPaymentReviewReady).catch(() => null);
           getJson<LedgerOverviewResponse>("/ledger/overview").then(setLedgerOverview).catch(() => null);
+          refreshAdminLegalDocuments();
         } else {
           setReleaseReadiness(null);
         }
@@ -9237,7 +9420,7 @@ export default function App() {
     setNotificationView({ view: "section", section: sectionKey, item: null });
   }, []);
 
-  const settingsNavItems = useMemo<SettingsCategory[]>(() => settingsCategories.filter((item) => item !== "계정설정" && (["운영", "관리자모드", "DB관리", "신고", "채팅", "기타"].includes(item) ? isAdmin : true)), [isAdmin]);
+  const settingsNavItems = useMemo<SettingsCategory[]>(() => settingsCategories.filter((item) => item !== "계정설정" && (!["DB관리", "신고", "채팅", "기타"].includes(item)) && (["운영", "관리자모드"].includes(item) ? isAdmin : true)), [isAdmin]);
   const isAnyShortsViewerOpen = shortsViewerItemId !== null || savedShortsViewerItemId !== null;
   const visibleHeaderNavItems = overlayMode === null ? headerNavItems : [];
   const currentMenuItems = (activeTab === "홈" ? homeMenuItems : currentTabMenuItems.map((item) => ({ label: item.label, onClick: item.onClick }))).map((item) => ({ label: item.label, onClick: () => { item.onClick?.(); setOverlayMode(null); } }));
@@ -10833,13 +11016,19 @@ export default function App() {
                       <span>계정전환</span>
                     </button>
                   )}
+                  {isAdmin ? (
+                    <button type="button" className={`settings-category-btn settings-admin-mode-entry ${settingsCategory === "관리자모드" ? "active" : ""}`} onClick={() => { setSettingsCategory("관리자모드"); setAdminModeTab("계정관리"); }}>
+                      <span>관리자모드</span>
+                      <b>ADMIN</b>
+                    </button>
+                  ) : null}
                   <div className="settings-individual-title">하단바별 개별설정</div>
                   {activeTab === "프로필" ? (
                     <button type="button" className={`settings-category-btn ${settingsCategory === "계정설정" ? "active" : ""}`} onClick={() => setSettingsCategory("계정설정")}>
                       <span>계정설정</span>
                     </button>
                   ) : null}
-                  {settingsNavItems.map((item) => {
+                  {settingsNavItems.filter((item) => item !== "관리자모드").map((item) => {
                     const isHtmlToggle = item === "HTML요소";
                     return (
                       <button
@@ -10864,6 +11053,8 @@ export default function App() {
                   projectStatus={projectStatus}
                   deployGuide={deployGuide}
                   legalDocuments={legalDocuments}
+                  adminLegalDocuments={adminLegalDocuments}
+                  refreshAdminLegalDocuments={refreshAdminLegalDocuments}
                   authSummary={authSummary}
                   businessInfo={businessInfo}
                   releaseReadiness={releaseReadiness}
