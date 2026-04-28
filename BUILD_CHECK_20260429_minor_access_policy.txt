@@ -1,0 +1,8 @@
+adultapp minor access policy update
+- added pre-signup adult verification start/confirm API
+- added MinorAccessBlock and AgeVerificationLog tables
+- added HMAC-SHA256 based minimal identifier storage
+- added retry limiting and retention/purge logic
+- added admin age verification/minor block screens and APIs
+- backend python syntax check passed with py_compile
+- frontend dist rebuild requires local node_modules on user PC via provided PowerShell command

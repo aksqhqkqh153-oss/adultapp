@@ -489,6 +489,45 @@ class MinorAccessBlockLog(SQLModel, table=True):
     ip_address: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
+
+class MinorAccessBlock(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    subject_hash: str = Field(index=True, unique=True)
+    phone_hash: Optional[str] = Field(default=None, index=True)
+    ip_hash: Optional[str] = Field(default=None, index=True)
+    provider: str = Field(default="PASS", index=True)
+    result_code: str = Field(default="UNDERAGE", index=True)
+    reason: str = Field(default="UNDERAGE")
+    blocked_until: datetime = Field(index=True)
+    attempt_count: int = Field(default=1)
+    last_attempt_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    review_status: str = Field(default="active", index=True)
+    review_note: Optional[str] = None
+    released_at: Optional[datetime] = None
+    released_by_id: Optional[int] = Field(default=None, index=True)
+    release_reason: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    deleted_at: Optional[datetime] = Field(default=None, index=True)
+
+
+class AgeVerificationLog(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: Optional[int] = Field(default=None, index=True)
+    subject_hash: Optional[str] = Field(default=None, index=True)
+    phone_hash: Optional[str] = Field(default=None, index=True)
+    ip_hash: Optional[str] = Field(default=None, index=True)
+    provider: str = Field(default="PASS", index=True)
+    result: str = Field(default="VERIFY_FAILED", index=True)
+    reason: str = Field(default="VERIFY_FAILED")
+    flow: str = Field(default="signup", index=True)
+    tx_id_hash: Optional[str] = Field(default=None, index=True)
+    user_agent: Optional[str] = None
+    retry_limited_until: Optional[datetime] = None
+    purge_after: datetime = Field(default_factory=lambda: datetime.utcnow(), index=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    deleted_at: Optional[datetime] = Field(default=None, index=True)
+
+
 class VerotelPaymentSession(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     order_no: str = Field(index=True, unique=True)

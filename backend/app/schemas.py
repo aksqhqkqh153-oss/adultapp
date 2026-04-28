@@ -133,7 +133,31 @@ class SignupRequest(BaseModel):
     identity_verification_token: str
     identity_verification_method: str = "PASS"
     adult_verification_status: str = "pending"
+    adult_verification_token: str = ""
+    adult_verification_provider: str = "PASS"
+    adult_verification_subject: Optional[str] = None
+    adult_verification_phone: Optional[str] = None
     consents: list[ConsentItem]
+
+
+class PreSignupAdultVerificationStartRequest(BaseModel):
+    provider: str = "PASS"
+    email: Optional[str] = None
+    phone: Optional[str] = None
+
+
+class PreSignupAdultVerificationConfirmRequest(BaseModel):
+    provider: str = "PASS"
+    tx_id: str
+    verification_code: str
+    ci_di: Optional[str] = None
+    phone: Optional[str] = None
+    birth_year: Optional[int] = None
+    result: str = "verified_adult"
+
+
+class MinorBlockReleaseRequest(BaseModel):
+    reason: str = "오인증/민원에 따른 관리자 해제"
 
 
 class IdentityVerificationStartRequest(BaseModel):
@@ -155,6 +179,10 @@ class AdultVerificationStartRequest(BaseModel):
 class AdultVerificationConfirmRequest(BaseModel):
     tx_id: str
     verification_code: str
+    ci_di: Optional[str] = None
+    phone: Optional[str] = None
+    birth_year: Optional[int] = None
+    result: str = "verified_adult"
 
 
 

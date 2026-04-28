@@ -90,6 +90,14 @@ class Settings(BaseSettings):
     reconsent_redirect_path: str = "/reconsent"
     minor_block_retention_days: int = 365
     minor_block_retention_scope: str = "최소 식별값과 차단 이력만 분쟁 대응 범위에서 1년 보관 후 파기"
+    adult_verification_hash_secret: str = "change-me-adult-verify-hash-secret"
+    adult_verification_simple_failure_retention_days: int = 30
+    adult_verification_underage_retention_days: int = 365
+    adult_verification_dispute_retention_days: int = 1095
+    adult_verification_retry_fail_1h_limit: int = 3
+    adult_verification_retry_fail_3h_limit: int = 5
+    adult_verification_retry_lock_1h_hours: int = 1
+    adult_verification_retry_lock_3h_hours: int = 3
 
     ops_alert_slack_enabled: bool = True
     ops_alert_slack_webhook_url: str = "change-me-slack"

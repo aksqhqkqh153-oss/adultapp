@@ -15203,3 +15203,30 @@ button.ghost-btn.danger { border-color:rgba(255,92,92,0.28); color:#ffb0b0; }
   opacity: 1 !important;
   transform: none !important;
 }
+
+.signup-adult-verification-note {
+  border: 1px solid rgba(236, 72, 153, 0.18);
+  border-radius: 16px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.82);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.signup-adult-verification-note strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+.signup-adult-verification-note p {
+  margin: 3px 0;
+}
+.admin-age-log-list {
+  max-height: 320px;
+  overflow: auto;
+}
+.inline-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}

@@ -90,6 +90,8 @@ from ..models import (
     Transaction,
     User,
     MinorAccessBlockLog,
+    MinorAccessBlock,
+    AgeVerificationLog,
 )
 from ..services.realtime import thread_connection_manager
 from ..seed_db import ensure_launch_admin_accounts
@@ -108,6 +110,9 @@ from ..schemas import (
     LoginRequest,
     ConsentItem,
     SignupRequest,
+    PreSignupAdultVerificationStartRequest,
+    PreSignupAdultVerificationConfirmRequest,
+    MinorBlockReleaseRequest,
     IdentityVerificationStartRequest,
     IdentityVerificationConfirmRequest,
     AdultVerificationStartRequest,
@@ -684,6 +689,288 @@ def _register_adult_verification_failure(user: User, session: Session) -> None:
     session.commit()
 
 
+
+def _adult_hash_secret() -> str:
+    configured = str(getattr(settings, "adult_verification_hash_secret", "") or "").strip()
+    if configured and not configured.startswith("change-me"):
+        return configured
+    fallback = str(settings.jwt_secret_key or "adultapp-local-hash-secret").strip()
+    return fallback if fallback and not fallback.startswith("change-me") else "adultapp-local-hash-secret"
+
+
+def _privacy_hmac(value: str | None) -> Optional[str]:
+    normalized = str(value or "").strip()
+    if not normalized:
+        return None
+    return hmac.new(_adult_hash_secret().encode("utf-8"), normalized.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def _request_ip_hash(request: Request) -> Optional[str]:
+    forwarded = request.headers.get("x-forwarded-for", "")
+    ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "")
+    return _privacy_hmac(ip)
+
+
+def _short_user_agent(request: Request) -> str:
+    return (request.headers.get("user-agent") or "")[:300]
+
+
+def _adult_subject_source(ci_di: str | None = None, tx_id: str | None = None, email: str | None = None) -> str:
+    value = str(ci_di or "").strip()
+    if value:
+        return value
+    if settings.adult_verification_test_mode and tx_id:
+        return f"test-ci::{tx_id}"
+    if settings.app_env.lower() not in {"production", "prod"} and email:
+        return f"dev-email::{email.strip().lower()}"
+    return ""
+
+
+def _adult_verification_token(provider: str, tx_id: str, subject_hash: str) -> str:
+    payload = f"adv:{provider}:{tx_id}:{subject_hash[:24]}"
+    signature = hmac.new(_adult_hash_secret().encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"{payload}:{signature}"
+
+
+def _validate_adult_verification_token(token: str, provider: str, subject_hash: str) -> bool:
+    parts = str(token or "").split(":")
+    if len(parts) != 5 or parts[0] != "adv":
+        return False
+    _, token_provider, tx_id, token_hash_prefix, signature = parts
+    if token_provider != provider or not subject_hash.startswith(token_hash_prefix):
+        return False
+    payload = f"adv:{token_provider}:{tx_id}:{token_hash_prefix}"
+    expected = hmac.new(_adult_hash_secret().encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(signature, expected)
+
+
+def _minor_block_until(birth_year: int | None = None) -> datetime:
+    now = utcnow()
+    default_until = now + timedelta(days=settings.adult_verification_underage_retention_days)
+    if birth_year and 1900 <= birth_year <= now.year:
+        adult_possible_at = datetime(birth_year + 19, 1, 1)
+        if adult_possible_at > now:
+            return min(default_until, adult_possible_at)
+    return default_until
+
+
+def _write_age_verification_log(
+    session: Session,
+    *,
+    request: Request,
+    provider: str,
+    result: str,
+    reason: str,
+    flow: str,
+    user_id: int | None = None,
+    subject_hash: str | None = None,
+    phone_hash: str | None = None,
+    tx_id: str | None = None,
+    retry_limited_until: datetime | None = None,
+    retention_days: int | None = None,
+) -> AgeVerificationLog:
+    result_upper = (result or "VERIFY_FAILED").upper()
+    if retention_days is None:
+        if result_upper == "UNDERAGE":
+            retention_days = settings.adult_verification_underage_retention_days
+        elif result_upper == "VERIFY_FAILED":
+            retention_days = settings.adult_verification_simple_failure_retention_days
+        else:
+            retention_days = settings.adult_verification_simple_failure_retention_days
+    row = AgeVerificationLog(
+        user_id=user_id,
+        subject_hash=subject_hash,
+        phone_hash=phone_hash,
+        ip_hash=_request_ip_hash(request),
+        provider=provider,
+        result=result_upper,
+        reason=reason or result_upper,
+        flow=flow,
+        tx_id_hash=_privacy_hmac(tx_id),
+        user_agent=_short_user_agent(request),
+        retry_limited_until=retry_limited_until,
+        purge_after=utcnow() + timedelta(days=retention_days),
+    )
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return row
+
+
+def _recent_age_log_count(session: Session, *, subject_hash: str | None, ip_hash: str | None, result: str, since: datetime) -> int:
+    query = select(AgeVerificationLog).where(AgeVerificationLog.result == result, AgeVerificationLog.created_at >= since, AgeVerificationLog.deleted_at == None)
+    if subject_hash:
+        query = query.where(AgeVerificationLog.subject_hash == subject_hash)
+    elif ip_hash:
+        query = query.where(AgeVerificationLog.ip_hash == ip_hash)
+    else:
+        return 0
+    return len(session.exec(query).all())
+
+
+def _current_retry_limit(session: Session, *, subject_hash: str | None, ip_hash: str | None) -> datetime | None:
+    now = utcnow()
+    query = select(AgeVerificationLog).where(AgeVerificationLog.deleted_at == None, AgeVerificationLog.retry_limited_until != None, AgeVerificationLog.retry_limited_until > now)
+    if subject_hash:
+        query = query.where(AgeVerificationLog.subject_hash == subject_hash)
+    elif ip_hash:
+        query = query.where(AgeVerificationLog.ip_hash == ip_hash)
+    else:
+        return None
+    rows = session.exec(query).all()
+    if not rows:
+        return None
+    return max(row.retry_limited_until for row in rows if row.retry_limited_until)
+
+
+def _register_verification_failure_limit(
+    session: Session,
+    *,
+    request: Request,
+    provider: str,
+    flow: str,
+    subject_hash: str | None = None,
+    phone_hash: str | None = None,
+    tx_id: str | None = None,
+    reason: str = "VERIFY_FAILED",
+) -> dict[str, Any]:
+    ip_hash = _request_ip_hash(request)
+    now = utcnow()
+    current_limit = _current_retry_limit(session, subject_hash=subject_hash, ip_hash=ip_hash)
+    if current_limit:
+        return {"blocked": True, "retry_limited_until": current_limit, "reason": "TOO_MANY_ATTEMPTS"}
+    recent_1h = _recent_age_log_count(session, subject_hash=subject_hash, ip_hash=ip_hash, result="VERIFY_FAILED", since=now - timedelta(hours=1))
+    recent_3h = _recent_age_log_count(session, subject_hash=subject_hash, ip_hash=ip_hash, result="VERIFY_FAILED", since=now - timedelta(hours=3))
+    retry_until = None
+    limit_reason = reason
+    if recent_3h + 1 >= settings.adult_verification_retry_fail_3h_limit:
+        retry_until = now + timedelta(hours=settings.adult_verification_retry_lock_3h_hours)
+        limit_reason = "TOO_MANY_ATTEMPTS"
+    elif recent_1h + 1 >= settings.adult_verification_retry_fail_1h_limit:
+        retry_until = now + timedelta(hours=settings.adult_verification_retry_lock_1h_hours)
+        limit_reason = "TOO_MANY_ATTEMPTS"
+    _write_age_verification_log(
+        session,
+        request=request,
+        provider=provider,
+        result="VERIFY_FAILED",
+        reason=limit_reason,
+        flow=flow,
+        subject_hash=subject_hash,
+        phone_hash=phone_hash,
+        tx_id=tx_id,
+        retry_limited_until=retry_until,
+    )
+    return {"blocked": retry_until is not None, "retry_limited_until": retry_until, "reason": limit_reason}
+
+
+def _upsert_minor_block(
+    session: Session,
+    *,
+    request: Request,
+    provider: str,
+    subject_hash: str,
+    phone_hash: str | None = None,
+    tx_id: str | None = None,
+    birth_year: int | None = None,
+    reason: str = "UNDERAGE",
+    user_id: int | None = None,
+) -> MinorAccessBlock:
+    now = utcnow()
+    block = session.exec(select(MinorAccessBlock).where(MinorAccessBlock.subject_hash == subject_hash)).first()
+    if not block:
+        block = MinorAccessBlock(
+            subject_hash=subject_hash,
+            phone_hash=phone_hash,
+            ip_hash=_request_ip_hash(request),
+            provider=provider,
+            result_code="UNDERAGE",
+            reason=reason,
+            blocked_until=_minor_block_until(birth_year),
+            attempt_count=1,
+            last_attempt_at=now,
+        )
+    else:
+        block.phone_hash = phone_hash or block.phone_hash
+        block.ip_hash = _request_ip_hash(request) or block.ip_hash
+        block.provider = provider
+        block.result_code = "UNDERAGE"
+        block.reason = reason
+        block.blocked_until = max(block.blocked_until, _minor_block_until(birth_year))
+        block.attempt_count = (block.attempt_count or 0) + 1
+        block.last_attempt_at = now
+        block.review_status = "active"
+        block.deleted_at = None
+    session.add(block)
+    session.commit()
+    session.refresh(block)
+    _write_age_verification_log(
+        session,
+        request=request,
+        provider=provider,
+        result="UNDERAGE",
+        reason=reason,
+        flow="signup",
+        user_id=user_id,
+        subject_hash=subject_hash,
+        phone_hash=phone_hash,
+        tx_id=tx_id,
+        retention_days=settings.adult_verification_underage_retention_days,
+    )
+    return block
+
+
+def _safe_minor_block_message() -> str:
+    return "성인인증 결과, 현재 서비스 이용 대상이 아닌 것으로 확인되었습니다. 본 서비스는 성인 이용자만 가입 및 이용할 수 있습니다. 인증 결과에 문제가 있다고 판단되는 경우 고객센터로 문의해 주세요."
+
+
+def _active_minor_block(session: Session, subject_hash: str | None = None, phone_hash: str | None = None) -> MinorAccessBlock | None:
+    now = utcnow()
+    query = select(MinorAccessBlock).where(MinorAccessBlock.deleted_at == None, MinorAccessBlock.review_status == "active", MinorAccessBlock.blocked_until > now)
+    if subject_hash:
+        row = session.exec(query.where(MinorAccessBlock.subject_hash == subject_hash)).first()
+        if row:
+            return row
+    if phone_hash:
+        return session.exec(query.where(MinorAccessBlock.phone_hash == phone_hash)).first()
+    return None
+
+
+def _minor_block_summary(block: MinorAccessBlock) -> dict[str, Any]:
+    return {
+        "id": block.id,
+        "subject_hash_preview": f"{block.subject_hash[:12]}..." if block.subject_hash else "",
+        "phone_hash_preview": f"{block.phone_hash[:12]}..." if block.phone_hash else "",
+        "ip_hash_preview": f"{block.ip_hash[:12]}..." if block.ip_hash else "",
+        "provider": block.provider,
+        "result_code": block.result_code,
+        "reason": block.reason,
+        "blocked_until": block.blocked_until.isoformat(),
+        "attempt_count": block.attempt_count,
+        "last_attempt_at": block.last_attempt_at.isoformat() if block.last_attempt_at else None,
+        "review_status": block.review_status,
+        "created_at": block.created_at.isoformat() if block.created_at else None,
+        "released_at": block.released_at.isoformat() if block.released_at else None,
+        "release_reason": block.release_reason,
+    }
+
+
+def _age_log_summary(row: AgeVerificationLog) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "user_id": row.user_id,
+        "subject_hash_preview": f"{row.subject_hash[:12]}..." if row.subject_hash else "",
+        "phone_hash_preview": f"{row.phone_hash[:12]}..." if row.phone_hash else "",
+        "ip_hash_preview": f"{row.ip_hash[:12]}..." if row.ip_hash else "",
+        "provider": row.provider,
+        "result": row.result,
+        "reason": row.reason,
+        "flow": row.flow,
+        "retry_limited_until": row.retry_limited_until.isoformat() if row.retry_limited_until else None,
+        "purge_after": row.purge_after.isoformat() if row.purge_after else None,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+    }
+
 def validate_exchange_text(text_value: str) -> None:
     findings = _moderation_text_findings(text_value)
     if findings:
@@ -995,24 +1282,33 @@ def _verification_error_map() -> dict[str, str]:
 
 
 def _minor_block_purge_preview(session: Session) -> dict[str, Any]:
-    threshold = utcnow() - timedelta(days=settings.minor_block_retention_days)
-    users = session.exec(select(User).where(User.member_status.in_(["minor_blocked", "blocked_minor", "login_blocked_minor"]))).all()
-    candidates = [u for u in users if ((u.identity_verified_at and u.identity_verified_at <= threshold) or (u.adult_verified_at and u.adult_verified_at <= threshold) or (u.last_login_at and u.last_login_at <= threshold) or (u.identity_verified_at is None and u.adult_verified_at is None and u.last_login_at is None))]
+    now = utcnow()
+    threshold = now - timedelta(days=settings.minor_block_retention_days)
+    legacy_users = session.exec(select(User).where(User.member_status.in_(["minor_blocked", "blocked_minor", "login_blocked_minor"]))).all()
+    legacy_candidates = [u for u in legacy_users if ((u.identity_verified_at and u.identity_verified_at <= threshold) or (u.adult_verified_at and u.adult_verified_at <= threshold) or (u.last_login_at and u.last_login_at <= threshold) or (u.identity_verified_at is None and u.adult_verified_at is None and u.last_login_at is None))]
+    block_candidates = session.exec(select(MinorAccessBlock).where(MinorAccessBlock.deleted_at == None, MinorAccessBlock.created_at <= threshold)).all()
+    log_candidates = session.exec(select(AgeVerificationLog).where(AgeVerificationLog.deleted_at == None, AgeVerificationLog.purge_after <= now)).all()
     return {
         "retention_days": settings.minor_block_retention_days,
         "cron": settings.minor_block_purge_cron,
         "enabled": settings.minor_block_purge_batch_enabled,
-        "candidate_count": len(candidates),
-        "candidate_user_ids": [u.id for u in candidates[:20]],
+        "candidate_count": len(legacy_candidates) + len(block_candidates) + len(log_candidates),
+        "legacy_candidate_count": len(legacy_candidates),
+        "minor_block_candidate_count": len(block_candidates),
+        "age_log_candidate_count": len(log_candidates),
+        "candidate_user_ids": [u.id for u in legacy_candidates[:20]],
+        "minor_block_ids": [b.id for b in block_candidates[:20]],
+        "age_log_ids": [l.id for l in log_candidates[:20]],
     }
 
 
 def _run_minor_block_purge(session: Session, actor: User | None = None) -> dict[str, Any]:
-    threshold = utcnow() - timedelta(days=settings.minor_block_retention_days)
-    users = session.exec(select(User).where(User.member_status.in_(["minor_blocked", "blocked_minor", "login_blocked_minor"]))).all()
+    now = utcnow()
+    threshold = now - timedelta(days=settings.minor_block_retention_days)
+    legacy_users = session.exec(select(User).where(User.member_status.in_(["minor_blocked", "blocked_minor", "login_blocked_minor"]))).all()
     purged = 0
     purged_ids: list[int] = []
-    for user in users:
+    for user in legacy_users:
         pivot = user.identity_verified_at or user.adult_verified_at or user.last_login_at
         if pivot and pivot > threshold:
             continue
@@ -1035,10 +1331,35 @@ def _run_minor_block_purge(session: Session, actor: User | None = None) -> dict[
         purged += 1
         if user.id is not None:
             purged_ids.append(user.id)
+
+    block_rows = session.exec(select(MinorAccessBlock).where(MinorAccessBlock.deleted_at == None, MinorAccessBlock.created_at <= threshold)).all()
+    block_purged = 0
+    for block in block_rows:
+        block.deleted_at = now
+        block.review_status = "purged"
+        block.review_note = "retention expired"
+        session.add(block)
+        block_purged += 1
+
+    log_rows = session.exec(select(AgeVerificationLog).where(AgeVerificationLog.deleted_at == None, AgeVerificationLog.purge_after <= now)).all()
+    log_purged = 0
+    for row in log_rows:
+        row.deleted_at = now
+        session.add(row)
+        log_purged += 1
+
     session.commit()
-    if actor and purged_ids:
-        write_admin_log(session, actor, "minor_block_purge", "user", ",".join(map(str, purged_ids[:20])), f"minor blocked purge run ({purged} users)")
-    return {"ok": True, "purged_count": purged, "purged_user_ids": purged_ids[:20], "retention_days": settings.minor_block_retention_days}
+    if actor and (purged_ids or block_purged or log_purged):
+        write_admin_log(session, actor, "minor_block_purge", "minor_policy", ",".join(map(str, purged_ids[:20])), f"minor purge run users={purged}, blocks={block_purged}, logs={log_purged}")
+    return {
+        "ok": True,
+        "purged_count": purged + block_purged + log_purged,
+        "purged_user_count": purged,
+        "purged_block_count": block_purged,
+        "purged_log_count": log_purged,
+        "purged_user_ids": purged_ids[:20],
+        "retention_days": settings.minor_block_retention_days,
+    }
 
 
 def _payment_provider_status() -> dict[str, Any]:
@@ -2084,6 +2405,88 @@ def ops_minor_purge_run(request: Request, current_user: User = Depends(require_g
     return _run_minor_block_purge(session, current_user)
 
 
+
+@router.get("/admin/age-verification/logs")
+def admin_age_verification_logs(result: str = "", current_user: User = Depends(require_grade(MemberGrade.ADMIN)), session: Session = Depends(get_session)):
+    query = select(AgeVerificationLog).where(AgeVerificationLog.deleted_at == None).order_by(AgeVerificationLog.created_at.desc())
+    if result:
+        query = query.where(AgeVerificationLog.result == result.upper())
+    rows = session.exec(query).all()[:200]
+    return {
+        "ok": True,
+        "items": [_age_log_summary(row) for row in rows],
+        "policy": {
+            "raw_ci_phone_birthdate_saved": False,
+            "verify_failed_retention_days": settings.adult_verification_simple_failure_retention_days,
+            "underage_retention_days": settings.adult_verification_underage_retention_days,
+            "retry_failed_3_per_1h": settings.adult_verification_retry_fail_1h_limit,
+            "retry_failed_5_per_3h": settings.adult_verification_retry_fail_3h_limit,
+        },
+    }
+
+
+@router.get("/admin/minor-blocks")
+def admin_minor_blocks(current_user: User = Depends(require_grade(MemberGrade.ADMIN)), session: Session = Depends(get_session)):
+    rows = session.exec(select(MinorAccessBlock).where(MinorAccessBlock.deleted_at == None).order_by(MinorAccessBlock.last_attempt_at.desc())).all()[:200]
+    return {
+        "ok": True,
+        "items": [_minor_block_summary(row) for row in rows],
+        "safe_message": _safe_minor_block_message(),
+        "raw_personal_data_saved": False,
+    }
+
+
+@router.post("/admin/minor-blocks/{block_id}/release")
+def admin_minor_block_release(block_id: int, payload: MinorBlockReleaseRequest, request: Request, current_user: User = Depends(require_grade(MemberGrade.ADMIN)), session: Session = Depends(get_session)):
+    block = session.get(MinorAccessBlock, block_id)
+    if not block or block.deleted_at:
+        raise HTTPException(status_code=404, detail="minor block not found")
+    block.review_status = "released"
+    block.released_at = utcnow()
+    block.released_by_id = current_user.id
+    block.release_reason = payload.reason
+    session.add(block)
+    session.commit()
+    write_admin_log(
+        session,
+        current_user,
+        "minor_block_release",
+        "minor_access_block",
+        str(block.id or 0),
+        payload.reason,
+        ip=request.client.host if request.client else "127.0.0.1",
+        device=request.headers.get("user-agent"),
+    )
+    return {"ok": True, "item": _minor_block_summary(block)}
+
+
+@router.get("/admin/minor-blocks/export")
+def admin_minor_blocks_export(current_user: User = Depends(require_grade(MemberGrade.ADMIN)), session: Session = Depends(get_session)):
+    rows = session.exec(select(MinorAccessBlock).where(MinorAccessBlock.deleted_at == None).order_by(MinorAccessBlock.created_at.desc())).all()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["id", "subject_hash_preview", "phone_hash_preview", "provider", "result_code", "reason", "blocked_until", "attempt_count", "review_status", "created_at"])
+    for row in rows:
+        writer.writerow([
+            row.id,
+            f"{row.subject_hash[:12]}..." if row.subject_hash else "",
+            f"{row.phone_hash[:12]}..." if row.phone_hash else "",
+            row.provider,
+            row.result_code,
+            row.reason,
+            row.blocked_until.isoformat() if row.blocked_until else "",
+            row.attempt_count,
+            row.review_status,
+            row.created_at.isoformat() if row.created_at else "",
+        ])
+    return Response(content=output.getvalue(), media_type="text/csv; charset=utf-8", headers={"Content-Disposition": "attachment; filename=minor_access_blocks.csv"})
+
+
+@router.get("/admin/minor-purge/status")
+def admin_minor_purge_status(current_user: User = Depends(require_grade(MemberGrade.ADMIN)), session: Session = Depends(get_session)):
+    return {"ok": True, **_minor_block_purge_preview(session)}
+
+
 @router.post("/auth/verification/webhook")
 def auth_verification_webhook(payload: dict[str, Any], request: Request, session: Session = Depends(get_session)):
     provider = _normalize_verification_provider(str(payload.get("provider") or settings.adult_verification_provider))
@@ -2139,6 +2542,99 @@ def auth_reconsent(payload: ReconsentRequest, request: Request, current_user: Us
     return {"ok": True, **_consent_status_payload(session, current_user.id or 0)}
 
 
+@router.post("/auth/signup/adult/start")
+def start_signup_adult_verification(payload: PreSignupAdultVerificationStartRequest, request: Request, session: Session = Depends(get_session)):
+    provider = _normalize_verification_provider(payload.provider)
+    ip_hash = _request_ip_hash(request)
+    retry_until = _current_retry_limit(session, subject_hash=None, ip_hash=ip_hash)
+    if retry_until:
+        raise HTTPException(status_code=423, detail=f"adult verification retry locked until {retry_until.isoformat()}")
+    tx_id = _build_identity_tx("signup-adult", provider)
+    return {
+        "ok": True,
+        **_verification_provider_payload(provider),
+        "tx_id": tx_id,
+        "verification_code_hint": "000000" if settings.adult_verification_test_mode else None,
+        "minor_test_code_hint": "MINOR" if settings.adult_verification_test_mode else None,
+        "safe_minor_message": _safe_minor_block_message(),
+        "callback_signature": _verification_signature("signup-adult", provider, tx_id),
+        "retention_policy": {
+            "verify_failed_days": settings.adult_verification_simple_failure_retention_days,
+            "underage_days": settings.adult_verification_underage_retention_days,
+            "raw_ci_phone_birthdate_saved": False,
+        },
+    }
+
+
+@router.post("/auth/signup/adult/confirm")
+def confirm_signup_adult_verification(payload: PreSignupAdultVerificationConfirmRequest, request: Request, session: Session = Depends(get_session)):
+    provider = _normalize_verification_provider(payload.provider)
+    subject_source = _adult_subject_source(payload.ci_di, payload.tx_id)
+    if not subject_source:
+        raise HTTPException(status_code=400, detail="provider subject required")
+    subject_hash = _privacy_hmac(subject_source)
+    phone_hash = _privacy_hmac(payload.phone)
+    existing_minor_block = _active_minor_block(session, subject_hash=subject_hash, phone_hash=phone_hash)
+    if existing_minor_block:
+        raise HTTPException(status_code=403, detail=_safe_minor_block_message())
+    retry_until = _current_retry_limit(session, subject_hash=subject_hash, ip_hash=_request_ip_hash(request))
+    if retry_until:
+        raise HTTPException(status_code=423, detail=f"adult verification retry locked until {retry_until.isoformat()}")
+
+    normalized_result = str(payload.result or "").strip().lower()
+    if payload.verification_code == "MINOR" or normalized_result in {"verified_minor", "underage", "minor"}:
+        block = _upsert_minor_block(
+            session,
+            request=request,
+            provider=provider,
+            subject_hash=subject_hash or "",
+            phone_hash=phone_hash,
+            tx_id=payload.tx_id,
+            birth_year=payload.birth_year,
+            reason="UNDERAGE",
+        )
+        raise HTTPException(status_code=403, detail=_safe_minor_block_message())
+
+    expected = "000000" if settings.adult_verification_test_mode else settings.adult_verification_client_secret
+    if payload.verification_code != expected or normalized_result in {"verify_failed", "failed", "error"}:
+        limited = _register_verification_failure_limit(
+            session,
+            request=request,
+            provider=provider,
+            flow="signup",
+            subject_hash=subject_hash,
+            phone_hash=phone_hash,
+            tx_id=payload.tx_id,
+            reason="VERIFY_FAILED",
+        )
+        if limited.get("blocked"):
+            raise HTTPException(status_code=423, detail=f"adult verification retry locked until {limited['retry_limited_until'].isoformat()}")
+        raise HTTPException(status_code=400, detail="adult verification failed")
+
+    token = _adult_verification_token(provider, payload.tx_id, subject_hash or "")
+    _write_age_verification_log(
+        session,
+        request=request,
+        provider=provider,
+        result="VERIFIED_ADULT",
+        reason="PRE_SIGNUP_ADULT_VERIFIED",
+        flow="signup",
+        subject_hash=subject_hash,
+        phone_hash=phone_hash,
+        tx_id=payload.tx_id,
+        retention_days=settings.adult_verification_simple_failure_retention_days,
+    )
+    return {
+        "ok": True,
+        "provider": provider,
+        "tx_id": payload.tx_id,
+        "adult_verified": True,
+        "adult_verification_status": "verified_adult",
+        "adult_verification_token": token,
+        "adult_verification_subject_hash_preview": f"{subject_hash[:12]}..." if subject_hash else "",
+    }
+
+
 @router.post("/auth/signup")
 def signup(payload: SignupRequest, request: Request, session: Session = Depends(get_session)):
     email = payload.email.strip().lower()
@@ -2151,6 +2647,29 @@ def signup(payload: SignupRequest, request: Request, session: Session = Depends(
             raise HTTPException(status_code=400, detail=f"required consent missing: {consent_type}")
     if not payload.identity_verification_token.strip():
         raise HTTPException(status_code=400, detail="identity verification token required")
+
+    provider = _normalize_verification_provider(payload.adult_verification_provider or payload.identity_verification_method)
+    subject_source = _adult_subject_source(payload.adult_verification_subject, email=email)
+    subject_hash = _privacy_hmac(subject_source)
+    phone_hash = _privacy_hmac(payload.adult_verification_phone)
+    existing_minor_block = _active_minor_block(session, subject_hash=subject_hash, phone_hash=phone_hash)
+    if existing_minor_block:
+        raise HTTPException(status_code=403, detail=_safe_minor_block_message())
+
+    strict_adult_signup = settings.adult_verification_prod_enabled and not settings.adult_verification_test_mode
+    if strict_adult_signup:
+        if payload.adult_verification_status != "verified_adult" or not subject_hash or not _validate_adult_verification_token(payload.adult_verification_token, provider, subject_hash):
+            _register_verification_failure_limit(
+                session,
+                request=request,
+                provider=provider,
+                flow="signup",
+                subject_hash=subject_hash,
+                phone_hash=phone_hash,
+                reason="ADULT_VERIFICATION_REQUIRED",
+            )
+            raise HTTPException(status_code=403, detail="성인인증 완료 후 가입할 수 있습니다.")
+
     user = User(
         email=email,
         name=payload.name.strip(),
@@ -2161,12 +2680,26 @@ def signup(payload: SignupRequest, request: Request, session: Session = Depends(
         identity_verification_token=payload.identity_verification_token.strip(),
         identity_verified_at=utcnow(),
         login_provider=payload.login_provider,
-        adult_verified=False,
+        adult_verified=payload.adult_verification_status == "verified_adult",
+        adult_verified_at=utcnow() if payload.adult_verification_status == "verified_adult" else None,
         adult_verification_status=payload.adult_verification_status or "pending",
+        adult_verification_provider=provider,
     )
     session.add(user)
     session.commit()
     session.refresh(user)
+    _write_age_verification_log(
+        session,
+        request=request,
+        provider=provider,
+        result="VERIFIED_ADULT" if user.adult_verified else "PENDING",
+        reason="SIGNUP_COMPLETED",
+        flow="signup",
+        user_id=user.id,
+        subject_hash=subject_hash,
+        phone_hash=phone_hash,
+        retention_days=settings.adult_verification_simple_failure_retention_days,
+    )
     _record_consents(session, user.id or 0, payload.consents, request)
     device_session = create_device_session(user, session, payload.login_provider or "web-browser", request.headers.get("user-agent"), request.client.host if request.client else "127.0.0.1")
     tokens = build_token_response(user, session, device_session)
@@ -2231,7 +2764,7 @@ def start_adult_verification(payload: AdultVerificationStartRequest, user: User 
 
 
 @router.post("/auth/adult/confirm")
-def confirm_adult_verification(payload: AdultVerificationConfirmRequest, user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+def confirm_adult_verification(payload: AdultVerificationConfirmRequest, request: Request, user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     if user.grade != MemberGrade.ADMIN and not user.identity_verified:
         raise HTTPException(status_code=403, detail="identity verification required")
     if user.adult_verification_locked_until and user.adult_verification_locked_until > utcnow():
@@ -2240,7 +2773,14 @@ def confirm_adult_verification(payload: AdultVerificationConfirmRequest, user: U
         raise HTTPException(status_code=400, detail="adult verification transaction mismatch")
     provider = _normalize_verification_provider(user.adult_verification_provider or payload.tx_id.split("_")[1] if "_" in payload.tx_id else settings.adult_verification_provider)
     expected = "000000" if settings.adult_verification_test_mode else settings.adult_verification_client_secret
-    if payload.verification_code == "MINOR":
+    subject_source = _adult_subject_source(payload.ci_di, payload.tx_id, user.email)
+    subject_hash = _privacy_hmac(subject_source)
+    phone_hash = _privacy_hmac(payload.phone)
+    existing_minor_block = _active_minor_block(session, subject_hash=subject_hash, phone_hash=phone_hash)
+    if existing_minor_block:
+        raise HTTPException(status_code=403, detail=_safe_minor_block_message())
+    normalized_result = str(payload.result or "").strip().lower()
+    if payload.verification_code == "MINOR" or normalized_result in {"verified_minor", "underage", "minor"}:
         user.adult_verified = False
         user.adult_verified_at = None
         user.adult_verification_status = "verified_minor"
@@ -2249,12 +2789,36 @@ def confirm_adult_verification(payload: AdultVerificationConfirmRequest, user: U
         user.adult_verification_locked_until = None
         session.add(user)
         session.commit()
-        raise HTTPException(status_code=403, detail="minor account blocked")
-    if payload.verification_code != expected:
+        if subject_hash:
+            _upsert_minor_block(
+                session,
+                request=request,
+                provider=provider,
+                subject_hash=subject_hash,
+                phone_hash=phone_hash,
+                tx_id=payload.tx_id,
+                birth_year=payload.birth_year,
+                reason="UNDERAGE",
+                user_id=user.id,
+            )
+        raise HTTPException(status_code=403, detail=_safe_minor_block_message())
+    if payload.verification_code != expected or normalized_result in {"verify_failed", "failed", "error"}:
         user.adult_verification_status = "failed"
         session.add(user)
         session.commit()
+        limited = _register_verification_failure_limit(
+            session,
+            request=request,
+            provider=provider,
+            flow="existing_user",
+            subject_hash=subject_hash,
+            phone_hash=phone_hash,
+            tx_id=payload.tx_id,
+            reason="VERIFY_FAILED",
+        )
         _register_adult_verification_failure(user, session)
+        if limited.get("blocked"):
+            return {"ok": False, **_adult_lock_payload(user), "retry_limited_until": limited["retry_limited_until"].isoformat()}
         return {"ok": False, **_adult_lock_payload(user)}
     user.adult_verified = True
     user.adult_verified_at = utcnow()
@@ -2263,6 +2827,19 @@ def confirm_adult_verification(payload: AdultVerificationConfirmRequest, user: U
     user.adult_verification_locked_until = None
     session.add(user)
     session.commit()
+    _write_age_verification_log(
+        session,
+        request=request,
+        provider=provider,
+        result="VERIFIED_ADULT",
+        reason="EXISTING_USER_ADULT_VERIFIED",
+        flow="existing_user",
+        user_id=user.id,
+        subject_hash=subject_hash,
+        phone_hash=phone_hash,
+        tx_id=payload.tx_id,
+        retention_days=settings.adult_verification_simple_failure_retention_days,
+    )
     return {"ok": True, **_adult_lock_payload(user), "provider_profile": _verification_provider_payload(provider)}
 
 
@@ -2290,7 +2867,7 @@ def identity_verification_callback(payload: dict[str, Any]):
 
 
 @router.post("/auth/adult/callback")
-def adult_verification_callback(payload: dict[str, Any], current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+def adult_verification_callback(payload: dict[str, Any], request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     provider = _normalize_verification_provider(str(payload.get("provider") or current_user.adult_verification_provider or settings.adult_verification_provider))
     tx_id = str(payload.get("tx_id") or "").strip()
     signature = str(payload.get("signature") or "").strip()
@@ -2302,6 +2879,9 @@ def adult_verification_callback(payload: dict[str, Any], current_user: User = De
         raise HTTPException(status_code=400, detail="invalid callback signature")
     if tx_id != (current_user.adult_verification_tx_id or tx_id):
         raise HTTPException(status_code=400, detail="adult verification transaction mismatch")
+    subject_source = _adult_subject_source(str(payload.get("ci") or payload.get("di") or payload.get("ci_di") or ""), tx_id, current_user.email)
+    subject_hash = _privacy_hmac(subject_source)
+    phone_hash = _privacy_hmac(str(payload.get("phone") or ""))
     if result == "verified_minor":
         current_user.adult_verified = False
         current_user.adult_verified_at = None
@@ -2311,11 +2891,33 @@ def adult_verification_callback(payload: dict[str, Any], current_user: User = De
         current_user.adult_verification_locked_until = None
         session.add(current_user)
         session.commit()
-        raise HTTPException(status_code=403, detail="minor account blocked")
+        if subject_hash:
+            _upsert_minor_block(
+                session,
+                request=request,
+                provider=provider,
+                subject_hash=subject_hash,
+                phone_hash=phone_hash,
+                tx_id=tx_id,
+                birth_year=int(payload.get("birth_year")) if str(payload.get("birth_year") or "").isdigit() else None,
+                reason="UNDERAGE",
+                user_id=current_user.id,
+            )
+        raise HTTPException(status_code=403, detail=_safe_minor_block_message())
     if result != "verified_adult":
         current_user.adult_verification_status = "failed"
         session.add(current_user)
         session.commit()
+        _register_verification_failure_limit(
+            session,
+            request=request,
+            provider=provider,
+            flow="existing_user",
+            subject_hash=subject_hash,
+            phone_hash=phone_hash,
+            tx_id=tx_id,
+            reason="VERIFY_FAILED",
+        )
         _register_adult_verification_failure(current_user, session)
         return {"ok": False, **_adult_lock_payload(current_user)}
     current_user.adult_verified = True
@@ -2327,6 +2929,19 @@ def adult_verification_callback(payload: dict[str, Any], current_user: User = De
     current_user.adult_verification_tx_id = tx_id
     session.add(current_user)
     session.commit()
+    _write_age_verification_log(
+        session,
+        request=request,
+        provider=provider,
+        result="VERIFIED_ADULT",
+        reason="CALLBACK_ADULT_VERIFIED",
+        flow="existing_user",
+        user_id=current_user.id,
+        subject_hash=subject_hash,
+        phone_hash=phone_hash,
+        tx_id=tx_id,
+        retention_days=settings.adult_verification_simple_failure_retention_days,
+    )
     return {"ok": True, **_adult_lock_payload(current_user), "provider_profile": _verification_provider_payload(provider)}
 
 

@@ -1,13 +1,23 @@
-# 미성년 차단 계정 자동 파기 배치
+# 미성년 차단/인증 로그 자동 파기 배치
 
-- 정책: 미성년 차단 계정은 최소 식별값과 차단 이력만 1년 보관 후 파기
+- 정책: 미성년 판정자는 회원 테이블에 생성하지 않고, 동일인 재시도 차단에 필요한 최소 해시값만 별도 보관
 - 기본 cron: `0 4 * * *`
-- 배치 스크립트: `python scripts/maintenance/purge_minor_blocked_accounts.py`
-- 실행 전 확인
-  - DB 백업
-  - 최근 30일 수동 검토 필요 계정 제외
-  - 운영 알림 채널(Slack/운영 메일) 확인
+- 보관기간
+  - 단순 인증 실패 로그: 30일
+  - 미성년 판정 차단 로그: 1년 또는 성인 가능 시점까지 중 짧은 기간
+  - 반복 우회 시도 로그: 1년
+  - 관리자 제재/분쟁 로그: 3년
+- 파기 대상
+  - `minor_access_block.deleted_at IS NULL AND created_at <= retention_threshold`
+  - `age_verification_log.deleted_at IS NULL AND purge_after <= now`
+  - 기존 레거시 `user.member_status IN ('minor_blocked', 'blocked_minor', 'login_blocked_minor')`
 - 파기 방식
-  - 이메일/이름/본인확인 토큰/프로필/위치 정보 제거
-  - 상태를 `minor_blocked_purged`로 전환
-  - 차단 이력과 최소 식별 흔적만 유지
+  - 원문 개인정보는 저장하지 않음
+  - CI/DI, 휴대폰번호, IP는 HMAC-SHA256 해시만 저장
+  - 보관기간 만료 시 `deleted_at` 표시 및 운영 감사 로그 기록
+- 관리자 기능
+  - 성인인증 로그 조회
+  - 미성년 차단 목록 조회
+  - 오인증/민원 시 재시도 제한 해제
+  - 차단 로그 CSV 다운로드
+  - 자동 파기 후보 확인 및 실행

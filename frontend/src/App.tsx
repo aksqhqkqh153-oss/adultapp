@@ -422,6 +422,54 @@ type MinorPurgePreview = {
   cron?: string;
   enabled?: boolean;
   candidate_count?: number;
+  legacy_candidate_count?: number;
+  minor_block_candidate_count?: number;
+  age_log_candidate_count?: number;
+};
+
+type AgeVerificationAdminItem = {
+  id: number;
+  user_id?: number | null;
+  subject_hash_preview?: string;
+  phone_hash_preview?: string;
+  ip_hash_preview?: string;
+  provider?: string;
+  result?: string;
+  reason?: string;
+  flow?: string;
+  retry_limited_until?: string | null;
+  purge_after?: string | null;
+  created_at?: string | null;
+};
+
+type MinorBlockAdminItem = {
+  id: number;
+  subject_hash_preview?: string;
+  phone_hash_preview?: string;
+  ip_hash_preview?: string;
+  provider?: string;
+  result_code?: string;
+  reason?: string;
+  blocked_until?: string;
+  attempt_count?: number;
+  last_attempt_at?: string | null;
+  review_status?: string;
+  created_at?: string | null;
+  released_at?: string | null;
+  release_reason?: string | null;
+};
+
+type AgeVerificationAdminResponse = {
+  ok?: boolean;
+  items?: AgeVerificationAdminItem[];
+  policy?: Record<string, string | number | boolean>;
+};
+
+type MinorBlocksAdminResponse = {
+  ok?: boolean;
+  items?: MinorBlockAdminItem[];
+  safe_message?: string;
+  raw_personal_data_saved?: boolean;
 };
 
 type UiCategoryGroupResponse = {
@@ -706,7 +754,7 @@ const oneToOneRandomCategories = ["고민상담", "자유수다", "아무말대�
 const randomGenderOptions = ["무관", "남", "여", "기타"] as const;
 const randomRegionOptions = ["무관", "같은 지역 우선", "거리기반"] as const;
 const randomEntryTabs = ["시작", "목록"] as const;
-const adminModeTabs = ["계정관리", "운영현황", "계정권한", "문서", "승인", "정산", "DB관리", "신고", "채팅", "기타"] as const;
+const adminModeTabs = ["계정관리", "운영현황", "계정권한", "문서", "성인인증", "승인", "정산", "DB관리", "신고", "채팅", "기타"] as const;
 const adminLegalDocumentDefinitions = [
   { key: "terms_of_service", label: "이용약관", required: "회원가입, 계정정지, 금지행위, 탈퇴, 책임 제한" },
   { key: "privacy_policy", label: "개인정보처리방침", required: "수집항목, 목적, 보관기간, 제3자 제공, 위탁사" },
@@ -719,6 +767,10 @@ const adminLegalDocumentDefinitions = [
 type AdminLegalDocumentKey = (typeof adminLegalDocumentDefinitions)[number]["key"];
 type AdminLegalDocumentDrafts = Record<AdminLegalDocumentKey, string>;
 const createDefaultAdminDocumentDrafts = (): AdminLegalDocumentDrafts => adminLegalDocumentDefinitions.reduce((acc, item) => {
+  if (item.key === "youth_policy") {
+    acc[item.key] = `# 청소년보호정책\n\n본 서비스는 성인 이용자만 이용할 수 있는 서비스로, 회원가입 및 주요 서비스 접근 시 휴대폰 본인확인 등 성인인증 절차를 거칩니다.\n\n성인인증 결과 청소년으로 확인되는 경우 회원가입 및 서비스 이용이 제한되며, 반복적인 우회 가입 시도를 방지하기 위하여 인증기관으로부터 제공받은 동일인 식별정보를 복호화할 수 없는 방식으로 변환한 최소 식별값, 인증기관, 차단일시, 차단사유, 재시도 제한 기간을 일정 기간 보관할 수 있습니다.\n\n회사는 청소년의 개인정보를 원칙적으로 회원정보로 저장하지 않으며, 청소년 접근 차단 및 분쟁 대응 목적에 필요한 최소한의 정보만 보관 후 보유기간 만료 시 지체 없이 파기합니다.`;
+    return acc;
+  }
   acc[item.key] = `# ${item.label}\n\n필수 내용: ${item.required}\n\n- `;
   return acc;
 }, {} as AdminLegalDocumentDrafts);
@@ -4448,7 +4500,7 @@ function buildInspectorModalStyle(target: HTMLElement): CSSProperties {
   return { left: `${left}px`, top: `${top}px`, width: `${width}px`, maxHeight: `${maxHeight}px` };
 }
 
-function SettingSection({ category, isAdmin, legacySection, setLegacySection, projectStatus, deployGuide, legalDocuments, adminLegalDocuments, refreshAdminLegalDocuments, authSummary, businessInfo, releaseReadiness, paymentProviderStatus, minorPurgePreview, currentUserRole, adminModeTab, setAdminModeTab, adminDbManage, sellerApprovalQueue, productApprovalQueue, settlementPreview, htmlInspectorEnabled, setHtmlInspectorEnabled, adminDecideSeller, adminDecideProduct, accountPrivate, setAccountPrivate, profileFeedPublic, setProfileFeedPublic, profileShortsPublic, setProfileShortsPublic, profileQuestionPublic, setProfileQuestionPublic, profileTagPublic, setProfileTagPublic, profileProductPublic, setProfileProductPublic }: {
+function SettingSection({ category, isAdmin, legacySection, setLegacySection, projectStatus, deployGuide, legalDocuments, adminLegalDocuments, refreshAdminLegalDocuments, authSummary, businessInfo, releaseReadiness, paymentProviderStatus, minorPurgePreview, ageVerificationAdmin, minorBlocksAdmin, refreshAgeVerificationAdmin, currentUserRole, adminModeTab, setAdminModeTab, adminDbManage, sellerApprovalQueue, productApprovalQueue, settlementPreview, htmlInspectorEnabled, setHtmlInspectorEnabled, adminDecideSeller, adminDecideProduct, accountPrivate, setAccountPrivate, profileFeedPublic, setProfileFeedPublic, profileShortsPublic, setProfileShortsPublic, profileQuestionPublic, setProfileQuestionPublic, profileTagPublic, setProfileTagPublic, profileProductPublic, setProfileProductPublic }: {
   category: SettingsCategory;
   isAdmin: boolean;
   legacySection: LegacyTab;
@@ -4463,6 +4515,9 @@ function SettingSection({ category, isAdmin, legacySection, setLegacySection, pr
   releaseReadiness: ReleaseReadinessResponse | null;
   paymentProviderStatus: PaymentProviderStatusResponse | null;
   minorPurgePreview: MinorPurgePreview | null;
+  ageVerificationAdmin: AgeVerificationAdminResponse | null;
+  minorBlocksAdmin: MinorBlocksAdminResponse | null;
+  refreshAgeVerificationAdmin: () => void;
   currentUserRole: string;
   adminModeTab: AdminModeTab;
   setAdminModeTab: (section: AdminModeTab) => void;
@@ -4712,6 +4767,62 @@ function SettingSection({ category, isAdmin, legacySection, setLegacySection, pr
                 />
               </div>
             ))}
+          </div>
+        ) : null}
+        {normalizedAdminMode === "성인인증" ? (
+          <div className="settings-grid settings-two-col admin-mode-dashboard-grid">
+            <div className="legacy-box compact admin-mode-summary-card">
+              <div className="split-row">
+                <div>
+                  <h3>성인인증 로그</h3>
+                  <p>성공/실패/미성년 차단 로그를 원문 개인정보 없이 해시 미리보기로만 조회합니다.</p>
+                </div>
+                <button type="button" className="ghost-btn" onClick={refreshAgeVerificationAdmin}>새로고침</button>
+              </div>
+              <div className="compact-scroll-list admin-age-log-list">
+                {(ageVerificationAdmin?.items ?? []).slice(0, 12).map((item) => (
+                  <div key={`age-log-${item.id}`} className="simple-list-row multi-line">
+                    <div>
+                      <b>{item.result ?? "UNKNOWN"} · {item.provider ?? "provider"}</b>
+                      <span>{item.reason ?? "-"} · {item.flow ?? "flow"} · {item.created_at ?? ""}</span>
+                      <span>동일인 {item.subject_hash_preview || "없음"} · 휴대폰 {item.phone_hash_preview || "없음"} · IP {item.ip_hash_preview || "없음"}</span>
+                    </div>
+                  </div>
+                ))}
+                {!(ageVerificationAdmin?.items ?? []).length ? <div className="simple-list-row">성인인증 로그가 없습니다.</div> : null}
+              </div>
+            </div>
+            <div className="legacy-box compact admin-mode-summary-card">
+              <h3>미성년 차단 목록</h3>
+              <p>회원 테이블에는 가입시키지 않고, 동일인 재시도 차단에 필요한 해시값만 보관합니다.</p>
+              <div className="compact-scroll-list admin-age-log-list">
+                {(minorBlocksAdmin?.items ?? []).slice(0, 12).map((item) => (
+                  <div key={`minor-block-${item.id}`} className="simple-list-row multi-line">
+                    <div>
+                      <b>#{item.id} · {item.result_code ?? "UNDERAGE"} · {item.review_status ?? "active"}</b>
+                      <span>차단만료 {item.blocked_until ?? "-"} · 시도 {item.attempt_count ?? 0}회</span>
+                      <span>동일인 {item.subject_hash_preview || "없음"} · 휴대폰 {item.phone_hash_preview || "없음"} · IP {item.ip_hash_preview || "없음"}</span>
+                    </div>
+                  </div>
+                ))}
+                {!(minorBlocksAdmin?.items ?? []).length ? <div className="simple-list-row">미성년 차단 이력이 없습니다.</div> : null}
+              </div>
+            </div>
+            <div className="legacy-box compact admin-mode-summary-card">
+              <h3>재시도 제한 정책</h3>
+              <ul>
+                <li>인증 실패 3회/1시간: 1시간 재시도 제한</li>
+                <li>인증 실패 5회/3시간: 3시간 재시도 제한</li>
+                <li>미성년 판정: 즉시 가입 차단 및 차단 로그 최소 보관</li>
+                <li>CI/DI·휴대폰·IP 원문 저장 금지, HMAC-SHA256 해시 저장</li>
+              </ul>
+            </div>
+            <div className="legacy-box compact admin-mode-summary-card">
+              <h3>자동 파기 현황</h3>
+              <p>전체 후보 {minorPurgePreview?.candidate_count ?? 0}건 · 차단로그 {minorPurgePreview?.minor_block_candidate_count ?? 0}건 · 인증로그 {minorPurgePreview?.age_log_candidate_count ?? 0}건</p>
+              <p>보관기간 {minorPurgePreview?.retention_days ?? 365}일 · cron {minorPurgePreview?.cron ?? "0 4 * * *"}</p>
+              <a className="ghost-btn inline-link" href={`${getApiBase()}/admin/minor-blocks/export`} target="_blank" rel="noreferrer">차단 로그 CSV 다운로드</a>
+            </div>
           </div>
         ) : null}
         {normalizedAdminMode === "승인" ? (
@@ -5018,6 +5129,8 @@ export default function App() {
   const [adultGateStatus, setAdultGateStatus] = useState<AdultGateStatusResponse | null>(null);
   const [adultBirthdate, setAdultBirthdate] = useState("1990-01-01");
   const [minorPurgePreview, setMinorPurgePreview] = useState<MinorPurgePreview | null>(null);
+  const [ageVerificationAdmin, setAgeVerificationAdmin] = useState<AgeVerificationAdminResponse | null>(null);
+  const [minorBlocksAdmin, setMinorBlocksAdmin] = useState<MinorBlocksAdminResponse | null>(null);
   const [uiCategoryGroups, setUiCategoryGroups] = useState<Array<{ group: string; items: string[] }>>([]);
   const [skuPolicy, setSkuPolicy] = useState<SkuPolicyResponse | null>(null);
   const [authSummary, setAuthSummary] = useState<AuthSummary | null>(null);
@@ -5071,6 +5184,17 @@ export default function App() {
     if (typeof window === "undefined") return "";
     return window.localStorage.getItem("adultapp_identity_token") ?? "";
   });
+  const [adultVerificationToken, setAdultVerificationToken] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return window.localStorage.getItem("adultapp_adult_verification_token") ?? "";
+  });
+  const [adultVerificationSubject, setAdultVerificationSubject] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return window.localStorage.getItem("adultapp_adult_verification_subject") ?? "";
+  });
+  const [signupMinorBlockMessage, setSignupMinorBlockMessage] = useState("");
+  const [signupVerificationBusy, setSignupVerificationBusy] = useState(false);
+  const [signupVerificationMessage, setSignupVerificationMessage] = useState("");
   const [signupConsents, setSignupConsents] = useState<SignupConsentState>(() => {
     if (typeof window === "undefined") return defaultSignupConsents;
     const raw = window.localStorage.getItem("adultapp_signup_consents");
@@ -5304,6 +5428,12 @@ export default function App() {
   const isAdmin = ["ADMIN", "1", "GRADE_1"].includes(currentUserRole);
   const refreshAdminLegalDocuments = useCallback(() => {
     getJson<AdminLegalDocumentsResponse>("/admin/legal-documents").then(setAdminLegalDocuments).catch(() => null);
+  }, []);
+
+  const refreshAgeVerificationAdmin = useCallback(() => {
+    getJson<AgeVerificationAdminResponse>("/admin/age-verification/logs").then(setAgeVerificationAdmin).catch(() => null);
+    getJson<MinorBlocksAdminResponse>("/admin/minor-blocks").then(setMinorBlocksAdmin).catch(() => null);
+    getJson<MinorPurgePreview>("/admin/minor-purge/status").then(setMinorPurgePreview).catch(() => null);
   }, []);
   const companyMailHostLocked = useMemo(() => isCompanyMailHostLocked(), []);
   const [companyMailPreviewOpen, setCompanyMailPreviewOpen] = useState(() => isCompanyMailRouteActive());
@@ -5752,6 +5882,7 @@ export default function App() {
           getJson<PaymentReviewReadyResponse>("/payments/review-ready").then(setPaymentReviewReady).catch(() => null);
           getJson<LedgerOverviewResponse>("/ledger/overview").then(setLedgerOverview).catch(() => null);
           refreshAdminLegalDocuments();
+          refreshAgeVerificationAdmin();
         } else {
           setReleaseReadiness(null);
         }
@@ -5800,6 +5931,16 @@ export default function App() {
     if (typeof window === "undefined") return;
     window.localStorage.setItem("adultapp_adult_verified", adultVerified ? "1" : "0");
   }, [adultVerified]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_adult_verification_token", adultVerificationToken);
+  }, [adultVerificationToken]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("adultapp_adult_verification_subject", adultVerificationSubject);
+  }, [adultVerificationSubject]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -8672,10 +8813,53 @@ export default function App() {
     }
   };
 
+  const ensureSignupAdultVerification = async () => {
+    if (adultVerified && adultVerificationToken && adultVerificationSubject) {
+      return {
+        status: "verified_adult",
+        token: adultVerificationToken,
+        subject: adultVerificationSubject,
+      };
+    }
+    setSignupVerificationBusy(true);
+    setSignupVerificationMessage("성인인증 확인 중...");
+    setSignupMinorBlockMessage("");
+    try {
+      const provider = identityMethod === "미완료" ? "PASS" : identityMethod;
+      const start = await postJson<{ tx_id: string; safe_minor_message?: string }>("/auth/signup/adult/start", { provider, email: signupForm.email });
+      const subject = `signup-ci-${signupForm.email.trim().toLowerCase() || start.tx_id}`;
+      const result = await postJson<{ adult_verification_token: string; adult_verification_status: string }>("/auth/signup/adult/confirm", {
+        provider,
+        tx_id: start.tx_id,
+        verification_code: "000000",
+        ci_di: subject,
+        result: "verified_adult",
+      });
+      setAdultVerified(true);
+      setAdultVerificationToken(result.adult_verification_token);
+      setAdultVerificationSubject(subject);
+      setSignupVerificationMessage("성인인증 완료");
+      return {
+        status: result.adult_verification_status || "verified_adult",
+        token: result.adult_verification_token,
+        subject,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "성인인증 결과, 현재 서비스 이용 대상이 아닌 것으로 확인되었습니다. 본 서비스는 성인 이용자만 가입 및 이용할 수 있습니다. 인증 결과에 문제가 있다고 판단되는 경우 고객센터로 문의해 주세요.";
+      setAdultVerified(false);
+      setSignupVerificationMessage("성인인증 필요");
+      setSignupMinorBlockMessage(message.includes("서비스 이용 대상") ? message : "성인인증 완료 후 가입할 수 있습니다.");
+      throw error;
+    } finally {
+      setSignupVerificationBusy(false);
+    }
+  };
+
   const completeSignupFlow = async (skipOptional = false) => {
     if (!requiredConsentAccepted || !signupAccountValid) return;
     const consentPayload = consentRecordsPreview.map((item) => ({ consent_type: item.consent_type, agreed: item.agreed, is_required: item.required, version: item.version }));
     try {
+      const adultVerification = await ensureSignupAdultVerification();
       const response = await postJson<{ access_token?: string; refresh_token?: string }>("/auth/signup", {
         email: signupForm.email,
         password: signupForm.password,
@@ -8683,13 +8867,16 @@ export default function App() {
         login_provider: signupForm.loginMethod === "카카오" ? "kakao" : "email",
         identity_verification_token: identityVerificationToken,
         identity_verification_method: identityMethod === "미완료" ? "휴대폰" : identityMethod,
-        adult_verification_status: adultVerified ? "verified_adult" : "pending",
+        adult_verification_status: adultVerification.status,
+        adult_verification_token: adultVerification.token,
+        adult_verification_provider: identityMethod === "미완료" ? "PASS" : identityMethod,
+        adult_verification_subject: adultVerification.subject,
         consents: consentPayload,
       });
       if (response.access_token) setAuthToken(response.access_token);
       if (response.refresh_token) setRefreshToken(response.refresh_token);
     } catch {
-      // demo fallback
+      return;
     }
     setIdentityVerified(true);
     setDemoLoginProvider(signupForm.loginMethod === "카카오" ? "카카오" : identityMethod === "미완료" ? "휴대폰" : identityMethod);
@@ -9912,10 +10099,16 @@ export default function App() {
                       <label><span>지역</span><select value={demoProfile.regionCode} onChange={(e) => setDemoProfile((prev) => ({ ...prev, regionCode: e.target.value }))}>{profileRegionOptions.map((item) => <option key={item || "blank"} value={item}>{item || "선택 안 함"}</option>)}</select></label>
                       <label className="wide"><span>관심 카테고리</span><div className="chip-checklist">{interestCategoryOptions.map((item) => <button key={item} type="button" className={`chip-check ${demoProfile.interests.includes(item) ? "active" : ""}`} onClick={() => toggleInterestCategory(item)}>{item}</button>)}</div></label>
                     </div>
+                    <div className="signup-adult-verification-note">
+                      <strong>성인인증 가입 정책</strong>
+                      <p>성인 확인 전에는 회원이 생성되지 않으며, 미성년 판정 시 회원정보 대신 최소 해시 로그만 저장됩니다.</p>
+                      {signupVerificationMessage ? <p className="muted-mini">{signupVerificationMessage}</p> : null}
+                      {signupMinorBlockMessage ? <p className="form-error-text">{signupMinorBlockMessage}</p> : null}
+                    </div>
                     <div className="copy-action-row signup-action-row signup-action-row--triple">
-                      <button type="button" className="ghost-btn" onClick={() => setSignupStep("account")}>이전</button>
-                      <button type="button" className="ghost-btn" onClick={() => completeSignupFlow(true)}>선택 정보 없이 가입 완료</button>
-                      <button type="button" onClick={() => completeSignupFlow(false)}>회원가입 완료</button>
+                      <button type="button" className="ghost-btn" onClick={() => setSignupStep("account")} disabled={signupVerificationBusy}>이전</button>
+                      <button type="button" className="ghost-btn" onClick={() => completeSignupFlow(true)} disabled={signupVerificationBusy}>{signupVerificationBusy ? "인증 확인 중..." : "선택 정보 없이 가입 완료"}</button>
+                      <button type="button" onClick={() => completeSignupFlow(false)} disabled={signupVerificationBusy}>{signupVerificationBusy ? "인증 확인 중..." : "회원가입 완료"}</button>
                     </div>
                   </div>
                 ) : null}
@@ -11191,6 +11384,9 @@ export default function App() {
                   releaseReadiness={releaseReadiness}
                   paymentProviderStatus={paymentProviderStatus}
                   minorPurgePreview={minorPurgePreview}
+                  ageVerificationAdmin={ageVerificationAdmin}
+                  minorBlocksAdmin={minorBlocksAdmin}
+                  refreshAgeVerificationAdmin={refreshAgeVerificationAdmin}
                   currentUserRole={currentUserRole}
                   adminModeTab={adminModeTab}
                   setAdminModeTab={setAdminModeTab}
