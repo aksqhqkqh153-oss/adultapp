@@ -386,3 +386,58 @@
   background: transparent !important;
   box-shadow: none !important;
 }
+
+/* 20260429 profile avatar diameter/fill fix */
+.profile-ig-avatar-wrap {
+  width: 40px !important;
+  height: 40px !important;
+  min-width: 40px !important;
+  max-width: 40px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: visible !important;
+}
+.profile-ig-header {
+  grid-template-columns: 40px minmax(0, 1fr) !important;
+}
+.profile-ig-avatar {
+  width: 40px !important;
+  height: 40px !important;
+  min-width: 40px !important;
+  max-width: 40px !important;
+  min-height: 40px !important;
+  max-height: 40px !important;
+  border-radius: 50% !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1 !important;
+}
+.profile-ig-avatar img {
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 100% !important;
+  min-height: 100% !important;
+  display: block !important;
+  object-fit: cover !important;
+  object-position: center center !important;
+  border-radius: 50% !important;
+}
+@media (max-width: 640px) {
+  .profile-ig-header {
+    grid-template-columns: 40px minmax(0, 1fr) !important;
+  }
+  .profile-ig-avatar-wrap,
+  .profile-ig-avatar {
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    max-width: 40px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
+  }
+}

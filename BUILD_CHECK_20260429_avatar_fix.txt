@@ -1,0 +1,4 @@
+profile avatar diameter/fill fix applied
+- profile-ig-avatar-wrap fixed to 40px
+- profile-ig-avatar fixed to 40px circle
+- profile-ig-avatar img object-fit cover and full size
