@@ -12959,6 +12959,29 @@ export default function App() {
               <button type="button" className="profile-external-back-btn" onClick={() => { setActiveTab("채팅"); setChatTab("채팅"); setChatListMode("requests"); setViewedProfileAuthor(null); }} aria-label="채팅 요청으로 돌아가기"><BackArrowIcon /></button>
             ) : null}
             <div className="profile-ig-shell compact-scroll-list" onScroll={handleProfileShellScroll}>
+              {profileFollowListMode ? (
+                <div className="profile-follow-list-screen profile-follow-list-fullscreen">
+                  <div className="profile-ig-tabbar profile-follow-tabbar profile-follow-full-tabbar" aria-label="팔로잉 팔로워 목록">
+                    <button type="button" className={profileFollowListMode === "팔로잉" ? "active" : ""} onClick={() => setProfileFollowListMode("팔로잉")}>팔로잉</button>
+                    <button type="button" className={profileFollowListMode === "팔로워" ? "active" : ""} onClick={() => setProfileFollowListMode("팔로워")}>팔로워</button>
+                  </div>
+                  <div className="profile-follow-list compact-scroll-list">
+                    {profileFollowAccounts.length ? profileFollowAccounts.map((account) => (
+                      <button type="button" key={`${profileFollowListMode}-${account.id}`} className="profile-follow-list-item" onClick={() => openProfileFollowAccount(account.name)}>
+                        <span className="profile-follow-avatar">{account.name.slice(0, 1).toUpperCase()}</span>
+                        <span className="profile-follow-body">
+                          <strong>{account.name}</strong>
+                          <small>{account.role} · {account.topic}</small>
+                        </span>
+                        <span className="profile-follow-open">프로필</span>
+                      </button>
+                    )) : (
+                      <div className="profile-follow-empty">표시할 {profileFollowListMode} 계정이 없습니다.</div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <>
               <div className="profile-ig-header">
                 <div className="profile-ig-avatar-wrap">
                   {currentProfileMeta.isOwner && profileEditMode ? (
@@ -12974,7 +12997,7 @@ export default function App() {
                       <input ref={profileAvatarInputRef} type="file" accept="image/*" className="sr-only" onChange={handleProfileAvatarFileChange} />
                     </>
                   ) : (
-                    <button type="button" className={`profile-ig-avatar profile-avatar-preview-trigger ${currentProfileMeta.avatarUrl ? "has-image" : "anonymous-profile-icon"}`} onClick={() => setFeedAvatarPreviewItem({ id: -900, author: currentProfileMeta.name, title: currentProfileMeta.name, caption: currentProfileMeta.bio, category: "프로필", likes: 0, comments: 0, type: "image", accent: "neutral" } as FeedItem)} aria-label="프로필 사진 크게 보기">
+                    <button type="button" className={`profile-ig-avatar profile-avatar-preview-trigger ${currentProfileMeta.avatarUrl ? "has-image" : "anonymous-profile-icon"}`} onClick={() => setFeedAvatarPreviewItem({ id: -900, author: currentProfileMeta.name, title: currentProfileMeta.name, caption: currentProfileMeta.bio, category: "프로필", likes: 0, comments: 0, type: "image", accent: "neutral", mediaUrl: currentProfileMeta.avatarUrl || undefined } as FeedItem)} aria-label="프로필 사진 크게 보기">
                       {currentProfileMeta.avatarUrl ? <img src={currentProfileMeta.avatarUrl} alt="프로필" loading="lazy" /> : null}
                     </button>
                   )}
@@ -13049,29 +13072,6 @@ export default function App() {
                 </div>
               </div>
 
-              {profileFollowListMode ? (
-                <div className="profile-follow-list-screen">
-                  <div className="profile-ig-tabbar profile-follow-tabbar" aria-label="팔로잉 팔로워 목록">
-                    <button type="button" className={profileFollowListMode === "팔로잉" ? "active" : ""} onClick={() => setProfileFollowListMode("팔로잉")}>팔로잉</button>
-                    <button type="button" className={profileFollowListMode === "팔로워" ? "active" : ""} onClick={() => setProfileFollowListMode("팔로워")}>팔로워</button>
-                  </div>
-                  <div className="profile-follow-list compact-scroll-list">
-                    {profileFollowAccounts.length ? profileFollowAccounts.map((account) => (
-                      <button type="button" key={`${profileFollowListMode}-${account.id}`} className="profile-follow-list-item" onClick={() => openProfileFollowAccount(account.name)}>
-                        <span className="profile-follow-avatar">{account.name.slice(0, 1).toUpperCase()}</span>
-                        <span className="profile-follow-body">
-                          <strong>{account.name}</strong>
-                          <small>{account.role} · {account.topic}</small>
-                        </span>
-                        <span className="profile-follow-open">프로필</span>
-                      </button>
-                    )) : (
-                      <div className="profile-follow-empty">표시할 {profileFollowListMode} 계정이 없습니다.</div>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <>
               <div className="profile-ig-tabbar profile-ig-action-grid" aria-label="프로필 바로가기">
                 <button type="button" className={profileSection === "게시물" ? "active" : ""} onClick={() => setProfileSection("게시물")}><span>피드</span><small>{allFeedItems.filter((item) => item.type === "image" && currentProfileAuthorAliases.includes(item.author)).length}</small></button>
                 <button type="button" className={profileSection === "쇼츠" ? "active" : ""} onClick={() => setProfileSection("쇼츠")}><span>쇼츠</span><small>{profileShortItems.length}</small></button>

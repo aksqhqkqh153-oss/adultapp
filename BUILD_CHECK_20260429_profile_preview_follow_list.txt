@@ -1,0 +1,5 @@
+2026-04-29 profile avatar preview/follow list update
+- Profile avatar preview now passes original avatarUrl to preview modal.
+- Feed avatar preview image uses contain mode to show original photo without cropping.
+- Follower/following list is displayed as a full profile body screen with top tabs and scrollable list.
+- Dist and backend/static JS syntax checks passed with node --check.
