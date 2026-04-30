@@ -5070,6 +5070,12 @@ export default function App() {
     return window.localStorage.getItem("adultapp_chat_question_draft") ?? "";
   });
   const [chatQuestionAnonymous, setChatQuestionAnonymous] = useState(false);
+  const [myQuestionStatus, setMyQuestionStatus] = useState<"답변완료" | "미답변" | "거절">("답변완료");
+  const [questionAnswerDrafts, setQuestionAnswerDrafts] = useState<Record<number, string>>({});
+  const [likedQuestionIds, setLikedQuestionIds] = useState<number[]>([]);
+  const [questionCommentPreview, setQuestionCommentPreview] = useState<QuestionCard | null>(null);
+  const [generalTradeWarningDismissToday, setGeneralTradeWarningDismissToday] = useState(false);
+  const [showGeneralTradeWarning, setShowGeneralTradeWarning] = useState(false);
   const [chatCategory, setChatCategory] = useState<ChatCategory>("전체");
   const [chatVisibleCount, setChatVisibleCount] = useState(30);
   const [activeChatThreadId, setActiveChatThreadId] = useState<number | null>(null);
@@ -8343,8 +8349,48 @@ export default function App() {
     const keyword = globalKeyword.trim().toLowerCase();
     return !keyword
       ? questionSeed
-      : questionSeed.filter((item) => `${item.author} ${item.question} ${item.answer}`.toLowerCase().includes(keyword));
+      : questionSeed.filter((item) => `  `.toLowerCase().includes(keyword));
   }, [globalKeyword]);
+  const unansweredQuestions = useMemo<QuestionCard[]>(() => [
+    { id: 101, author: "visitor_waiting", question: "상품 등록 전 사업자 인증은 어디서 진행하나요?", answer: "", meta: "미답변 · 12분 전", likes: 0, comments: 0 },
+    { id: 102, author: "buyer_qa", question: "일반거래 등록 가능 품목 기준을 알고 싶습니다.", answer: "", meta: "미답변 · 1시간 전", likes: 0, comments: 1 },
+  ], []);
+  const rejectedQuestions = useMemo<QuestionCard[]>(() => [
+    { id: 201, author: "blocked_user", question: "외부 결제로 바로 거래할 수 있나요?", answer: "운영정책상 외부 결제 유도 질문은 거절 처리됩니다.", meta: "거절 · 오늘", likes: 0, comments: 0 },
+  ], []);
+  const managedQuestions = myQuestionStatus === "미답변" ? unansweredQuestions : myQuestionStatus === "거절" ? rejectedQuestions : filteredQuestions;
+  const submitQuestionAnswer = (questionId: number) => {
+    const draft = (questionAnswerDrafts[questionId] ?? "").trim();
+    if (!draft) {
+      if (typeof window !== "undefined") window.alert("답변 내용을 입력해주세요.");
+      return;
+    }
+    if (typeof window !== "undefined") window.alert("답변이 임시 반영되었습니다. 실제 서버 저장은 API 연결 후 처리됩니다.");
+    setMyQuestionStatus("답변완료");
+  };
+  const requestAnsweredQuestionEdit = (question: QuestionCard) => {
+    const ok = typeof window === "undefined" ? true : window.confirm("답변을 수정하시겠습니까?");
+    if (!ok) return;
+    setMyQuestionStatus("미답변");
+    setQuestionAnswerDrafts((prev) => ({ ...prev, [question.id]: question.answer }));
+  };
+  const toggleQuestionLike = (questionId: number) => {
+    setLikedQuestionIds((prev) => prev.includes(questionId) ? prev.filter((id) => id !== questionId) : [...prev, questionId]);
+  };
+  const shareQuestion = async (question: QuestionCard) => {
+    if (typeof window === "undefined") return;
+    const shareText = `/questions/`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: question.question, text: question.question, url: shareText });
+      } else {
+        await navigator.clipboard.writeText(shareText);
+        window.alert("질문 링크를 복사했습니다.");
+      }
+    } catch {
+      window.alert("공유가 취소되었습니다.");
+    }
+  };
 
   const filteredRandomRooms = useMemo(() => {
     const keyword = globalKeyword.trim().toLowerCase();
@@ -8799,8 +8845,20 @@ export default function App() {
   const randomProfileReady = randomProfileMissing.length === 0;
   const sellerApprovalReady = isAdmin || sellerVerification.status === "approved";
   const openBusinessVerificationTab = () => setShoppingTab("사업자인증");
-  const openProductRegistrationTab = () => setShoppingTab(isAdmin || sellerApprovalReady ? "상품등록" : "사업자인증");
-  const openGeneralTradeRegistrationTab = () => setShoppingTab("일반거래");
+  const openProductRegistrationTab = () => {
+    if (isAdmin || sellerApprovalReady) {
+      setShoppingTab("상품등록");
+      return;
+    }
+    const confirmed = typeof window === "undefined" ? true : window.confirm("사업자등록 한 계정만 등록이 가능합니다. 사업자등록을 진행하시겠습니까?");
+    if (confirmed) setShoppingTab("사업자인증");
+  };
+  const openGeneralTradeRegistrationTab = () => {
+    setShoppingTab("일반거래");
+    if (typeof window === "undefined") return;
+    const todayKey = new Date().toISOString().slice(0, 10);
+    if (window.localStorage.getItem("adultapp_general_trade_warning_skip_date") !== todayKey) setShowGeneralTradeWarning(true);
+  };
   const sellerApplicationComplete = Boolean(
     sellerVerification.companyName.trim()
     && sellerVerification.representativeName.trim()
@@ -9512,15 +9570,22 @@ export default function App() {
     setAdultPromptOpen(true);
   }, [requiresAdultGate, activeTab]);
 
-  const currentScreenTitle = overlayMode === "search"
-    ? `${activeTab}검색`
-    : overlayMode === "settings"
-      ? `${activeTab}설정`
-      : overlayMode === "notifications"
-        ? `${activeTab}알림`
-        : activeTab === "프로필" && !currentProfileMeta.isOwner
-          ? "정보"
+  const baseScreenTitle = activeTab === "쇼핑"
+    ? shoppingTab
+    : activeTab === "채팅"
+      ? chatTab
+      : activeTab === "프로필"
+        ? (profileFollowListMode ?? (currentProfileMeta.isOwner ? profileTab : "정보"))
+        : activeTab === "홈"
+          ? homeTab
           : activeTab;
+  const currentScreenTitle = overlayMode === "search"
+    ? `검색`
+    : overlayMode === "settings"
+      ? `설정`
+      : overlayMode === "notifications"
+        ? `알림`
+        : baseScreenTitle;
 
   const openOverlay = (mode: Exclude<OverlayMode, null>) => {
     setOverlayMode((prev) => (prev === mode ? null : mode));
@@ -11703,7 +11768,7 @@ export default function App() {
           </section>
         ) : null}
 
-        {showAppTabContent && activeTab === "쇼핑" ? (
+        {showAppTabContent && activeTab === "쇼핑" && !feedAvatarPreviewItem ? (
           <section className={shoppingTab === "홈" ? "compact-scroll-list shop-home-feed-pane shop-home-pane-root" : "tab-pane fill-pane"}>
             {shoppingTab === "홈" ? (
               <div className="shop-home-home-shell">
@@ -12561,36 +12626,50 @@ export default function App() {
                     <span>답변이 필요한 질문을 상태별로 확인합니다.</span>
                   </div>
                   <div className="my-question-status-tabs" role="tablist" aria-label="질문 상태 분류">
-                    <button type="button" className="active">답변완료 <b>{filteredQuestions.length}</b></button>
-                    <button type="button">미답변 <b>2</b></button>
-                    <button type="button">거절 <b>1</b></button>
+                    {(["답변완료", "미답변", "거절"] as const).map((status) => (
+                      <button key={status} type="button" className={myQuestionStatus === status ? "active" : ""} onClick={() => setMyQuestionStatus(status)}>
+                        {status} <b>{status === "답변완료" ? filteredQuestions.length : status === "미답변" ? unansweredQuestions.length : rejectedQuestions.length}</b>
+                      </button>
+                    ))}
                   </div>
                 </section>
 
                 <section className="question-list">
-                  {filteredQuestions.map((item) => (
-                    <article key={item.id} className="question-feed-card">
-                      <div className="question-feed-top">
-                        <div>
-                          <div className="question-user-line">
-                            <span className="community-chip">질문</span>
-                            <strong>{item.author}</strong>
-                            <span className="community-meta">{item.meta}</span>
+                  {managedQuestions.map((item) => {
+                    const liked = likedQuestionIds.includes(item.id);
+                    return (
+                      <article key={item.id} className="question-feed-card">
+                        <div className="question-feed-top">
+                          <div>
+                            <div className="question-user-line">
+                              <span className="community-chip">{myQuestionStatus}</span>
+                              <strong>{item.author}</strong>
+                              <span className="community-meta">{item.meta}</span>
+                            </div>
+                            <div className="question-body">Q. {item.question}</div>
                           </div>
-                          <div className="question-body">Q. {item.question}</div>
                         </div>
-                      </div>
-                      <div className="question-answer-box">
-                        <span className="product-badge">답변</span>
-                        <div className="question-body">{item.answer}</div>
-                      </div>
-                      <div className="question-footer-actions">
-                        <button type="button" className="question-footer-icon-btn" aria-label="좋아요"><span className="question-footer-icon"><HeartIcon /></span><span>{item.likes}</span></button>
-                        <button type="button" className="question-footer-icon-btn" aria-label="댓글"><span className="question-footer-icon"><CommentBubbleIcon /></span><span>{item.comments}</span></button>
-                        <button type="button" className="question-footer-icon-btn" aria-label="공유"><span className="question-footer-icon"><ShareArrowIcon /></span><span>공유</span></button>
-                      </div>
-                    </article>
-                  ))}
+                        {myQuestionStatus === "미답변" ? (
+                          <div className="question-answer-editor">
+                            <textarea value={questionAnswerDrafts[item.id] ?? ""} onChange={(event) => setQuestionAnswerDrafts((prev) => ({ ...prev, [item.id]: event.target.value }))} placeholder="이 질문에 대한 답변을 입력하세요." />
+                            <button type="button" onClick={() => submitQuestionAnswer(item.id)}>답변 등록</button>
+                          </div>
+                        ) : (
+                          <div className="question-answer-box" onClick={() => myQuestionStatus === "답변완료" ? requestAnsweredQuestionEdit(item) : undefined}>
+                            <span className="product-badge">{myQuestionStatus === "거절" ? "거절 사유" : "답변"}</span>
+                            <div className="question-body">{item.answer}</div>
+                          </div>
+                        )}
+                        {myQuestionStatus === "답변완료" ? (
+                          <div className="question-footer-actions">
+                            <button type="button" className={`question-footer-icon-btn `} onClick={() => toggleQuestionLike(item.id)} aria-label="좋아요"><span className="question-footer-icon"><HeartIcon /></span><span>{item.likes + (liked ? 1 : 0)}</span></button>
+                            <button type="button" className="question-footer-icon-btn" onClick={() => setQuestionCommentPreview(item)} aria-label="댓글"><span className="question-footer-icon"><CommentBubbleIcon /></span><span>{item.comments}</span></button>
+                            <button type="button" className="question-footer-icon-btn" onClick={() => shareQuestion(item)} aria-label="공유"><span className="question-footer-icon"><ShareArrowIcon /></span><span>공유</span></button>
+                          </div>
+                        ) : null}
+                      </article>
+                    );
+                  })}
                 </section>
               </div>
             ) : (
@@ -13400,7 +13479,7 @@ export default function App() {
         <div className="app-back-hint-toast app-list-end-toast" role="status" aria-live="polite">{listEndToast}</div>
       ) : null}
 
-      {showAppTabContent && activeTab === "프로필" && currentProfileMeta.isOwner && profileTab === "내정보" && !profileEditMode && !profileFollowListMode ? (
+      {showAppTabContent && activeTab === "프로필" && currentProfileMeta.isOwner && profileTab === "내정보" && !profileEditMode && !profileFollowListMode && !feedAvatarPreviewItem ? (
         <>
           {profilePhotoLauncherOpen ? <button type="button" className="feed-create-backdrop" aria-label="프로필 사진 메뉴 닫기" onClick={() => setProfilePhotoLauncherOpen(false)} /> : null}
           <input ref={profileAvatarInputRef} type="file" accept="image/*" className="sr-only" onChange={handleProfileAvatarFileChange} />
@@ -13423,7 +13502,7 @@ export default function App() {
         </>
       ) : null}
 
-      {showAppTabContent && activeTab === "쇼핑" && shoppingTab === "홈" ? (
+      {showAppTabContent && activeTab === "쇼핑" && shoppingTab === "홈" && !feedAvatarPreviewItem ? (
         <>
           {shopCreateLauncherOpen ? <button type="button" className="feed-create-backdrop" aria-label="쇼핑 등록 메뉴 닫기" onClick={() => setShopCreateLauncherOpen(false)} /> : null}
           <div className={`feed-create-dock shop-create-dock${shopCreateLauncherOpen ? " open" : ""}`}>
@@ -13558,7 +13637,7 @@ export default function App() {
       {feedAvatarPreviewItem ? (
         <div className="feed-avatar-preview-backdrop" onClick={closeFeedAvatarPreview}>
           <div className="feed-avatar-preview-sheet" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="프로필 사진 미리보기">
-            <div className={`feed-avatar-preview-stage ${feedAvatarPreviewItem.accent}`}>
+            <div className={`feed-avatar-preview-stage ${feedAvatarPreviewItem.accent} ${feedAvatarPreviewItem.category === "프로필" ? "profile-original-preview" : ""}`}>
               <div className="feed-avatar-preview-square">
                 {feedAvatarPreviewItem.mediaUrl ? (
                   <img className="feed-avatar-preview-image" src={feedAvatarPreviewItem.mediaUrl} alt={feedAvatarPreviewItem.author} />
@@ -13570,6 +13649,46 @@ export default function App() {
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showGeneralTradeWarning ? (
+        <div className="adultapp-policy-modal-backdrop" onClick={() => setShowGeneralTradeWarning(false)}>
+          <div className="adultapp-policy-modal-sheet" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="일반거래 주의 상품목록">
+            <strong>일반거래 주의 상품목록</strong>
+            <p>아래 품목은 일반거래 등록 전 관리자 검수 또는 등록 제한 대상입니다.</p>
+            <ul>
+              <li>개봉 또는 사용 이력이 있는 위생 민감 상품</li>
+              <li>의료기기·의약품으로 오인될 수 있는 상품</li>
+              <li>미성년자 연상 표현, 불법 촬영물, 외부 결제 유도 상품</li>
+              <li>개인정보 요구, 만남 강요, 사기 위험이 있는 거래</li>
+            </ul>
+            <label className="adultapp-policy-modal-check">
+              <input type="checkbox" checked={generalTradeWarningDismissToday} onChange={(event) => setGeneralTradeWarningDismissToday(event.target.checked)} />
+              <span>오늘 하루 이 팝업을 다시 보지 않기</span>
+            </label>
+            <p className="muted-mini">체크 후 확인하면 오늘은 일반거래 주의 안내가 다시 표시되지 않습니다.</p>
+            <button type="button" onClick={() => {
+              if (generalTradeWarningDismissToday && typeof window !== "undefined") {
+                window.localStorage.setItem("adultapp_general_trade_warning_skip_date", new Date().toISOString().slice(0, 10));
+              }
+              setShowGeneralTradeWarning(false);
+            }}>확인</button>
+          </div>
+        </div>
+      ) : null}
+
+      {questionCommentPreview ? (
+        <div className="adultapp-policy-modal-backdrop" onClick={() => setQuestionCommentPreview(null)}>
+          <div className="adultapp-policy-modal-sheet" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="질문 댓글 목록">
+            <strong>댓글</strong>
+            <p>Q. {questionCommentPreview.question}</p>
+            <ul>
+              <li>운영자: 답변이 도움이 되었는지 확인했습니다.</li>
+              <li>회원: 같은 질문이 궁금했는데 참고가 됐습니다.</li>
+            </ul>
+            <button type="button" onClick={() => setQuestionCommentPreview(null)}>닫기</button>
           </div>
         </div>
       ) : null}

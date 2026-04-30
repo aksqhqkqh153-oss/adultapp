@@ -15642,3 +15642,95 @@ button.ghost-btn.danger { border-color:rgba(255,92,92,0.28); color:#ffb0b0; }
   min-height: 0 !important;
   overflow-y: auto !important;
 }
+
+/* 20260430 shopping/chat/profile interaction update */
+.question-answer-editor {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.question-answer-editor textarea {
+  min-height: 92px;
+  resize: vertical;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(0,0,0,0.28);
+  color: #fff;
+  padding: 12px;
+  font: inherit;
+}
+.question-answer-editor button,
+.adultapp-policy-modal-sheet button {
+  min-height: 42px;
+  border: 0;
+  border-radius: 999px;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, #ff4f9a, #8b5cf6);
+}
+.question-footer-icon-btn.liked,
+.question-footer-icon-btn.liked svg {
+  color: #ff4f9a !important;
+  fill: #ff4f9a !important;
+}
+.adultapp-policy-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(0,0,0,0.72);
+  backdrop-filter: blur(10px);
+}
+.adultapp-policy-modal-sheet {
+  width: min(92vw, 430px);
+  max-height: 82dvh;
+  overflow-y: auto;
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 24px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: #111116;
+  color: #fff;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.46);
+}
+.adultapp-policy-modal-sheet strong { font-size: 18px; }
+.adultapp-policy-modal-sheet p,
+.adultapp-policy-modal-sheet li { color: rgba(255,255,255,0.78); line-height: 1.55; }
+.adultapp-policy-modal-sheet ul { margin: 0; padding-left: 18px; }
+.adultapp-policy-modal-check {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 12px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.9);
+  font-weight: 700;
+}
+.feed-avatar-preview-stage.profile-original-preview {
+  border-radius: 999px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  background: #000 !important;
+}
+.feed-avatar-preview-stage.profile-original-preview .feed-avatar-preview-square {
+  border-radius: 999px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
+  background: #000 !important;
+}
+.feed-avatar-preview-stage.profile-original-preview .feed-avatar-preview-image {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  object-position: center center !important;
+  border-radius: 999px !important;
+}

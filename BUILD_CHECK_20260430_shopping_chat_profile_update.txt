@@ -1,0 +1,4 @@
+2026-04-30 update
+- Source update completed for shopping topbar titles, general trade warning popup, seller registration redirect, chat question management actions, profile avatar preview, and follower/following full-screen list behavior.
+- frontend/dist/assets/index.css was appended with the new UI styles.
+- Full local build was not executed in this sandbox because the uploaded ZIP did not include frontend/node_modules and dependency installation timed out in the sandbox. Run the provided PowerShell command on the working PC where dependencies are already installed to regenerate frontend/dist before Cloudflare upload.
