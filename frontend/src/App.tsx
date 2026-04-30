@@ -3811,21 +3811,22 @@ type FeedComposeScreenProps = {
   mode: FeedComposeMode;
   title: string;
   caption: string;
-  attachment: FeedComposerAttachment | null;
+  attachments: FeedComposerAttachment[];
   busy: boolean;
   helperText: string;
   onChangeTitle: (value: string) => void;
   onChangeCaption: (value: string) => void;
-  onAttachFile: (file: File | null) => void;
-  onClearAttachment: () => void;
+  onAttachFiles: (files: FileList | File[] | null) => void;
+  onClearAttachment: (index: number) => void;
   maptoryEnabled: boolean;
   onChangeMaptoryEnabled: (value: boolean) => void;
   onSubmit: () => void;
   onClose: () => void;
 };
 
-function FeedComposeScreen({ mode, title, caption, attachment, busy, helperText, onChangeTitle, onChangeCaption, onAttachFile, onClearAttachment, maptoryEnabled, onChangeMaptoryEnabled, onSubmit, onClose }: FeedComposeScreenProps) {
-  const canSubmit = Boolean(caption.trim() || attachment);
+function FeedComposeScreen({ mode, title, caption, attachments, busy, helperText, onChangeTitle, onChangeCaption, onAttachFiles, onClearAttachment, maptoryEnabled, onChangeMaptoryEnabled, onSubmit, onClose }: FeedComposeScreenProps) {
+  const primaryAttachment = attachments[0] ?? null;
+  const canSubmit = Boolean(caption.trim() || attachments.length);
   const composeMeta = getFeedComposeModeMeta(mode);
   const isShortsMode = mode === "쇼츠게시";
   const isStoryMode = mode === "스토리게시";
@@ -3847,17 +3848,6 @@ function FeedComposeScreen({ mode, title, caption, attachment, busy, helperText,
           <section className="feed-compose-card feed-compose-card-x">
             <div className="feed-compose-profile-row feed-compose-profile-row-x">
               <div className="feed-compose-x-main">
-                <div className="feed-compose-gallery-access">
-                  <button
-                    type="button"
-                    className="feed-compose-gallery-open-btn"
-                    aria-label="사진첩 열기"
-                    onClick={() => feedMediaInputRef.current?.click()}
-                    disabled={busy}
-                  >
-                    <PhotoImageIcon />
-                  </button>
-                </div>
                 <textarea
                   value={caption}
                   onChange={(event) => onChangeCaption(event.target.value)}
@@ -3874,24 +3864,25 @@ function FeedComposeScreen({ mode, title, caption, attachment, busy, helperText,
                         accept={composeMeta.accept}
                         hidden
                         disabled={busy}
+                        multiple
                         onChange={(event) => {
-                          onAttachFile(event.target.files?.[0] ?? null);
+                          onAttachFiles(event.target.files);
                           event.currentTarget.value = "";
                         }}
                       />
                       <span className="feed-compose-gallery-picker-icon"><PhotoImageIcon /></span>
                       <b>{busy ? "처리 중" : "사진첩"}</b>
                     </label>
-                    {attachment ? (
-                      <div className="feed-compose-gallery-tile feed-compose-gallery-selected" role="listitem">
+                    {attachments.map((attachment, index) => (
+                      <div key={`${attachment.name}-${index}`} className="feed-compose-gallery-tile feed-compose-gallery-selected" role="listitem">
                         {attachment.type.startsWith("image/") ? (
                           <img src={attachment.previewUrl} alt={attachment.name} className="feed-compose-gallery-thumb" loading="lazy" />
                         ) : (
                           <video src={attachment.previewUrl} className="feed-compose-gallery-thumb" playsInline muted preload="metadata" />
                         )}
-                        <button type="button" className="feed-compose-gallery-remove" onClick={onClearAttachment} aria-label="선택한 첨부 삭제">삭제</button>
+                        <button type="button" className="feed-compose-gallery-remove" onClick={() => onClearAttachment(index)} aria-label="선택한 첨부 삭제">×</button>
                       </div>
-                    ) : null}
+                    ))}
                     {feedGalleryPlaceholders.map((index) => (
                       <button
                         key={`feed-gallery-placeholder-${index}`}
@@ -3905,8 +3896,8 @@ function FeedComposeScreen({ mode, title, caption, attachment, busy, helperText,
                     ))}
                   </div>
                   <div className="feed-compose-gallery-meta">
-                    <strong>{attachment ? attachment.name : "사진 또는 영상 1개 선택"}</strong>
-                    <span>{attachment ? `${attachment.type.startsWith("video/") ? `영상 첨부${attachment.optimized ? " · 최적화" : ""}${attachment.durationSec ? ` · ${attachment.durationSec.toFixed(1)}초` : ""}` : "사진 첨부"} · ${Math.max(1, Math.round(attachment.size / 1024))}KB` : helperText}</span>
+                    <strong>{attachments.length ? `${attachments.length}개 첨부됨` : "사진 또는 영상 선택"}</strong>
+                    <span>{attachments.length ? "사진첩 버튼을 다시 눌러 추가 첨부할 수 있습니다." : helperText}</span>
                   </div>
                 </div>
                 <div className="feed-compose-x-privacy">
@@ -3939,21 +3930,21 @@ function FeedComposeScreen({ mode, title, caption, attachment, busy, helperText,
                   hidden
                   disabled={busy}
                   onChange={(event) => {
-                    onAttachFile(event.target.files?.[0] ?? null);
+                    onAttachFiles(event.target.files);
                     event.currentTarget.value = "";
                   }}
                 />
               </label>
             </div>
 
-            {attachment ? (
+            {primaryAttachment ? (
               <div className="feed-compose-preview-card feed-compose-preview-card-shorts">
-                <video src={attachment.previewUrl} className="feed-compose-preview-media" controls playsInline preload="metadata" />
+                <video src={primaryAttachment.previewUrl} className="feed-compose-preview-media" controls playsInline preload="metadata" />
                 <div className="feed-compose-preview-copy">
-                  <strong>{attachment.name}</strong>
-                  <span>{`영상 첨부${attachment.optimized ? " · 최적화" : ""}${attachment.durationSec ? ` · ${attachment.durationSec.toFixed(1)}초` : ""} · ${Math.max(1, Math.round(attachment.size / 1024))}KB`}</span>
+                  <strong>{primaryAttachment.name}</strong>
+                  <span>{`영상 첨부${primaryAttachment.optimized ? " · 최적화" : ""}${primaryAttachment.durationSec ? ` · ${primaryAttachment.durationSec.toFixed(1)}초` : ""} · ${Math.max(1, Math.round(primaryAttachment.size / 1024))}KB`}</span>
                 </div>
-                <button type="button" className="ghost-btn" onClick={onClearAttachment}>삭제</button>
+                <button type="button" className="ghost-btn" onClick={() => onClearAttachment(0)}>삭제</button>
               </div>
             ) : (
               <div className="feed-compose-empty feed-compose-empty-shorts">선택한 쇼츠 영상이 여기에 미리보기로 표시됩니다.</div>
@@ -4002,32 +3993,32 @@ function FeedComposeScreen({ mode, title, caption, attachment, busy, helperText,
             </div>
           </section>
         ) : isStoryMode ? (
-          <section className="feed-compose-card feed-compose-card-story">
+          <section className="feed-compose-card feed-compose-card-story story-compose-flow">
             <div className="feed-compose-profile-row">
               <div className="feed-comment-composer-avatar" aria-hidden="true">S</div>
               <div>
                 <strong>스토리게시</strong>
-                <span>인스타 스토리처럼 현재 하고 있는 일을 짧게 공유합니다.</span>
+                <span>촬영, 사진 선택, 영상 선택을 먼저 진행한 뒤 스토리 문구를 올립니다.</span>
               </div>
             </div>
+            <div className="story-compose-picker-grid">
+              <label className={`creator-launch-btn feed-compose-attach-btn${busy ? " is-busy" : ""}`}>바로 촬영<input type="file" accept="image/*,video/*" capture="environment" hidden disabled={busy} onChange={(event) => { onAttachFiles(event.target.files); event.currentTarget.value = ""; }} /></label>
+              <label className={`creator-launch-btn feed-compose-attach-btn${busy ? " is-busy" : ""}`}>사진 선택<input type="file" accept="image/*" hidden disabled={busy} onChange={(event) => { onAttachFiles(event.target.files); event.currentTarget.value = ""; }} /></label>
+              <label className={`creator-launch-btn feed-compose-attach-btn${busy ? " is-busy" : ""}`}>영상 선택<input type="file" accept="video/*" hidden disabled={busy} onChange={(event) => { onAttachFiles(event.target.files); event.currentTarget.value = ""; }} /></label>
+            </div>
+            {primaryAttachment ? (
+              <div className="story-compose-stage">
+                {primaryAttachment.type.startsWith("image/") ? <img src={primaryAttachment.previewUrl} alt={primaryAttachment.name} className="story-compose-media" loading="lazy" /> : <video src={primaryAttachment.previewUrl} className="story-compose-media" controls playsInline preload="metadata" />}
+                {caption.trim() ? <div className="story-compose-floating-text" draggable>{caption}</div> : null}
+              </div>
+            ) : <div className="feed-compose-empty">촬영, 사진 선택 또는 영상 선택을 먼저 진행해 주세요.</div>}
             <div className="feed-compose-field">
               <span>스토리 내용</span>
-              <textarea value={caption} onChange={(event) => onChangeCaption(event.target.value)} placeholder="지금 무엇을 하고 있는지 적어주세요." maxLength={240} />
+              <textarea value={caption} onChange={(event) => onChangeCaption(event.target.value)} placeholder="작성한 글은 미리보기 영역에서 원하는 위치로 옮길 수 있습니다." maxLength={240} />
             </div>
-            <label className={`creator-launch-btn feed-compose-attach-btn${busy ? " is-busy" : ""}`}>
-              {busy ? "첨부 최적화 중" : composeMeta.attachLabel}
-              <input type="file" accept={composeMeta.accept} hidden disabled={busy} onChange={(event) => { onAttachFile(event.target.files?.[0] ?? null); event.currentTarget.value = ""; }} />
-            </label>
-            {attachment ? (
-              <div className="feed-compose-preview-card">
-                {attachment.type.startsWith("image/") ? <img src={attachment.previewUrl} alt={attachment.name} className="feed-compose-preview-media" loading="lazy" /> : <video src={attachment.previewUrl} className="feed-compose-preview-media" controls playsInline preload="metadata" />}
-                <div className="feed-compose-preview-copy"><strong>{attachment.name}</strong><span>{helperText}</span></div>
-                <button type="button" className="ghost-btn" onClick={onClearAttachment}>삭제</button>
-              </div>
-            ) : null}
             <label className="story-maptory-check-row">
               <input type="checkbox" checked={maptoryEnabled} onChange={(event) => { const checked = event.target.checked; if (checked) window.alert("맵토리는 위치 표시가 됩니다"); onChangeMaptoryEnabled(checked); }} />
-              <span><b>맵토리도 게시</b><small>체크하면 위치가 시/구 단위로 지도에 표시됩니다.</small></span>
+              <span><b>맵토리 게시</b><small>체크하면 위치가 시/구 단위로 지도에 표시됩니다.</small></span>
             </label>
           </section>
         ) : (
@@ -4069,7 +4060,7 @@ function FeedComposeScreen({ mode, title, caption, attachment, busy, helperText,
                   hidden
                   disabled={busy}
                   onChange={(event) => {
-                    onAttachFile(event.target.files?.[0] ?? null);
+                    onAttachFiles(event.target.files);
                     event.currentTarget.value = "";
                   }}
                 />
@@ -4077,18 +4068,18 @@ function FeedComposeScreen({ mode, title, caption, attachment, busy, helperText,
               <span>{helperText}</span>
             </div>
 
-            {attachment ? (
+            {primaryAttachment ? (
               <div className="feed-compose-preview-card">
-                {attachment.type.startsWith("image/") ? (
-                  <img src={attachment.previewUrl} alt={attachment.name} className="feed-compose-preview-media" loading="lazy" />
+                {primaryAttachment.type.startsWith("image/") ? (
+                  <img src={primaryAttachment.previewUrl} alt={primaryAttachment.name} className="feed-compose-preview-media" loading="lazy" />
                 ) : (
-                  <video src={attachment.previewUrl} className="feed-compose-preview-media" controls playsInline preload="metadata" />
+                  <video src={primaryAttachment.previewUrl} className="feed-compose-preview-media" controls playsInline preload="metadata" />
                 )}
                 <div className="feed-compose-preview-copy">
-                  <strong>{attachment.name}</strong>
-                  <span>{attachment.type.startsWith("video/") ? `영상 첨부${attachment.optimized ? " · 최적화" : ""}${attachment.durationSec ? ` · ${attachment.durationSec.toFixed(1)}초` : ""}` : "사진 첨부"} · {Math.max(1, Math.round(attachment.size / 1024))}KB</span>
+                  <strong>{primaryAttachment.name}</strong>
+                  <span>{primaryAttachment.type.startsWith("video/") ? `영상 첨부${primaryAttachment.optimized ? " · 최적화" : ""}${primaryAttachment.durationSec ? ` · ${primaryAttachment.durationSec.toFixed(1)}초` : ""}` : "사진 첨부"} · {Math.max(1, Math.round(primaryAttachment.size / 1024))}KB</span>
                 </div>
-                <button type="button" className="ghost-btn" onClick={onClearAttachment}>삭제</button>
+                <button type="button" className="ghost-btn" onClick={() => onClearAttachment(0)}>삭제</button>
               </div>
             ) : (
               <div className="feed-compose-empty">첨부한 사진/영상이 여기에 미리보기로 표시됩니다.</div>
@@ -5371,11 +5362,16 @@ export default function App() {
   const [profilePhotoLauncherOpen, setProfilePhotoLauncherOpen] = useState(false);
   const [shopCreateLauncherOpen, setShopCreateLauncherOpen] = useState(false);
   const [communityCreateLauncherOpen, setCommunityCreateLauncherOpen] = useState(false);
+  const [communityComposeMode, setCommunityComposeMode] = useState<CommunityTab | null>(null);
+  const [communityComposeTitle, setCommunityComposeTitle] = useState("");
+  const [communityComposeBody, setCommunityComposeBody] = useState("");
+  const [communityComposeImages, setCommunityComposeImages] = useState<FeedComposerAttachment[]>([]);
+  const [customCommunityPosts, setCustomCommunityPosts] = useState<CommunityPost[]>([]);
   const [feedComposeMode, setFeedComposeMode] = useState<FeedComposeMode>("피드게시");
   const [homeFeedFilter, setHomeFeedFilter] = useState<HomeFeedFilter>("일반");
   const [feedComposeTitle, setFeedComposeTitle] = useState("");
   const [feedComposeCaption, setFeedComposeCaption] = useState("");
-  const [feedComposeAttachment, setFeedComposeAttachment] = useState<FeedComposerAttachment | null>(null);
+  const [feedComposeAttachments, setFeedComposeAttachments] = useState<FeedComposerAttachment[]>([]);
   const [feedComposeBusy, setFeedComposeBusy] = useState(false);
   const [feedComposeHelperText, setFeedComposeHelperText] = useState("최대 1개 첨부 · 영상은 최대 20초 / 30MB · 권장 MP4(H.264) 또는 WEBM");
   const [feedComposeMaptoryEnabled, setFeedComposeMaptoryEnabled] = useState(false);
@@ -6525,27 +6521,32 @@ export default function App() {
     };
   };
 
-  const handleFeedComposeAttach = async (file: File | null) => {
-    if (!file) return;
-    if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
-      window.alert("사진 또는 영상 파일만 첨부할 수 있습니다.");
-      return;
-    }
+  const handleFeedComposeAttach = async (files: FileList | File[] | null) => {
+    const selectedFiles = Array.from(files ?? []);
+    if (!selectedFiles.length) return;
     setFeedComposeBusy(true);
-    setFeedComposeHelperText(file.type.startsWith("video/") ? "영상 길이/용량을 확인하고 최적화 중입니다." : "이미지를 확인하고 최적화 중입니다.");
+    setFeedComposeHelperText("첨부 파일을 확인하고 최적화 중입니다.");
     try {
-      const nextAttachment = file.type.startsWith("video/")
-        ? await optimizeFeedComposeVideo(file)
-        : await optimizeFeedComposeImage(file);
-      setFeedComposeAttachment((prev) => {
-        if (prev?.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(prev.previewUrl);
-        return nextAttachment;
+      const nextAttachments: FeedComposerAttachment[] = [];
+      for (const file of selectedFiles) {
+        if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
+          window.alert("사진 또는 영상 파일만 첨부할 수 있습니다.");
+          continue;
+        }
+        const nextAttachment = file.type.startsWith("video/")
+          ? await optimizeFeedComposeVideo(file)
+          : await optimizeFeedComposeImage(file);
+        nextAttachments.push(nextAttachment);
+      }
+      if (!nextAttachments.length) return;
+      setFeedComposeAttachments((prev) => {
+        if (feedComposeMode !== "피드게시") {
+          prev.forEach((item) => { if (item.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(item.previewUrl); });
+          return [nextAttachments[0]];
+        }
+        return [...prev, ...nextAttachments];
       });
-      setFeedComposeHelperText(
-        nextAttachment.type.startsWith("video/")
-          ? `최대 1개 첨부 · 영상 ${nextAttachment.durationSec ? nextAttachment.durationSec.toFixed(1) : "0.0"}초 · ${Math.max(1, Math.round(nextAttachment.size / 1024 / 1024))}MB · ${nextAttachment.optimized ? "WEBM 최적화" : "원본 유지"}`
-          : `최대 1개 첨부 · 이미지 ${Math.max(1, Math.round(nextAttachment.size / 1024))}KB${nextAttachment.optimized ? " · 최적화 완료" : ""}`
-      );
+      setFeedComposeHelperText(feedComposeMode === "피드게시" ? `${nextAttachments.length}개 추가 첨부됨` : getFeedComposeModeMeta(feedComposeMode).helper);
     } catch (error) {
       const message = error instanceof Error ? error.message : "첨부 파일을 처리하지 못했습니다.";
       window.alert(message);
@@ -6555,18 +6556,19 @@ export default function App() {
     }
   };
 
-  const clearFeedComposeAttachment = () => {
-    setFeedComposeAttachment((prev) => {
-      if (prev?.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(prev.previewUrl);
-      return null;
+  const clearFeedComposeAttachment = (index: number) => {
+    setFeedComposeAttachments((prev) => {
+      const target = prev[index];
+      if (target?.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((_, itemIndex) => itemIndex !== index);
     });
     setFeedComposeHelperText(getFeedComposeModeMeta(feedComposeMode).helper);
   };
 
   const openFeedComposeWithMode = useCallback((mode: FeedComposeMode) => {
-    setFeedComposeAttachment((prev) => {
-      if (prev?.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(prev.previewUrl);
-      return null;
+    setFeedComposeAttachments((prev) => {
+      prev.forEach((item) => { if (item.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(item.previewUrl); });
+      return [];
     });
     setFeedComposeTitle("");
     setFeedComposeCaption("");
@@ -6585,15 +6587,16 @@ export default function App() {
 
   const submitFeedCompose = () => {
     const composeMeta = getFeedComposeModeMeta(feedComposeMode);
-    if (!feedComposeCaption.trim() && !feedComposeAttachment) {
+    const primaryAttachment = feedComposeAttachments[0] ?? null;
+    if (!feedComposeCaption.trim() && !feedComposeAttachments.length) {
       window.alert(`${composeMeta.title} 내용 또는 첨부 파일을 입력해 주세요.`);
       return;
     }
-    if (feedComposeMode === "쇼츠게시" && !feedComposeAttachment?.type.startsWith("video/")) {
+    if (feedComposeMode === "쇼츠게시" && !primaryAttachment?.type.startsWith("video/")) {
       window.alert("쇼츠게시에는 영상 첨부가 필요합니다.");
       return;
     }
-    if (feedComposeMode === "사진피드" && !feedComposeAttachment?.type.startsWith("image/")) {
+    if (feedComposeMode === "사진피드" && !primaryAttachment?.type.startsWith("image/")) {
       window.alert("사진피드에는 사진 첨부가 필요합니다.");
       return;
     }
@@ -6606,11 +6609,12 @@ export default function App() {
         caption: feedComposeCaption.trim() || feedComposeTitle.trim() || "방금 등록한 스토리입니다.",
         postedAt: "방금 전",
         mapEnabled: feedComposeMaptoryEnabled,
+        avatarUrl: primaryAttachment?.previewUrl,
       };
       setCustomStoryItems((prev) => [nextStory, ...prev]);
       setFeedComposeTitle("");
       setFeedComposeCaption("");
-      setFeedComposeAttachment(null);
+      setFeedComposeAttachments([]);
       setFeedComposeMaptoryEnabled(false);
       setFeedComposeBusy(false);
       setFeedComposeHelperText(getFeedComposeModeMeta(feedComposeMode).helper);
@@ -6620,7 +6624,7 @@ export default function App() {
       return;
     }
     const nextId = Math.max(...allFeedItems.map((item) => item.id), 0) + 1;
-    const inferredType = feedComposeAttachment?.type.startsWith("video/") ? "video" : "image";
+    const inferredType = primaryAttachment?.type.startsWith("video/") ? "video" : "image";
     const type = feedComposeMode === "쇼츠게시" ? "video" : feedComposeMode === "사진피드" ? "image" : inferredType;
     const trimmedTitle = feedComposeTitle.trim();
     const caption = feedComposeCaption.trim();
@@ -6636,15 +6640,15 @@ export default function App() {
       accent: "rose",
       views: type === "video" ? 0 : undefined,
       postedAt: "방금",
-      videoUrl: type === "video" ? feedComposeAttachment?.previewUrl : undefined,
-      mediaUrl: type === "image" ? feedComposeAttachment?.previewUrl : undefined,
-      mediaName: feedComposeAttachment?.name,
+      videoUrl: type === "video" ? primaryAttachment?.previewUrl : undefined,
+      mediaUrl: type === "image" ? primaryAttachment?.previewUrl : undefined,
+      mediaName: feedComposeAttachments.length > 1 ? `${primaryAttachment?.name ?? "첨부"} 외 ${feedComposeAttachments.length - 1}개` : primaryAttachment?.name,
     };
     setCustomFeedItems((prev) => [nextItem, ...prev]);
     setFeedCommentMap((prev) => ({ ...prev, [nextId]: [] }));
     setFeedComposeTitle("");
     setFeedComposeCaption("");
-    setFeedComposeAttachment(null);
+    setFeedComposeAttachments([]);
     setFeedComposeMaptoryEnabled(false);
     setFeedComposeBusy(false);
     setFeedComposeHelperText(getFeedComposeModeMeta(feedComposeMode).helper);
@@ -6965,10 +6969,10 @@ export default function App() {
   }, []);
 
   useEffect(() => () => {
-    if (feedComposeAttachment?.previewUrl?.startsWith("blob:")) {
-      URL.revokeObjectURL(feedComposeAttachment.previewUrl);
-    }
-  }, [feedComposeAttachment]);
+    feedComposeAttachments.forEach((attachment) => {
+      if (attachment.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(attachment.previewUrl);
+    });
+  }, [feedComposeAttachments]);
 
   const getContentKeywordTags = (item: FeedItem) => getTopMatchedKeywords(item, keywordSignalMap);
 
@@ -7614,9 +7618,74 @@ export default function App() {
     openProductDetail(productId);
   };
 
+
+  const openCommunityCompose = (mode: CommunityTab) => {
+    setCommunityComposeMode(mode);
+    setCommunityComposeTitle("");
+    setCommunityComposeBody("");
+    setCommunityComposeImages((prev) => {
+      prev.forEach((item) => { if (item.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(item.previewUrl); });
+      return [];
+    });
+    setCommunityCreateLauncherOpen(false);
+    setCommunityTab(mode);
+    setCommunityExplorerStage("list");
+  };
+
+  const closeCommunityCompose = () => {
+    setCommunityComposeMode(null);
+  };
+
+  const handleCommunityComposeImages = async (files: FileList | null) => {
+    const selectedFiles = Array.from(files ?? []).filter((file) => file.type.startsWith("image/"));
+    if (!selectedFiles.length) return;
+    const nextImages: FeedComposerAttachment[] = [];
+    for (const file of selectedFiles) {
+      nextImages.push(await optimizeFeedComposeImage(file));
+    }
+    setCommunityComposeImages((prev) => [...prev, ...nextImages]);
+  };
+
+  const removeCommunityComposeImage = (index: number) => {
+    setCommunityComposeImages((prev) => {
+      const target = prev[index];
+      if (target?.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((_, itemIndex) => itemIndex !== index);
+    });
+  };
+
+  const submitCommunityCompose = () => {
+    if (!communityComposeMode) return;
+    if (!communityComposeTitle.trim() || !communityComposeBody.trim()) {
+      window.alert("제목과 내용을 입력해 주세요.");
+      return;
+    }
+    const board: CommunityPost["board"] = communityComposeMode === "후기" ? "후기" : communityComposeMode === "포럼" ? "포럼" : "커뮤";
+    const nextPost: CommunityPost = {
+      id: Date.now(),
+      board,
+      category: communityComposeMode === "후기" ? "후기" : communityComposeMode === "포럼" ? "토론" : "정보",
+      title: communityComposeTitle.trim(),
+      summary: communityComposeBody.trim().slice(0, 90),
+      meta: `my_account · 방금`,
+      audience: "회원",
+      sortScore: 100,
+      path: `소통 > ${communityComposeMode} > 작성글`,
+      detailTitle: communityComposeTitle.trim(),
+      detailBody: [communityComposeBody.trim(), communityComposeImages.length ? `첨부 사진 ${communityComposeImages.length}장` : "첨부 사진 없음"],
+    };
+    setCustomCommunityPosts((prev) => [nextPost, ...prev]);
+    setCommunityComposeMode(null);
+    setCommunityComposeTitle("");
+    setCommunityComposeBody("");
+    setCommunityComposeImages([]);
+    setCommunityTab(communityComposeMode);
+    setCommunityExplorerStage("list");
+  };
+
   const filteredCommunity = useMemo(() => {
     const keyword = `${communityKeyword} ${globalKeyword}`.trim().toLowerCase();
-    const visiblePosts = communitySeed.filter((post) => {
+    const visiblePosts = [...customCommunityPosts, ...communitySeed].filter((post) => {
       const boardMatch = communityTab === "이벤트" ? post.board === "이벤트" : communityTab === "커뮤" ? (post.board === "커뮤" || !post.board) : post.board === communityTab;
       const categoryMatch = selectedCommunityCategory === "전체" || post.category === selectedCommunityCategory;
       const primaryMatch = communityPrimaryFilter === "전체" || post.audience === communityPrimaryFilter;
@@ -7638,7 +7707,7 @@ export default function App() {
       return [...visiblePosts].sort((a, b) => (b.sortScore ?? 0) - (a.sortScore ?? 0));
     }
     return visiblePosts;
-  }, [communityTab, selectedCommunityCategory, communityKeyword, globalKeyword, communityPrimaryFilter, communitySecondaryFilter]);
+  }, [communityTab, selectedCommunityCategory, communityKeyword, globalKeyword, communityPrimaryFilter, communitySecondaryFilter, customCommunityPosts]);
 
   useEffect(() => {
     setCommunityPage(1);
@@ -13572,15 +13641,15 @@ export default function App() {
           <div className={`feed-create-dock community-create-dock${communityCreateLauncherOpen ? " open" : ""}`}>
             {communityCreateLauncherOpen ? (
               <div className="feed-create-options" aria-hidden={false}>
-                <button type="button" className="feed-create-option" onClick={() => { setCommunityCreateLauncherOpen(false); setCommunityTab("후기"); setCommunityExplorerStage("list"); }}>
+                <button type="button" className="feed-create-option" onClick={() => openCommunityCompose("후기")}>
                   <span className="feed-create-option-label">후기작성</span>
                   <span className="feed-create-option-icon" aria-hidden="true"><PaperDocumentIcon /></span>
                 </button>
-                <button type="button" className="feed-create-option" onClick={() => { setCommunityCreateLauncherOpen(false); setCommunityTab("포럼"); setCommunityExplorerStage("list"); }}>
+                <button type="button" className="feed-create-option" onClick={() => openCommunityCompose("포럼")}>
                   <span className="feed-create-option-label">포럼작성</span>
                   <span className="feed-create-option-icon" aria-hidden="true"><ChatIcon /></span>
                 </button>
-                <button type="button" className="feed-create-option" onClick={() => { setCommunityCreateLauncherOpen(false); setCommunityTab("커뮤"); setCommunityExplorerStage("list"); }}>
+                <button type="button" className="feed-create-option" onClick={() => openCommunityCompose("커뮤")}>
                   <span className="feed-create-option-label">게시글작성</span>
                   <span className="feed-create-option-icon" aria-hidden="true"><CommentBubbleIcon /></span>
                 </button>
@@ -13733,17 +13802,56 @@ export default function App() {
         </div>
       ) : null}
 
+
+      {communityComposeMode ? (
+        <div className="feed-compose-overlay community-compose-overlay">
+          <section className="asked-page-head feed-compose-head">
+            <div className="asked-nav-row feed-compose-nav-row">
+              <button type="button" className="header-inline-btn header-icon-btn topbar-search-back" onClick={closeCommunityCompose} aria-label="뒤로가기"><BackArrowIcon /></button>
+              <div className="asked-page-title">{communityComposeMode}작성</div>
+              <button type="button" className="header-inline-btn feed-comment-submit-top" onClick={submitCommunityCompose}>등록</button>
+            </div>
+          </section>
+          <div className="feed-compose-overlay-body compact-scroll-list">
+            <section className="feed-compose-card community-compose-card">
+              <div className="feed-compose-field">
+                <span>제목</span>
+                <input value={communityComposeTitle} onChange={(event) => setCommunityComposeTitle(event.target.value)} placeholder={`${communityComposeMode} 제목을 입력하세요`} maxLength={80} />
+              </div>
+              <div className="feed-compose-field">
+                <span>내용</span>
+                <textarea value={communityComposeBody} onChange={(event) => setCommunityComposeBody(event.target.value)} placeholder={`${communityComposeMode} 내용을 입력하세요`} maxLength={1200} />
+              </div>
+              <div className="feed-compose-attach-row">
+                <label className="creator-launch-btn feed-compose-attach-btn">사진첨부
+                  <input type="file" accept="image/*" multiple hidden onChange={(event) => { handleCommunityComposeImages(event.target.files); event.currentTarget.value = ""; }} />
+                </label>
+                <span>{communityComposeImages.length ? `${communityComposeImages.length}장 첨부됨` : "여러 장 첨부 가능"}</span>
+              </div>
+              <div className="community-compose-image-grid">
+                {communityComposeImages.map((image, index) => (
+                  <div key={`${image.name}-${index}`} className="community-compose-image-tile">
+                    <img src={image.previewUrl} alt={image.name} loading="lazy" />
+                    <button type="button" onClick={() => removeCommunityComposeImage(index)} aria-label="첨부 이미지 삭제">×</button>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
+        </div>
+      ) : null}
+
       {feedComposeOpen ? (
         <FeedComposeScreen
           mode={feedComposeMode}
           title={feedComposeTitle}
           caption={feedComposeCaption}
-          attachment={feedComposeAttachment}
+          attachments={feedComposeAttachments}
           busy={feedComposeBusy}
           helperText={feedComposeHelperText}
           onChangeTitle={setFeedComposeTitle}
           onChangeCaption={setFeedComposeCaption}
-          onAttachFile={handleFeedComposeAttach}
+          onAttachFiles={handleFeedComposeAttach}
           onClearAttachment={clearFeedComposeAttachment}
           maptoryEnabled={feedComposeMaptoryEnabled}
           onChangeMaptoryEnabled={setFeedComposeMaptoryEnabled}
