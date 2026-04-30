@@ -1,0 +1,1 @@
+Fixed TypeScript build error TS2339 by adding optional email field to AuthSummary. Dist runtime bundle unchanged because this is a TypeScript type-only fix.

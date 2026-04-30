@@ -496,6 +496,7 @@ type ReleaseReadinessResponse = {
 };
 
 type AuthSummary = {
+  email?: string;
   adult_verified?: boolean;
   identity_verified?: boolean;
   reconsent_required?: boolean;
