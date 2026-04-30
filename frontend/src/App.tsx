@@ -1,6 +1,6 @@
 import { CSSProperties, PointerEvent, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, KeyboardEvent as ReactKeyboardEvent, TouchEvent as ReactTouchEvent, UIEvent as ReactUIEvent } from "react";
-import { clearTokens, ensureAuthSession, getApiBase, getJson, getRefreshToken, hasAuthToken, postJson, setAuthToken, setRefreshToken } from "./lib/api";
+import { clearTokens, ensureAuthSession, getApiBase, getJson, getRefreshToken, hasAuthToken, postForm, postJson, setAuthToken, setRefreshToken } from "./lib/api";
 
 type FeedItem = {
   id: number;
@@ -44,6 +44,8 @@ type FeedComposerAttachment = {
   previewUrl: string;
   size: number;
   type: string;
+  sourceFile?: File;
+  publicUrl?: string;
   durationSec?: number;
   optimized?: boolean;
 };
@@ -6363,6 +6365,7 @@ export default function App() {
         size: file.size,
         type: file.type || "image/jpeg",
         optimized: false,
+        sourceFile: file,
       };
     }
     const sourceUrl = await fileToDataUrl(file);
@@ -6372,7 +6375,7 @@ export default function App() {
     canvas.height = image.naturalHeight || image.height;
     const context = canvas.getContext("2d");
     if (!context) {
-      return { name: file.name, previewUrl: URL.createObjectURL(file), size: file.size, type: file.type || "image/jpeg", optimized: false };
+      return { name: file.name, previewUrl: URL.createObjectURL(file), size: file.size, type: file.type || "image/jpeg", optimized: false, sourceFile: file };
     }
     context.drawImage(image, 0, 0, canvas.width, canvas.height);
     const targetTypes = ["image/webp", "image/jpeg"];
@@ -6388,11 +6391,12 @@ export default function App() {
             size: optimizedFile.size,
             type: optimizedFile.type,
             optimized: true,
+            sourceFile: optimizedFile,
           };
         }
       }
     }
-    return { name: file.name, previewUrl: URL.createObjectURL(file), size: file.size, type: file.type || "image/jpeg", optimized: false };
+    return { name: file.name, previewUrl: URL.createObjectURL(file), size: file.size, type: file.type || "image/jpeg", optimized: false, sourceFile: file };
   };
 
   const optimizeFeedComposeVideo = async (file: File): Promise<FeedComposerAttachment> => {
@@ -6409,6 +6413,7 @@ export default function App() {
         type: file.type || "video/mp4",
         durationSec: meta.durationSec,
         optimized: false,
+        sourceFile: file,
       };
     }
 
@@ -6496,6 +6501,7 @@ export default function App() {
         type: optimizedFile.type,
         durationSec: meta.durationSec,
         optimized: true,
+        sourceFile: optimizedFile,
       };
     }
 
@@ -6518,6 +6524,7 @@ export default function App() {
       type: optimizedFile.type,
       durationSec: meta.durationSec,
       optimized: true,
+        sourceFile: optimizedFile,
     };
   };
 
@@ -6556,6 +6563,24 @@ export default function App() {
     }
   };
 
+
+  const uploadComposerAttachmentToR2 = async (attachment: FeedComposerAttachment): Promise<FeedComposerAttachment> => {
+    if (attachment.publicUrl) return attachment;
+    if (!attachment.sourceFile) return attachment;
+    const formData = new FormData();
+    formData.append("file", attachment.sourceFile, attachment.name);
+    const uploaded = await postForm<{ public_url?: string; file_url?: string; storage_key?: string; storage_mode?: string }>("/upload", formData);
+    const publicUrl = uploaded.public_url || uploaded.file_url || attachment.previewUrl;
+    return { ...attachment, publicUrl, previewUrl: publicUrl };
+  };
+
+  const uploadComposerAttachmentsToR2 = async (attachments: FeedComposerAttachment[]): Promise<FeedComposerAttachment[]> => {
+    const uploaded: FeedComposerAttachment[] = [];
+    for (const attachment of attachments) {
+      uploaded.push(await uploadComposerAttachmentToR2(attachment));
+    }
+    return uploaded;
+  };
   const clearFeedComposeAttachment = (index: number) => {
     setFeedComposeAttachments((prev) => {
       const target = prev[index];
@@ -6585,8 +6610,9 @@ export default function App() {
     setFeedComposeBusy(false);
   };
 
-  const submitFeedCompose = () => {
+  const submitFeedCompose = async () => {
     const composeMeta = getFeedComposeModeMeta(feedComposeMode);
+    let uploadedAttachments = feedComposeAttachments;
     const primaryAttachment = feedComposeAttachments[0] ?? null;
     if (!feedComposeCaption.trim() && !feedComposeAttachments.length) {
       window.alert(`${composeMeta.title} 내용 또는 첨부 파일을 입력해 주세요.`);
@@ -6600,6 +6626,18 @@ export default function App() {
       window.alert("사진피드에는 사진 첨부가 필요합니다.");
       return;
     }
+    try {
+      setFeedComposeBusy(true);
+      setFeedComposeHelperText("R2 이미지 저장소에 업로드 중입니다.");
+      uploadedAttachments = await uploadComposerAttachmentsToR2(feedComposeAttachments);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "R2 업로드에 실패했습니다.";
+      window.alert(message);
+      setFeedComposeBusy(false);
+      setFeedComposeHelperText(getFeedComposeModeMeta(feedComposeMode).helper);
+      return;
+    }
+    const uploadedPrimaryAttachment = uploadedAttachments[0] ?? null;
     if (feedComposeMode === "스토리게시") {
       const nextStory: StoryItem = {
         id: Date.now(),
@@ -6609,7 +6647,7 @@ export default function App() {
         caption: feedComposeCaption.trim() || feedComposeTitle.trim() || "방금 등록한 스토리입니다.",
         postedAt: "방금 전",
         mapEnabled: feedComposeMaptoryEnabled,
-        avatarUrl: primaryAttachment?.previewUrl,
+        avatarUrl: uploadedPrimaryAttachment?.publicUrl ?? uploadedPrimaryAttachment?.previewUrl,
       };
       setCustomStoryItems((prev) => [nextStory, ...prev]);
       setFeedComposeTitle("");
@@ -6640,9 +6678,9 @@ export default function App() {
       accent: "rose",
       views: type === "video" ? 0 : undefined,
       postedAt: "방금",
-      videoUrl: type === "video" ? primaryAttachment?.previewUrl : undefined,
-      mediaUrl: type === "image" ? primaryAttachment?.previewUrl : undefined,
-      mediaName: feedComposeAttachments.length > 1 ? `${primaryAttachment?.name ?? "첨부"} 외 ${feedComposeAttachments.length - 1}개` : primaryAttachment?.name,
+      videoUrl: type === "video" ? (uploadedPrimaryAttachment?.publicUrl ?? uploadedPrimaryAttachment?.previewUrl) : undefined,
+      mediaUrl: type === "image" ? (uploadedPrimaryAttachment?.publicUrl ?? uploadedPrimaryAttachment?.previewUrl) : undefined,
+      mediaName: uploadedAttachments.length > 1 ? `${uploadedPrimaryAttachment?.name ?? "첨부"} 외 ${uploadedAttachments.length - 1}개` : uploadedPrimaryAttachment?.name,
     };
     setCustomFeedItems((prev) => [nextItem, ...prev]);
     setFeedCommentMap((prev) => ({ ...prev, [nextId]: [] }));
@@ -7654,10 +7692,18 @@ export default function App() {
     });
   };
 
-  const submitCommunityCompose = () => {
+  const submitCommunityCompose = async () => {
     if (!communityComposeMode) return;
     if (!communityComposeTitle.trim() || !communityComposeBody.trim()) {
       window.alert("제목과 내용을 입력해 주세요.");
+      return;
+    }
+    let uploadedImages = communityComposeImages;
+    try {
+      uploadedImages = await uploadComposerAttachmentsToR2(communityComposeImages);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "R2 업로드에 실패했습니다.";
+      window.alert(message);
       return;
     }
     const board: CommunityPost["board"] = communityComposeMode === "후기" ? "후기" : communityComposeMode === "포럼" ? "포럼" : "커뮤";
@@ -7672,7 +7718,7 @@ export default function App() {
       sortScore: 100,
       path: `소통 > ${communityComposeMode} > 작성글`,
       detailTitle: communityComposeTitle.trim(),
-      detailBody: [communityComposeBody.trim(), communityComposeImages.length ? `첨부 사진 ${communityComposeImages.length}장` : "첨부 사진 없음"],
+      detailBody: uploadedImages.length ? [communityComposeBody.trim(), `첨부 사진 ${uploadedImages.length}장`, ...uploadedImages.map((image) => image.publicUrl ?? image.previewUrl)] : [communityComposeBody.trim(), "첨부 사진 없음"],
     };
     setCustomCommunityPosts((prev) => [nextPost, ...prev]);
     setCommunityComposeMode(null);

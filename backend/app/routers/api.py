@@ -9,14 +9,19 @@ import logging
 import hmac
 import io
 import json
+import uuid
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 from urllib.request import Request as UrlRequest, urlopen
 
 try:
     import portone_server_sdk as portone_sdk
 except ImportError:  # pragma: no cover - optional dependency during local bootstrap
     portone_sdk = None
+try:
+    import boto3
+except ImportError:  # pragma: no cover - optional until R2 is enabled
+    boto3 = None
 from urllib.error import HTTPError, URLError
 from typing import Any
 
@@ -630,6 +635,59 @@ def _scan_upload_content(file_name: str, content_type: str | None, content: byte
         raise HTTPException(status_code=400, detail=f'mime mismatch: {content_type}')
     return {'mime_ok': True, 'malware_scan': 'pass'}
 
+
+
+def _r2_is_configured() -> bool:
+    return bool(
+        getattr(settings, "r2_enabled", True)
+        and settings.r2_account_id
+        and settings.r2_access_key
+        and settings.r2_secret_key
+        and settings.r2_bucket_name
+    )
+
+
+def _r2_endpoint_url() -> str:
+    return settings.r2_endpoint_url or f"https://{settings.r2_account_id}.r2.cloudflarestorage.com"
+
+
+def _r2_client():
+    if boto3 is None:
+        raise HTTPException(status_code=500, detail="boto3 dependency is not installed")
+    if not _r2_is_configured():
+        raise HTTPException(status_code=500, detail="R2 storage is not configured")
+    return boto3.client(
+        "s3",
+        endpoint_url=_r2_endpoint_url(),
+        aws_access_key_id=settings.r2_access_key,
+        aws_secret_access_key=settings.r2_secret_key,
+        region_name="auto",
+    )
+
+
+def _r2_public_url_for_key(key: str) -> str:
+    base = (settings.r2_public_url or "").rstrip("/")
+    if not base:
+        return f"/media/{key.split('/')[-1]}"
+    return f"{base}/{key.lstrip('/')}"
+
+
+def _build_r2_key(suffix: str) -> str:
+    prefix = (settings.r2_upload_prefix or "uploads").strip("/")
+    today = datetime.utcnow().strftime("%Y/%m/%d")
+    safe_suffix = suffix if suffix.startswith(".") else f".{suffix}"
+    return f"{prefix}/{today}/{uuid.uuid4().hex}{safe_suffix.lower()}"
+
+
+def _upload_bytes_to_r2(key: str, content: bytes, content_type: str | None) -> str:
+    client = _r2_client()
+    client.put_object(
+        Bucket=settings.r2_bucket_name,
+        Key=key,
+        Body=content,
+        ContentType=content_type or "application/octet-stream",
+    )
+    return _r2_public_url_for_key(key)
 
 def _presigned_upload_payload(saved_name: str, media_type: str) -> dict[str, Any]:
     public_url = f"{settings.media_base_url.rstrip('/')}/{saved_name}"
@@ -4120,20 +4178,42 @@ def delete_content(content_id: int, request: Request, current_user: User = Depen
 async def upload_media(request: Request, file: UploadFile = File(...), current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     _assert_reconsent_write_allowed(current_user, session)
     suffix, media_type = _ensure_upload_file(file)
+    original_name = file.filename or f"upload{suffix}"
     safe_name = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}{suffix}"
-    upload_dir = Path(settings.uploads_dir)
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    out_path = upload_dir / safe_name
     content = await file.read()
     if len(content) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=400, detail=f"file too large: {len(content)} bytes")
-    scan_result = _scan_upload_content(file.filename or safe_name, file.content_type, content)
-    out_path.write_bytes(content)
-    presigned = _presigned_upload_payload(safe_name, media_type)
-    write_admin_log(session, current_user, 'upload_media', 'upload', safe_name, file.filename or safe_name, after_state=file.content_type or media_type, ip=request.client.host if request.client else '127.0.0.1', device=request.headers.get('user-agent'))
-    return {"file_name": file.filename, "saved_name": safe_name, "file_url": f"/media/{safe_name}", "public_url": presigned["public_url"], "media_type": media_type, "size": len(content), "content_type": file.content_type, "scan": scan_result, "presigned": presigned}
+    scan_result = _scan_upload_content(original_name, file.content_type, content)
 
+    storage_mode = "local"
+    storage_key = safe_name
+    public_url = f"/media/{safe_name}"
 
+    if _r2_is_configured():
+        storage_key = _build_r2_key(suffix)
+        public_url = _upload_bytes_to_r2(storage_key, content, file.content_type)
+        storage_mode = "r2"
+    elif getattr(settings, "local_uploads_allowed", False):
+        upload_dir = Path(settings.uploads_dir)
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        (upload_dir / safe_name).write_bytes(content)
+        public_url = f"{settings.media_base_url.rstrip('/')}/{safe_name}" if settings.media_base_url else f"/media/{safe_name}"
+    else:
+        raise HTTPException(status_code=500, detail="R2 storage is not configured and local uploads are disabled")
+
+    write_admin_log(session, current_user, 'upload_media', storage_mode, storage_key, original_name, after_state=file.content_type or media_type, ip=request.client.host if request.client else '127.0.0.1', device=request.headers.get('user-agent'))
+    return {
+        "file_name": original_name,
+        "saved_name": safe_name,
+        "storage_mode": storage_mode,
+        "storage_key": storage_key,
+        "file_url": public_url,
+        "public_url": public_url,
+        "media_type": media_type,
+        "size": len(content),
+        "content_type": file.content_type,
+        "scan": scan_result,
+    }
 @router.post("/reports")
 def create_report(payload: SimpleReportCreate, request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     _enforce_route_rate_limit(request, "reports_create", session)
